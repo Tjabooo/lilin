@@ -5613,8 +5613,43 @@ async function selectAudioTrack(index) {
 
 // Polls the server while a corrected copy is made, then switches to it at the current position.
 // Covers unplayable audio and automatic timing fixes. Explicit audio choices own the source.
+// A copy being made: the player note becomes a small card with a title, a line of detail,
+// a progress bar and a time-left estimate. percent null = still waiting in line.
+function showNoteProgress(note, pace, { title, detail, percent }) {
+  let card = note.querySelector('.pn-card');
+  if (!card) {
+    note.textContent = '';
+    card = document.createElement('span');
+    card.className = 'pn-card';
+    card.innerHTML = '<span class="bulb-loader" aria-hidden="true"><i></i><i></i><i></i></span>'
+      + '<span class="pn-title"></span><span class="pn-pct"></span><span class="pn-detail"></span>'
+      + '<span class="pn-bar" aria-hidden="true"><span class="pn-fill"></span></span><span class="pn-meta"></span>';
+    note.append(card);
+  }
+  const waiting = percent == null;
+  card.classList.toggle('waiting', waiting);
+  card.querySelector('.pn-title').textContent = title;
+  card.querySelector('.pn-detail').textContent = detail;
+  card.querySelector('.pn-pct').textContent = waiting ? '' : `${percent}%`;
+  card.querySelector('.pn-fill').style.width = waiting ? '' : `${percent}%`;
+  card.querySelector('.pn-meta').textContent = waiting ? T('Waiting to start…') : copyTimeLeft(pace, percent);
+}
+
+// Time left from the average pace since the first sample; blank until there is enough to go on.
+function copyTimeLeft(pace, percent) {
+  const now = Date.now();
+  if (pace.t0 == null || percent < pace.p0) { pace.t0 = now; pace.p0 = percent; return ''; }
+  const elapsed = now - pace.t0, gained = percent - pace.p0;
+  if (elapsed < 8000 || gained < 1) return '';
+  const mins = Math.round((100 - percent) / gained * elapsed / 60000);
+  if (mins < 1) return T('Under a minute left');
+  if (mins < 90) return T('About {0} min left', mins);
+  return T('About {0} h {1} min left', Math.floor(mins / 60), mins % 60);
+}
+
 async function watchAudio(f, session) {
   const token = audioWatch = {};
+  const pace = {};
   let videoFixing = false;
   const note = $('#player-note');
   note.hidden = true;
@@ -5636,14 +5671,17 @@ async function watchAudio(f, session) {
       }
       return;
     }
-    const progress = a.job === 'converting' ? ` ${Math.floor(a.percent ?? 0)}%.` : '';
+    const percent = a.job === 'converting' ? Math.floor(a.percent ?? 0) : null;
     if (!videoOk) {
       // Video this browser can't decode (e.g. HEVC labelled hev1 in Safari): a compatible copy is being made.
       videoFixing = true;
       $('#player-error').hidden = true;
-      note.textContent = a.fixable
-        ? T('This video is {0}, which this browser can’t play. Making a version that plays here…{1} It starts by itself when ready.', a.videoCodec, progress)
-        : T('This video is {0}, which this browser can’t play. {1}', a.videoCodec, a.error ? T('Lilin couldn’t convert it: {0}', a.error) : T('It should still play on a TV.'));
+      if (a.fixable) {
+        showNoteProgress(note, pace, { title: T('Making a version that plays here'),
+          detail: T('{0} doesn’t play in this browser. It starts by itself when ready.', a.videoCodec), percent });
+      } else {
+        note.textContent = T('This video is {0}, which this browser can’t play. {1}', a.videoCodec, a.error ? T('Lilin couldn’t convert it: {0}', a.error) : T('It should still play on a TV.'));
+      }
       note.hidden = false;
       if (!a.fixable) return;
       changed = session.compatibilityPending = true;
@@ -5658,8 +5696,12 @@ async function watchAudio(f, session) {
       return;
     }
     if (!a.fixable) return; // nothing Lilin can do
-    if (!a.browserSafe) note.textContent = T('No sound? This file’s audio is {0}, which this browser can’t play. Adding normal stereo sound…{1} It switches over by itself.', CODEC_NAMES[a.codec] || a.codec, progress);
-    else note.textContent = T('Correcting this file’s audio timing…{0} It switches over by itself.', progress);
+    if (!a.browserSafe) {
+      showNoteProgress(note, pace, { title: T('Adding normal stereo sound'),
+        detail: T('This file’s sound ({0}) doesn’t play in this browser. It switches over by itself.', CODEC_NAMES[a.codec] || a.codec), percent });
+    } else {
+      showNoteProgress(note, pace, { title: T('Correcting the audio timing'), detail: T('It switches over by itself.'), percent });
+    }
     note.hidden = false;
     changed = session.compatibilityPending = true;
     await new Promise((r) => setTimeout(r, 3000));

@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-14-convert-progress-card",
+  "date": "2026-11-14",
+  "title": "See how long a copy has left",
+  "items": [
+    {
+      "title": "Progress bar while a copy is made",
+      "text": "When a video needs a copy before your browser can play it, the player now shows a progress bar with the percentage and roughly how many minutes are left, instead of a line of text."
+    }
+  ]
+},
+{
   "id": "2026-11-14-convert-survives-restart",
   "date": "2026-11-14",
   "title": "Browser copies keep going through updates",
