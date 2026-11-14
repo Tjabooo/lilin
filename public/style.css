@@ -123,6 +123,9 @@ body {
 }
 /* The room's light: a fixed layer of its own, so scrolling never repaints it (background-attachment: fixed would) */
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--room); pointer-events: none; }
+/* Firefox (html.no-glass, set in index.html): every backdrop blur is re-rendered on scroll and under moving video, which made
+   Lilin lag on fast desktops. The panels keep their tinted see-through backgrounds, just without the blur. */
+html.no-glass *, html.no-glass *::before, html.no-glass *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 img { max-width: 100%; display: block; }

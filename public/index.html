@@ -16,6 +16,8 @@
   <title>Lilin</title>
   <!-- The colours picked in Settings, applied before anything is drawn (app.js keeps this copy up to date) -->
   <script>
+    // Firefox stutters on frosted glass (backdrop-filter) even on fast PCs: it gets plain tinted panels (style.css .no-glass)
+    if (/\bFirefox\//.test(navigator.userAgent)) document.documentElement.classList.add('no-glass');
     try {
       const t = JSON.parse(localStorage.getItem('lilin:theme'));
       if (t && t.vars) {

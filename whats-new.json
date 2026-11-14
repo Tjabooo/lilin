@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-14-firefox-smooth",
+  "date": "2026-11-14",
+  "title": "Smoother in Firefox",
+  "items": [
+    {
+      "title": "No more lag in Firefox",
+      "text": "Lilin could feel laggy in Firefox on a computer, worst on pages with a trailer, even on fast PCs. Firefox struggles with the frosted-glass blur behind buttons and menus, so in Firefox those panels are now plain tinted glass instead. Everything else looks the same."
+    }
+  ]
+},
+{
   "id": "2026-11-14-trailer-hd",
   "date": "2026-11-14",
   "title": "Trailers in HD",
