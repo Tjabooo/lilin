@@ -565,7 +565,7 @@ function run(cmd, args, { onStdout, priorityLow = false } = {}) {
 // ---------- conversions that outlive a restart ----------
 // The long ffmpeg runs (MP4 copies, browser copies, re-encodes) go through src/convert-runner.js, a small
 // process of their own, so updating and restarting Lilin no longer kills a half-done encode and sends it
-// back to the start of the queue. Each run has a folder in <data>/convert-runs with spec.json (the command
+// back to the start of the queue. Each run has a folder in <data>/.lilin-convert-runs with spec.json (the command
 // and everything needed to finish the copy), status.json (the runner's heartbeat and progress) and
 // exit.json (ffmpeg's result). A server that starts while a run is going picks it up (adoptRuns) and
 // finishes it like any other job. On Windows the runner is started through WMI: a child of the server
@@ -1371,7 +1371,7 @@ export async function startConverter({ dataDir, cacheDir = path.join(dataDir, 'c
     return;
   }
   stateFile = path.join(dataDir, '.lilin-convert.json');
-  runsDir = path.join(dataDir, 'convert-runs');
+  runsDir = path.join(dataDir, '.lilin-convert-runs');
   fixDir = audioRoot;
   try {
     const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'));

@@ -31,7 +31,7 @@ async function leftRun(dir, { seconds = 4, realtime = false } = {}) {
     '-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`, '-c:v', 'mpeg4', '-c:a', 'aac', '-y', mkv]);
   const tmp = path.join(dir, 'Film.2026.lilin-tmp.mp4');
   const output = path.join(dir, 'Film.2026.mp4');
-  const runDir = path.join(dir, 'convert-runs', 'left-1');
+  const runDir = path.join(dir, '.lilin-convert-runs', 'left-1');
   await fs.mkdir(runDir, { recursive: true });
   const args = ['-hide_banner', '-nostdin', '-y', ...(realtime ? ['-re'] : []), '-i', mkv, '-map', '0:v', '-map', '0:a', '-c', 'copy',
     '-progress', 'pipe:1', '-nostats', '-f', 'mp4', tmp];
@@ -72,7 +72,7 @@ test('a run that finished while no server ran is completed; a dead one is cleane
   await fs.writeFile(path.join(done.runDir, 'exit.json'), JSON.stringify({ code: 0, stderr: '' }));
 
   // A second, dead run (no heartbeat for a minute, no exit): its temp file goes, it isn't adopted.
-  const deadDir = path.join(dir, 'convert-runs', 'dead-1');
+  const deadDir = path.join(dir, '.lilin-convert-runs', 'dead-1');
   const deadTmp = path.join(dir, 'Other.lilin-tmp.mp4');
   await fs.mkdir(deadDir, { recursive: true });
   await fs.writeFile(deadTmp, 'half');
@@ -85,7 +85,7 @@ test('a run that finished while no server ran is completed; a dead one is cleane
   await convert.startConverter({ dataDir: dir, listCandidates: async () => null });
   assert.ok(await waitFor(() => existsSync(done.output), 10000), 'the finished copy was moved into place');
   assert.ok(!existsSync(deadTmp), 'the dead run’s temp file is removed');
-  assert.ok(await waitFor(() => readdirSync(path.join(dir, 'convert-runs')).length === 0, 5000), 'both run folders are gone');
+  assert.ok(await waitFor(() => readdirSync(path.join(dir, '.lilin-convert-runs')).length === 0, 5000), 'both run folders are gone');
 });
 
 test('new conversions run in their own process and leave nothing behind', { timeout: 60000 }, async (t) => {
@@ -99,10 +99,10 @@ test('new conversions run in their own process and leave nothing behind', { time
   await convert.startConverter({ dataDir: dir, listCandidates: async () => [{ file: mkv, deleteOriginal: false }] });
   let sawRun = false;
   const ok = await waitFor(() => {
-    try { if (readdirSync(path.join(dir, 'convert-runs')).length) sawRun = true; } catch { /* not yet */ }
+    try { if (readdirSync(path.join(dir, '.lilin-convert-runs')).length) sawRun = true; } catch { /* not yet */ }
     return existsSync(convert.twinPath(mkv));
   }, 40000);
   assert.ok(ok, 'the MP4 copy was made');
   assert.ok(sawRun, 'through a run folder (a separate process)');
-  assert.ok(await waitFor(() => readdirSync(path.join(dir, 'convert-runs')).length === 0, 5000), 'run folder removed');
+  assert.ok(await waitFor(() => readdirSync(path.join(dir, '.lilin-convert-runs')).length === 0, 5000), 'run folder removed');
 });

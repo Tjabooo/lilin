@@ -15,6 +15,7 @@
 .lilin-notes-files/
 .lilin-notes-imports/
 .lilin-avatars/
+.lilin-convert-runs/
 data/
 logs/
 cache/
