@@ -2215,6 +2215,28 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .edit-lead { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--bulb) 55%, transparent) 0 3px, transparent 3px 7px); }
 .edit-lead.is-clash { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--alert) 75%, transparent) 0 3px, transparent 3px 7px); }
 .edit-split { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: var(--curtain); }
+/* game events (CS2 kills, deaths, rounds, the bomb): a lane of markers over the timeline + ticks on the track */
+.edit-events { position: relative; height: 26px; margin: 10px 0 -4px; }
+.edit-events.has-rows { height: 50px; }
+.edit-events[hidden] { display: none; }
+.edit-event {
+  --mark: var(--dust);
+  position: absolute; bottom: 0; width: 24px; height: 24px; padding: 0; margin-left: -12px;
+  display: grid; place-items: center; color: var(--mark);
+  background: var(--curtain); border: 1px solid color-mix(in srgb, var(--mark) 45%, var(--line)); border-radius: 50%;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.edit-event.is-up { bottom: 24px; }
+.edit-event svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.edit-event svg .fill { fill: currentColor; stroke: none; }
+.edit-event:hover, .edit-event:focus-visible { transform: translateY(-2px); border-color: var(--mark); z-index: 1; }
+.edit-event:focus-visible { outline: 2px solid var(--bulb); outline-offset: 2px; }
+.edit-event.is-kill, .edit-mark.is-kill { --mark: var(--bulb); }
+.edit-event.is-hs { background: color-mix(in srgb, var(--bulb) 16%, var(--curtain)); }
+.edit-event.is-death, .edit-mark.is-death, .edit-event.is-bomb, .edit-mark.is-bomb { --mark: var(--alert); }
+.edit-mark { --mark: var(--dust); position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; pointer-events: none; background: color-mix(in srgb, var(--mark) 70%, transparent); }
+.edit-mark.is-round { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) { .edit-event { transition: none; } .edit-event:hover { transform: none; } }
 .edit-head { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--paper); border-radius: 1px; pointer-events: none; box-shadow: 0 0 0 1px color-mix(in srgb, var(--velvet) 60%, transparent); }
 .edit-head::before { content: ""; position: absolute; top: -2px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--paper); }
 .edit-hover {

@@ -8656,6 +8656,28 @@ const copyLink = (url) => copyWithToast(url, T('Link copied: paste it in Discord
 // on a keyframe, so it may begin a little early: the timeline shows that lead-in, and a cut too
 // short to clear the next keyframe is flagged before saving.
 const fmtT = (t) => { const d = Math.round(t * 10); return `${Math.floor(d / 600)}:${((d % 600) / 10).toFixed(1).padStart(4, '0')}`; };
+// Game events on a clip's timeline (CS2 kills, deaths, rounds, the bomb: "<clip>.events.json").
+const EVENT_ICONS = {
+  kill: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>',
+  hs: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="2.2" class="fill"/></svg>',
+  death: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a7 7 0 0 0-7 7c0 2.4 1.2 4.2 3 5.3V19h8v-3.7c1.8-1.1 3-2.9 3-5.3a7 7 0 0 0-7-7Z"/><circle cx="9.3" cy="10.5" r="1.5" class="fill"/><circle cx="14.7" cy="10.5" r="1.5" class="fill"/><path d="M10.5 19v2M13.5 19v2"/></svg>',
+  round_start: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4M6 4h11l-2.5 4L17 12H6"/></svg>',
+  round_end: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4M6 4h12v8H6M10 4v8M14 4v8M6 8h12"/></svg>',
+  bomb_planted: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="14" r="6"/><path d="M14.8 9.7 17.5 7M19 3.5v1.6M21.4 6h-1.6M20.7 4.3l-1.1 1.1"/></svg>',
+  bomb_defused: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg>',
+  bomb_exploded: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.5 1.8 5 4.9-2.2-2.2 4.9 5 1.8-5 1.8 2.2 4.9-4.9-2.2-1.8 5-1.8-5-4.9 2.2 2.2-4.9-5-1.8 5-1.8-2.2-4.9 4.9 2.2Z"/></svg>',
+  other: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" class="fill"/></svg>',
+};
+// The recorder writes English labels; the ones Lilin knows are shown in your language.
+const eventLabel = (e) => {
+  const round = /^Round (\d+)$/.exec(e.label);
+  if (round) return T('Round {0}', round[1]);
+  return ({ Kill: T('Kill'), Headshot: T('Headshot'), Death: T('Death'), 'Round won': T('Round won'), 'Round lost': T('Round lost'), 'Round over': T('Round over'),
+    'Bomb planted': T('Bomb planted'), 'Bomb defused': T('Bomb defused'), 'Bomb exploded': T('Bomb exploded') })[e.label] || e.label;
+};
+const eventKind = (e) => (e.type === 'kill' ? 'kill' : e.type === 'death' ? 'death' : e.type.startsWith('round_') ? 'round' : e.type.startsWith('bomb_') ? 'bomb' : 'other');
+const EVENT_LEAD = 1; // jumping to an event lands this many seconds before it, so you see it happen
+
 const EDIT_ICONS = {
   split: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.6 7.5 20 18M8.6 16.5 20 6"/></svg>',
   start: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v16M19 12H9M13 8l-4 4 4 4"/></svg>',
@@ -8677,6 +8699,7 @@ async function openTrim(c, opener) {
   // Camera overlay (clips recorded with the OBS virtual camera): a box you drag and resize on the
   // picture, burned into the copy when it's on. Place and on/off are remembered for the next clip.
   let cam = null;         // { offset, duration, width, height } from the server
+  let events = [];        // [{ t, type, label, hs }] game events in the clip, from the server
   let frameW = 16, frameH = 9;
   const camPlace = (() => { try { const v = JSON.parse(localStorage.getItem('clip:cam:place')); if (v && [v.x, v.y, v.w].every(Number.isFinite)) return v; } catch { /* default */ } return { x: 0.73, y: 0.04, w: 0.24 }; })();
   let camOn = (() => { try { return localStorage.getItem('clip:cam:on') !== '0'; } catch { return true; } })();
@@ -8735,6 +8758,31 @@ async function openTrim(c, opener) {
   const hover = h('div', { class: 'edit-hover', hidden: true });
   const timeline = h('div', { class: 'edit-timeline', role: 'slider', tabindex: 0, 'aria-label': T('Position in the clip'), 'aria-valuemin': 0 }, track, head, hover);
   const pos = (t) => `${duration ? (t / duration) * 100 : 0}%`;
+  // game events: a lane of markers above the timeline (click = jump there), ticks on the track
+  const marks = h('div', { class: 'edit-events', hidden: true, role: 'group', 'aria-label': T('Game events') });
+  const keysHint = h('p', { class: 'edit-keys muted' }, T('Space play · S split · X remove or restore · [ ] start or end here · ← → 1 s · , . one frame · Ctrl+Z undo'));
+  const goToEvent = (e) => { video.currentTime = Math.max(0, e.t - EVENT_LEAD); updateHead(); };
+  const jumpEvent = (dir) => {
+    const t = video.currentTime;
+    const e = dir > 0 ? events.find((x) => x.t - EVENT_LEAD > t + 0.05) : events.findLast((x) => x.t - EVENT_LEAD < t - 0.3);
+    if (e) goToEvent(e);
+  };
+  function renderEvents() {
+    if (!duration || !events.length) return;
+    // markers closer than ~2 % of the timeline go up a row, so a quick 2K stays clickable
+    const gap = duration * 0.022;
+    const lastInRow = [-Infinity, -Infinity];
+    marks.replaceChildren(...events.map((e) => {
+      const row = e.t - lastInRow[0] >= gap ? 0 : e.t - lastInRow[1] >= gap ? 1 : 0;
+      lastInRow[row] = e.t;
+      const label = `${eventLabel(e)} · ${fmtT(e.t)}`;
+      const b = h('button', { type: 'button', class: `edit-event is-${eventKind(e)}${e.hs ? ' is-hs' : ''}${row ? ' is-up' : ''}`, style: `left:${pos(e.t)}`, title: label, 'aria-label': label, onclick: () => goToEvent(e) });
+      b.innerHTML = EVENT_ICONS[e.type === 'kill' && e.hs ? 'hs' : e.type] || EVENT_ICONS.other;
+      return b;
+    }));
+    marks.classList.toggle('has-rows', events.some((_, i) => marks.children[i]?.classList.contains('is-up')));
+    marks.hidden = false;
+  }
   const timeAt = (x) => { const r = timeline.getBoundingClientRect(); return Math.min(Math.max((x - r.left) / r.width, 0), 1) * duration; };
   let scrubbing = false;
   timeline.addEventListener('pointerdown', (e) => {
@@ -8881,6 +8929,7 @@ async function openTrim(c, opener) {
       }
     });
     for (const p of pieces.slice(1)) out.push(h('div', { class: 'edit-split', style: `left:${pos(p.start)}` }));
+    for (const e of events) out.push(h('div', { class: `edit-mark is-${eventKind(e)}`, style: `left:${pos(e.t)}` }));
     track.replaceChildren(...out);
     const length = list.reduce((n, r) => n + r.end - r.from, 0);
     const early = list.some((r) => r.from < r.start - 0.05);
@@ -8956,6 +9005,7 @@ async function openTrim(c, opener) {
     h('h2', { id: 'sheet-title' }, T('Edit · {0}', c.title)),
     h('div', { class: 'edit-stage' }, video, camFrame),
     h('div', { class: 'edit-transport' }, playBtn, h('span', { class: 'edit-clock' }, now, ' ', total)),
+    marks,
     timeline,
     h('div', { class: 'edit-tools' }, startBtn, splitBtn, endBtn, toggleBtn, undoBtn),
     trackRow,
@@ -8964,7 +9014,7 @@ async function openTrim(c, opener) {
     c.editing && h('p', { class: 'edit-info edit-busy', role: 'status' }, T('Your last edit of this clip is still being saved ({0}%). Saving again replaces it.', Math.round(c.editing.progress * 100))),
     h('div', { class: 'edit-actions' }, previewBtn, save),
     h('label', { class: 'trim-del', for: 'trim-del' }, delOrig, T(' Move the original to Deleted afterwards (kept 30 days)')),
-    h('p', { class: 'edit-keys muted' }, T('Space play · S split · X remove or restore · [ ] start or end here · ← → 1 s · , . one frame · Ctrl+Z undo')));
+    keysHint);
   // Keys while the editor is open. Text fields and the checkbox keep their own keys.
   const onKey = (e) => {
     if (!content.isConnected || !sheet.classList.contains('open') || e.target.matches?.('input:not([type="checkbox"]), textarea, select')) return;
@@ -8972,7 +9022,8 @@ async function openTrim(c, opener) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const step = (d) => { video.pause(); video.currentTime = Math.min(Math.max(video.currentTime + d, 0), duration); updateHead(); };
     const run = { ' ': togglePlayback, k: togglePlayback, s: () => act('split'), x: () => act('toggle'), Delete: () => act('toggle'), Backspace: () => act('toggle'),
-      '[': () => act('start'), ']': () => act('end'), ArrowLeft: () => step(-1), ArrowRight: () => step(1), ',': () => step(-frameDur), '.': () => step(frameDur) }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      '[': () => act('start'), ']': () => act('end'), ArrowLeft: () => step(-1), ArrowRight: () => step(1), ',': () => step(-frameDur), '.': () => step(frameDur),
+      ...(events.length ? { n: () => jumpEvent(1), p: () => jumpEvent(-1) } : {}) }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
     if (!run || (e.key === ' ' && e.target.matches?.('button:not(.edit-play)'))) return;
     e.preventDefault();
     run();
@@ -8993,6 +9044,7 @@ async function openTrim(c, opener) {
     duration = d;
     pieces = [{ start: 0, end: d, keep: true }];
     render();
+    renderEvents();
   };
   video.addEventListener('loadedmetadata', () => ready(video.duration), { once: true });
   playBtn.focus({ preventScroll: true });
@@ -9009,6 +9061,11 @@ async function openTrim(c, opener) {
       camVideo.src = `/api/clips/${c.id}/cam`;
       camVideo.addEventListener('loadeddata', syncCam, { once: true });
       renderCam(); layoutCam();
+    }
+    if (Array.isArray(k.events) && k.events.length) {
+      events = k.events.filter((e) => Number.isFinite(e?.t) && typeof e.type === 'string' && typeof e.label === 'string');
+      keysHint.append(T(' · N P next or previous game event'));
+      renderEvents(); render();
     }
     ready(k.duration);
     render();

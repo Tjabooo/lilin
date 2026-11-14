@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-14-clip-game-events",
+  "date": "2026-11-14",
+  "title": "Your CS2 moments on the clip timeline",
+  "items": [
+    {
+      "title": "Kills, deaths and rounds in the clip editor",
+      "audience": "owner",
+      "text": "CS2 clips now show their kills, headshots, deaths, round starts and ends and bomb plants and defuses as small icons above the editor's timeline. Click one to jump just before it, or press N and P to go to the next or previous one."
+    }
+  ]
+},
+{
   "id": "2026-11-14-convert-progress-card",
   "date": "2026-11-14",
   "title": "See how long a copy has left",

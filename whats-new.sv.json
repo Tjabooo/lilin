@@ -1,4 +1,22 @@
 {
+  "2026-11-14-clip-game-events": {
+    "title": "Dina CS2-ögonblick på klippets tidslinje",
+    "items": {
+      "Kills, deaths and rounds in the clip editor": {
+        "title": "Kills, dödsfall och rundor i klippredigeraren",
+        "text": "CS2-klipp visar nu sina kills, headshots, dödsfall, rundstarter och rundslut samt bombplanteringar och desarmeringar som små ikoner ovanför redigerarens tidslinje. Klicka på en för att hoppa till strax före den, eller tryck N och P för att gå till nästa eller förra."
+      }
+    }
+  },
+  "2026-11-14-convert-progress-card": {
+    "title": "Se hur länge en kopia har kvar",
+    "items": {
+      "Progress bar while a copy is made": {
+        "title": "Förloppsindikator medan en kopia görs",
+        "text": "När en video behöver en kopia innan din webbläsare kan spela den visar spelaren nu en förloppsindikator med procent och ungefär hur många minuter som är kvar, i stället för en rad text."
+      }
+    }
+  },
   "2026-11-14-convert-survives-restart": {
     "title": "Webbläsarkopior fortsätter genom uppdateringar",
     "items": {

@@ -88,6 +88,49 @@ const CAM_SUFFIX = '.cam.mp4';
 const isCam = (rel) => rel.toLowerCase().endsWith(CAM_SUFFIX);
 export const camRelOf = (rel) => `${rel.slice(0, rel.length - path.extname(rel).length)}${CAM_SUFFIX}`;
 
+// Game events recorded with a clip (CS2 kills, deaths, rounds and the bomb; the recorder's
+// ember-clip writes them from cs2-presence's log) sit next to it as "<clip name>.events.json":
+// { "events": [{ "t": seconds into the clip, "type", "label", ... }] }. The editor shows them as
+// markers on its timeline; edits get their own copy, shifted to the parts that were kept.
+const EVENTS_SUFFIX = '.events.json';
+const eventsFileOf = (file) => `${file.slice(0, file.length - path.extname(file).length)}${EVENTS_SUFFIX}`;
+const EVENT_TYPES = new Set(['kill', 'death', 'round_start', 'round_end', 'bomb_planted', 'bomb_defused', 'bomb_exploded']);
+const MAX_EVENTS = 500;
+// Only what the editor draws, checked: the file sits in a folder anyone with the share can write.
+export function cleanEvents(data, duration = Infinity) {
+  const list = Array.isArray(data?.events) ? data.events : [];
+  const out = [];
+  for (const e of list) {
+    const t = Number(e?.t);
+    if (!Number.isFinite(t) || t < 0 || t > duration + 0.5) continue;
+    const type = EVENT_TYPES.has(e.type) ? e.type : 'other';
+    const label = String(e.label || type).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 40) || type;
+    out.push({ t: Math.round(Math.min(t, duration) * 1000) / 1000, type, label, ...(e.hs === true ? { hs: true } : {}) });
+  }
+  return out.sort((a, b) => a.t - b.t).slice(0, MAX_EVENTS);
+}
+async function readEvents(file, duration) {
+  try {
+    const f = eventsFileOf(file);
+    if ((await fs.promises.stat(f)).size > 512 * 1024) return [];
+    return cleanEvents(JSON.parse(await fs.promises.readFile(f, 'utf8')), duration);
+  } catch { return []; }
+}
+// The events inside the kept parts, on the edit's own timeline (parts are joined in order).
+export function shiftEvents(events, parts) {
+  const out = [];
+  let at = 0;
+  for (const p of parts) {
+    for (const e of events) if (e.t >= p.from - 0.05 && e.t < p.end) out.push({ ...e, t: Math.round((at + Math.max(0, e.t - p.from)) * 1000) / 1000 });
+    at += p.end - p.from;
+  }
+  return out;
+}
+async function writeEvents(file, events) {
+  if (!events.length) return;
+  await fs.promises.writeFile(eventsFileOf(file), JSON.stringify({ version: 1, source: 'lilin-edit', events }) + '\n').catch(() => {});
+}
+
 export async function scan(force = false) {
   if (!CLIPS_DIR) return [];
   purgeTrash();
@@ -363,8 +406,9 @@ async function cutInfo(file) {
 }
 export async function trimInfo(id) {
   const c = await byId(id);
-  const { duration, keyframes, tracks, exact, frame, v } = await cutInfo(fullPath(c.rel));
-  return { duration, keyframes, tracks, exact, frame, width: v?.width || 0, height: v?.height || 0, cam: await camInfo(c, duration) };
+  const file = fullPath(c.rel);
+  const { duration, keyframes, tracks, exact, frame, v } = await cutInfo(file);
+  return { duration, keyframes, tracks, exact, frame, width: v?.width || 0, height: v?.height || 0, cam: await camInfo(c, duration), events: await readEvents(file, duration) };
 }
 // Editing: one or more parts of the clip are kept, in order, and joined into a new file.
 // Exact clips (see above): a part starts on the frame showing at its start time and ends just
@@ -720,6 +764,7 @@ export async function trim(id, segments, { deleteOriginal = false, removeTracks 
     }
     signal?.throwIfAborted();
     await fs.promises.rename(tmp, dest);
+    await writeEvents(dest, shiftEvents(await readEvents(src, info.duration), parts));
   } finally {
     await fs.promises.rm(tmp, { force: true });
     await fs.promises.rm(work, { recursive: true, force: true });
@@ -743,6 +788,7 @@ export async function deleteClip(id) {
   const dest = path.join(trashDir(), `${Date.now()}--${c.rel.replace(/[\\/]/g, '__')}`);
   await fs.promises.rename(fullPath(c.rel), dest);
   if (c.cam) await fs.promises.rename(fullPath(camRelOf(c.rel)), dest.replace(/\.[^.]+$/, CAM_SUFFIX)).catch(() => {});
+  await fs.promises.rename(eventsFileOf(fullPath(c.rel)), eventsFileOf(dest)).catch(() => { /* no events */ });
   scanned.at = 0; // next scan starts fresh
   return { ok: true, title: c.title };
 }
