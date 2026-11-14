@@ -226,7 +226,11 @@ export async function cancel(file, { waitMs = 15_000 } = {}) {
 export const isBusy = (file) => isActive(file) || (needsConversion(file) && isActive(twinPath(file)));
 
 // Audio tracks of a file, default track first. Returns null when ffprobe is unavailable.
-export const isAligned = (tracks) => !tracks?.length || Math.abs(tracks[0].offset || 0) <= SYNC_TOLERANCE;
+// What counts as in sync: up to one frame at 23.976 fps (41.7 ms). MP4 copies of B-frame H.264 start
+// their video one frame after the audio; that's the encoder's own delay, not drift, and redoing the
+// copy only makes the same file again.
+const ALIGN_TOLERANCE = 0.05;
+export const isAligned = (tracks) => !tracks?.length || Math.abs(tracks[0].offset || 0) <= ALIGN_TOLERANCE;
 const audioCache = new Map();
 export async function probeAudio(file) {
   const key = failureKey(file);
@@ -1097,6 +1101,16 @@ async function drain() {
   } finally { scheduling = false; }
 }
 
+// A fresh MP4 copy that still fails audioNeedsFix would be queued for a redo on every scan, and the redo
+// makes the same file again (House S06E01 was re-encoded 12 times). Once made, it's accepted as it is.
+async function settleCopyCheck(original) {
+  const copy = twinPath(original);
+  if (!fs.existsSync(copy) || !(await audioNeedsFix(copy))) return;
+  audioChecked[CHECK_VERSION + failureKey(copy)] = true;
+  saveFailures();
+  console.warn(`[convert] ${path.basename(copy)} still fails the browser check right after converting; keeping it instead of redoing it.`);
+}
+
 async function runJob(lane, job) {
   const slot = { lane, name: path.basename(job.file), mode: 'Starting', purpose: null, percent: 0, speed: null, eta: null };
   active.set(lane, { job, slot });
@@ -1111,6 +1125,7 @@ async function runJob(lane, job) {
     await convert(job, slot);
     status.done += 1;
     console.log(`[convert] done: ${path.basename(job.file)}${job.h264 ? ' (H.264 browser copy)' : job.fix ? ' (browser copy)' : ''}`);
+    if (!job.fix) await settleCopyCheck(job.file);
     onConvertedHook?.();
     if (!job.fix) convertSoon(); // a new MP4 copy may still need its H.264 browser copy (browserH264Job)
   } catch (e) {
