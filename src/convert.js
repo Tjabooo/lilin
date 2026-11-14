@@ -746,6 +746,9 @@ function plan(input, output, info, encoder, shift = 0, safeAudio = false, sideca
 
   const args = ['-hide_banner', '-nostdin', '-y'];
   if (main && videoLead > SYNC_TOLERANCE) args.push('-itsoffset', (-videoLead).toFixed(3));
+  // ffmpeg's VC-1 decoder is single-threaded: the GPU's decoder makes these encodes ~40 % faster
+  // (measured on a GTX 1650). Not used for HEVC/H.264, where CPU decoding was as fast or faster.
+  if (encoder === 'nvenc' && video.codec_name === 'vc1') args.push('-hwaccel', 'cuda');
   args.push('-i', input, '-map', `0:${video.index}`);
   if (main) args.push('-map', `0:${main.index}`);
   for (const a of audios) if (a !== main || keepMain) args.push('-map', `0:${a.index}`);
