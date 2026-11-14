@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-15-password-links-close",
+  "date": "2026-11-15",
+  "title": "Used password links tidy themselves up",
+  "items": [
+    {
+      "title": "Password links leave the list once used",
+      "audience": "owner",
+      "text": "A password link now disappears from People as soon as that person has a password, however they set it, and it stops working. Making a new password link for someone replaces their old one."
+    }
+  ]
+},
+{
   "id": "2026-11-14-clip-game-events",
   "date": "2026-11-14",
   "title": "Your CS2 moments on the clip timeline",

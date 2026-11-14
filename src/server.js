@@ -257,7 +257,7 @@ const androidTv = createAndroidTv({ port: () => PORT }); // the Android TV app's
 const webBuildFor = (req) => (preview.inPreview(req, PREVIEW_DIR) ? preview.previewBuild(PREVIEW_DIR) : WEB_BUILD);
 screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
-invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record });
+invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
 const oidc = createOidc({
@@ -3524,6 +3524,7 @@ async function handleApi(req, res, url) {
       const { email } = await readJson(req);
       const identity = typeof email === 'string' ? email.trim().toLowerCase() : '';
       if (!(await invites.members()).includes(identity)) throw new HttpError(404, 'That person is no longer in the access list.');
+      if (auth.hasPassword(identity)) throw new HttpError(400, 'They already have a password.');
       const inv = invites.createInvite(req, `Password for ${accounts.displayNameFor(identity) || identity}`, identity);
       activity.record(req, 'invite', inv.note);
       return sendJson(res, 200, inv);

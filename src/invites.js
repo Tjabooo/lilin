@@ -28,12 +28,14 @@ const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 let file = null;
 let invites = {};        // token -> { id, note, created, expires, usedAt, email, forEmail, by, byName }
 let record = () => {};   // activity logger, from server.js
+let hasPassword = () => false;   // does this email have a Lilin password? (auth.js, when Lilin signs people in)
 const attempts = [];     // timestamps of invite form posts, for a simple global rate limit
 
-export function initInvites({ dataDir, onEvent }) {
+export function initInvites({ dataDir, onEvent, passwordFor = null }) {
   file = path.join(dataDir, '.lilin-invites.json');
   try { invites = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { invites = {}; }
   record = onEvent || record;
+  if (passwordFor) hasPassword = passwordFor;
 }
 export const invitesConfigured = () => Boolean(CF_TOKEN && CF_ACCOUNT && CF_LIST);
 const save = () => { try { fs.writeFileSync(file, JSON.stringify(invites, null, 1)); } catch { /* memory only */ } };
@@ -84,7 +86,10 @@ export async function removeMember(email, admins = []) {
 }
 
 // ---------- invites (owner side) ----------
-const state = (inv) => (inv.usedAt ? 'used' : inv.expires < Date.now() ? 'expired' : 'open');
+// A password link is done once its person has a password, however they set it (another link, the
+// password popup, setup.js): it leaves the owner's list and stops working.
+const state = (inv) => (inv.usedAt ? 'used' : inv.forEmail && hasPassword(inv.forEmail) ? 'done'
+  : inv.expires < Date.now() ? 'expired' : 'open');
 export function listInvites() {
   return Object.entries(invites)
     .map(([token, inv]) => ({ ...inv, token, state: state(inv) }))
@@ -98,6 +103,8 @@ export function createInvite(req, note = '', forEmail = null, by = null) {
   const token = crypto.randomBytes(12).toString('base64url');
   const inv = { id: crypto.randomBytes(4).toString('hex'), note: String(note).slice(0, 60), created: Date.now(), expires: Date.now() + INVITE_DAYS * 86400000, usedAt: null, email: null, forEmail: forEmail ? String(forEmail).toLowerCase() : null,
     by: by?.id ?? null, byName: by?.name ?? null };
+  // A new password link replaces any earlier open one for the same person (no stray spare links).
+  if (inv.forEmail) for (const [t, i] of Object.entries(invites)) if (i.forEmail === inv.forEmail && state(i) === 'open') delete invites[t];
   invites[token] = inv;
   // forget used/expired invites after 30 days
   for (const [t, i] of Object.entries(invites)) if (Date.now() - i.created > 30 * 86400000 && state(i) !== 'open') delete invites[t];
