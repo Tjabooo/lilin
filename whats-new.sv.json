@@ -1,4 +1,22 @@
 {
+  "2026-11-14-convert-survives-restart": {
+    "title": "Webbläsarkopior fortsätter genom uppdateringar",
+    "items": {
+      "No more starting over": {
+        "title": "Inga fler omstarter",
+        "text": "Vissa videor behöver en kopia innan din webbläsare kan spela dem (till exempel HEVC-filmer i Firefox). Varje gång Lilin uppdaterades kastades en påbörjad kopia bort och började om från början, så en film kunde få vänta i timmar. Nu fortsätter kopiorna genom en uppdatering och blir klara där de var."
+      }
+    }
+  },
+  "2026-11-14-firefox-smooth": {
+    "title": "Jämnare i Firefox",
+    "items": {
+      "No more lag in Firefox": {
+        "title": "Inget mer lagg i Firefox",
+        "text": "Lilin kunde kännas laggigt i Firefox på datorn, värst på sidor med en trailer, även på snabba datorer. Firefox har svårt med den frostade glasoskärpan bakom knappar och menyer, så i Firefox är de panelerna nu enkelt tonat glas i stället. Allt annat ser likadant ut."
+      }
+    }
+  },
   "2026-11-14-trailer-hd": {
     "title": "Trailers i HD",
     "items": {

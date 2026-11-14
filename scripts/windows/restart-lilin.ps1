@@ -22,9 +22,11 @@ $helpers = @(foreach ($n in $nodes) { Get-Descendants $n.ProcessId })
 Stop-ScheduledTask -TaskName 'Lilin' -ErrorAction SilentlyContinue
 # Stopping the task can leave node.exe and its helpers running.
 foreach ($p in $nodes + $helpers) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
-# Conversions orphaned by an earlier restart (they write *.lilin-tmp files).
+# Conversions orphaned by an earlier restart (they write *.lilin-tmp files). Conversions run by
+# src\convert-runner.js are left alone: they outlive the restart on purpose and Lilin picks them up again.
+$runners = @($all | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'convert-runner\.js' } | ForEach-Object { $_.ProcessId })
 Get-CimInstance Win32_Process -Filter "Name='ffmpeg.exe'" |
-  Where-Object { $_.CommandLine -match 'lilin-tmp' } |
+  Where-Object { $_.CommandLine -match 'lilin-tmp' -and $runners -notcontains $_.ParentProcessId } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 

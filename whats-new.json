@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-14-convert-survives-restart",
+  "date": "2026-11-14",
+  "title": "Browser copies keep going through updates",
+  "items": [
+    {
+      "title": "No more starting over",
+      "text": "Some videos need a copy before your browser can play them (for example HEVC films in Firefox). Every time Lilin was updated, a copy in progress was thrown away and started again from the beginning, so a film could wait for hours. Copies now carry on through an update and finish where they were."
+    }
+  ]
+},
+{
   "id": "2026-11-14-firefox-smooth",
   "date": "2026-11-14",
   "title": "Smoother in Firefox",

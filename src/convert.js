@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import { trackChild } from './load.js';
 import { background } from './priority.js';
 import { GB, freeBytes, pickEvictions, sameDrive } from './disk-space.js';
@@ -217,7 +219,7 @@ export async function cancel(file, { waitMs = 15_000 } = {}) {
   for (let i = queue.length - 1; i >= 0; i--) if (files.has(queue[i].file)) queue.splice(i, 1);
   if (!jobs.length) return !isBusy(file);
   for (const j of jobs) j.cancelled = true;
-  for (const c of children) if ((c.lilinArgs || []).some((a) => files.has(a))) { try { c.kill(); } catch { /* already gone */ } }
+  for (const c of [...children, ...detachedRuns]) if ((c.lilinArgs || []).some((a) => files.has(a))) { try { c.kill(); } catch { /* already gone */ } }
   const until = Date.now() + waitMs;
   while (isBusy(file) && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
   return !isBusy(file);
@@ -532,9 +534,10 @@ export function converterStatus() {
   return { ...status, active: running, current: running[0] || null, queued: queue.length };
 }
 
-// ffmpeg processes stop with the server, so none keeps writing a half-finished copy after a restart.
-// (The copy is written under a temporary name and only renamed once complete, so an interrupted
-// conversion never leaves a broken MP4; it simply starts again from the beginning.)
+// ffmpeg processes the server started itself stop with it (probes, audio tracks, and conversions when
+// CONVERT_DETACHED=off). Conversions run through convert-runner.js keep going and are picked up again
+// (see runDetached). A copy is written under a temporary name and only renamed once complete, so an
+// interrupted conversion never leaves a broken MP4.
 const children = new Set();
 function stopChildren() { for (const c of children) { try { c.kill(); } catch { /* already gone */ } } }
 process.on('exit', stopChildren);
@@ -559,6 +562,139 @@ function run(cmd, args, { onStdout, priorityLow = false } = {}) {
     child.on('close', (code) => (code === 0 ? resolve(out) : reject(Object.assign(new Error(lastLine(err) || `exit code ${code}`), { stderr: err }))));
   });
 }
+// ---------- conversions that outlive a restart ----------
+// The long ffmpeg runs (MP4 copies, browser copies, re-encodes) go through src/convert-runner.js, a small
+// process of their own, so updating and restarting Lilin no longer kills a half-done encode and sends it
+// back to the start of the queue. Each run has a folder in <data>/convert-runs with spec.json (the command
+// and everything needed to finish the copy), status.json (the runner's heartbeat and progress) and
+// exit.json (ffmpeg's result). A server that starts while a run is going picks it up (adoptRuns) and
+// finishes it like any other job. On Windows the runner is started through WMI: a child of the server
+// would sit in the Lilin task's job object and be stopped with it. CONVERT_DETACHED=off runs ffmpeg
+// inside the server again (the old behaviour: a restart starts the job over).
+const DETACHED = (process.env.CONVERT_DETACHED || 'on').toLowerCase() !== 'off';
+const RUNNER = fileURLToPath(new URL('./convert-runner.js', import.meta.url));
+const HEARTBEAT_STALE_MS = 30_000; // the runner writes status.json every 2 s
+let runsDir = null;
+const detachedRuns = new Set(); // { lilinArgs, kill() } for cancel()
+let launchWarned = false;
+const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
+const removeRun = (dir) => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* next start cleans it */ } };
+
+function launchRunner(dir) {
+  if (process.platform !== 'win32') {
+    const c = spawn(process.execPath, [RUNNER, dir], { detached: true, stdio: 'ignore', windowsHide: true });
+    c.unref();
+    return Promise.resolve(c.pid);
+  }
+  const ps = "$ErrorActionPreference='Stop'; "
+    + '$si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }; '
+    + '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $env:LILIN_RUNNER_CMD; CurrentDirectory = $env:LILIN_RUNNER_CWD; ProcessStartupInformation = $si }; '
+    + 'if ($r.ReturnValue -ne 0) { throw "Win32_Process.Create returned $($r.ReturnValue)" }; $r.ProcessId';
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env, LILIN_RUNNER_CMD: `"${process.execPath}" "${RUNNER}" "${dir}"`, LILIN_RUNNER_CWD: path.dirname(RUNNER) };
+    let out = '', err = '';
+    let c;
+    try { c = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, env }); } catch (e) { return reject(e); }
+    c.stdout.on('data', (d) => { out += d; });
+    c.stderr.on('data', (d) => { err = (err + d).slice(-2000); });
+    c.on('error', reject);
+    c.on('close', (code) => {
+      const pid = Number(out.trim().split(/\s+/).pop());
+      if (code === 0 && pid > 0) resolve(pid); else reject(new Error(lastLine(err) || `exit code ${code}`));
+    });
+  });
+}
+
+// Waits for a run to end, passing its progress on like ffmpeg's own -progress output.
+// Resolves when ffmpeg exited 0; rejects like run() otherwise.
+function watchRun(dir, { cmd, args, onStdout, priorityLow = false, started = Date.now() }) {
+  return new Promise((resolve, reject) => {
+    let seenPid = null, last = '', pseudo = null, stopped = false;
+    const entry = { lilinArgs: args, kill: () => {
+      stopped = true;
+      const pid = readJson(path.join(dir, 'status.json'))?.pid;
+      try { if (pid) process.kill(pid); } catch { /* already gone */ }
+    } };
+    detachedRuns.add(entry);
+    const end = (fn, value, code) => {
+      clearInterval(timer);
+      detachedRuns.delete(entry);
+      pseudo?.emit('close', code);
+      fn(value);
+    };
+    const check = () => {
+      const st = readJson(path.join(dir, 'status.json'));
+      if (st?.ffmpegPid && st.ffmpegPid !== seenPid) {
+        seenPid = st.ffmpegPid;
+        if (priorityLow) background({ pid: seenPid });
+        pseudo = Object.assign(new EventEmitter(), { pid: seenPid });
+        trackChild(pseudo, cmd, args, 'convert');
+      }
+      if (st && st.outTimeUs != null) {
+        const line = `out_time_us=${st.outTimeUs}\nspeed=${st.speed ?? ''}\n`;
+        if (line !== last) { last = line; onStdout?.(line); }
+      }
+      const exit = readJson(path.join(dir, 'exit.json'));
+      if (exit) {
+        if (exit.code === 0) return end(resolve, dir, 0);
+        return end(reject, Object.assign(new Error(lastLine(exit.stderr || '') || `exit code ${exit.code}`), { stderr: exit.stderr || '' }), exit.code);
+      }
+      if (stopped) return end(reject, Object.assign(new Error('stopped'), { stderr: '' }), 1);
+      let beat = st?.at || started;
+      try { beat = Math.max(beat, fs.statSync(path.join(dir, 'status.json')).mtimeMs); } catch { /* not written yet */ }
+      if (Date.now() - beat > HEARTBEAT_STALE_MS) end(reject, Object.assign(new Error('the conversion process stopped'), { stderr: '', runnerLost: true }), 1);
+    };
+    const timer = setInterval(check, 1000);
+    check();
+  });
+}
+
+// run() for a conversion's ffmpeg, in a runner that survives a restart. `meta` is what a later server
+// needs to finish the job (see adoptRuns). Resolves with the run folder; the caller removes it once the
+// copy is in place. Falls back to run() when the runner can't be started.
+async function runDetached(cmd, args, { onStdout, priorityLow, meta }) {
+  if (!DETACHED || !runsDir) { await run(cmd, args, { onStdout, priorityLow }); return null; }
+  const dir = path.join(runsDir, `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`);
+  const started = Date.now();
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const env = {};
+    for (const k of ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'TEMP', 'TMP']) if (process.env[k]) env[k] = process.env[k];
+    fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ cmd, args, env, meta, started }, null, 1));
+    await launchRunner(dir);
+  } catch (e) {
+    removeRun(dir);
+    if (!launchWarned) { launchWarned = true; console.warn(`[convert] couldn’t start a separate conversion process (${e.message}); converting inside the server (a restart starts it over).`); }
+    await run(cmd, args, { onStdout, priorityLow });
+    return null;
+  }
+  try {
+    return await watchRun(dir, { cmd, args, onStdout, priorityLow, started });
+  } catch (e) { removeRun(dir); throw e; }
+}
+
+// Progress of an ffmpeg -progress stream into a lane's status slot.
+function progressInto(slot, duration, started) {
+  let buf = '';
+  return (chunk) => {
+    buf += chunk;
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      const [k, v] = line.split('=');
+      if (k === 'out_time_us' && duration) {
+        const done = Number(v) / 1e6;
+        const percent = Math.min(99.9, (done / duration) * 100);
+        const elapsed = (Date.now() - started) / 1000;
+        slot.percent = Math.round(percent * 10) / 10;
+        slot.eta = percent > 1 ? Math.round((elapsed / percent) * (100 - percent)) : null;
+      } else if (k === 'speed') {
+        slot.speed = v.trim();
+      }
+    }
+  };
+}
+
 // Picks the meaningful error line from ffmpeg's stderr (the last line is usually generic).
 const lastLine = (s) => {
   const lines = s.trim().split(/\r?\n/).filter((l) => l && !/^Conversion failed/i.test(l));
@@ -703,32 +839,17 @@ async function convert(job, slot) {
   const sidecars = plannedSidecars(file, (info.streams || []).filter((st) => st.codec_type === 'subtitle' && TEXT_SUBS.has(st.codec_name)));
   const dropSidecarTemps = () => sidecars.forEach((sc) => fs.rmSync(sc.tmp, { force: true }));
   const fallbacks = { faststart: false, aacSurround: false };
-  let lastPlan = null;
+  let lastPlan = null, runDir = null;
   const attempt = async (encoder) => {
     const p = lastPlan = plan(file, tmp, info, encoder, shift, safeAudio, sidecars, Boolean(job.h264), fallbacks);
     const started = Date.now();
     Object.assign(slot, { name, mode: p.reencode ? 'Re-encoding' : job.fix ? 'Making a browser copy' : 'Repackaging', purpose: job.h264 ? 'browser-h264' : job.fix ? 'browser-audio' : 'apple', percent: 0, speed: null, eta: null });
-    let buf = '';
-    await run(FFMPEG, p.args, {
-      priorityLow: true,
-      onStdout: (chunk) => {
-        buf += chunk;
-        const lines = buf.split('\n');
-        buf = lines.pop();
-        for (const line of lines) {
-          const [k, v] = line.split('=');
-          if (k === 'out_time_us' && p.duration) {
-            const done = Number(v) / 1e6;
-            const percent = Math.min(99.9, (done / p.duration) * 100);
-            const elapsed = (Date.now() - started) / 1000;
-            slot.percent = Math.round(percent * 10) / 10;
-            slot.eta = percent > 1 ? Math.round((elapsed / percent) * (100 - percent)) : null;
-          } else if (k === 'speed') {
-            slot.speed = v.trim();
-          }
-        }
-      },
-    });
+    const meta = {
+      job: { file, fix: Boolean(job.fix), h264: Boolean(job.h264), redo: Boolean(job.redo), force: Boolean(job.force), deleteOriginal: Boolean(job.deleteOriginal), prepare: Boolean(job.prepare) },
+      lane: slot.lane, output, tmp, localTmp, sidecars, shift, duration: p.duration, scratchNeed: scratchJobs.get(tmp) || 0,
+      slot: { mode: slot.mode, purpose: slot.purpose },
+    };
+    runDir = await runDetached(FFMPEG, p.args, { priorityLow: true, onStdout: progressInto(slot, p.duration, started), meta });
     return p;
   };
 
@@ -744,6 +865,7 @@ async function convert(job, slot) {
         fs.rmSync(tmp, { force: true });
         dropSidecarTemps();
         if (job.cancelled) throw Object.assign(new Error('cancelled'), { cancelled: true });
+        if (e.runnerLost) { e.retryLater = true; throw e; } // killed from outside (restart script, PC shutdown): not a failure of the file
         if (!fallbacks.faststart && /reserved_moov_size is too small/i.test(e.stderr || '')) {
           // Checked first: it also ends in "Error writing trailer", which isn't an audio or GPU problem.
           console.warn(`[convert] ${name}: the reserved MP4 index room was too small; converting again with +faststart.`);
@@ -772,33 +894,101 @@ async function convert(job, slot) {
     dropSidecarTemps();
     throw e;
   }
+  try {
+    await finishConvert({ job, slot, file, output, tmp, localTmp, sidecars, shift, releaseScratch });
+  } finally { if (runDir) removeRun(runDir); }
+}
+
+// After ffmpeg succeeded: subtitles beside the video, the copy moved into place (from the scratch drive
+// when it was made there), caches and records updated, and the original retired when asked.
+async function finishConvert({ job, slot, file, output, tmp, localTmp, sidecars, shift, releaseScratch, started = 0 }) {
   for (const sc of sidecars) {
     try {
       if (fs.existsSync(sc.target) || !fs.statSync(sc.tmp).size) fs.rmSync(sc.tmp, { force: true });
       else { fs.renameSync(sc.tmp, sc.target); onSidecarHook?.(sc.target); }
     } catch { fs.rmSync(sc.tmp, { force: true }); }
   }
-  try {
-    if (tmp !== localTmp) {
-      // Made on the scratch drive: one sequential copy next to the original, then the usual rename.
-      try {
-        await fs.promises.copyFile(tmp, localTmp);
-      } finally { fs.rmSync(tmp, { force: true }); releaseScratch(); }
-      tmp = localTmp;
+  // A restart in the middle of an earlier finish (picked up from a run folder): the copy may already be in place.
+  const alreadyDone = started && !fs.existsSync(tmp) && !fs.existsSync(localTmp) && (() => {
+    try { return fs.statSync(output).mtimeMs >= started; } catch { return false; }
+  })();
+  if (!alreadyDone) {
+    try {
+      if (tmp !== localTmp) {
+        if (fs.existsSync(tmp)) {
+          // Made on the scratch drive: one sequential copy next to the original, then the usual rename.
+          try {
+            await fs.promises.copyFile(tmp, localTmp);
+          } finally { fs.rmSync(tmp, { force: true }); releaseScratch(); }
+        } else releaseScratch(); // copied before a restart; only the rename was left
+        tmp = localTmp;
+      }
+      fs.renameSync(tmp, output); // overwrites the previous copy on redo
+    } catch (e) {
+      fs.rmSync(tmp, { force: true });
+      // Previous copy is in use; retry on the next scan instead of recording a failure.
+      if ((job.redo || job.force || started) && /EBUSY|EPERM|EACCES|ENOENT/.test(e.code || '')) { e.retryLater = true; }
+      throw e;
     }
-    fs.renameSync(tmp, output); // overwrites the previous copy on redo
-  } catch (e) {
-    fs.rmSync(tmp, { force: true });
-    // Previous copy is in use; retry on the next scan instead of recording a failure.
-    if ((job.redo || job.force) && /EBUSY|EPERM|EACCES/.test(e.code || '')) { e.retryLater = true; }
-    throw e;
   }
+  const key = failureKey(file);
   audioCache.clear();
   videoCache.clear();
   delete failures[key]; // an earlier failure no longer applies
   syncApplied[key] = shift;
   saveFailures();
   if (job.deleteOriginal && !job.fix) await retireOriginal(file, slot);
+}
+
+// A run left by an earlier server process (see runDetached): finish it, or start the job over if it failed.
+async function adoptRun(job, slot, { dir, spec }) {
+  const m = spec.meta;
+  const releaseScratch = () => { scratchJobs.delete(m.tmp); };
+  const dropTemps = () => {
+    fs.rmSync(m.tmp, { force: true });
+    m.sidecars.forEach((sc) => fs.rmSync(sc.tmp, { force: true }));
+    releaseScratch();
+  };
+  try {
+    try {
+      await watchRun(dir, { cmd: spec.cmd, args: spec.args, priorityLow: true, started: spec.started,
+        onStdout: progressInto(slot, m.duration, spec.started) });
+    } catch (e) {
+      try { dropTemps(); } catch { /* still open; cleanTemps later */ }
+      if (job.cancelled) throw Object.assign(new Error('cancelled'), { cancelled: true });
+      // Its fallbacks (CPU instead of GPU, other audio) live in convert(): start the job again from the queue.
+      if (fs.existsSync(job.file)) queue.unshift({ ...m.job, force: true });
+      throw Object.assign(new Error(`picked-up conversion ended (${e.message}); starting it again`), { retryLater: true });
+    }
+    await finishConvert({ job, slot, file: job.file, output: m.output, tmp: m.tmp, localTmp: m.localTmp, sidecars: m.sidecars,
+      shift: m.shift || 0, releaseScratch, started: spec.started });
+  } finally { removeRun(dir); }
+}
+
+// At startup: take over conversions still running in their own process (or finished while no server ran).
+function adoptRuns() {
+  let names = [];
+  try { names = fs.readdirSync(runsDir); } catch { return; }
+  for (const name of names) {
+    const dir = path.join(runsDir, name);
+    const spec = readJson(path.join(dir, 'spec.json'));
+    const st = readJson(path.join(dir, 'status.json'));
+    const exited = fs.existsSync(path.join(dir, 'exit.json'));
+    let beat = 0;
+    try { beat = fs.statSync(path.join(dir, st ? 'status.json' : 'spec.json')).mtimeMs; } catch { /* gone */ }
+    const alive = Date.now() - beat < HEARTBEAT_STALE_MS;
+    const m = spec?.meta;
+    if (!m?.job?.file || !m.lane || !LANES.includes(m.lane) || (!exited && !alive) || active.has(m.lane) || !fs.existsSync(m.job.file)) {
+      if (alive && !exited && st?.pid) { try { process.kill(st.pid); } catch { /* gone */ } }
+      if (m?.tmp) { try { fs.rmSync(m.tmp, { force: true }); m.sidecars?.forEach((sc) => fs.rmSync(sc.tmp, { force: true })); } catch { /* cleanTemps later */ } }
+      removeRun(dir);
+      continue;
+    }
+    const job = { ...m.job, lane: m.lane };
+    if (m.tmp !== m.localTmp && m.scratchNeed) scratchJobs.set(m.tmp, m.scratchNeed);
+    console.log(`[convert] picked up ${path.basename(job.file)}${exited ? ' (finished while Lilin was restarting)' : ' (still converting from before the restart)'}`);
+    runJob(m.lane, job, { dir, spec });
+  }
 }
 
 // ---------- deleting originals ----------
@@ -1111,8 +1301,8 @@ async function settleCopyCheck(original) {
   console.warn(`[convert] ${path.basename(copy)} still fails the browser check right after converting; keeping it instead of redoing it.`);
 }
 
-async function runJob(lane, job) {
-  const slot = { lane, name: path.basename(job.file), mode: 'Starting', purpose: null, percent: 0, speed: null, eta: null };
+async function runJob(lane, job, adopted = null) {
+  const slot = { lane, name: path.basename(job.file), mode: 'Starting', purpose: null, percent: 0, speed: null, eta: null, ...(adopted?.spec.meta.slot || {}) };
   active.set(lane, { job, slot });
   status.active.push(slot);
   try {
@@ -1121,8 +1311,11 @@ async function runJob(lane, job) {
       catch (e) { console.warn(`[convert] couldn’t delete ${path.basename(job.file)}: ${e.message}`); }
       return;
     }
-    await makeRoom(job);
-    await convert(job, slot);
+    if (adopted) await adoptRun(job, slot, adopted);
+    else {
+      await makeRoom(job);
+      await convert(job, slot);
+    }
     status.done += 1;
     console.log(`[convert] done: ${path.basename(job.file)}${job.h264 ? ' (H.264 browser copy)' : job.fix ? ' (browser copy)' : ''}`);
     if (!job.fix) await settleCopyCheck(job.file);
@@ -1131,7 +1324,11 @@ async function runJob(lane, job) {
   } catch (e) {
     if (e.lowSpace) return; // logged once by makeRoom; the next scan queues it again
     if (job.cancelled) { console.log(`[convert] stopped: ${path.basename(job.file)} (being deleted)`); return; }
-    if (e.retryLater) { console.warn(`[convert] ${path.basename(job.file)}: ${e.message?.includes('earlier') ? e.message : 'copy is in use'}, will retry.`); return; }
+    if (e.retryLater) {
+      const why = e.message?.includes('earlier') || e.runnerLost ? `${e.message}, will retry` : e.message?.startsWith('picked-up') ? e.message : 'copy is in use, will retry';
+      console.warn(`[convert] ${path.basename(job.file)}: ${why}.`);
+      return;
+    }
     const msg = e.message || String(e);
     console.warn(`[convert] failed: ${path.basename(job.file)}: ${msg}`);
     failures[failureKey(job.file)] = { error: msg, at: Date.now() };
@@ -1174,6 +1371,7 @@ export async function startConverter({ dataDir, cacheDir = path.join(dataDir, 'c
     return;
   }
   stateFile = path.join(dataDir, '.lilin-convert.json');
+  runsDir = path.join(dataDir, 'convert-runs');
   fixDir = audioRoot;
   try {
     const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
@@ -1199,6 +1397,7 @@ export async function startConverter({ dataDir, cacheDir = path.join(dataDir, 'c
   onConvertedHook = onConverted;
   status.enabled = true;
   status.reason = null;
+  adoptRuns(); // before the first scan, so it doesn't queue (or clean up after) what's still running
 
   const tick = async () => {
     retryDeletes();
