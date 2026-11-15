@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { WatchlistStore, runRound, filmRelease, airedAfter, baselineFrom, retryDelay } from '../src/watchlist.js';
+import { WatchlistStore, runRound, filmRelease, filmOut, airedAfter, baselineFrom, retryDelay } from '../src/watchlist.js';
 import { comingUp, newEpisodes, watchStatus, dayLabel } from '../public/watchlist.js';
 import { topicFor } from '../src/live.js';
 
@@ -191,4 +191,23 @@ test('watchlist API: list, validation, removal and a clear message without TMDB'
     child.kill();
     await exited;
   }
+});
+
+test('a film counts as out only once a proper copy can exist (never just in cinemas)', () => {
+  const doomsday = { status: 'Post Production', release_date: '2026-12-18', release_dates: { results: [
+    { iso_3166_1: 'US', release_dates: [{ type: 3, release_date: '2026-12-18T00:00:00.000Z' }] }] } };
+  assert.equal(filmOut(doomsday, '2026-11-15').out, false);
+  assert.equal(filmOut(doomsday, '2026-11-15').cinema, '2026-12-18');
+  // in cinemas, no digital date: waits the cinema window
+  const cinema = { status: 'Released', release_date: '2026-10-01' };
+  assert.deepEqual([filmOut(cinema, '2026-11-15').out, filmOut(cinema, '2026-11-15').expect], [false, '2026-12-30']);
+  assert.equal(filmOut(cinema, '2026-12-30').out, true);
+  // a digital date wins either way: out early, or later than the window
+  const digital = (d) => ({ status: 'Released', release_date: '2026-10-01', release_dates: { results: [{ release_dates: [{ type: 4, release_date: d }] }] } });
+  assert.equal(filmOut(digital('2026-11-07'), '2026-11-15').out, true);
+  assert.equal(filmOut(digital('2027-02-01'), '2026-12-31').out, false);
+  // old films are out whatever new disc dates TMDB lists; undated ones unless unfinished
+  assert.equal(filmOut({ release_date: '1999-03-31', release_dates: { results: [{ release_dates: [{ type: 5, release_date: '2027-01-01' }] }] } }, '2026-11-15').out, true);
+  assert.equal(filmOut({ status: 'Released' }, '2026-11-15').out, true);
+  assert.equal(filmOut({ status: 'In Production' }, '2026-11-15').out, false);
 });

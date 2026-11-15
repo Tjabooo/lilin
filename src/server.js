@@ -56,7 +56,7 @@ import { handleWatchPage } from './watch-page.js';
 import { creditsFor, introFor, initCredits } from './credits.js';
 import * as whatsNew from './whats-new.js';
 import { languageOf, inLanguage, currentLanguage, translate, tr } from './i18n.js';
-import { WatchlistStore, runRound as watchlistRound, baselineFrom } from './watchlist.js';
+import { WatchlistStore, runRound as watchlistRound, baselineFrom, filmOut } from './watchlist.js';
 import { PushStore, KINDS as PUSH_KINDS } from './push.js';
 import { Previews } from './previews.js';
 import { TravelStore, QUALITIES as TRAVEL_QUALITIES, travelName, estimateBytes, validQuality } from './travel.js';
@@ -605,6 +605,8 @@ export function titlePage(type, d) {
     seasons: type === 'tv' ? d.number_of_seasons || null : null,
     episodes: type === 'tv' ? d.number_of_episodes || null : null,
     status: d.status || null,
+    // Films: whether a proper copy can be had yet (watchlist.js filmOut); the page says Coming soon until then.
+    release: type === 'movie' ? filmOut(d) : null,
     cast: (credits?.cast || []).filter((c) => c.name && c.id).slice(0, 16).map((c) => ({
       id: c.id, name: c.name,
       character: c.character || c.roles?.[0]?.character || '',
@@ -1442,6 +1444,11 @@ function rememberDub(user, type, id, on) {
   if (on || list.length !== (user.settings?.dubbed || []).length) accounts.updateMe(user, { dubbed: on ? [...list, key] : list });
 }
 
+const humanDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+function notOutMessage(title, rel) {
+  const when = rel.expect ? ` It should be out around ${humanDay(rel.expect)}.` : '';
+  return `${title} isn’t out to stream or buy yet, so the only copies around are cinema recordings.${when} Press Save and switch on “Add it when a good copy is out” to get it then.`;
+}
 // The Download command (smart-download.js) for one person: a film, a season or some episodes.
 // Used by the Download button and by Save for later / Follow (watchlist.js) in the background.
 async function startSmartFor(user, body) {
@@ -1450,9 +1457,11 @@ async function startSmartFor(user, body) {
   const tmdbId = Number(body.tmdbId);
   if (!Number.isSafeInteger(tmdbId) || tmdbId <= 0) throw new HttpError(400, 'Which film or show?');
   if (!TMDB_TOKEN && !TMDB_KEY) throw new HttpError(503, 'Downloading by title needs TMDB. Add TMDB_TOKEN to .env and restart.');
-  const details = await tmdb(`/${type}/${tmdbId}`);
+  const details = await tmdb(`/${type}/${tmdbId}`, type === 'movie' ? { append_to_response: 'release_dates' } : {});
   const title = String((type === 'tv' ? details.name : details.title) || '').trim();
   if (!title) throw new HttpError(404, 'That title couldn’t be found.');
+  // Films that aren't out to stream or buy yet only exist as cinema recordings: refuse instead of grabbing one.
+  if (type === 'movie' && !filmOut(details).out) throw new HttpError(409, notOutMessage(title, filmOut(details)));
   if (details.adult && filterApplies(user)) {
     contentBlocked(user, title, { name: title, reason: 'an adult TMDB title' });
     throw new HttpError(403, BLOCKED_MESSAGE);

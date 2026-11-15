@@ -3,7 +3,7 @@
 // Saved titles are a list to come back to (Discover → "Saved for later"). A saved film can also wait
 // for its release: once TMDB says it's out (digital or disc; the cinema date when neither is known)
 // the server looks for a good copy with the normal Download command (smart-download.js, which never
-// takes a cam) and keeps looking, with growing pauses, until one turns up.
+// takes a cam; see filmOut) and keeps looking, with growing pauses, until one turns up.
 //
 // Following a show downloads each new episode once it has aired. It starts after the last episode
 // that had aired when you followed (or switched automatic downloads on), so following never pulls in
@@ -41,6 +41,26 @@ export function filmRelease(details) {
   if (best) return best;
   const date = String(details?.release_date || '').slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date, kind: 'cinema' } : { date: null, kind: null };
+}
+
+// Whether a film can be downloaded as a proper copy yet (so never a cinema recording). Out once its
+// digital or disc date has passed. With only a cinema date, Lilin waits CINEMA_WINDOW_DAYS after it,
+// about how long films stay cinema-only; a film that came out over a year ago counts as out whatever
+// TMDB lists (old films get new 4K disc dates). No date at all: out unless TMDB says it's unfinished.
+// `expect`: the day it should be out (null when unknown).
+export const CINEMA_WINDOW_DAYS = 90;
+const UNFINISHED = new Set(['Rumored', 'Planned', 'In Production', 'Post Production', 'Canceled']);
+const plusDays = (iso, days) => isoDay(Date.parse(`${iso}T00:00:00Z`) + days * DAY);
+export function filmOut(details, today = isoDay(Date.now())) {
+  const rel = filmRelease(details);
+  const cinema = /^\d{4}-\d{2}-\d{2}$/.test(String(details?.release_date || '').slice(0, 10)) ? String(details.release_date).slice(0, 10) : null;
+  if (cinema && plusDays(cinema, 365) <= today) return { ...rel, cinema, expect: null, out: true };
+  if (rel.kind === 'digital' || rel.kind === 'disc') return { ...rel, cinema, expect: rel.date, out: rel.date <= today };
+  if (rel.kind === 'cinema') {
+    const expect = plusDays(rel.date, CINEMA_WINDOW_DAYS);
+    return { ...rel, cinema, expect, out: expect <= today };
+  }
+  return { ...rel, cinema, expect: null, out: !UNFINISHED.has(details?.status) };
 }
 
 // Where following starts: the last episode that has aired (specials don't count).
@@ -203,10 +223,10 @@ export async function runRound(store, deps) {
 
 async function checkFilm(store, row, user, deps, now) {
   const today = isoDay(now);
-  const rel = filmRelease(await deps.film(row.tmdb_id));
+  const rel = filmOut(await deps.film(row.tmdb_id), today);
   const base = { release: rel.date, release_kind: rel.kind, checked_at: now };
   if (!row.auto || !deps.canAuto(user)) return store.patch(row, { ...base, state: 'waiting', note: null, check_at: now + FILM_EVERY });
-  if (!rel.date || rel.date > today) return store.patch(row, { ...base, state: 'waiting', note: null, tries: 0, check_at: now + FILM_EVERY });
+  if (!rel.out) return store.patch(row, { ...base, state: 'waiting', note: null, tries: 0, check_at: now + FILM_EVERY });
   const job = await deps.download(user, { type: 'movie', tmdbId: row.tmdb_id });
   if (job?.state === 'done' && ['started', 'queued', 'have'].includes(job.outcome)) {
     deps.log?.(`[watchlist] ${row.title}: ${job.message}`);

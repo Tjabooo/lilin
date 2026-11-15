@@ -1,5 +1,12 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  "Coming soon": "Kommer snart",
+  "Out to stream {0}": "Kan streamas från {0}",
+  "Out on disc {0}": "Kommer på skiva {0}",
+  "In cinemas {0}": "På bio {0}",
+  "In cinemas now · streaming expected around {0}": "På bio nu · streaming väntas runt {0}",
+  "Not out yet · no release date": "Inte släppt än · inget datum",
+  "Save it and Lilin adds it once a good copy is out.": "Spara den så lägger Lilin till den när en bra kopia finns.",
   "Cast:": "Medverkande:",
   "Waiting for the download": "Väntar på nedladdningen",
   "Waiting for the download · starts in about {0}": "Väntar på nedladdningen · börjar om ungefär {0}",

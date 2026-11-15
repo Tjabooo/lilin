@@ -65,6 +65,7 @@ const ICONS = {
   bookmark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg>',
   bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4M12 2V1"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   upgrade: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>',
@@ -932,6 +933,21 @@ const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type ==
 // A title page's extras (logo art, runtime, genres, cast, similar titles: /api/title/:type/:id/page), kept for hours.
 const pageInfo = (type, id) => cachedFor(`/api/title/${type}/${id}/page`, 6 * 3600 * 1000).then((d) => d.page);
 
+// Films whose first release date (TMDB's, on cards) is still ahead. The title page knows more: page.release.
+const isoToday = () => new Date().toISOString().slice(0, 10);
+const filmUnreleased = (t) => t.type === 'movie' && /^\d{4}-\d{2}-\d{2}/.test(t.date || t.releaseDate || '') && (t.date || t.releaseDate).slice(0, 10) > isoToday();
+// What the Coming soon button's line says, from page.release (server.js titlePage, watchlist.js filmOut).
+function comingSoonText(rel) {
+  const day = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+  const today = isoToday();
+  const line = (rel.kind === 'digital' || rel.kind === 'disc') && rel.date > today
+    ? T(rel.kind === 'digital' ? 'Out to stream {0}' : 'Out on disc {0}', day(rel.date))
+    : rel.cinema && rel.cinema > today ? T('In cinemas {0}', day(rel.cinema))
+    : rel.cinema && rel.expect ? T('In cinemas now · streaming expected around {0}', day(rel.expect))
+    : T('Not out yet · no release date');
+  return canGet() ? `${line}. ${T('Save it and Lilin adds it once a good copy is out.')}` : `${line}.`;
+}
+
 // The one thing worth doing with a title from a card or the billboard: Play it if it's yours, add it if not.
 // Films add in one press (the same request as the title page's Add to library); shows open their season panel.
 function quickAction(t) {
@@ -959,7 +975,7 @@ function quickAction(t) {
       patchUnifiedLibrary();
     } catch (err) { toast(err.message); } finally { b.disabled = false; }
   } };
-  if (!canGet()) return null;
+  if (!canGet() || filmUnreleased(t)) return null; // still to come: the page says Coming soon
   return { icon: 'plus', label: T('Add to library'), run: async (b) => {
     b.disabled = true;
     const label = b.querySelector('span');
@@ -2983,10 +2999,19 @@ function filmActions(t) {
   const retry = h('button', { type: 'button', class: 'chip action-retry' }, T('Try again'));
   const progress = transferSummary(() => titleState(t).transfers, t.title);
   const root = h('div', { class: 'title-actions' }, dub.field, row, progress, h('div', { class: 'action-result' }, status, retry));
-  if (canGet() && t.id) root.append(advancedOptions(`movie-${t.id}`, {
+  const advanced = canGet() && t.id ? advancedOptions(`movie-${t.id}`, {
     exact: filmExact.get(t.id) || '', onExact: (v) => filmExact.set(t.id, v),
     browse: () => ({ query: [t.title, t.year].filter(Boolean).join(' '), type: 'movie', movieId: t.id, canonicalTitle: t.title, strict: true }),
-  }));
+  }) : null;
+  if (advanced) root.append(advanced);
+  // Not out to stream or buy yet: a grey Coming soon instead of Add (only cinema recordings exist).
+  // The card's date guesses first; the page's release info (digital/disc dates) settles it.
+  let soon = filmUnreleased(t) ? { kind: 'cinema', date: (t.date || t.releaseDate).slice(0, 10), cinema: (t.date || t.releaseDate).slice(0, 10), expect: null, out: false } : null;
+  if (t.id && state.status.search) pageInfo('movie', t.id).then((page) => {
+    if (!page || !('release' in page)) return;
+    soon = page.release && !page.release.out ? page.release : null;
+    root._update();
+  }).catch(() => {});
   let playing = false;
   play.addEventListener('click', async () => {
     if (play.getAttribute('aria-disabled') === 'true') return;
@@ -3033,12 +3058,18 @@ function filmActions(t) {
     get.hidden = addable ? false : wantDub ? !canGet() || !t.id || (s.active.some((d) => d.dualAudio) && !cmd?.busy)
       : playable || !canGet() || !t.id || (s.active.length > 0 && !cmd?.busy);
     get.lastChild.textContent = adding ? T('Adding…') : cmd?.busy ? commandStep(cmd) : wantDub && file ? T('Add dubbed version') : T('Add to library');
+    const waiting = Boolean(soon && !addable && !playable && !s.active.length && !cmd?.busy && !adding && t.id);
+    if (waiting) { get.hidden = false; get.lastChild.textContent = T('Coming soon'); }
+    get.firstChild.replaceWith(icon(waiting ? 'clock' : 'plus'));
+    get.classList.toggle('is-soon', waiting);
+    if (advanced) advanced.hidden = waiting;
     dub.field.hidden = !dub.anime || !canGet();
     dub.lock(Boolean(cmd?.busy || adding));
-    get.setAttribute('aria-disabled', String(Boolean(cmd?.busy || adding)));
+    get.setAttribute('aria-disabled', String(Boolean(cmd?.busy || adding || waiting)));
     root.setAttribute('aria-busy', String(Boolean(cmd?.busy)));
     const result = (!playable || dub.dubbing()) && commandResult(cmd);
-    if (!addable && status.textContent !== (result?.text || '')) status.textContent = result?.text || '';
+    const line = waiting ? comingSoonText(soon) : result?.text || '';
+    if (!addable && status.textContent !== line) status.textContent = line;
     status.classList.toggle('is-error', Boolean(result?.retry));
     retry.hidden = !result?.retry || s.active.length > 0;
     row.hidden = play.hidden && get.hidden;

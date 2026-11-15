@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-15-coming-soon-films",
+  "date": "2026-11-15",
+  "title": "Films that aren't out yet say Coming soon",
+  "items": [
+    {
+      "title": "No more cinema recordings",
+      "text": "Films that are still in cinemas or not released yet (like Avengers: Doomsday) now show a grey Coming soon button instead of Add to library, with the date they come out. Lilin only gets a film once it's out to stream or buy, so you never end up with a blurry recording from a cinema. Press Save and switch on \"Add it when a good copy is out\" and Lilin adds it by itself on the day."
+    }
+  ]
+},
+{
   "id": "2026-11-15-player-reconnects",
   "date": "2026-11-15",
   "title": "Videos pick up again after a dropped connection",

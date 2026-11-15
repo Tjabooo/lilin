@@ -1,4 +1,13 @@
 {
+  "2026-11-15-coming-soon-films": {
+    "title": "Filmer som inte har kommit ut säger Kommer snart",
+    "items": {
+      "No more cinema recordings": {
+        "title": "Inga fler biofilmade kopior",
+        "text": "Filmer som fortfarande går på bio eller inte har släppts än (som Avengers: Doomsday) visar nu en grå Kommer snart-knapp i stället för Lägg till i biblioteket, med datumet de kommer ut. Lilin hämtar bara en film när den går att streama eller köpa, så du får aldrig en suddig inspelning från en biosalong. Tryck på Spara och slå på \"Lägg till när det finns en bra kopia\" så lägger Lilin till den själv samma dag."
+      }
+    }
+  },
   "2026-11-15-player-reconnects": {
     "title": "Videor fortsätter efter ett avbrott",
     "items": {
