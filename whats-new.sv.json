@@ -8,6 +8,15 @@
       }
     }
   },
+  "2026-11-15-password-links-close": {
+    "title": "Använda lösenordslänkar städar upp efter sig",
+    "items": {
+      "Password links leave the list once used": {
+        "title": "Lösenordslänkar försvinner ur listan när de har använts",
+        "text": "En lösenordslänk försvinner nu från Personer så fort personen har ett lösenord, hur hen än satte det, och slutar fungera. Gör du en ny lösenordslänk till någon ersätter den den gamla."
+      }
+    }
+  },
   "2026-11-14-clip-game-events": {
     "title": "Dina CS2-ögonblick på klippets tidslinje",
     "items": {
