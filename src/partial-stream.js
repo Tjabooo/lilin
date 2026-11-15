@@ -236,7 +236,7 @@ export class PartialStreams {
       const [torrent, peers, trackers] = await Promise.all([
         this.exportTorrent?.(e.hash).catch(() => null), this.peersOf?.(e.hash).catch(() => []), this.trackersOf?.(e.hash).catch(() => [])]);
       const opened = await this.assist.open({ hash: e.hash, file: e.index, torrent, peers: peers || [], trackers: trackers || [],
-        paths: [...new Set([e.file, e.finalFile].filter(Boolean))], states: e.states });
+        paths: [...new Set([e.file, e.finalFile].filter(Boolean))], states: e.states, downloadLimit: this.assistLimit || 0 });
       if (!opened?.id || opened.state !== 'ready') return; // no metadata yet: try again later
       e.assist = { id: opened.id, url: opened.url, own: '', rate: 0, peers: 0 };
       e.assistFailures = 0;
@@ -273,8 +273,13 @@ export class PartialStreams {
 
   // Pipes [pos.at, end] from playhead into res, moving pos.at along; throws if playhead failed.
   async proxyAssist(e, res, pos, end, signal) {
-    const r = await this.assist.fetchRange(e.assist.url, pos.at, end, signal);
-    if (r.status !== 206 && r.status !== 200) throw new Error(`playhead answered ${r.status}`);
+    // Fresh piece states first (so playhead doesn't fetch what qBittorrent just got), and every second
+    // while the read lasts: nothing else asks for them while playback is reading through playhead.
+    await this.refresh(e);
+    const tick = setInterval(() => { this.refresh(e).catch(() => {}); }, POLL_MS);
+    tick.unref?.();
+    const r = await this.assist.fetchRange(e.assist.url, pos.at, end, signal).catch((error) => { clearInterval(tick); throw error; });
+    if (r.status !== 206 && r.status !== 200) { clearInterval(tick); throw new Error(`playhead answered ${r.status}`); }
     const reader = r.body.getReader();
     let last = Date.now();
     try {
@@ -289,7 +294,7 @@ export class PartialStreams {
         if (!res.write(value)) await waitDrain(res, signal);
         if (signal.aborted) return;
       }
-    } finally { reader.releaseLock?.(); }
+    } finally { clearInterval(tick); reader.releaseLock?.(); }
     if (pos.at <= end) throw new Error('playhead’s stream ended early');
   }
 

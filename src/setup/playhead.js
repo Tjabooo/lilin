@@ -10,11 +10,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const PLAYHEAD_REPO = 'Tjabooo/playhead';
-export const PLAYHEAD_RELEASE = 'v0.2.0';
+export const PLAYHEAD_RELEASE = 'v0.2.2';
 export const PLAYHEAD_SHA256 = {
-  'playhead-windows-x86_64.exe': 'a67672c2773ef2a6c822580700e7fc07ef4909b339c6bfb853a6c9e2be45168c',
-  'playhead-linux-x86_64': '6834678d9a1ac418b682d64ddfcfba94b65a52681765d48662b0639b58604905',
-  'playhead-linux-aarch64': 'f45d80c598cd98b72fb5784ab8fefbca15a21a51d12b7dce2e9c73db8370dc34',
+  'playhead-windows-x86_64.exe': '6d417df99ae7d560be4765ef8aaf0e95557e2c1ac1e51b937d0279322d21dc45',
+  'playhead-linux-x86_64': 'c605e6af52f2ce57e27a746b6eb62427d43609b74e03c1dc05b7f06b572f3d2e',
+  'playhead-linux-aarch64': '95bb731333c50338e1666f991c6f95db00d77e54af80737fce3b233678ae4e44',
 };
 
 export function playheadAsset(platform = process.platform, arch = process.arch) {

@@ -125,9 +125,11 @@ export class PlayheadService {
     const tokenFile = path.join(dir, 'token');
     fs.writeFileSync(tokenFile, this.token, { mode: 0o600 });
     this.port = await freePort();
-    const args = ['serve', '--api', `127.0.0.1:${this.port}`, '--token-file', tokenFile, '--cache-dir', this.cacheDir, ...bind,
+    // --exit-with-stdin: playhead ends when this pipe closes, so it never outlives Lilin (Windows doesn't
+    // end child processes with their parent, and a leftover one would block its own upgrade).
+    const args = ['serve', '--exit-with-stdin', '--api', `127.0.0.1:${this.port}`, '--token-file', tokenFile, '--cache-dir', this.cacheDir, ...bind,
       ...this.dns.flatMap((d) => ['--dns', d]), ...this.extraArgs];
-    const child = this.spawnFn(program, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, PLAYHEAD_LOG: 'warn' } });
+    const child = this.spawnFn(program, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, PLAYHEAD_LOG: 'warn' } });
     this.child = child;
     const lines = (chunk) => { for (const line of String(chunk).split(/\r?\n/)) if (line.trim()) this.log.warn?.(`[playhead] ${line.replace(/^\[playhead \w+\] /, '')}`); };
     child.stdout?.on('data', lines);
@@ -156,9 +158,10 @@ export class PlayheadService {
   }
 
   // { hash, file, torrent (Buffer|null), trackers, peers, paths, states } → { id, url, state }
-  open({ hash, file, torrent, trackers = [], peers = [], paths = [], states = null }) {
+  open({ hash, file, torrent, trackers = [], peers = [], paths = [], states = null, downloadLimit = 0 }) {
     return this.request('POST', '/api/streams', {
       info_hash: hash, file, assist: true, trackers, peers, external_paths: paths, states: statesString(states),
+      ...(downloadLimit > 0 ? { download_limit: downloadLimit } : {}),
       ...(torrent ? { torrent: Buffer.from(torrent).toString('base64') } : {}),
     }, 75_000);
   }
