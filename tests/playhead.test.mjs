@@ -6,7 +6,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { PartialStreams } from '../src/partial-stream.js';
+import { PartialStreams, readyToStart, startBytes } from '../src/partial-stream.js';
 import { PlayheadService, playheadBinding, bindingArgs, mergeStates, statesString } from '../src/playhead.js';
 import { ensurePlayhead, playheadAsset, PLAYHEAD_SHA256 } from '../src/setup/playhead.js';
 
@@ -112,6 +112,7 @@ test('with playhead helping, Play now reads through it, including parts qBittorr
   assert.ok(entry.assist, 'playhead was started for it');
   assert.deepEqual(calls.open[0].peers, ['1.2.3.4:5']);
   assert.deepEqual(calls.open[0].paths, [file]);
+  assert.equal(calls.open[0].startLead, 8192, 'playhead fetches the start too (here: the whole small file)');
   await streams.refresh(entry, { force: true });
   assert.equal(calls.update.at(-1).states.join(''), '22000000', 'qBittorrent’s states were passed on');
   assert.equal(streams.readable(entry, 6144), 2048, 'playhead’s own pieces count as readable');
@@ -217,4 +218,12 @@ test('end to end with a real playhead', { skip: !process.env.PLAYHEAD_E2E_BIN, t
   assert.ok(all.equals(real), 'the whole file streams correctly');
   await streams.refresh(entry, { force: true });
   assert.equal(entry.assist.own.slice(0, n / 4), '0'.repeat(n / 4), 'qBittorrent’s part was read from its file, not downloaded');
+});
+
+test('with playhead helping, playback starts on a shorter lead', () => {
+  const size = 1e10, bitrate = 8e6; // 1 MB/s
+  const lead = { min: 8, goal: 20, graceMs: 8000 };
+  assert.equal(readyToStart(25e6, size, bitrate, null, 0), false, 'qBittorrent alone wants 45 s');
+  assert.equal(readyToStart(25e6, size, bitrate, null, 0, lead), true, 'helped: 20 s is enough');
+  assert.equal(readyToStart(startBytes(size, bitrate, 8), size, bitrate, 0, 9000, lead), true, 'or 8 s after a short grace');
 });

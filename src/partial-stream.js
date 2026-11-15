@@ -35,6 +35,12 @@ const MIN_START_BYTES = 8 * 1024 * 1024;
 const PROBE_MS = 10 * 60_000;    // reading the start and end of the file can wait for the download
 const MAX_PROBE_FAILURES = 2;
 const SHORT_READ_MS = 30_000;    // a verified piece that isn't readable yet (still being written)
+// With playhead helping, the long lead isn't needed to ride out a stuck piece (playhead fetches it from a
+// faster peer), so playback starts sooner. The start itself is fetched by both: qBittorrent from the front,
+// playhead from the far end of START_LEAD_BYTES backwards.
+const ASSIST_LEAD = { min: 8, goal: 20, graceMs: 8_000 };
+const START_LEAD_BYTES = 64 * 1024 * 1024;
+const ASSIST_WAIT_MS = 5_000;    // how long the first open waits for playhead, so the probe reads through it
 
 export const partialId = (hash, index) => `${String(hash).toLowerCase()}-${index}`;
 export function parsePartialId(id) {
@@ -80,9 +86,9 @@ export function fileProgress(layout, states) {
 export const startBytes = (size, bitrate, seconds = START_SECONDS) => Math.min(size, Math.max(MIN_START_BYTES, Math.ceil(((bitrate || 0) / 8) * seconds)));
 
 // Start with the full lead, or with the minimum once it has had a while to grow. `enoughSince` = when the minimum was there.
-export function readyToStart(readable, size, bitrate, enoughSince, now = Date.now()) {
-  if (readable >= startBytes(size, bitrate, START_GOAL_SECONDS)) return true;
-  return enoughSince != null && now - enoughSince >= START_GRACE_MS;
+export function readyToStart(readable, size, bitrate, enoughSince, now = Date.now(), lead = null) {
+  if (readable >= startBytes(size, bitrate, lead?.goal ?? START_GOAL_SECONDS)) return true;
+  return enoughSince != null && now - enoughSince >= (lead?.graceMs ?? START_GRACE_MS);
 }
 
 // Watch Together on a video that is still downloading: one stop holds everyone, so the room waits for a lead
@@ -236,7 +242,8 @@ export class PartialStreams {
       const [torrent, peers, trackers] = await Promise.all([
         this.exportTorrent?.(e.hash).catch(() => null), this.peersOf?.(e.hash).catch(() => []), this.trackersOf?.(e.hash).catch(() => [])]);
       const opened = await this.assist.open({ hash: e.hash, file: e.index, torrent, peers: peers || [], trackers: trackers || [],
-        paths: [...new Set([e.file, e.finalFile].filter(Boolean))], states: e.states, downloadLimit: this.assistLimit || 0 });
+        paths: [...new Set([e.file, e.finalFile].filter(Boolean))], states: e.states, downloadLimit: this.assistLimit || 0,
+        startLead: Math.min(e.size, START_LEAD_BYTES) });
       if (!opened?.id || opened.state !== 'ready') return; // no metadata yet: try again later
       e.assist = { id: opened.id, url: opened.url, own: '', rate: 0, peers: 0 };
       e.assistFailures = 0;
@@ -432,6 +439,8 @@ export class PartialStreams {
     // Finished torrents leave qBittorrent; the file is all there, so someone watching just carries on.
     if (e.gone && !this.complete(e)) { this.entries.delete(id); throw failure(404, 'That download no longer exists.'); }
     if (e.probeFailures >= MAX_PROBE_FAILURES) throw failure(422, e.probeError || 'Couldn’t read this video.');
+    // The first time, give playhead a moment to start, so the probe (start and end of the file) reads through it.
+    if (!e.info && !e.probing && e.assisting) await Promise.race([e.assisting, sleep(ASSIST_WAIT_MS)]);
     if (!e.info && !e.probing) {
       const input = await this.inputUrl(e);
       e.probing = this.probe(input, { size: e.size, timeout: PROBE_MS })
@@ -441,15 +450,16 @@ export class PartialStreams {
     }
     if (e.info && !e.started) {
       const readable = this.readable(e, 0);
-      if (readable >= startBytes(e.size, e.info.bitrate)) e.enoughSince ??= Date.now();
-      e.started = readyToStart(readable, e.size, e.info.bitrate, e.enoughSince);
+      const lead = e.assist ? ASSIST_LEAD : null;
+      if (readable >= startBytes(e.size, e.info.bitrate, lead?.min)) e.enoughSince ??= Date.now();
+      e.started = readyToStart(readable, e.size, e.info.bitrate, e.enoughSince, Date.now(), lead);
     }
     return { ready: Boolean(e.info) && e.started, entry: e };
   }
 
   startStatus(e, speed) {
     if (e.started) return { startProgress: 1, startEta: 0 };
-    const need = startBytes(e.size, e.info?.bitrate || 0, START_GOAL_SECONDS);
+    const need = startBytes(e.size, e.info?.bitrate || 0, e.assist ? ASSIST_LEAD.goal : START_GOAL_SECONDS);
     const have = Math.min(need, this.readable(e, 0));
     return { startProgress: need ? have / need : 1, startEta: speed > 0 ? Math.ceil((need - have) / speed) : null };
   }

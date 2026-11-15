@@ -158,10 +158,11 @@ export class PlayheadService {
   }
 
   // { hash, file, torrent (Buffer|null), trackers, peers, paths, states } → { id, url, state }
-  open({ hash, file, torrent, trackers = [], peers = [], paths = [], states = null, downloadLimit = 0 }) {
+  open({ hash, file, torrent, trackers = [], peers = [], paths = [], states = null, downloadLimit = 0, startLead = 0 }) {
     return this.request('POST', '/api/streams', {
       info_hash: hash, file, assist: true, trackers, peers, external_paths: paths, states: statesString(states),
       ...(downloadLimit > 0 ? { download_limit: downloadLimit } : {}),
+      ...(startLead > 0 ? { start_lead_bytes: startLead } : {}),
       ...(torrent ? { torrent: Buffer.from(torrent).toString('base64') } : {}),
     }, 75_000);
   }
