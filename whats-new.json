@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-15-player-reconnects",
+  "date": "2026-11-15",
+  "title": "Videos pick up again after a dropped connection",
+  "items": [
+    {
+      "title": "No more wrong \"can't play in this browser\" message",
+      "text": "If the connection to Lilin drops while you watch (a Wi-Fi blip or a server restart), the player now says it is reconnecting and carries on from the same spot by itself. Before, it showed a message saying the video couldn't play in your browser, which wasn't true."
+    }
+  ]
+},
+{
   "id": "2026-11-15-play-now-playhead",
   "date": "2026-11-15",
   "title": "Play now jumps ahead and stops freezing",

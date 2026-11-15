@@ -1777,4 +1777,6 @@ export default {
   "Bomb defused": "Bomben desarmerad",
   "Bomb exploded": "Bomben exploderade",
   " · N P next or previous game event": " · N P nästa eller förra händelsen i matchen",
+  "Lost the connection to Lilin. Reconnecting…": "Tappade anslutningen till Lilin. Ansluter igen…",
+  "Lilin can’t be reached right now. Close the player and open it again in a minute.": "Lilin går inte att nå just nu. Stäng spelaren och öppna den igen om en minut.",
 };

@@ -6982,8 +6982,39 @@ for (const event of ['seeking', 'waiting']) video.addEventListener(event, () => 
 // Someone is still there: the countdown may chain another AUTOPLAY_CHAIN episodes.
 for (const event of ['keydown', 'pointerdown']) document.addEventListener(event, () => { autoChain = 0; }, true);
 video.addEventListener('pause', () => saveProgress(true));
+// A video that already played and then errors lost its connection (Lilin restarted, Wi-Fi blip); it didn't
+// turn unplayable. Fetch a fresh link and carry on where it stopped. At most 3 reconnects per spot.
+let reconnect = null;
+function startReconnect(session) {
+  const at = video.currentTime || 0;
+  const key = mediaId(session);
+  if (reconnect?.key !== key || Math.abs(reconnect.at - at) > 30 || Date.now() - reconnect.since > 180000) reconnect = { key, at, since: Date.now(), tries: 0 };
+  if (reconnect.tries++ >= 3) return false;
+  const err = $('#player-error');
+  err.textContent = T('Lost the connection to Lilin. Reconnecting…');
+  err.hidden = false;
+  setSpinner(true);
+  const f = { ...session };
+  (async () => {
+    for (const wait of [1500, 3000, 5000, 8000, 12000, 15000, 15000]) {
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      if (current !== session || party) return;
+      try {
+        const prepared = await preparePlayerSource(f, null, session.abort.signal);
+        if (current !== session || party) return;
+        await loadPlayerMedia(f, { prepared, startAt: at });
+        return;
+      } catch (error) { if (error.name === 'AbortError') return; /* still restarting: wait and try again */ }
+    }
+    if (current !== session) return;
+    setSpinner(false);
+    err.textContent = T('Lilin can’t be reached right now. Close the player and open it again in a minute.');
+  })();
+  return true;
+}
 video.addEventListener('error', () => {
   if (!current?.sourceUrl || video.currentSrc !== current.sourceUrl || current.kind === 'part') return;
+  if (!party && !plainMedia(current) && current.ready && (video.error?.code === 2 || video.currentTime > 0) && startReconnect(current)) return;
   const err = $('#player-error');
   err.textContent = current.kind === 'note'
     ? T('This video can’t play in this browser. Its format isn’t supported here; open the file link under the video to download it, or try another browser.')

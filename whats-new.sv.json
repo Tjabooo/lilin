@@ -1,4 +1,13 @@
 {
+  "2026-11-15-player-reconnects": {
+    "title": "Videor fortsätter efter ett avbrott",
+    "items": {
+      "No more wrong \"can't play in this browser\" message": {
+        "title": "Inget felaktigt \"kan inte spelas i den här webbläsaren\" längre",
+        "text": "Om anslutningen till Lilin bryts medan du tittar (ett wifi-avbrott eller en omstart av servern) säger spelaren nu att den ansluter igen och fortsätter själv från samma ställe. Förut visades ett meddelande om att videon inte kunde spelas i din webbläsare, vilket inte stämde."
+      }
+    }
+  },
   "2026-11-15-play-now-playhead": {
     "title": "Spela nu hoppar framåt och fryser inte längre",
     "items": {
