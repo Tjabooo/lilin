@@ -1017,6 +1017,7 @@ export default {
   "auto-deleted {0}": "raderade {0} automatiskt",
   "upgraded the quality of {0}": "uppgraderade kvaliteten på {0}",
   "tried to download {0}, which was blocked": "försökte ladda ner {0}, som blockerades",
+  "swapped out {0}, which downloaded too slowly to watch while downloading": "bytte ut {0}, som laddades ner för långsamt för att titta medan den laddades ner",
   "changed the server rules ({0})": "ändrade serverreglerna ({0})",
   "changed a permission: {0}": "ändrade en behörighet: {0}",
   "Viewer": "Tittare",

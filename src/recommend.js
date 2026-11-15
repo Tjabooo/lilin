@@ -22,6 +22,9 @@
 // 4K, 1080p and 720p compete on picture.
 // (House S06: a 8 GB per episode remux beats a popular 0.8 GB encode.)
 // Never picked while anything else exists, in any profile: 3D, AI upscales and disc images.
+// Best Quality also has to play while it downloads (Play now): a pick whose swarm can't keep ahead
+// of its bitrate gives way to the best-looking release that can (streamable, below). With no such
+// release, the best picture stays. (2026-11-15: a 55 GB remux on 24 seeders crawled at 1.4 MB/s.)
 // Hard limits, never relaxed: an exact resolution chosen in Advanced, the largest size per film or
 // episode from Settings, and the free space on the media disk.
 import { showKey } from './shows.js';
@@ -159,6 +162,30 @@ export function pictureScore(r, want = {}, kind = 'movie') {
   return s;
 }
 
+// ---- Can it play while it downloads? ----
+// A swarm's speed, guessed from its seeder count: about 0.2 MB/s per seeder the search site reports
+// (most never connect, or barely send; seen 0.06 to 0.4), up to what the line and tunnel carry. Rough: the
+// server measures the real speed of each Best download (server.js, slow-swarm check) and logs both.
+export const SEEDER_SPEED = 0.2 * 1024 ** 2;   // bytes/s per reported seeder
+export const SWARM_CAP = 30 * 1024 ** 2;       // bytes/s
+// Play now keeps ahead with 20 % to spare (pieces arrive out of order, peers come and go).
+export const PLAY_MARGIN = 1.2;
+const RUNTIME = { movie: 120, episode: 45 };   // minutes, when TMDB doesn't say
+export const swarmSpeed = (seeders) => Math.min(SWARM_CAP, Math.max(0, seeders || 0) * SEEDER_SPEED);
+// Bytes per second of picture: the film's (or episode's) size over its running time.
+// A pack with no episode count to divide by: unknown (0).
+export function bitrateOf(r, want = {}, kind = 'movie') {
+  if (kind === 'pack' && !(r.packEpisodes > 0) && !(want.episodes > 0)) return 0;
+  const size = perItemSize(r, want, kind);
+  const minutes = want.runtime > 0 ? want.runtime : RUNTIME[kind === 'movie' ? 'movie' : 'episode'];
+  return size ? size / (minutes * 60) : 0;
+}
+// Unknown size: nothing to judge, so it passes.
+export const streamable = (r, want = {}, kind = 'movie') => {
+  const rate = bitrateOf(r, want, kind);
+  return !rate || swarmSpeed(r.seeders) >= rate * PLAY_MARGIN;
+};
+
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
   const profile = want.profile;
@@ -279,8 +306,11 @@ export function choose(found, want, kind, minAlive = ALIVE) {
     fits = fits.filter((r) => r.quality === want.quality);
     if (!fits.length) return { pick: null, why: limited.why || (found.length || any ? `No matching ${qualityName(want.quality)} release has enough seeders.` : none) };
     const healthy = fits.filter((r) => r.seeders >= HEALTHY);
-    const pool = healthy.length ? healthy : fits;
-    return { pick: pool.sort((a, b) => score(b, want, kind) - score(a, want, kind))[0], why: null };
+    const pool = (healthy.length ? healthy : fits).sort((a, b) => score(b, want, kind) - score(a, want, kind));
+    // Best Quality in a resolution chosen in Advanced: the best of it that plays while it downloads.
+    const smooth = want.profile === 'best' && want.stream !== false && !streamable(pool[0], want, kind)
+      ? pool.find((r) => streamable(r, want, kind)) : null;
+    return { pick: smooth || pool[0], slow: smooth ? pool[0] : null, why: null };
   }
   if (!fits.length) return { pick: null, why: limited.why || none };
   const profile = PROFILES.includes(want.profile) ? want.profile : 'balanced';
@@ -309,11 +339,20 @@ export function choose(found, want, kind, minAlive = ALIVE) {
     // Within a mixed step, keep the preferred quality first; then the best score (Best Quality: score only).
     pool.sort((a, b) => (byScore ? 0 : qualities.indexOf(a.quality ?? null) - qualities.indexOf(b.quality ?? null))
       || score(b, want, kind) - score(a, want, kind));
-    const pick = pool[0];
+    let pick = pool[0];
+    // Best Quality: it has to play while it downloads. The best-looking release whose swarm keeps
+    // ahead of its bitrate wins over a better picture that would keep buffering (want.stream false:
+    // an upgrade, nobody watches it download). None keeps up: the best picture stays.
+    let slow = null;
+    if (profile === 'best' && want.stream !== false && !streamable(pick, want, kind)) {
+      const smooth = fits.filter((r) => r.seeders >= minAlive && streamable(r, want, kind) && qualities.includes(r.quality ?? null))
+        .sort((a, b) => score(b, want, kind) - score(a, want, kind));
+      if (smooth[0]) { slow = pick; pick = smooth[0]; }
+    }
     const isHigh = (q) => ['1080p', '1440p', '2160p'].includes(q);
     // (Best Quality may prefer a solid 720p to a starved 1080p: that isn't "nothing better exists".)
     const low = profile !== 'save' && !isHigh(pick.quality) && !fits.some((r) => isHigh(r.quality) && r.seeders >= minAlive);
-    return { pick, why: low ? 'Nothing in 1080p, 1440p or 4K is available, so this is the best there is.' : null };
+    return { pick, slow, why: low ? 'Nothing in 1080p, 1440p or 4K is available, so this is the best there is.' : null };
   }
   return { pick: null, why: limited.why || none };
 }

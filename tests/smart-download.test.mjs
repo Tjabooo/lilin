@@ -267,7 +267,7 @@ test('Best Quality searches for quality releases by name; a plain search can mis
   await wait(startSmartJob({ type: 'tv', title: 'Severance', season: 2, want: { profile: 'balanced' } }, deps()));
   assert.ok(!asked.some((q) => /REMUX|BluRay/.test(q)), 'other profiles search as before');
   added.length = 0; asked.length = 0;
-  const filmRemux = ['Dune.2021.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1', 20, 30 * GB];
+  const filmRemux = ['Dune.2021.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1', 40, 30 * GB]; // enough seeders to play while downloading
   await wait(startSmartJob({ type: 'movie', title: 'Dune', year: 2021, want: { profile: 'best' } }, { ...deps(), searchTorrents: async (q) => { asked.push(q);
     return { results: results(/REMUX/.test(q) ? [filmRemux] : [['Dune.2021.1080p.WEBRip.x265', 900, 2 * GB]]) }; } }));
   assert.equal(added[0], filmRemux[0], 'a film goes through every search too'); assert.ok(asked.includes('Dune 2021 REMUX'));
@@ -375,4 +375,24 @@ test('Best Quality: no reward for a bloated web copy on a dead swarm', () => {
   assert.equal(pick(spidey, want), 'Spider-Man.Brand.New.Day.2026.2160p.iT.WEB-DL.DV.HDR10+.DDP5.1.Atmos.H265.MP4-BTM');
   // A big file on a healthy swarm isn't punished, and a lively 1080p doesn't beat a 4K stream.
   assert.equal(pick(spidey.filter((r, i) => i !== 1), want), 'Spider-Man.Brand.New.Day.2026.2160p.IMAX.BCORE.WEB-DL.HDR.MULTi.Atmos.H265-BTM');
+});
+
+test('a Best download found too slow is replaced once, never by itself', async () => {
+  const { swarmNeed, slowFound } = await import('../src/smart-download.js');
+  const added = [];
+  const remux = ['Heat.1995.2160p.UHD.BluRay.REMUX.HDR.HEVC.DTS-HD.MA.5.1', 60, 60 * GB];
+  const web = ['Heat.1995.2160p.WEB-DL.DDP5.1.HDR.H.265-GRP', 30, 20 * GB];
+  const rows = results([remux, web]);
+  const hashes = rows.map((r) => /btih:([a-z0-9]+)/i.exec(r.magnet)[1].toLowerCase());
+  const deps = { parseName, magnetFor1337x: async () => null, sleep: async () => {}, freeBytes: async () => 900 * GB,
+    addDownload: async (d) => { added.push(d.name); return { hash: 'x' }; }, searchTorrents: async () => ({ results: rows }) };
+  await wait(startSmartJob({ type: 'movie', title: 'Heat', year: 1995, want: { profile: 'best', runtime: 170 } }, deps));
+  assert.equal(added[0], remux[0]);
+  assert.ok(swarmNeed(hashes[0])?.need > 0, 'the Best pick is measured');
+  const retry = slowFound(hashes[0]);
+  assert.ok(retry);
+  await wait(retry);
+  assert.equal(added[1], web[0], 'the slow one is never picked again');
+  assert.equal(swarmNeed(hashes[1]), null, 'the second try is kept, whatever its speed');
+  assert.equal(slowFound(hashes[1]), null);
 });

@@ -43,7 +43,7 @@ import { scratchPlan, liveRoot, usesScratch } from './scratch.js';
 import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
 import { fakeRelease } from './fake-release.js';
-import { PROFILES, isDualAudio } from './recommend.js';
+import { PROFILES, isDualAudio, PLAY_MARGIN } from './recommend.js';
 import * as accounts from './accounts.js';
 import * as live from './live.js';
 import { NotesStore } from './notes.js';
@@ -1485,7 +1485,9 @@ async function startSmartFor(user, body) {
   // Dubbed: dual-audio releases only, anime only. The choice is remembered for the player.
   const dub = Boolean(animeCtx && !upgrade && body.dub === true);
   if (animeCtx && !upgrade && typeof body.dub === 'boolean') rememberDub(user, type, tmdbId, dub);
-  const want = downloadWant(user, body);
+  // Running time (minutes, a film's or an episode's): Best Quality checks a pick can play while it downloads.
+  const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
+  const want = { ...downloadWant(user, body), runtime };
   const documentary = (details.genres || []).some((g) => g.id === 99);
   const id = smart.startSmartJob({
     type, title, year, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub,
@@ -2100,6 +2102,55 @@ async function fakeGuardRound() {
   finally { fakeGuardBusy = false; }
 }
 setInterval(() => fakeGuardRound(), 3000).unref();
+
+// ---- slow swarms (smart-download.js, recommend.js streamable) ----
+// A Best Quality download has to play while it downloads. Its first minutes are measured: from one
+// minute after it starts moving, for four minutes. Slower than its own picture's bitrate while the
+// line had room (so the swarm, not the line, is the limit) and nobody is watching it: removed with
+// its files, and its Download runs again without it (once). Every measurement is logged with the
+// seeder guess, to tune SEEDER_SPEED.
+const SWARM_SETTLE = 60e3, SWARM_WINDOW = 4 * 60e3, LINE_ROOM = 18 * 1024 ** 2;
+const swarmProbes = new Map(); // hash -> { at, bytes } | 'done'
+let swarmBusy = false;
+async function slowSwarmRound() {
+  if (!QBIT_URL || swarmBusy) return;
+  swarmBusy = true;
+  try {
+    const list = await qbit('/api/v2/torrents/info?filter=downloading');
+    const present = new Set();
+    let line = null;
+    for (const t of list) {
+      const hash = t.hash.toLowerCase();
+      present.add(hash);
+      if (swarmProbes.get(hash) === 'done' || deletingDownloads.has(hash)) continue;
+      const need = smart.swarmNeed(hash);
+      if (!need) { swarmProbes.set(hash, 'done'); continue; }
+      if (t.state !== 'downloading' || !(t.dlspeed > 0)) continue; // metadata, stalled or queued: not yet
+      const now = Date.now(), probe = swarmProbes.get(hash);
+      if (!probe) { swarmProbes.set(hash, { first: now }); continue; }
+      if (probe.at == null) { if (now - probe.first >= SWARM_SETTLE) Object.assign(probe, { at: now, bytes: t.downloaded }); continue; }
+      if (now - probe.at < SWARM_WINDOW) continue;
+      swarmProbes.set(hash, 'done');
+      const speed = (t.downloaded - probe.bytes) / ((now - probe.at) / 1000);
+      const rate = need.need / PLAY_MARGIN;
+      line ??= await qbit('/api/v2/transfer/info').catch(() => null);
+      const busy = line && line.dl_info_speed > LINE_ROOM;
+      const tooSlow = speed < rate && t.progress < 0.6;
+      const MB = (b) => (b / 1024 ** 2).toFixed(1);
+      console.log(`[swarm] ${t.name}: ${need.seeders} seeders, guessed ${MB(need.guess)} MB/s, measured ${MB(speed)} MB/s, picture ${MB(rate)} MB/s${tooSlow ? busy ? ' (too slow, but the line is busy)' : '' : ', keeps up'}`);
+      if (!tooSlow || busy) continue;
+      if (partialStreams.activeHashes().has(hash)) { console.log(`[swarm] ${t.name}: too slow, but someone is watching it: kept`); continue; }
+      try { await removeDownloadWithFiles(t); } catch (e) { console.warn(`[swarm] couldn’t remove ${t.name}: ${e.message}`); continue; }
+      const retried = smart.slowFound(hash);
+      console.warn(`[swarm] removed ${t.name}: its swarm can’t keep up with the picture${retried ? '; looking for a release that can' : ''}`);
+      const ownerId = accounts.torrentRow(hash)?.user_id ?? accounts.userFromTags(t.tags);
+      activity.record(SYSTEM, 'slow', `${String(t.name).slice(0, 200)} (${MB(speed)} of ${MB(rate)} MB/s)`, { user: accounts.userById(ownerId)?.email || 'Lilin' });
+    }
+    for (const hash of swarmProbes.keys()) if (!present.has(hash)) swarmProbes.delete(hash);
+  } catch { /* qBittorrent down: next round */ }
+  finally { swarmBusy = false; }
+}
+setInterval(() => slowSwarmRound(), 20e3).unref();
 
 async function readRaw(req, limit, tooLarge = 'That file is too large for a .torrent.') {
   const chunks = [];

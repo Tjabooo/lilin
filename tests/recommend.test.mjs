@@ -128,3 +128,42 @@ test('recommended season packs support House / House MD aliases without acceptin
   assert.equal(pick([['House.MD.S02.1080p.WEB-DL', 15], ['House.of.the.Dragon.S02.1080p.WEB', 5000]], want), 'House.MD.S02.1080p.WEB-DL');
   assert.equal(pick([['House.of.the.Dragon.S02.1080p.WEB', 5000]], want), null);
 });
+
+// ---- Best Quality has to play while it downloads (streamable) ----
+const flash = { type: 'movie', title: 'The Flash', year: 2023, profile: 'best', runtime: 144 };
+test('Best Quality: a remux on a thin swarm gives way to a web download that keeps up', () => {
+  // 55 GB over 144 min needs ~6.4 MB/s (7.6 with the margin); 24 seeders are guessed at ~4.8 MB/s.
+  assert.equal(pick([
+    ['The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN', 24, 55 * GB],
+    ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 400, 18 * GB],
+    ['The.Flash.2023.1080p.WEB-DL.DDP5.1.H.264-FLUX', 900, 7 * GB],
+  ], flash), 'The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX');
+});
+
+test('Best Quality: a remux with a swarm that keeps up still wins', () => {
+  assert.equal(pick([
+    ['The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN', 150, 55 * GB],
+    ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 400, 18 * GB],
+  ], flash), 'The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN');
+});
+
+test('Best Quality: nothing keeps up, so the best picture stays', () => {
+  assert.equal(pick([
+    ['The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN', 24, 55 * GB],
+    ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 12, 18 * GB],
+  ], flash), 'The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN');
+});
+
+test('Best Quality upgrades (stream false) ignore the swarm speed', () => {
+  assert.equal(pick([
+    ['The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN', 24, 55 * GB],
+    ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 400, 18 * GB],
+  ], { ...flash, stream: false }), 'The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN');
+});
+
+test('Best Quality in a chosen resolution also picks one that keeps up', () => {
+  assert.equal(pick([
+    ['The.Flash.2023.2160p.UHD.BluRay.REMUX.DV.HDR.HEVC.Atmos-TRiToN', 24, 55 * GB],
+    ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 400, 18 * GB],
+  ], { ...flash, quality: '2160p' }), 'The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX');
+});

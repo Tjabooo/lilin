@@ -7841,6 +7841,7 @@ const ACTIVITY_TEXT = {
   expire: (d) => T('auto-deleted {0}', d),
   upgrade: (d) => T('upgraded the quality of {0}', d),
   blocked: (d) => T('tried to download {0}, which was blocked', d),
+  slow: (d) => T('swapped out {0}, which downloaded too slowly to watch while downloading', d),
   settings: (d) => T('changed the server rules ({0})', d),
   permission: (d) => T('changed a permission: {0}', d),
 };

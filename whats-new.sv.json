@@ -1,4 +1,13 @@
 {
+  "2026-11-15-best-quality-streams": {
+    "title": "Bästa kvalitet väljer kopior du kan titta på medan de laddas ner",
+    "items": {
+      "No more crawling 4K downloads": {
+        "title": "Inga fler 4K-nedladdningar som kryper fram",
+        "text": "Med Bästa kvalitet påslaget tog Lilin förut den allra bästa kopian även när nästan ingen delade den, så den laddades ner långsammare än du hann titta. Nu kollar Lilin först: om den bästa kopian inte hinner med Spela nu väljer den den snyggaste kopian som gör det, oftast en 4K-webbkopia i stället för en jättestor skivkopia. Lilin håller också koll på de första minuterna av varje nedladdning, och om en visar sig vara för långsam byter den själv till en snabbare kopia (aldrig medan du tittar på den)."
+      }
+    }
+  },
   "2026-11-15-coming-soon-films": {
     "title": "Filmer som inte har kommit ut säger Kommer snart",
     "items": {

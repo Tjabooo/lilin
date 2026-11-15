@@ -27,7 +27,7 @@
 import crypto from 'node:crypto';
 import { showKey } from './shows.js';
 import { sameShow, episodesIn, episodeQueries } from './season.js';
-import { pickBest, pickEpisode, choose, pictureScore, perItemSize, sourceOf, isDualAudio } from './recommend.js';
+import { pickBest, pickEpisode, choose, pictureScore, perItemSize, sourceOf, isDualAudio, bitrateOf, swarmSpeed, PLAY_MARGIN } from './recommend.js';
 import { seasonPacks, packQueries, episodeQueriesAnime } from './anime.js';
 
 const jobs = new Map();          // id -> job
@@ -95,7 +95,7 @@ const hashOf = (r) => /btih:([a-z0-9]+)/i.exec(r.magnet || '')?.[1]?.toLowerCase
 // A pack whose file list arrived but no file in it could be read (no episode numbers Lilin knows):
 // its name already matched the season, so it's kept whole instead of being thrown away.
 const unreadable = (trim) => Boolean(trim?.covered && !trim.covered.size && !trim.allOwned);
-const usable = (r) => !isFake(r) && (!rejected.has(r.magnet || r.ref) || Date.now() - rejected.get(r.magnet || r.ref) > REJECTED_TTL);
+const usable = (r) => !isFake(r) && !isSlow(r) && (!rejected.has(r.magnet || r.ref) || Date.now() - rejected.get(r.magnet || r.ref) > REJECTED_TTL);
 
 // ---- fake releases (fake-release.js) ----
 // A torrent found to hold a program instead of a video is never picked again (by info hash, or by
@@ -127,6 +127,36 @@ export function fakeFound(hash) {
   return { ref: origin.ref || null, retried: startSmartJob(spec, origin.deps) };
 }
 
+// ---- slow swarms (server.js measures them) ----
+// Best Quality has to play while it downloads (recommend.js, streamable). The seeder count is only a
+// guess at a swarm's speed, so the server measures each Best download's first minutes; one that can't
+// keep up with its own picture is removed and its Download runs again without it, once per Download.
+const slow = new Map();          // info hash -> when it was found too slow
+const SLOW_TTL = 24 * 60 * 60 * 1000;
+function isSlow(r) {
+  const at = slow.get(hashOf(r));
+  return Boolean(at && Date.now() - at < SLOW_TTL);
+}
+// The speed (bytes/s) this download needs to play while it downloads, null when it isn't measured
+// (not a Best pick, an upgrade, or already the second try).
+const needOf = (r, want, kind) => (want.profile === 'best' && want.stream !== false ? bitrateOf(r, want, kind) * PLAY_MARGIN || null : null);
+export function swarmNeed(hash) {
+  const o = origins.get(String(hash || '').toLowerCase());
+  return o?.need && !o.spec.retry && Date.now() - o.at < ORIGIN_TTL ? { need: o.need, guess: o.guess, seeders: o.seeders, title: o.spec.title } : null;
+}
+// The server removed this download as too slow: never pick it again for a day, and run its Download
+// again (marked as the retry, so a second slow pick stays). Returns the new job's id, or null.
+export function slowFound(hash) {
+  hash = String(hash || '').toLowerCase();
+  slow.set(hash, Date.now());
+  for (const [h, at] of slow) if (Date.now() - at > SLOW_TTL) slow.delete(h);
+  const origin = origins.get(hash);
+  origins.delete(hash);
+  if (!origin || origin.spec.retry) return null;
+  const { only, ...spec } = origin.spec;
+  return startSmartJob({ ...spec, retry: true }, origin.deps);
+}
+
 // Search sites sort by popularity and cut the list short, so a quiet remux may never show up in a plain
 // search. Best Quality also asks for the good stuff by name (under the main title, to keep it quick).
 const QUALITY_WORDS = ['2160p', '1080p', 'BluRay', 'REMUX'];
@@ -144,14 +174,15 @@ async function search(query, type, deps) {
   }
 }
 
-async function add(r, mediaType, spec, deps) {
+async function add(r, mediaType, spec, deps, need = null) {
   const link = r.magnet || await deps.magnetFor1337x(r.ref);
   if (!link) throw new Error('No download link was available.');
   try {
     const result = await deps.addDownload({ link, name: r.name, mediaType });
     const hash = hashOfLink(link);
     if (hash && !result?.existing) {
-      origins.set(hash, { spec, deps: deps.undubbed || deps, ref: r.magnet ? null : r.ref || null, at: Date.now() });
+      origins.set(hash, { spec, deps: deps.undubbed || deps, ref: r.magnet ? null : r.ref || null, at: Date.now(),
+        need, guess: swarmSpeed(r.seeders), seeders: r.seeders });
       for (const [h, o] of origins) if (Date.now() - o.at > ORIGIN_TTL) origins.delete(h);
     }
     if (spec.subs?.length) deps.wantSubtitles?.(link, spec.subs, r.name);
@@ -220,7 +251,7 @@ async function runFilm(job, spec, deps) {
     return done(job, 'none', best.why || 'Couldn’t find a good copy of this yet.');
   }
   job.step = 'Starting download…';
-  await add(best.pick, 'movie', spec, deps);
+  await add(best.pick, 'movie', spec, deps, needOf(best.pick, want, 'movie'));
   job.added.push({ name: best.pick.name, quality: best.pick.quality, size: best.pick.size || null, seeders: best.pick.seeders });
   done(job, 'started', 'On its way. It’ll be ready to watch soon.');
 }
@@ -298,7 +329,7 @@ async function runSeason(job, spec, deps) {
       if (!best.pick) { if (!round) packWhy = best.why; break; }
       job.step = 'Starting download…';
       try {
-        const added = await add(best.pick, 'tv', spec, deps);
+        const added = await add(best.pick, 'tv', spec, deps, needOf(best.pick, packWant, 'pack'));
         deps.inOrder?.(added, season);
         const owned = new Set([...have, ...covered, ...outside]);
         const trim = added.existing ? await deps.reopenPack?.(added.link, season, owned, ctx) : await deps.trimPack?.(added.link, season, owned, ctx);
@@ -342,7 +373,7 @@ async function runSeason(job, spec, deps) {
     if (best.pick) {
       job.step = 'Starting download…';
       try {
-        const added = await add(best.pick, 'tv', spec, deps);
+        const added = await add(best.pick, 'tv', spec, deps, needOf(best.pick, { ...want, type: 'tv', episodes: aired?.length || 0 }, 'pack'));
         deps.inOrder?.(added, season);
         // The pack's file list: which episodes it really has. Unknown (no metadata yet) counts as all.
         const owned = new Set([...have, ...outside]);
@@ -382,7 +413,7 @@ async function runSeason(job, spec, deps) {
     }
     missesInARow = 0;
     try {
-      const added = await add(found.pick, 'tv', spec, deps);
+      const added = await add(found.pick, 'tv', spec, deps, needOf(found.pick, want, 'episode'));
       deps.inOrder?.(added, season);
       const eps = episodesIn(found.pick.name, season, ctx);
       eps.forEach((e) => covered.add(e));
@@ -425,7 +456,8 @@ async function runUpgrade(job, spec, deps) {
   if (have.queued?.size) return done(job, 'queued', 'Some episodes of this season are still downloading. Upgrade once they’ve finished.');
   const count = aired?.length || now.episodes.length;
   const current = { name: now.names[0] || '', size: now.bytes / now.episodes.length * count, quality: now.quality || null };
-  const want = { ...spec.want, profile: 'best', quality: spec.want?.quality || null, title: job.title, season, type: 'tv', episodes: count, missing: count };
+  // stream false: nobody watches an upgrade while it downloads, so the picture alone decides.
+  const want = { ...spec.want, profile: 'best', stream: false, quality: spec.want?.quality || null, title: job.title, season, type: 'tv', episodes: count, missing: count };
   const bar = pictureScore(current, want, 'pack') + UPGRADE_MARGIN;
   const nowText = describe(now.quality, current.name, now.bytes / now.episodes.length);
   job.step = 'Looking for a better season pack…';
