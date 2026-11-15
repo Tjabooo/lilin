@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-15-signin-keeps-email",
+  "date": "2026-11-15",
+  "title": "A wrong password no longer wipes your email",
+  "items": [
+    {
+      "title": "Only retype the password",
+      "text": "If you mistype your password when signing in, Lilin now keeps the email you typed and puts the cursor straight in the password box."
+    }
+  ]
+},
+{
   "id": "2026-11-15-subtitle-title-case",
   "date": "2026-11-15",
   "title": "Subtitles stop Capitalising Every Word",

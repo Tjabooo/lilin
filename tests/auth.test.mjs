@@ -119,6 +119,15 @@ test('the sign-in page escapes what it echoes and only redirects within Lilin', 
   assert.ok(html.includes('&lt;b&gt;'));
 });
 
+test('after a wrong password the sign-in page keeps the email and focuses the password', () => {
+  const blank = signInPage({});
+  assert.match(blank, /id="email"[^>]*autofocus/);
+  const again = signInPage({ error: 'nope', email: ' friend@example.com"><x ' });
+  assert.match(again, /id="email"[^>]*value="friend@example.com&quot;&gt;&lt;x"/);
+  assert.doesNotMatch(again, /id="email"[^>]*autofocus/);
+  assert.match(again, /id="password"[^>]*autofocus/);
+});
+
 test('server: sign-in gate, form login, CSRF and host checks end to end', { timeout: 30000 }, async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-auth-api-'));

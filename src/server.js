@@ -4483,7 +4483,7 @@ function drawSignIn(req, res, url) {
   if (req.auth.via) { res.writeHead(303, { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
   const errors = { wrong: 'That email and password don’t match.', wait: 'Too many tries. Wait a few minutes and try again.', missing: 'Enter your email and password.' };
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-  res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote }));
+  res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote, email: url.searchParams.get('email') || '' }));
 }
 
 // JSON from the app, or a plain form post from /signin.
@@ -4520,7 +4520,7 @@ async function handleAuth(req, res, p) {
     } catch (err) {
       if (!body.form || !err.status) throw err;
       const code = err.status === 429 ? 'wait' : err.status === 400 ? 'missing' : 'wrong';
-      res.writeHead(303, { Location: `/signin?error=${code}&next=${encodeURIComponent(next)}`, 'Cache-Control': 'no-store' });
+      res.writeHead(303, { Location: `/signin?error=${code}&next=${encodeURIComponent(next)}${body.email ? `&email=${encodeURIComponent(String(body.email).slice(0, 254))}` : ''}`, 'Cache-Control': 'no-store' });
       return res.end();
     }
   }

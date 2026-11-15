@@ -171,7 +171,7 @@ export function createOidc({
         return issueCode(res, request, email);
       } catch (err) {
         if (!err.status) throw err;
-        return html(res, err.status === 429 ? 429 : 200, signInPage({ next, error: err.message, hasLogins: true, action: `${PREFIX}/login` }));
+        return html(res, err.status === 429 ? 429 : 200, signInPage({ next, error: err.message, hasLogins: true, action: `${PREFIX}/login`, email: body.email }));
       }
     }
 

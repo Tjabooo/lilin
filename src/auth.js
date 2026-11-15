@@ -415,7 +415,9 @@ export function safeNext(next) {
 }
 
 // `action`: where the form posts (the OIDC sign-in under /c/ posts to its own path).
-export function signInPage({ next = '/', error = '', hasLogins = true, remote = false, action = '/api/auth/login' } = {}) {
+// `email`: what they typed last time, kept after a wrong password so only the password needs retyping.
+export function signInPage({ next = '/', error = '', hasLogins = true, remote = false, action = '/api/auth/login', email = '' } = {}) {
+  const typed = String(email || '').trim().slice(0, 254);
   const message = error ? `<p class="err" role="alert">${esc(translate(error))}</p>` : '';
   const help = hasLogins
     ? tr('Ask the server’s owner if you don’t have a password.')
@@ -437,8 +439,8 @@ button{margin-top:20px;width:100%;padding:12px;border:0;border-radius:10px;backg
 <h1>Lilin</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
 <form method="post" action="${esc(action)}">
 <input type="hidden" name="next" value="${esc(safeNext(next))}">
-<label for="email">${tr('Email')}</label><input id="email" name="email" type="email" autocomplete="username" required autofocus>
-<label for="password">${tr('Password')}</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+<label for="email">${tr('Email')}</label><input id="email" name="email" type="email" autocomplete="username" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}>
+<label for="password">${tr('Password')}</label><input id="password" name="password" type="password" autocomplete="current-password" required${typed ? ' autofocus' : ''}>
 <button type="submit">${tr('Sign in')}</button></form>
 <p class="foot">${help}</p><p class="foot">${langLink('en', 'English')} · ${langLink('sv', 'Svenska')}</p></main></body></html>`;
 }
