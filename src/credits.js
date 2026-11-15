@@ -391,6 +391,22 @@ export async function creditsFor(file, siblings = []) {
   return found.length ? Math.max(...found) : null;
 }
 
+// What's already known about a video for Live TV: its length, the opening titles and where the credits start.
+// Only the file is read (once, cached); nothing is decoded or compared here, so a channel costs nothing to plan.
+export async function knownTimes(file, siblings = []) {
+  const entry = await facts(file);
+  if (!entry?.duration) return null;
+  const stored = (part) => siblings.map((other) => {
+    const peer = state.files[other];
+    return peer?.tok ? entry[part]?.[siblingKey(other, peer)] : undefined;
+  }).filter((v) => v != null);
+  const ends = stored('vs');
+  const creditsAt = entry.chapter ?? (ends.length ? Math.max(...ends) : null);
+  const far = stored('ifar');
+  const intro = entry.intro || agreeIntro(stored('ivs')) || (far.length === 2 ? agreeIntro(far) : null);
+  return { duration: entry.duration, intro, creditsAt };
+}
+
 // The theme song both episodes open with, in each one's own time. Rounded inwards: the button may
 // appear a moment late and skip a moment short, never past the start of the episode itself.
 async function compareOpenings(fileA, a, fileB, b, far = false) {

@@ -2,6 +2,7 @@
 import { T, lang, langTag, locale, LANGUAGES, saveLanguage, translatePage } from './i18n.js';
 import { WatchSession, offsetCues } from './watch-sync.js';
 import { createNotesView } from './notes-view.js';
+import { createLiveView, channelName, clock as liveClock, programmeLine } from './live.js';
 import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
@@ -4344,6 +4345,10 @@ function renderParty() {
   roomButton.setAttribute('aria-expanded', String(Boolean(party && watchPanelOpen)));
   roomButton.classList.toggle('is-on', Boolean(party));
   renderRoomButton(party?.state);
+  const onAir = Boolean(party?.state.live);
+  if (onAir) { roomButton.hidden = true; bar.hidden = true; }
+  playerEl.classList.toggle('is-live', onAir);
+  renderLiveStrip();
   playerEl.classList.toggle('in-party', Boolean(party));
   if (playerEl.classList.contains('room-docked') !== roomDocked()) {
     playerEl.classList.toggle('room-docked', roomDocked());
@@ -4427,6 +4432,7 @@ function attachWatchRoom(room, joined = false) {
 // Room state arrived. A Play now room whose download finished moves to the full-quality file: everyone's
 // player reloads it in place and keeps their seat (the room waits until they're all ready again).
 function followRoom(session) {
+  if (session === party && session.state.live) { followLive(session); return; }
   const media = session.state.media;
   if (session === party && current?.kind === 'part' && media?.kind === 'lib') {
     const room = session.state, joined = !session.blocked;
@@ -4437,6 +4443,139 @@ function followRoom(session) {
   }
   renderParty();
 }
+
+// ---------- Live TV ----------
+// Each channel plays in a Watch Together room that nobody hosts (src/live-tv.js): tuning in joins it at the
+// live moment, the room's clock keeps everyone on the same frame, and a new programme reaches every player at once.
+const liveView = createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me: () => state.me, tune: (id) => tuneIn(id),
+  overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState });
+liveView.onChanged(() => { if (state.view === 'live') liveView.load(true).then(renderLive); });
+function enableLiveTab() {
+  addAdminTab('live', T('Live'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>');
+  $('.tabs').insertBefore($('.tab[data-view="live"]'), $('.tab[data-view="library"]'));
+}
+function renderLive() { const body = $('#live-body'); if (body) liveView.render(body); }
+
+const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, live: room.live,
+  filmTitle: room.live?.now?.title || room.media.title, episodeName: room.live?.now?.name || null });
+let tuning = null, lastChannel = null, liveDigits = '', liveDigitsTimer = null;
+const liveChannelId = () => (current?.live ? party?.state.live?.channel?.id || current.live.channel?.id : null);
+
+async function tuneIn(id) {
+  if (!id || tuning) return;
+  const was = liveChannelId();
+  if (was === id && !playerEl.hidden) { showPlayerUi(); return; }
+  tuning = id;
+  try {
+    const room = await api(`/api/live/${encodeURIComponent(id)}/tune`, jsonPost({ clientId: watchClient }));
+    if (!room.media) {
+      api(`/api/watch/${room.token}/leave`, jsonPost({ clientId: watchClient })).catch(() => {});
+      const next = room.live?.next;
+      toast(next ? T('Nothing is on right now. {0} starts at {1}.', next.title, liveClock(next.s)) : T('Nothing is on this channel right now.'));
+      return;
+    }
+    if (was && was !== id) lastChannel = was;
+    if (!playerEl.hidden && current) await loadPlayerMedia(liveMediaOf(room), { watchRoom: room, roomJoined: !party?.blocked });
+    else await openPlayer(liveMediaOf(room), { watchRoom: room });
+  } catch (e) { toast(e.message); }
+  finally { tuning = null; }
+}
+
+// A new state for the channel: the next programme loads in place (no new tap), and an empty slot says when it's back.
+function followLive(session) {
+  const room = session.state;
+  if (current && room.live) current.live = room.live;
+  if (room.media && current && room.media.id !== current.id) {
+    const joined = !session.blocked;
+    leaveWatchRoom(false);
+    loadPlayerMedia(liveMediaOf(room), { watchRoom: room, roomJoined: joined });
+    return;
+  }
+  const note = $('#player-note');
+  if (!room.media) {
+    const next = room.live?.next;
+    note.textContent = next ? T('Off air. {0} starts at {1}.', next.title, liveClock(next.s)) : T('Off air for a moment.');
+    note.hidden = false; note.dataset.live = '1';
+  } else if (note.dataset.live) { note.hidden = true; delete note.dataset.live; }
+  renderParty();
+}
+
+function surf(step) {
+  const next = liveView.neighbour(liveChannelId(), step);
+  if (next) tuneIn(next.id);
+}
+// Keys on a channel: PageUp/PageDown (or [ ]) surf, digits pick a channel number, Backspace goes back to the last one,
+// G opens the guide. Play, pause and seeking keys do nothing: it's live.
+function liveKey(key) {
+  if (key === 'PageUp' || key === ']') { surf(-1); return true; }
+  if (key === 'PageDown' || key === '[') { surf(1); return true; }
+  if (key === 'Backspace') { if (lastChannel) tuneIn(lastChannel); return true; }
+  if (key === 'g') { openGuide(); return true; }
+  if (/^[0-9]$/.test(key)) {
+    liveDigits = (liveDigits + key).slice(-3);
+    osd(liveDigits);
+    clearTimeout(liveDigitsTimer);
+    liveDigitsTimer = setTimeout(() => {
+      const c = liveView.byNumber(Number(liveDigits));
+      liveDigits = '';
+      if (c) tuneIn(c.id); else toast(T('There’s no channel with that number.'));
+    }, 1100);
+    return true;
+  }
+  return [' ', 'k', 'j', 'l', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key);
+}
+async function openGuide() {
+  closeTopOverlay();
+  await setView('live');
+}
+// "Keep watching" and "Watch from start": the same video in the normal player, which saves a resume point.
+async function leaveLive(fromStart) {
+  if (!current?.live) return;
+  const media = { ...current, live: undefined };
+  delete media.live;
+  const at = fromStart ? 0.01 : video.currentTime;
+  if (!state.library.some((f) => f.mediaKey && f.mediaKey === media.mediaKey)) {
+    try { await api('/api/library/add', jsonPost({ ids: [media.id] })); loadLibrary().catch(() => {}); } catch { /* still plays */ }
+  }
+  await loadPlayerMedia({ kind: 'lib', id: media.id, key: media.id, mediaKey: media.mediaKey, title: media.title, filmTitle: media.filmTitle,
+    season: media.season, episode: media.episode, episodeName: media.episodeName, done: true }, { startAt: at });
+  if (!fromStart) toast(T('It’s in Continue watching now.'));
+}
+
+function renderLiveStrip() {
+  const strip = $('#live-strip');
+  const info = party?.state.live;
+  strip.hidden = !info;
+  if (!info) return;
+  const ch = info.channel || {};
+  const others = (party.state.members || []).filter((m) => m.id !== watchClient);
+  const seen = new Map(); for (const m of others) if (!seen.has(m.name)) seen.set(m.name, m);
+  const now = info.now, next = info.next;
+  const done = now ? Math.min(1, Math.max(0, (Date.now() - now.s) / (now.e - now.s))) : 0;
+  const sig = JSON.stringify([ch.id, now?.s, next?.s, [...seen.keys()], Math.round(done * 200)]);
+  if (strip.dataset.sig === sig) return;
+  strip.dataset.sig = sig;
+  const button = (label, onclick, cls = 'chip') => h('button', { type: 'button', class: cls, onclick: (e) => { e.stopPropagation(); onclick(); } }, label);
+  strip.replaceChildren(
+    h('div', { class: 'live-strip-top' },
+      h('span', { class: 'live-pill' }, h('i', { 'aria-hidden': 'true' }), T('Live')),
+      h('b', { class: 'live-strip-channel' }, `${ch.number ?? ''} ${channelName(ch, state.me)}`.trim()),
+      seen.size ? h('span', { class: 'live-strip-faces', title: namesText([...seen.keys()]) }, people.faces([...seen.values()], { size: 24, max: 4 }),
+        h('small', {}, T('{0} watching', seen.size + 1))) : null,
+      h('span', { class: 'live-surf' },
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': T('Previous channel'), onclick: (e) => { e.stopPropagation(); surf(-1); } }, '▲'),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': T('Next channel'), onclick: (e) => { e.stopPropagation(); surf(1); } }, '▼'))),
+    now ? h('div', { class: 'live-strip-now' },
+      h('p', { class: 'live-strip-title' }, now.title, programmeLine(now, episodeLabel) ? h('span', {}, ` · ${programmeLine(now, episodeLabel)}`) : null),
+      h('div', { class: 'live-strip-bar', style: `--done:${done}` }, h('i', {})),
+      h('p', { class: 'live-strip-times muted' }, `${liveClock(now.s)}–${liveClock(now.e)}`,
+        next ? h('span', {}, T('Next: {0} at {1}', [next.title, programmeLine(next, episodeLabel)].filter(Boolean).join(' · '), liveClock(next.s))) : null)) : null,
+    h('div', { class: 'live-strip-actions' },
+      button(T('Guide'), openGuide),
+      current?.id ? button(T('Watch from start'), () => leaveLive(true)) : null,
+      current?.id ? button(T('Keep watching'), () => leaveLive(false)) : null));
+}
+setInterval(() => { if (party?.state.live && !playerEl.hidden) renderLiveStrip(); }, 15000);
 
 async function hostWatchRoom() {
   if (!current || !['lib', 'part'].includes(current.kind) || party) return;
@@ -4714,6 +4853,18 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && pa
 
 function saveProgress(force = false) {
   countPlayed();
+  // Live TV counts as watching (Wrapped) but leaves Continue watching alone, until "Keep watching".
+  if (current?.live) {
+    if (!current.ready || !video.duration || !isFinite(video.duration)) return;
+    const now = Date.now();
+    if (!force && now - lastPush < 15000) return;
+    lastPush = now;
+    const watched = Math.round(playedSince * 10) / 10;
+    playedSince = 0;
+    if (watched > 0) api('/api/me/progress', { ...jsonPost({ ref: progressRef(current), time: video.currentTime, duration: video.duration,
+      watched, about: watchAbout(current), room: party?.state.token || undefined, live: true }), keepalive: true }).catch(() => {});
+    return;
+  }
   if (plainMedia(current) && current.kind !== 'part') return; // clips and note videos have no resume point
   if (!current?.ready || !sourceIsCurrent(current) || !video.duration || !isFinite(video.duration)) return;
   const now = Date.now();
@@ -6188,6 +6339,7 @@ function osd(content) {
 function togglePlay(feedback = false) {
   // A browser that hasn't let this page play with sound yet: this tap unlocks it (and the host's also starts the room).
   if (party?.blocked) { party.unlock(); if (party.isHost && !party.state.intentPlaying) party.control('play'); return; }
+  if (party?.state.live) { toast(T('This is live TV, so it keeps playing. Watch from the start to pause it.')); return; }
   if (party) { party.control(party.state.intentPlaying ? 'pause' : 'play'); return; }
   const play = video.paused || video.ended;
   if (play) video.play().catch(() => {}); else video.pause();
@@ -6664,6 +6816,7 @@ document.addEventListener('keydown', (e) => {
   if (!playerKeyTarget(e)) return;
   if (e.key === 'Tab') { showPlayerUi(); return; } // hidden controls can't take focus
   const key = e.key === '/' && e.shiftKey ? '?' : e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (current?.live && liveKey(key)) { e.preventDefault(); showPlayerUi(); return; }
   const run = PLAYER_KEYS[key] ?? (/^[0-9]$/.test(key) ? () => seekToFraction(Number(key) / 10) : null);
   if (!run) return;
   e.preventDefault(); // also keeps Space from pressing whichever button has focus
@@ -7117,7 +7270,7 @@ window.addEventListener('pageshow', (event) => {
 
 // ---------- search box + tabs ----------
 const input = $('#q');
-const PLACEHOLDERS = { discover: T('Search films and shows'), library: T('Filter your library'), downloads: T('Filter downloads'), activity: T('Filter by person or title'), house: T('Filter machines'), clips: T('Filter by game or name'), settings: T('Search films and shows'), notes: T('Search notes by keyword') };
+const PLACEHOLDERS = { live: T('Search films and shows'), discover: T('Search films and shows'), library: T('Filter your library'), downloads: T('Filter downloads'), activity: T('Filter by person or title'), house: T('Filter machines'), clips: T('Filter by game or name'), settings: T('Search films and shows'), notes: T('Search notes by keyword') };
 const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, query: () => state.query,
   playVideo: (a) => openPlayer({ kind: 'note', id: a.fileId, key: `note:${a.fileId}`, title: a.name }),
   overlay: { push: pushOverlay, close: closeTopOverlay },
@@ -7125,6 +7278,7 @@ const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, que
 
 function renderView() {
   if (state.view === 'discover') renderDiscover();
+  if (state.view === 'live') renderLive();
   if (state.view === 'library') renderLibrary();
   if (state.view === 'downloads') renderDownloads();
   if (state.view === 'activity') renderActivity();
@@ -9411,7 +9565,7 @@ function enableActivityTab() {
 }
 
 input.addEventListener('input', () => {
-  if (state.view === 'settings') { const q = input.value; setView('discover').then(() => { input.value = state.query = q; renderDiscover(); }); return; }
+  if (state.view === 'settings' || state.view === 'live') { const q = input.value; setView('discover').then(() => { input.value = state.query = q; renderDiscover(); }); return; }
   state.query = input.value;
   $('#q-clear').hidden = !input.value;
   if (state.view === 'notes') {
@@ -9514,6 +9668,7 @@ async function setView(view) {
   if (view === 'activity') await loadActivity();
   if (view === 'house') await loadHouse();
   if (view === 'clips') await loadClips();
+  if (view === 'live') await liveView.load(true);
   if (view === 'notes') await notesView.load();
   if (view === 'settings') await Promise.all([loadLibrary(), state.me?.isOwner ? loadPeople() : null]);
   if (state.view === view) { if (view === 'settings') renderSettingsWhenStill(); else renderView(); revealSectionTab(); }
@@ -9580,6 +9735,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   $('#manage-downloads').hidden = !state.me?.isOwner;
   if (state.status.admin) { enableActivityTab(); enableHouseTab(); enableNotesTab(); }
   if (state.status.clips) enableClipsTab();
+  enableLiveTab();
   updateTabOverflow();
   await Promise.all([loadLibrary(), loadDownloads(), loadSessions(), loadProgress(), loadWatchlist(), loadTravel()]);
   // A reload stays on the tab it was on (#library); a fresh visit opens the chosen start tab.

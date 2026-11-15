@@ -542,5 +542,18 @@
  "The owner can always invite people.": "Ägaren kan alltid bjuda in folk.",
  "Your Lilin Wrapped {0} is here": "Din Lilin Wrapped {0} är här",
  "{0} hours watched, and one show you couldn’t stop watching. Tap to see your year.": "{0} timmar tittat, och en serie du inte kunde sluta titta på. Tryck för att se ditt år.",
- "{0} hours watched. Tap to see your year.": "{0} timmar tittat. Tryck för att se ditt år."
+ "{0} hours watched. Tap to see your year.": "{0} timmar tittat. Tryck för att se ditt år.",
+ "Everyone can tune in to a channel from the Live tab.": "Alla kan titta på en kanal från fliken Live.",
+ "Nothing is on this channel right now.": "Det sänds inget på den här kanalen just nu.",
+ "Only the server’s owner can make channels.": "Bara serverns ägare kan skapa kanaler.",
+ "This channel isn’t available to you.": "Den här kanalen är inte tillgänglig för dig.",
+ "This channel has nothing to show yet.": "Den här kanalen har inget att visa än.",
+ "This channel is full right now.": "Den här kanalen är full just nu.",
+ "This is live TV: it can’t be paused or skipped. Watch it from the start to play it yourself.": "Det här är live-tv: det går inte att pausa eller spola. Titta från början för att spela det själv.",
+ "Tune in from the Live tab.": "Börja titta från fliken Live.",
+ "Give the channel a name.": "Ge kanalen ett namn.",
+ "Pick at least one show, genre or library for the channel.": "Välj minst en serie, genre eller ett bibliotek till kanalen.",
+ "That’s plenty of channels. Remove one first.": "Det räcker med kanaler. Ta bort en först.",
+ "That channel is gone already.": "Den kanalen finns inte längre.",
+ "Keep the name under 30 characters.": "Håll namnet under 30 tecken."
 }

@@ -206,6 +206,12 @@ export function updateServerSettings(patch) {
     next.maxExtensions = v;
   }
   if ('membersCanDownload' in patch) next.membersCanDownload = Boolean(patch.membersCanDownload);
+  // Live TV's name (empty: LIVE_TV_NAME from .env, else "Lilin TV").
+  if ('liveName' in patch) {
+    const v = String(patch.liveName ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (v.length > 30) throw httpError(400, 'Keep the name under 30 characters.');
+    next.liveName = v;
+  }
   if ('defaultTheme' in patch) {
     if (typeof patch.defaultTheme !== 'string' || !/^[a-z-]{1,20}$/.test(patch.defaultTheme)) throw httpError(400, 'Unknown theme.');
     next.defaultTheme = patch.defaultTheme;

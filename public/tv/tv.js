@@ -11,7 +11,7 @@
   var TOKEN_KEY = 'lilin:tv-session';    // a session token, or "home" for the shared Home network account
   var WATCHED_KEY = 'lilin:tv-watched';  // episodes finished on this TV, to pick where a show continues
   var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009, BACKSPACE: 8, ESC: 27,
-    PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412 };
+    PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412, CH_UP: 427, CH_DOWN: 428, PRE_CH: 10190 };
   var app = document.getElementById('app');
   var state = { me: null, library: [], shows: [], progress: {}, genres: [], pending: [], focusPending: false };
   var screen = null;
@@ -131,7 +131,8 @@
   // ---------- signing in ----------
   function start() {
     try {
-      ['MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaFastForward', 'MediaRewind'].forEach(function (k) {
+      ['MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaFastForward', 'MediaRewind', 'ChannelUp', 'ChannelDown', 'PreviousChannel',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].forEach(function (k) {
         try { tizen.tvinputdevice.registerKey(k); } catch (e) { /* not on this model */ }
       });
     } catch (e) { /* not on a TV */ }
@@ -147,6 +148,7 @@
         return pairScreen(me && me.id != null, T('This TV was signed out. Sign it in again.'));
       }
       state.me = me;
+      state.liveName = status.liveName || 'Lilin TV';
       return Promise.all([loadLibrary(), loadGenres()]).then(homeScreen);
     }).catch(function (err) {
       if (err.status === 401) { localStorage.removeItem(TOKEN_KEY); return pairScreen(false); }
@@ -633,12 +635,13 @@
   function homeScreen() {
     var el = h('div', { class: 'screen home' });
     var rowsEl = h('div', { class: 'rows' });
-    var tops = [h('button', { class: 'top-link', text: T('Search') }), h('button', { class: 'top-link', text: T('Discover') }),
+    var tops = [h('button', { class: 'top-link', text: T('Search') }), h('button', { class: 'top-link live-link', text: state.liveName || 'Lilin TV' }),
+      h('button', { class: 'top-link', text: T('Discover') }),
       h('button', { class: 'top-link', text: T('Documentaries') }), h('button', { class: 'switch', text: T('Switch account') })];
     var top = h('header', { class: 'topbar' }, h('div', { class: 'brandline' },
         h('div', { class: 'wordmark', text: 'Lilin' })),
-      h('div', { class: 'top-actions' }, tops[0], tops[1], tops[2],
-        h('div', { class: 'who' }, h('span', { text: state.me && state.me.name || '' }), sharedNote(), tops[3])));
+      h('div', { class: 'top-actions' }, tops[0], tops[1], tops[2], tops[3],
+        h('div', { class: 'who' }, h('span', { text: state.me && state.me.name || '' }), sharedNote(), tops[4])));
     el.appendChild(top);
     el.appendChild(rowsEl);
     var nav = rowsNav(rowsEl, 40);
@@ -710,8 +713,9 @@
           if (code === KEY.DOWN) { if (!empty) atTop = false; paint(); return true; }
           if (code === KEY.ENTER) {
             if (ti === 0) searchScreen();
-            else if (ti === 1) discoverScreen();
-            else if (ti === 2) docsScreen();
+            else if (ti === 1) liveScreen();
+            else if (ti === 2) discoverScreen();
+            else if (ti === 3) docsScreen();
             else { localStorage.removeItem(TOKEN_KEY); history = []; screen = null; pairScreen(true); }
             return true;
           }
@@ -1536,6 +1540,281 @@
       if (code === KEY.ENTER) { var at = choice === 0 ? p.time : 0; screen = history.pop(); play(f, at); return true; }
       return false;
     } }, true);
+  }
+
+  // ---------- Live TV ----------
+  // The guide (channels down the screen, time across) and a channel's player. A channel plays in a Watch
+  // Together room on the server; this TV joins it, follows the room's clock with its heartbeats (an
+  // EventSource can't carry the TV's session header) and seeks back into step when it drifts.
+  var live = { channels: [], last: null, guideAt: 0 };
+  function tvClient() {
+    var id = load('lilin:tv-client', null);
+    if (!id || !/^[A-Za-z0-9_-]{16,80}$/.test(id)) {
+      id = 'tv-';
+      for (var i = 0; i < 20; i++) id += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36));
+      try { localStorage.setItem('lilin:tv-client', JSON.stringify(id)); } catch (e) { /* private mode */ }
+    }
+    return id;
+  }
+  function loadGuide() {
+    var t = Date.now();
+    return api('/api/live?from=' + (t - 15 * 60000) + '&to=' + (t + 150 * 60000)).then(function (g) {
+      live.channels = g.channels || []; live.guideAt = Date.now(); state.liveName = g.name || state.liveName;
+      return g;
+    });
+  }
+  function onNow(c, t) { for (var i = 0; i < c.programmes.length; i++) if (c.programmes[i].s <= t && t < c.programmes[i].e) return c.programmes[i]; return null; }
+  function nextOn(c, t) { for (var i = 0; i < c.programmes.length; i++) if (c.programmes[i].s > t) return c.programmes[i]; return null; }
+  function meId() { return state.me && state.me.id; }
+
+  function liveScreen(focusId) {
+    var el = h('div', { class: 'screen live-guide' });
+    var head = h('header', { class: 'topbar' }, h('div', { class: 'brandline' }, h('span', { class: 'live-dot' }), h('div', { class: 'wordmark', text: state.liveName || 'Lilin TV' })),
+      h('div', { class: 'live-clock' }));
+    var list = h('div', { class: 'guide' });
+    var note = h('p', { class: 'guide-note', text: T('Loading…') });
+    el.appendChild(head); el.appendChild(list); el.appendChild(note);
+    var focus = 0, from = 0, to = 0, timer = null, me = null;
+    var W = 1180; // px of time across (1920 wide screen, minus the channel column)
+    function x(ms) { return Math.round((ms - from) / (to - from) * W); }
+    function build(g) {
+      from = g.from; to = Math.min(g.to, g.from + 165 * 60000);
+      list.innerHTML = '';
+      if (!live.channels.length) { note.textContent = T('No channels yet. They fill themselves from the library.'); return; }
+      note.textContent = T('Up / Down: channel · OK: watch · numbers: go to a channel');
+      var ruler = h('div', { class: 'guide-row guide-ruler' }, h('div', { class: 'guide-chan' }));
+      var lane = h('div', { class: 'guide-lane' });
+      for (var t = Math.ceil(from / 1800000) * 1800000; t < to; t += 1800000) {
+        var tick = h('span', { class: 'guide-tick', text: L.clock(t) }); tick.style.left = x(t) + 'px'; lane.appendChild(tick);
+      }
+      ruler.appendChild(lane); list.appendChild(ruler);
+      live.channels.forEach(function (c, i) {
+        var row = h('div', { class: 'guide-row' + (i === focus ? ' focus' : '') });
+        var others = (c.faces || []).filter(function (f) { return !state.me || f.name !== state.me.name; }).length;
+        row.appendChild(h('div', { class: 'guide-chan' }, h('b', { class: 'guide-num', text: String(c.number) }),
+          h('span', { class: 'guide-name', text: L.channelName(c, meId()) }), others ? h('small', { class: 'guide-watch', text: T('{0} watching', others) }) : null));
+        var lane2 = h('div', { class: 'guide-lane' });
+        c.programmes.forEach(function (p) {
+          var left = Math.max(0, x(p.s)), right = Math.min(W, x(p.e));
+          if (right - left < 4) return;
+          var cell = h('div', { class: 'guide-show' + (p.s <= Date.now() && Date.now() < p.e ? ' now' : '') }, h('b', { text: p.title }), h('small', { text: L.programmeLine(p) || L.clock(p.s) + '–' + L.clock(p.e) }));
+          cell.style.left = left + 'px'; cell.style.width = (right - left - 6) + 'px';
+          lane2.appendChild(cell);
+        });
+        row.appendChild(lane2);
+        list.appendChild(row);
+      });
+      var line = h('div', { class: 'guide-now' }); line.style.left = (300 + x(Date.now())) + 'px'; list.appendChild(line);
+      line.style.height = list.scrollHeight + 'px';
+      paint();
+    }
+    function paint() {
+      var rows = list.querySelectorAll('.guide-row:not(.guide-ruler)');
+      for (var i = 0; i < rows.length; i++) rows[i].classList.toggle('focus', i === focus);
+      if (rows[focus] && rows[focus].scrollIntoView) rows[focus].scrollIntoView({ block: 'nearest' });
+      head.querySelector('.live-clock').textContent = L.clock(Date.now());
+    }
+    function refresh() {
+      return loadGuide().then(function (g) {
+        if (focusId) { live.channels.forEach(function (c, i) { if (c.id === focusId) focus = i; }); focusId = null; }
+        focus = Math.min(focus, Math.max(0, live.channels.length - 1));
+        if (screen === me) build(g);
+      }).catch(function (e) { note.textContent = e.message; });
+    }
+    var digits = '', digitTimer = null;
+    me = { el: el, focus: paint,
+      refresh: function () { refresh(); },
+      leave: function () { clearInterval(timer); },
+      key: function (code) {
+        var n = code >= 48 && code <= 57 ? code - 48 : code >= 96 && code <= 105 ? code - 96 : -1;
+        if (n >= 0) {
+          digits = (digits + n).slice(-3); note.textContent = T('Channel {0}…', digits);
+          clearTimeout(digitTimer);
+          digitTimer = setTimeout(function () {
+            var want = Number(digits); digits = '';
+            var c = live.channels.filter(function (x) { return x.number === want; })[0];
+            if (c) livePlay(c.id); else toast(T('There’s no channel with that number.'));
+          }, 1100);
+          return true;
+        }
+        if (code === KEY.UP || code === KEY.CH_UP) { focus = Math.max(0, focus - 1); paint(); return true; }
+        if (code === KEY.DOWN || code === KEY.CH_DOWN) { focus = Math.min(live.channels.length - 1, focus + 1); paint(); return true; }
+        if (code === KEY.ENTER) { var c = live.channels[focus]; if (c) livePlay(c.id); return true; }
+        return code === KEY.LEFT || code === KEY.RIGHT;
+      } };
+    show(me, true);
+    refresh();
+    timer = setInterval(function () { if (screen === me) refresh(); }, 60000);
+  }
+
+  // A channel on the TV's own player. Up/Down and CH+/CH− surf, numbers pick a channel, PRE-CH (or Left)
+  // goes back to the last one, OK shows what's on, Back returns to the guide.
+  function livePlay(id, replace) {
+    var av = window.webapis && webapis.avplay;
+    if (!av) { toast(T('This TV can’t play videos from here.')); return; }
+    var client = tvClient();
+    var s = { id: id, room: null, mediaId: null, closed: false, offset: 0, samples: [], opening: false, seekedAt: 0, beat: null, url: null, lastPos: -1, movedAt: 0, lead: 0.25 };
+    var obj = h('object', { id: 'av', type: 'application/avplayer' });
+    var banner = h('div', { class: 'live-banner' });
+    var spinner = h('div', { class: 'loading show', text: T('Tuning in…') });
+    var el = h('div', { class: 'screen player live-player' }, banner, spinner);
+    var bannerTimer = null, digits = '', digitTimer = null;
+    function serverNow() { return Date.now() + s.offset; }
+    function channel() { return live.channels.filter(function (c) { return c.id === s.id; })[0] || (s.room && s.room.live && s.room.live.channel) || { id: s.id }; }
+    function showBanner(stay) {
+      var info = s.room && s.room.live || {};
+      var c = info.channel || channel();
+      var now = info.now, next = info.next;
+      var others = s.room ? (s.room.members || []).filter(function (m) { return m.id !== client; }).length : 0;
+      banner.innerHTML = '';
+      banner.appendChild(h('div', { class: 'live-banner-top' }, h('span', { class: 'live-pill', text: T('Live') }),
+        h('b', { class: 'live-banner-chan', text: (c.number != null ? c.number + '  ' : '') + L.channelName(c, meId()) }),
+        others ? h('span', { class: 'live-banner-watch', text: T('{0} watching', others + 1) }) : null,
+        h('span', { class: 'live-banner-clock', text: L.clock(Date.now()) })));
+      if (now) {
+        var bar = h('div', { class: 'live-bar' }, h('i', {}));
+        bar.firstChild.style.width = Math.max(0, Math.min(100, (Date.now() - now.s) / (now.e - now.s) * 100)).toFixed(1) + '%';
+        banner.appendChild(h('div', { class: 'live-banner-now' }, h('b', { text: now.title }), h('span', { text: L.programmeLine(now) ? ' · ' + L.programmeLine(now) : '' })));
+        banner.appendChild(bar);
+        banner.appendChild(h('div', { class: 'live-banner-times', text: L.clock(now.s) + '–' + L.clock(now.e) + (next ? '   ' + T('Next: {0} at {1}', next.title, L.clock(next.s)) : '') }));
+      } else banner.appendChild(h('div', { class: 'live-banner-now' }, h('b', { text: next ? T('Off air. {0} starts at {1}.', next.title, L.clock(next.s)) : T('Off air for a moment.') })));
+      banner.classList.add('show');
+      clearTimeout(bannerTimer);
+      if (!stay) bannerTimer = setTimeout(function () { banner.classList.remove('show'); }, 5000);
+    }
+    function post(action, body) {
+      var b = body || {}; b.clientId = client;
+      return api('/api/watch/' + s.room.token + '/' + action, b);
+    }
+    function sample() {
+      var start = Date.now();
+      return api('/api/watch/clock').then(function (c) {
+        var end = Date.now();
+        s.samples.push({ rtt: end - start, offset: c.serverNow - (start + end) / 2 });
+        s.samples = s.samples.slice(-10);
+        s.offset = L.clockOffset(s.samples);
+      });
+    }
+    function target() { return L.liveTarget(s.room, serverNow()); }
+    function stopAv() { try { av.stop(); } catch (e) { /* already */ } try { av.close(); } catch (e) { /* already */ } }
+    // A new programme (or the first one): open its video at the live moment.
+    function openMedia() {
+      var media = s.room.media;
+      s.mediaId = media ? media.id : null;
+      stopAv();
+      if (!media) { spinner.classList.remove('show'); showBanner(true); return; }
+      spinner.textContent = T('Tuning in…'); spinner.classList.add('show');
+      var want = media.id;
+      s.opening = true;
+      api('/api/play-link?kind=lib&id=' + encodeURIComponent(media.id) + '&variant=' + (window.LILIN_TV_PLAY || 'browser-hevc')).then(function (link) {
+        if (s.closed || s.mediaId !== want) return;
+        s.url = SERVER + link.url;
+        av.open(s.url);
+        av.setDisplayRect(0, 0, 1920, 1080);
+        try { av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) { /* older firmware */ }
+        av.setListener({
+          onbufferingstart: function () { spinner.textContent = T('Loading…'); spinner.classList.add('show'); },
+          onbufferingcomplete: function () { spinner.classList.remove('show'); },
+          oncurrentplaytime: function (ms) { if (ms !== s.lastPos) { s.lastPos = ms; s.movedAt = Date.now(); } },
+          onstreamcompleted: function () { /* the room moves on to the next programme */ },
+          onerror: function (e) { spinner.textContent = T('This video can’t play on the TV.') + ' ' + String(e); spinner.classList.add('show'); },
+          onevent: function () {},
+        });
+        av.prepareAsync(function () {
+          if (s.closed || s.mediaId !== want) return;
+          // The video took a moment to open: seek to where the channel is now, ahead by what the last seek took.
+          var t0 = Date.now();
+          av.seekTo(Math.floor((target() + s.lead) * 1000), function () {
+            if (s.closed || s.mediaId !== want) return;
+            s.lead = Math.min(3, (Date.now() - t0) / 1000);
+            try { av.play(); } catch (e) { /* the next beat tries again */ }
+            s.opening = false; s.seekedAt = Date.now();
+            spinner.classList.remove('show');
+          }, function () { try { av.play(); } catch (e) { /* again next beat */ } s.opening = false; });
+        }, function (e) { s.opening = false; spinner.textContent = T('This video can’t play on the TV.') + ' ' + String(e && e.name || e); });
+      }).catch(function (e) { s.opening = false; spinner.textContent = e.message; spinner.classList.add('show'); });
+    }
+    // Back into step when the picture is too far off (the TV can't play a little faster, so it seeks), ahead by
+    // what seeks take on this TV.
+    function correct() {
+      if (s.opening || !s.room || !s.room.media || Date.now() - s.seekedAt < 5000) return;
+      var pos;
+      try { pos = av.getCurrentTime() / 1000; } catch (e) { return; }
+      if (Math.abs(target() - pos) > 0.6) {
+        var t0 = s.seekedAt = Date.now();
+        try { av.seekTo(Math.floor((target() + s.lead) * 1000), function () { s.lead = Math.min(3, (Date.now() - t0) / 1000); }, function () {}); } catch (e) { /* not ready */ }
+      }
+    }
+    function receive(room) {
+      if (s.closed) return;
+      var was = s.room;
+      if (was && room.revision < was.revision) return;
+      s.room = room;
+      if (!was || (room.media ? room.media.id : null) !== s.mediaId) { openMedia(); showBanner(); }
+      else if (was.live && room.live && (was.live.now && was.live.now.s) !== (room.live.now && room.live.now.s)) showBanner();
+    }
+    function heartbeat() {
+      if (s.closed || !s.room) return;
+      var start = Date.now();
+      post('heartbeat', { ready: !s.opening, buffering: false, blocked: false, rtt: s.samples.length ? s.samples[0].rtt : 0 }).then(function (room) {
+        var end = Date.now();
+        if (room.serverNow) { s.samples.push({ rtt: end - start, offset: room.serverNow - (start + end) / 2 }); s.samples = s.samples.slice(-10); s.offset = L.clockOffset(s.samples); }
+        receive(room); correct();
+      }).catch(function (e) {
+        if (e.status === 403 || e.status === 410) tune();
+      });
+    }
+    function tune() {
+      return api('/api/live/' + encodeURIComponent(s.id) + '/tune', { clientId: client }).then(function (room) {
+        s.room = null; receive(room);
+      }).catch(function (e) { spinner.textContent = e.message; spinner.classList.add('show'); });
+    }
+    function close() {
+      if (s.closed) return;
+      s.closed = true;
+      clearInterval(s.beat); clearTimeout(bannerTimer); clearTimeout(digitTimer);
+      stopAv();
+      if (s.room) post('leave').catch(function () {});
+      if (obj.parentNode) obj.parentNode.removeChild(obj);
+      document.body.classList.remove('playing');
+      document.removeEventListener('visibilitychange', onHidden);
+    }
+    function onHidden() { if (document.hidden) { close(); back(); } }
+    function surfTo(nextId) {
+      if (!nextId || nextId === s.id) return;
+      live.last = s.id;
+      close();
+      livePlay(nextId, true);
+    }
+    var me = { el: el, leave: close, key: function (code) {
+      var n = code >= 48 && code <= 57 ? code - 48 : code >= 96 && code <= 105 ? code - 96 : -1;
+      if (n >= 0) {
+        digits = (digits + n).slice(-3);
+        banner.innerHTML = ''; banner.appendChild(h('div', { class: 'live-digits', text: digits })); banner.classList.add('show');
+        clearTimeout(digitTimer);
+        digitTimer = setTimeout(function () {
+          var want = Number(digits); digits = '';
+          var c = live.channels.filter(function (x) { return x.number === want; })[0];
+          if (c) surfTo(c.id); else { toast(T('There’s no channel with that number.')); showBanner(); }
+        }, 1100);
+        return true;
+      }
+      if (code === KEY.UP || code === KEY.CH_UP) { var up = L.neighbour(live.channels, s.id, -1); if (up) surfTo(up.id); return true; }
+      if (code === KEY.DOWN || code === KEY.CH_DOWN) { var down = L.neighbour(live.channels, s.id, 1); if (down) surfTo(down.id); return true; }
+      if (code === KEY.PRE_CH || code === KEY.LEFT) { if (live.last) surfTo(live.last); return true; }
+      if (code === KEY.ENTER || code === KEY.RIGHT) { showBanner(); return true; }
+      if (code === KEY.PLAYPAUSE || code === KEY.PAUSE || code === KEY.PLAY || code === KEY.FF || code === KEY.RW) { toast(T('This is live TV, so it keeps playing.')); return true; }
+      if (code === KEY.BACK || code === KEY.STOP) { close(); back(); return true; }
+      return true;
+    } };
+    if (replace) { screen = null; show(me); } else show(me, true);
+    document.body.insertBefore(obj, document.body.firstChild);
+    document.body.classList.add('playing');
+    document.addEventListener('visibilitychange', onHidden);
+    (live.channels.length ? Promise.resolve() : loadGuide().catch(function () {}))
+      .then(function () { return sample().then(sample).then(sample).catch(function () {}); })
+      .then(tune)
+      .then(function () { if (!s.closed) s.beat = setInterval(heartbeat, 1000); });
   }
 
   // ---------- the player ----------

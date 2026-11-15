@@ -20,6 +20,29 @@
   ]
 },
 {
+  "id": "2026-11-15-live-tv",
+  "date": "2026-11-15",
+  "title": "Live TV: channels that are always on",
+  "items": [
+    {
+      "title": "A Live tab",
+      "text": "Channels made from the library run around the clock: Anime, Sitcoms, Films, Documentaries and your own picks. Open Live for the guide, tap a channel and you're watching whatever is on right now."
+    },
+    {
+      "title": "Everyone sees the same moment",
+      "text": "Tune in to the same channel as someone else and you're watching together, on the same frame, with their faces in the corner. No room to set up, nobody has to press Play."
+    },
+    {
+      "title": "Surf like it's a TV",
+      "text": "Switch with the arrows in the player, Page Up and Page Down, or type a channel number. On the TV app use Up and Down, the channel buttons, the number keys and the last-channel button."
+    },
+    {
+      "title": "Stay with it",
+      "text": "Live TV can't be paused. Watch from start opens the programme in the normal player, and Keep watching carries on from where the channel is and puts it in Continue watching. Just watching a channel leaves Continue watching alone."
+    }
+  ]
+},
+{
   "id": "2026-11-15-signin-keeps-email",
   "date": "2026-11-15",
   "title": "A wrong password no longer wipes your email",

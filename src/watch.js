@@ -33,8 +33,56 @@ export class WatchRooms {
   blank({ token, creator, creatorName, media, position = 0, startsAt = null, created = this.now(), people = [] }) {
     return { token, creator, creatorName: String(creatorName || '').slice(0, 80), media, members: new Map(), host: null,
       position, playing: false, wantPlay: false, at: this.now(), created, touched: this.now(), revision: 0,
-      startsAt, started: false, people: new Set(people), chat: [], chatSeq: 0, download: null };
+      startsAt, started: false, people: new Set(people), chat: [], chatSeq: 0, download: null, live: null };
   }
+
+  // ---------- Live TV ----------
+  // A channel (channels.js) plays in a room of its own that nobody hosts: the schedule is the remote. It opens
+  // when the first person tunes in and closes a minute after the last one leaves, so an empty channel costs nothing.
+  // live: { channel, allows(user) -> bool, timeline(now) -> { media | null, position, endsAt, info } }.
+  openLive(token, live) {
+    let room = this.rooms.get(token);
+    if (!room) {
+      if (this.rooms.size >= 200) throw fail(429, 'Too many watch rooms are open. Leave one first.');
+      room = this.blank({ token, creator: null, creatorName: '', media: null });
+      room.wantPlay = true;
+      this.rooms.set(token, room);
+    }
+    room.live = live;
+    this.refreshLive(room, true);
+    return room;
+  }
+
+  // Follow the schedule: a new programme, or the jump over its opening titles, goes to everyone at once.
+  refreshLive(room, force = false) {
+    if (!room.live || !this.rooms.has(room.token)) return;
+    clearTimeout(room.liveTimer);
+    const now = this.now();
+    let line;
+    try { line = room.live.timeline(now); } catch (e) { console.warn(`[live] ${e.message}`); line = null; }
+    line ||= { media: null, position: 0, endsAt: now + 30000, info: null };
+    const media = line.media || null;
+    const moved = force || (room.media?.mediaKey || null) !== (media?.mediaKey || null) || (room.media?.id || null) !== (media?.id || null)
+      || Math.abs(this.current(room) - line.position) > 0.5 || JSON.stringify(room.liveInfo) !== JSON.stringify(line.info);
+    if (moved) {
+      room.media = media; room.position = media ? line.position : 0; room.at = now; room.playing = Boolean(media);
+      room.liveInfo = line.info || null;
+      if (!force) this.changed(room);
+    }
+    room.liveEndsAt = line.endsAt;
+    // Wake up at the next cut while anyone watches (a few ms late, so the schedule has moved on by then).
+    if (room.members.size) {
+      room.liveTimer = setTimeout(() => this.refreshLive(room), Math.max(200, Math.min(line.endsAt - now + 15, 3600000)));
+      room.liveTimer.unref?.();
+    }
+  }
+
+  liveRooms() { return [...this.rooms.values()].filter((r) => r.live); }
+
+  // Who's tuned in to a channel right now, one face per person.
+  liveFaces(token) { const room = this.rooms.get(token); return room ? this.faces(room) : []; }
+
+  refuseLive(room) { if (room.live) throw fail(403, 'This is live TV: it can’t be paused or skipped. Watch it from the start to play it yourself.'); }
 
   persist(room) {
     if (!this.store) return;
@@ -90,6 +138,7 @@ export class WatchRooms {
   schedule(token, user, client, startsAt) {
     const room = this.room(token);
     this.member(room, user, client);
+    this.refuseLive(room);
     if (room.host !== client) throw fail(403, 'Only the host can set a start time.');
     if (startsAt == null) { room.startsAt = null; room.started = false; }
     else {
@@ -127,6 +176,7 @@ export class WatchRooms {
   }
 
   end(room) {
+    clearTimeout(room.liveTimer);
     for (const m of room.members.values()) for (const send of m.streams) send({ ended: true });
     this.rooms.delete(room.token);
     try { this.store?.remove(room.token); } catch { /* already gone */ }
@@ -142,14 +192,21 @@ export class WatchRooms {
   join(token, user, client) {
     const room = this.room(token);
     if (!CLIENT.test(String(client))) throw fail(400, 'Invalid viewer identifier.');
+    if (room.live && !room.live.allows(user)) throw fail(403, 'This channel isn’t available to you.');
     const existing = room.members.get(client);
     if (existing && existing.userId !== user.id) throw fail(403, 'This viewer belongs to a different account.');
-    if (!existing && room.members.size >= 12) throw fail(409, 'This room is full (12 viewers).');
+    if (!existing && room.members.size >= (room.live ? 60 : 12)) throw fail(409, room.live ? 'This channel is full right now.' : 'This room is full (12 viewers).');
     if (!existing) room.members.set(client, { id: client, userId: user.id, name: String(user.name || 'Viewer').slice(0, 80), avatar: user.avatar || null,
       ready: false, buffering: false, blocked: false, rtt: 0, seen: this.now(), streams: new Set() });
     room.members.get(client).seen = this.now();
     room.members.get(client).name = String(user.name || 'Viewer').slice(0, 80);
     room.members.get(client).avatar = user.avatar || null;
+    if (room.live) { // nobody hosts a channel
+      const first = room.members.size === 1 && !existing;
+      this.changed(room);
+      if (first) this.refreshLive(room); // the timer only runs while someone watches
+      return this.snapshot(room);
+    }
     // Whoever planned a party hosts it once they arrive, unless it's already under way.
     if (!room.members.has(room.host) || (user.id === room.creator && !room.started && room.members.get(room.host)?.userId !== user.id)) room.host = client;
     if (!room.people.has(user.id)) { room.people.add(user.id); this.persist(room); }
@@ -164,6 +221,7 @@ export class WatchRooms {
   downloadHolds(room) { return Boolean(room.download?.holding); }
 
   reconcile(room) {
+    if (room.live) return; // the schedule decides, and nobody's buffering stops a channel
     const canPlay = room.wantPlay && room.members.size > 0 && !this.blockers(room).length && !this.downloadHolds(room);
     if (room.playing && !canPlay) { room.position = this.current(room); room.playing = false; room.at = this.now(); }
     else if (!room.playing && canPlay) {
@@ -184,6 +242,7 @@ export class WatchRooms {
   snapshot(room) {
     return { token: room.token, media: room.media, host: room.host, revision: room.revision, serverNow: this.now(),
       position: room.position, at: room.at, playing: room.playing, intentPlaying: room.wantPlay,
+      ...(room.live ? { live: room.liveInfo || {} } : {}),
       audioLang: room.audioLang || null,
       startsAt: room.started ? null : room.startsAt,
       waitingFor: room.wantPlay ? this.blockers(room).map((m) => m.name) : [],
@@ -195,6 +254,7 @@ export class WatchRooms {
 
   preview(token) {
     const room = this.room(token);
+    if (room.live) throw fail(404, 'Tune in from the Live tab.');
     return { media: room.media, host: room.members.get(room.host)?.name || room.creatorName || 'Family', hostAvatar: this.hostAvatar(room),
       viewers: room.members.size, faces: this.faces(room), startsAt: room.started ? null : room.startsAt };
   }
@@ -219,6 +279,7 @@ export class WatchRooms {
     const changed = Object.keys(next).some((k) => member[k] !== next[k]);
     Object.assign(member, next);
     if (Number.isFinite(status.rtt)) member.rtt = Math.max(0, Math.min(2000, status.rtt));
+    if (room.live && this.now() > (room.liveEndsAt || 0) + 1000) this.refreshLive(room); // a missed cut (a sleeping timer)
     if (changed) this.changed(room);
     return this.snapshot(room);
   }
@@ -226,6 +287,7 @@ export class WatchRooms {
   control(token, user, client, action, position) {
     const room = this.room(token);
     this.member(room, user, client);
+    this.refuseLive(room);
     if (room.host !== client) throw fail(403, 'The host controls play, pause and seeking. Your subtitles and volume are private.');
     if (!['play', 'pause', 'seek'].includes(action)) throw fail(400, 'Unknown playback action.');
     const next = this.position(position);
@@ -241,6 +303,7 @@ export class WatchRooms {
   setAudio(token, user, client, language) {
     const room = this.room(token);
     this.member(room, user, client);
+    this.refuseLive(room);
     if (room.host !== client) throw fail(403, 'Only the host sets the room’s audio language.');
     const lang = String(language || '').trim().toLowerCase();
     if (lang && !/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/.test(lang)) throw fail(400, 'Unknown language.');
@@ -267,6 +330,7 @@ export class WatchRooms {
   // `by` = { user, client } for the host's choice; the server leaves it out when the download is gone.
   switchMedia(token, media, by = null) {
     const room = this.room(token);
+    this.refuseLive(room);
     if (by) {
       this.member(room, by.user, by.client);
       if (room.host !== by.client) throw fail(403, 'Only the host can switch the room to full quality.');
@@ -277,7 +341,7 @@ export class WatchRooms {
     return this.snapshot(room);
   }
 
-  roomsWith(kind) { return [...this.rooms.values()].filter((r) => r.media?.kind === kind); }
+  roomsWith(kind) { return [...this.rooms.values()].filter((r) => !r.live && r.media?.kind === kind); }
 
   // Chat and reactions go to everyone's stream as they happen; the last 50 messages are kept for
   // people who join later. Nothing is stored after the room ends.
@@ -326,6 +390,7 @@ export class WatchRooms {
     const member = this.member(room, user, client);
     for (const send of member.streams) send({ left: true });
     room.members.delete(client);
+    if (room.live) { if (!room.members.size) clearTimeout(room.liveTimer); this.changed(room); return; }
     if (room.host === client) {
       room.position = this.current(room); room.playing = false; room.wantPlay = false;
       room.host = [...room.members.values()].find((m) => m.streams.size)?.id || room.members.keys().next().value || null;
@@ -342,6 +407,7 @@ export class WatchRooms {
         this.persist(room);
         this.changed(room);
       }
+      if (room.live) { if (!room.members.size && this.now() - room.touched > MIN) this.end(room); continue; }
       const planned = room.startsAt != null && this.now() < room.startsAt + 60 * MIN;
       const maxAge = room.startsAt != null ? Math.max(room.startsAt + 12 * 3600000, room.created + 24 * 3600000) : room.created + 24 * 3600000;
       if ((!room.members.size && !planned && this.now() - room.touched > 10 * MIN) || this.now() > maxAge) this.end(room);
@@ -350,7 +416,8 @@ export class WatchRooms {
 
   // Videos a room is using (or a planned party will use) can't be deleted.
   protects(mediaKey) {
-    return [...this.rooms.values()].some((r) => r.media.mediaKey === mediaKey && (r.members.size > 0 || (r.startsAt != null && !r.started)));
+    // A channel doesn't hold on to its programme: deleting it just takes it off the air.
+    return [...this.rooms.values()].some((r) => !r.live && r.media.mediaKey === mediaKey && (r.members.size > 0 || (r.startsAt != null && !r.started)));
   }
 
   renameUser(user) {

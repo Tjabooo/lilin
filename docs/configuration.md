@@ -71,6 +71,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `TORRENTS` | `on` | `off` hides torrent search. |
+| `LIVE_TV_NAME` | `Lilin TV` | What Live TV (always-on channels from the library) is called in the app and on the TV. The owner can override it in Settings → Live TV. |
 | `CONTENT_FILTER` | `on` | Keeps adult content off the server: porn is left out of torrent search, adult release names, `.torrent` files and TMDB titles are refused before they reach qBittorrent, and a download whose files turn out to be adult is removed with its files (logged under What happened). `members` exempts the owner, `off` turns it off. |
 | `CONTENT_FILTER_WORDS` | | Extra words or phrases the filter blocks, comma-separated. |
 | `TPB_API` | `https://apibay.org` | The Pirate Bay API base. |

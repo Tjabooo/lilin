@@ -234,7 +234,40 @@
     return out.join('\n');
   }
 
+  // ---------- Live TV ----------
+  // Where a channel is now, in its video's seconds: the room's position plus the time since `at` (server clock).
+  // Same sum as the web player's playbackPlan (public/watch-sync.js), which this TV can't load.
+  function liveTarget(room, serverNow) {
+    if (!room || !room.playing) return room ? room.position : 0;
+    return room.position + Math.max(0, serverNow - room.at) / 1000;
+  }
+  // The server clock from round trips: the offset of the quickest one (like WatchSession.sample).
+  function clockOffset(samples) {
+    var best = null;
+    samples.forEach(function (x) { if (!best || x.rtt < best.rtt) best = x; });
+    return best ? best.offset : 0;
+  }
+  function channelName(c, meId) {
+    if (!c) return '';
+    if (c.kind === 'auto') return ({ anime: T('Anime'), sitcoms: T('Sitcoms'), films: T('Films'), docs: T('Documentaries') })[c.id] || c.id;
+    if (c.kind === 'picks') return c.id === 'picks-' + meId ? T('Your picks') : T('{0}’s picks', c.person || '');
+    return c.name || '';
+  }
+  function programmeLine(p) {
+    if (!p || p.kind !== 'episode') return '';
+    return [episodeLabel(p), p.name].filter(Boolean).join(' · ');
+  }
+  function clock(ms) { var d = new Date(ms); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  // The channel `step` away from `id` in the guide's order (round at the ends).
+  function neighbour(channels, id, step) {
+    if (!channels.length) return null;
+    var at = 0;
+    for (var i = 0; i < channels.length; i++) if (channels[i].id === id) at = i;
+    return channels[(at + step + channels.length * 4) % channels.length];
+  }
+
   var api = {
+    liveTarget: liveTarget, clockOffset: clockOffset, channelName: channelName, programmeLine: programmeLine, clock: clock, neighbour: neighbour,
     AUTOPLAY_SECONDS: AUTOPLAY_SECONDS, AUTOPLAY_CHAIN: AUTOPLAY_CHAIN, DONE_SECONDS: DONE_SECONDS,
     nextEpisode: nextEpisode, nextPromptAt: nextPromptAt, isNextTime: isNextTime, introShowing: introShowing,
     T: T, fmtTime: fmtTime, episodeLabel: episodeLabel, minutesLeft: minutesLeft, progressRef: progressRef, resumable: resumable,

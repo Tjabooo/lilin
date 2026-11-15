@@ -34,7 +34,7 @@ import { parseName } from './release-name.js';
 import * as anime from './anime.js';
 import { downloadDestination, downloadFilePath } from './download-paths.js';
 import { fetchTorrentFile, TorrentFetchError } from './torrent-fetch.js';
-import { filterMode, filterApplies, firstAdult, torrentFileNames, BLOCKED_MESSAGE } from './content-filter.js';
+import { filterMode, filterApplies, firstAdult, adultReason, torrentFileNames, BLOCKED_MESSAGE } from './content-filter.js';
 import * as smart from './smart-download.js';
 import * as svt from './svtplay.js';
 import { createSvtQueue, expectedSize } from './svt-queue.js';
@@ -53,7 +53,8 @@ import * as noteShare from './note-share.js';
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
-import { creditsFor, introFor, initCredits } from './credits.js';
+import { creditsFor, introFor, initCredits, knownTimes } from './credits.js';
+import { createLiveTv } from './live-tv.js';
 import * as whatsNew from './whats-new.js';
 import { languageOf, inLanguage, currentLanguage, translate, tr } from './i18n.js';
 import { WatchlistStore, runRound as watchlistRound, baselineFrom, filmOut } from './watchlist.js';
@@ -131,6 +132,22 @@ function watchArtwork(media) {
   return image ? { image } : null;
 }
 setInterval(() => watchRooms.cleanup(), 3000).unref();
+// Live TV (live-tv.js, channels.js): always-on channels from the library, played in Watch Together rooms.
+const LIVE_TV_NAME = String(process.env.LIVE_TV_NAME || '').trim().slice(0, 30) || 'Lilin TV';
+const liveTvName = () => accounts.serverSettings().liveName || LIVE_TV_NAME;
+const liveTv = createLiveTv({
+  file: path.join(DATA_DIR, '.lilin-channels.json'), watchRooms, accounts, social,
+  library: liveLibrary, genres: () => genres(), name: liveTvName,
+  timesOf: async (item) => {
+    const file = converter.originalFor(item.file) || item.file;
+    return knownTimes(file, (await creditPeers(file)).siblings);
+  },
+  mediaFor: (key) => {
+    const item = (libraryCache.items || []).find((i) => !i.converting && accounts.mediaKey(i.full) === key);
+    if (!item) return null;
+    try { return roomLibraryMedia(item.id); } catch { return null; }
+  },
+});
 activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail });
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR });
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
@@ -2506,6 +2523,38 @@ setInterval(() => {
   checkingRooms = true;
   checkDownloadRooms().catch((e) => console.warn(`[watch] ${e.message}`)).finally(() => { checkingRooms = false; });
 }, 2000).unref();
+// Everything on the server Live TV can air: one item per title (no second versions), with what the channels
+// sort by (show, genres, anime). Adult videos never go on a channel unless the content filter is off.
+async function liveLibrary() {
+  const all = await libraryVisibleItems(await scanLibrary(), { id: -1 });
+  if (!all) return [];
+  const ready = all.filter((i) => !i.converting && isVideo(i.full));
+  const tmdbOn = Boolean(TMDB_TOKEN || TMDB_KEY);
+  const [{ shows: showList, showOf }, filmOf] = await Promise.all([
+    shows.groupShows(ready, tmdbOn ? tmdb : null),
+    shows.filmInfo(ready.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), tmdbOn ? tmdb : null),
+  ]);
+  const showById = new Map(showList.map((x) => [x.id, x]));
+  const seen = new Set(), out = [];
+  for (const i of ready) {
+    const key = accounts.mediaKey(i.full);
+    if (!key || (filterMode() !== 'off' && adultReason(i.full))) continue;
+    const so = showOf.get(i.id), fo = filmOf.get(i.id);
+    const show = so ? showById.get(so.show) : null;
+    const kind = i.season == null ? 'film' : i.episode != null && show ? 'episode' : null;
+    if (!kind) continue;
+    const version = versions.versionKey({ ...i, mediaKey: key, ...so, ...fo });
+    if (version && seen.has(version)) continue;
+    if (version) seen.add(version);
+    out.push({ key, id: i.id, file: i.full, kind, show: so?.show || null, showTitle: show?.title || null,
+      title: kind === 'film' ? fo?.filmTitle || i.title : i.title, season: i.season ?? null, episode: i.episode ?? null,
+      episodeName: so?.episodeName || null, genres: (kind === 'episode' ? show?.genres : fo?.genres) || [], anime: Boolean(show?.anime),
+      art: so?.still || show?.backdrop || fo?.backdrop || show?.poster || fo?.poster || null,
+      titleKey: kind === 'episode' ? (show?.tmdbId ? `tv:${show.tmdbId}` : null) : (fo?.tmdbId ? `movie:${fo.tmdbId}` : null) });
+  }
+  return out;
+}
+
 // What a room says about a library video.
 function roomLibraryMedia(id) {
   const full = librarySource(id);
@@ -3251,6 +3300,7 @@ async function handleApi(req, res, url) {
     const body = req.method === 'POST' ? await readJson(req) : {};
     const room = watchRooms.room(token);
     watchRooms.member(room, user, String(body.clientId || url.searchParams.get('clientId') || ''));
+    if (room.live) throw new HttpError(409, 'Everyone can tune in to a channel from the Live tab.');
     const inRoom = new Set([...room.members.values()].map((v) => v.userId));
     const invitees = accounts.listUsers().filter((u) => !inRoom.has(u.id) && push.hasDevice(u.id) && u.settings?.pushWatch !== false)
       .map((u) => ({ id: u.id, name: u.name, avatar: u.avatar }));
@@ -3279,6 +3329,28 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, room);
   }
   if (p === '/api/watch/parties') return sendJson(res, 200, { parties: watchRooms.parties(user) });
+  // Live TV: the guide, tuning in (then the room's own /api/watch/<token>/… routes), the owner's channels.
+  if (p === '/api/live') {
+    const num = (k) => (url.searchParams.has(k) ? Number(url.searchParams.get(k)) : undefined);
+    return sendJson(res, 200, await liveTv.guide(user, { from: num('from'), to: num('to') }));
+  }
+  if ((m = p.match(/^\/api\/live\/([\w-]{1,40})\/tune$/)) && req.method === 'POST') {
+    const body = await readJson(req);
+    try { return sendJson(res, 200, await liveTv.tune(user, m[1], String(body.clientId || ''))); }
+    catch (e) { throw new HttpError(e.status || 500, e.message); }
+  }
+  if (p === '/api/live/channels') {
+    if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can make channels.');
+    if (req.method === 'POST') {
+      const body = await readJson(req);
+      try {
+        if (body.remove) { liveTv.removeChannel(String(body.remove)); return sendJson(res, 200, await liveTv.editor()); }
+        liveTv.saveChannel(body);
+        return sendJson(res, 200, await liveTv.editor());
+      } catch (e) { throw new HttpError(e.status || 500, e.message); }
+    }
+    return sendJson(res, 200, await liveTv.editor());
+  }
   if ((m = p.match(/^\/api\/watch\/([A-Za-z0-9_-]{24})\/(preview|join|events|heartbeat|control|leave|play-link|part-status|switch|chat|react|schedule|cancel)$/))) {
     const [, token, action] = m;
     if (action === 'preview') return sendJson(res, 200, watchRooms.preview(token));
@@ -3308,6 +3380,7 @@ async function handleApi(req, res, url) {
     const client = String(url.searchParams.get('clientId') || '');
     const room = watchRooms.room(token);
     watchRooms.member(room, user, client);
+    if (!room.media && ['play-link', 'part-status'].includes(action)) throw new HttpError(409, 'Nothing is on this channel right now.');
     // A room on a download: the room is the access, so guests need no part of the download themselves.
     if (action === 'play-link' && room.media.kind === 'part') return sendJson(res, 200, await partialLink(req, room.media.id));
     if (action === 'part-status') {
@@ -3402,12 +3475,13 @@ async function handleApi(req, res, url) {
   }
   if (p === '/api/me/progress') {
     if (req.method === 'POST') {
-      const { ref, time, duration, watched, about, room } = await readJson(req);
-      saveProgressAllVersions(user.id, ref, time, duration);
+      const { ref, time, duration, watched, about, room, live: onAir } = await readJson(req);
+      // Watching a channel counts as watching (Wrapped), but only "Keep watching" makes a resume point.
+      if (!onAir) saveProgressAllVersions(user.id, ref, time, duration);
       // Watch time for Wrapped and Popular on Lilin (see social.js), with who was in the same room.
       if (about && typeof about === 'object') {
         const companions = /^[A-Za-z0-9_-]{24}$/.test(String(room || '')) ? watchRooms.companions(room, user.id) : [];
-        social.logWatch(user.id, { ref, about, watched, finished: time == null, companions });
+        social.logWatch(user.id, { ref, about, watched, finished: !onAir && time == null, companions });
       }
       return sendJson(res, 200, { ok: true });
     }
@@ -3742,6 +3816,7 @@ async function handleApi(req, res, url) {
       clips: activity.isAdmin(req) && clips.clipsConfigured(),
       me: { ...accounts.publicUser(user), via: req.auth.via, hasPassword: auth.hasPassword(req.auth.email), needsPassword: needsPassword(req) },
       rules: accounts.serverSettings(),
+      liveName: liveTvName(),
       subLangs: subtitles.subtitleLanguages(),
       whatsNew: whatsNew.statusFor(user, webBuildFor(req)),
       wrapped: social.wrappedSeason(),
@@ -4625,6 +4700,7 @@ async function handleRequest(req, res) {
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
         || /^\/api\/admin\/notes(?:\/import|\/\d+(?:\/(?:trash|restore|share|unshare))?)?$/.test(url.pathname)
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
+        || /^\/api\/live\/(?:channels|[\w-]{1,40}\/tune)$/.test(url.pathname)
         || /^\/api\/watch(?:\/plan|\/[A-Za-z0-9_-]{24}\/(join|heartbeat|control|leave|switch|invite|chat|react|schedule|cancel))?$/.test(url.pathname)
         || url.pathname === '/api/social/rate' || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname)
         || /^\/c\/jf\/v1\/(pair\/start|progress|disconnect)$/.test(url.pathname) || /^\/api\/jellyfin\/(approve|[\w-]+\/remove)$/.test(url.pathname)));

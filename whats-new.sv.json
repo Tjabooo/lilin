@@ -16,6 +16,27 @@
       }
     }
   },
+  "2026-11-15-live-tv": {
+    "title": "Live-tv: kanaler som alltid sänder",
+    "items": {
+      "A Live tab": {
+        "title": "En Live-flik",
+        "text": "Kanaler gjorda av biblioteket sänder dygnet runt: Anime, Sitcoms, Filmer, Dokumentärer och dina egna favoriter. Öppna Live för tablån, tryck på en kanal så tittar du på det som sänds just nu."
+      },
+      "Everyone sees the same moment": {
+        "title": "Alla ser samma ögonblick",
+        "text": "Ställ in samma kanal som någon annan så tittar ni tillsammans, på samma bildruta, med deras ansikten i hörnet. Inget rum att fixa, ingen behöver trycka på Spela."
+      },
+      "Surf like it's a TV": {
+        "title": "Zappa som på en tv",
+        "text": "Byt med pilarna i spelaren, Page Up och Page Down, eller skriv ett kanalnummer. I tv-appen använder du Upp och Ner, kanalknapparna, sifferknapparna och knappen för förra kanalen."
+      },
+      "Stay with it": {
+        "title": "Fortsätt titta",
+        "text": "Live-tv går inte att pausa. Titta från början öppnar programmet i den vanliga spelaren, och Fortsätt titta fortsätter där kanalen är och lägger det i raden Fortsätt titta. Att bara titta på en kanal rör inte Fortsätt titta."
+      }
+    }
+  },
   "2026-11-15-signin-keeps-email": {
     "title": "Ett felskrivet lösenord tömmer inte längre din e-post",
     "items": {

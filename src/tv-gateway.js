@@ -34,6 +34,11 @@ const SIGNED_IN = [
   /^\/api\/media\/lib\/[^/]+\/(intro|credits)$/,
   /^\/api\/subs\/(fetch|langs)$/,
   /^\/api\/subs\/file\//,
+  // Live TV: the guide, tuning in, and the channel's room (clock, heartbeats, leaving)
+  /^\/api\/live$/,
+  /^\/api\/live\/[\w-]{1,40}\/tune$/,
+  /^\/api\/watch\/clock$/,
+  /^\/api\/watch\/[A-Za-z0-9_-]{24}\/(heartbeat|leave)$/,
 ];
 
 // The path behind /c/tv, or null when the request isn't for the gateway.

@@ -39,6 +39,12 @@ export function dislikedKeys(userId) {
   return new Set(db().prepare('SELECT title_key FROM ratings WHERE user_id = ? AND value = -1').all(userId).map((r) => r.title_key));
 }
 
+// Everything one person gave a thumbs up (same shape as dislikedKeys): their Live TV picks channel plays these.
+export function likedKeys(userId) {
+  if (userId == null) return new Set();
+  return new Set(db().prepare('SELECT title_key FROM ratings WHERE user_id = ? AND value = 1').all(userId).map((r) => r.title_key));
+}
+
 // What one person sees on a title: their own thumb and who else liked it (likedBy: names; people:
 // { name, avatar } for the faces beside them, when avatarOf is given).
 export function ratingFor(userId, key, nameOf, avatarOf = () => null) {
