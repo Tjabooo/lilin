@@ -134,11 +134,15 @@ export async function playPartial(session, ctx) {
     if (!ctx.isCurrent(session) || popupKind || room()) return;
     popupKind = 'buffer';
     const ahead = pastDownloaded(video.currentTime, session.part);
+    // With playhead helping (src/playhead.js), a part past the download is fetched first, not waited for.
+    const fetching = ahead && session.part?.assisted;
     $('#part-popup-label').textContent = T('Buffering');
-    $('#part-popup-title').textContent = ahead ? T('This part hasn’t downloaded yet') : T('This video is still downloading');
-    $('#part-popup-body').textContent = ahead
-      ? T('It will play when the download gets here. If you want it to stop buffering and play in full quality, wait for the download to finish.')
-      : T('It’s playing while it downloads, so it has to stop now and then to catch up. If you want it to stop buffering and play in full quality, wait for the download to finish.');
+    $('#part-popup-title').textContent = fetching ? T('Fetching this part') : ahead ? T('This part hasn’t downloaded yet') : T('This video is still downloading');
+    $('#part-popup-body').textContent = fetching
+      ? T('This part is being fetched first, so it plays in a moment. The rest keeps downloading in the background.')
+      : ahead
+        ? T('It will play when the download gets here. If you want it to stop buffering and play in full quality, wait for the download to finish.')
+        : T('It’s playing while it downloads, so it has to stop now and then to catch up. If you want it to stop buffering and play in full quality, wait for the download to finish.');
     $('#part-popup-bar').hidden = false;
     $('#part-popup-progress').hidden = false;
     $('#part-popup-bar').style.setProperty('--p', `${Math.floor((session.part?.progress || 0) * 100)}%`);

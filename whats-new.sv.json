@@ -1,4 +1,21 @@
 {
+  "2026-11-15-play-now-playhead": {
+    "title": "Spela nu hoppar framåt och fryser inte längre",
+    "items": {
+      "Skip ahead while it downloads": {
+        "title": "Hoppa framåt medan den laddas ner",
+        "text": "Spela nu väntade förut tills nedladdningen kom fram till stället du hoppade till, och det kunde ta flera minuter. En hjälpare hämtar nu den delen först, så det spelar igen efter ett par sekunder. Resten laddas ner som vanligt."
+      },
+      "No more long freezes": {
+        "title": "Inga långa frysningar",
+        "text": "En långsam källa kunde hålla tillbaka nästa del av en video och frysa bilden i en minut eller mer. Hjälparen hämtar nu de delarna från snabbare källor. Det går också snabbare att starta en video."
+      },
+      "How it works": {
+        "title": "Så funkar det",
+        "text": "playhead (github.com/Tjabooo/playhead) körs bredvid qBittorrent, som fortfarande laddar ner, delar och sorterar allt. Den läser det qBittorrent redan har från qBittorrents egen fil och hämtar bara det spelaren behöver härnäst. Den är bunden till qBittorrents tunneladress och inhägnad av torrent-VPN:ets brandvägg. Om något går fel fortsätter Spela nu med bara qBittorrent. PLAY_NOW_ENGINE=qbit stänger av hjälparen."
+      }
+    }
+  },
   "2026-11-15-best-quality-swarm": {
     "title": "Bästa kvalitet slutar välja nedladdningar på sex timmar",
     "items": {

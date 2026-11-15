@@ -68,6 +68,8 @@ import { raiseServer } from './priority.js';
 import { startPlaybackGuard } from './playback-guard.js';
 import { PhoneStreams, segmentIndex, isHeavy, probe as probePhone } from './phone-stream.js';
 import { PartialStreams, parsePartialId, roomGate } from './partial-stream.js';
+import { PlayheadService, playheadBinding } from './playhead.js';
+import { ensurePlayhead } from './setup/playhead.js';
 
 import { APP_DIR, DATA_DIR, CACHE_DIR, PUBLIC_DIR, dataDirProblem, ensureDataDir } from './paths.js';
 import * as preview from './preview.js';
@@ -2316,7 +2318,24 @@ const PHONE_VARIANT = /^phone(1080|720)(?:-a(\d{1,5}))?$/;
 const phoneStreams = new PhoneStreams({ dir: path.join(CACHE_DIR, 'phone') });
 // Play now: the same live stream, from a video qBittorrent is still downloading (partial-stream.js).
 const PARTIAL_ENABLED = !/^(0|off|false|no)$/i.test(process.env.PARTIAL_STREAMS || '') && Boolean(QBIT_URL);
+// playhead next to qBittorrent for Play now (src/playhead.js): PLAY_NOW_ENGINE=qbit turns it off.
+const PLAY_NOW_ENGINE = (process.env.PLAY_NOW_ENGINE || 'auto').trim().toLowerCase();
+let playheadInstall = null;
+const playhead = PARTIAL_ENABLED && PLAY_NOW_ENGINE !== 'qbit'
+  ? new PlayheadService({
+    bin: () => (playheadInstall ||= ensurePlayhead({ dataDir: DATA_DIR }).catch((error) => { playheadInstall = null; throw error; })),
+    binding: () => playheadBinding({ qbit }),
+    dataDir: DATA_DIR,
+    cacheDir: path.join(CACHE_DIR, 'playhead'),
+    dns: (process.env.PLAYHEAD_DNS || '').split(/[,\s]+/).filter(Boolean),
+  })
+  : null;
+if (playhead) process.on('exit', () => playhead.stop());
 const partialStreams = new PartialStreams({
+  assist: playhead,
+  exportTorrent: async (hash) => Buffer.from(await (await qbitRequest(`/api/v2/torrents/export?hash=${hash}`)).arrayBuffer()),
+  peersOf: async (hash) => Object.keys((await qbit(`/api/v2/sync/torrentPeers?hash=${hash}&rid=0`))?.peers || {}).slice(0, 80),
+  trackersOf: async (hash) => (await qbit(`/api/v2/torrents/trackers?hash=${hash}`) || []).map((t) => t.url).filter((u) => /^(udp|http):\/\//i.test(u)),
   qbit,
   post: (endpoint, body) => qbitRequest(endpoint, { method: 'POST', body }).then(() => torrentFilesCache.clear()),
   filePath: (t, f) => torrentLivePath(t, f),

@@ -119,6 +119,10 @@ that is a hard disk shared with downloads and conversions.
 | --- | --- | --- |
 | `STREAM_READ_KB` | `4096` | How much of a file a stream reads at a time (64–65536). Large reads keep a busy hard drive from making a player wait in its queue once per 64 KB. |
 | `PHONE_STREAMS_MAX` | `3` | Phone-quality streams (a live 1080p or 720p version of a big file, for phones) that may run at once. Each uses one GPU encoder session; a new one stops the one idle longest. |
+| `PLAY_NOW_ENGINE` | `auto` | Play now's helper, [playhead](https://github.com/Tjabooo/playhead). It runs next to qBittorrent (which still downloads, seeds and files the video) and fetches what the player needs next first: the start, the spot you seek to, and pieces stuck on a slow peer. Lilin downloads its pinned release (checksum checked) into `DATA_DIR/bin`, and binds it to qBittorrent's interface address. If that binding can't be mirrored, it stays off. `qbit` turns it off. |
+| `PLAYHEAD_BIND_ADDRESS` / `PLAYHEAD_BIND_INTERFACE` / `PLAYHEAD_UNBOUND` | from qBittorrent | Where playhead may connect, when qBittorrent's binding can't be mirrored (Windows interface IDs). playhead refuses to start when that address is missing, and closes every connection when it goes away. |
+| `PLAYHEAD_DNS` | `1.1.1.1, 9.9.9.9` | Resolvers playhead uses through the tunnel for tracker names. |
+| `PLAYHEAD_BIN` | | Your own playhead build instead of the download. |
 | `PARTIAL_STREAMS` | `on` | Play now: watch a video while qBittorrent is still downloading it, as a live stream of up to 1080p. Each stream counts towards `PHONE_STREAMS_MAX`. `off` plays finished files only. |
 | `LILIN_PRIORITY` | `above_normal` | CPU priority of the Lilin process: `above_normal`, `normal` or `high`. On Windows its I/O and memory priority are always set to normal, also when it runs as a scheduled task (whose default is low I/O priority, which made streams stall behind downloads). |
 | `BACKGROUND_PRIORITY` | `below_normal` | CPU priority of background jobs (conversions, browser copies, timeline previews, credits, subtitle sync, clip and note copies, OCR): `below_normal`, `idle` or `normal`. |

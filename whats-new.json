@@ -1,5 +1,25 @@
 [
 {
+  "id": "2026-11-15-play-now-playhead",
+  "date": "2026-11-15",
+  "title": "Play now jumps ahead and stops freezing",
+  "items": [
+    {
+      "title": "Skip ahead while it downloads",
+      "text": "Play now used to wait for the download to reach the spot you skipped to, which could take minutes. A helper now fetches that part first, so skipping ahead plays again in a couple of seconds. The rest keeps downloading as before."
+    },
+    {
+      "title": "No more long freezes",
+      "text": "One slow source could hold back the next part of a video and freeze the picture for a minute or more. The helper now fetches those parts from faster sources. Starting a video is quicker too."
+    },
+    {
+      "audience": "owner",
+      "title": "How it works",
+      "text": "playhead (github.com/Tjabooo/playhead) runs next to qBittorrent, which still downloads, seeds and files everything. It reads what qBittorrent already has from qBittorrent's own file, and fetches only what the player needs next. It's bound to qBittorrent's tunnel address and fenced by the torrent VPN firewall. If anything goes wrong, Play now carries on with qBittorrent alone. PLAY_NOW_ENGINE=qbit turns the helper off."
+    }
+  ]
+},
+{
   "id": "2026-11-15-best-quality-swarm",
   "date": "2026-11-15",
   "title": "Best Quality stops picking six-hour downloads",

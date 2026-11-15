@@ -15,6 +15,7 @@ if ($cfg -and (Get-Service (Get-TvServiceName $cfg.name) -ErrorAction SilentlyCo
 }
 if ($AllowDirect) {
   Get-NetFirewallRule -DisplayName 'TorrentVpn: block qBittorrent outside tunnel*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+  Get-NetFirewallRule -DisplayName 'TorrentVpn: block playhead outside tunnel*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
   if ($cfg) {
     $q = Connect-TvQbit $cfg
     Invoke-TvQbit $q '/api/v2/app/setPreferences' @{ json = '{"current_network_interface":"","current_interface_address":""}' } | Out-Null

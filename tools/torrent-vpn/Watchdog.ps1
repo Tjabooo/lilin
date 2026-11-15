@@ -91,6 +91,14 @@ try {
 
   $sockets = Get-TvQbitSockets $config
   $leaks += @($sockets.Leaks)
+  # Lilin's Play now helper: a connection outside the tunnel stops it at once (Lilin carries on with qBittorrent).
+  $ph = Get-TvProgramSockets $config (Get-TvPlayheadExe $config)
+  if ($ph.Leaks.Count) {
+    Write-TvLog ("LEAK (playhead): " + ($ph.Leaks -join '; ') + ' -> stopping playhead')
+    $ph.Ids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+    $leaks += @($ph.Leaks | ForEach-Object { "playhead $_" })
+  }
+  if ($ph.Strays.Count) { $problems.Add("playhead has sockets outside the tunnel (firewall blocks them): $($ph.Strays -join '; ')") }
   $status.strays = @($sockets.Strays)
   if ($sockets.Strays.Count) { $problems.Add("qBittorrent has sockets outside the tunnel (firewall blocks them): $($sockets.Strays -join '; ')") }
   if ($leaks.Count) {

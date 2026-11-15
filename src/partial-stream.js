@@ -11,11 +11,17 @@
 //
 // Even in order, the edge of what's readable moves in jumps: one slow peer can hold a piece back for half a
 // minute while later pieces arrive. So playback starts with a lead that can ride that out when it comes cheaply.
+//
+// With playhead (src/playhead.js) next to qBittorrent, both of those go away: playhead fetches whatever the
+// player needs next that qBittorrent doesn't have yet (a seek target, a piece stuck on a slow peer), and the
+// loopback server reads through it. qBittorrent keeps downloading in order as before. If playhead fails, the
+// read carries on from qBittorrent alone at the same spot, so ffmpeg never notices.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { probeInput } from './phone-stream.js';
+import { mergeStates } from './playhead.js';
 
 const HAVE = 2;                  // qBittorrent's piece state for "downloaded and verified"
 const READ_BYTES = 4 * 1024 * 1024;
@@ -132,11 +138,23 @@ const sleep = (ms, signal) => new Promise((resolve) => {
 });
 const failure = (status, message) => Object.assign(new Error(message), { status });
 
+// Wait for room, or for the reader to go. A response that already closed never emits again: waiting on
+// it would park the read for ever and its file handle would only be closed by the garbage collector
+// ("Closing file descriptor ... on garbage collection").
+const waitDrain = (res, signal) => new Promise((resolve) => {
+  const go = () => { res.off('close', go); res.off('drain', go); signal.removeEventListener('abort', go); resolve(); };
+  res.once('drain', go); res.once('close', go); signal.addEventListener('abort', go, { once: true });
+  if (res.destroyed || signal.aborted) go();
+});
+
 export class PartialStreams {
   // qbit(path) = parsed JSON; post(path, fields) = a command; filePath(torrent, file) = where it is on disk;
   // isVideo(name); start(hash) = start a stopped torrent; probe = probeInput (tests replace it).
-  constructor({ qbit, post, filePath, finalPath = filePath, isVideo, start, probe = probeInput, log = console }) {
-    Object.assign(this, { qbit, post, filePath, finalPath, isVideo, start, probe, log });
+  // assist = a PlayheadService (or null); exportTorrent(hash) = the .torrent (Buffer) from qBittorrent;
+  // peersOf(hash) / trackersOf(hash) = what qBittorrent knows, to get playhead going quickly.
+  constructor({ qbit, post, filePath, finalPath = filePath, isVideo, start, probe = probeInput, log = console,
+    assist = null, exportTorrent = null, peersOf = null, trackersOf = null }) {
+    Object.assign(this, { qbit, post, filePath, finalPath, isVideo, start, probe, log, assist, exportTorrent, peersOf, trackersOf });
     this.entries = new Map();
     this.torrents = new Map(); // hash -> what Lilin changed, restored when the last viewer leaves
     this.token = crypto.randomBytes(24).toString('hex');
@@ -180,7 +198,8 @@ export class PartialStreams {
     if (raced) return raced;
     const entry = { id, hash: parsed.hash, index: parsed.index, file: this.filePath(t, file), finalFile: this.finalPath(t, file), name: file.name, priority: file.priority, multiFile: files.length > 1,
       size: layout.size, layout, pieceSize, states: null, statesAt: 0, torrent: t, last: Date.now(), info: null, probing: null, probeFailures: 0, probeError: null,
-      gone: false, boosted: false, started: false, enoughSince: null, holds: 0, heldMs: 0, restorePriorities: [] };
+      gone: false, boosted: false, started: false, enoughSince: null, holds: 0, heldMs: 0, restorePriorities: [],
+      assist: null, assistTriedAt: 0, assistFailures: 0, merged: null, assisting: null };
     this.entries.set(id, entry);
     return entry;
   }
@@ -197,12 +216,82 @@ export class PartialStreams {
         // Finished downloads move from the scratch drive to their save path (scratch.js).
         try { e.file = this.filePath(t, { name: e.name }) || e.file; } catch { /* keep the last known path */ }
         if (Array.isArray(states) && states.length) e.states = states;
+        if (e.assist) await this.syncAssist(e);
+        else this.startAssist(e);
       } catch (error) { this.log.warn?.(`[play now] ${error.message}`); } finally { e.statesAt = Date.now(); e.refreshing = null; }
     })();
     return e.refreshing;
   }
 
-  readable(e, from = 0) { return readableBytes(e.layout, e.pieceSize, e.states, from); }
+  // Readable from qBittorrent's file or playhead's pieces.
+  readable(e, from = 0) { return readableBytes(e.layout, e.pieceSize, e.merged || e.states, from); }
+
+  // ---- playhead next to qBittorrent ----
+  // Starts playhead on this torrent (once at a time; after a failure, again a minute later).
+  startAssist(e) {
+    if (!this.assist || e.assist || e.assisting || e.gone || Date.now() - e.assistTriedAt < 60_000) return null;
+    e.assistTriedAt = Date.now();
+    e.assisting = (async () => {
+      if (!(await this.assist.ready())) return;
+      const [torrent, peers, trackers] = await Promise.all([
+        this.exportTorrent?.(e.hash).catch(() => null), this.peersOf?.(e.hash).catch(() => []), this.trackersOf?.(e.hash).catch(() => [])]);
+      const opened = await this.assist.open({ hash: e.hash, file: e.index, torrent, peers: peers || [], trackers: trackers || [],
+        paths: [...new Set([e.file, e.finalFile].filter(Boolean))], states: e.states });
+      if (!opened?.id || opened.state !== 'ready') return; // no metadata yet: try again later
+      e.assist = { id: opened.id, url: opened.url, own: '', rate: 0, peers: 0 };
+      e.assistFailures = 0;
+      this.log.info?.(`[play now] ${e.name}: playhead is helping`);
+    })().catch((error) => this.log.warn?.(`[play now] playhead: ${error.message}`)).finally(() => { e.assisting = null; });
+    return e.assisting;
+  }
+
+  // Tells playhead what qBittorrent has (and where the file is now), and gets what playhead has.
+  async syncAssist(e) {
+    const a = e.assist;
+    try {
+      await this.assist.update(a.id, { states: e.states, paths: [...new Set([e.file, e.finalFile].filter(Boolean))] });
+      const st = await this.assist.status(a.id);
+      a.own = String(st?.own || '');
+      a.rate = Number(st?.download_rate) || 0;
+      a.peers = Number(st?.peers_connected) || 0;
+      e.merged = mergeStates(e.states, a.own);
+      e.assistFailures = 0;
+    } catch (error) {
+      if (++e.assistFailures >= 3) this.dropAssist(e, error);
+    }
+  }
+
+  dropAssist(e, error) {
+    if (!e.assist) return;
+    this.log.warn?.(`[play now] ${e.name}: playhead stopped helping (${error?.message || error}); carrying on with qBittorrent`);
+    const id = e.assist.id;
+    e.assist = null;
+    e.merged = null;
+    e.assistTriedAt = Date.now();
+    this.assist?.close(id).catch(() => {});
+  }
+
+  // Pipes [pos.at, end] from playhead into res, moving pos.at along; throws if playhead failed.
+  async proxyAssist(e, res, pos, end, signal) {
+    const r = await this.assist.fetchRange(e.assist.url, pos.at, end, signal);
+    if (r.status !== 206 && r.status !== 200) throw new Error(`playhead answered ${r.status}`);
+    const reader = r.body.getReader();
+    let last = Date.now();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const now = Date.now();
+        if (now - last > 1000 && e.started) { e.holds += 1; e.heldMs += now - last; }
+        last = now;
+        e.last = now;
+        pos.at += value.length;
+        if (!res.write(value)) await waitDrain(res, signal);
+        if (signal.aborted) return;
+      }
+    } finally { reader.releaseLock?.(); }
+    if (pos.at <= end) throw new Error('playhead’s stream ended early');
+  }
 
   complete(e) { return fileProgress(e.layout, e.states) >= 1; }
 
@@ -251,22 +340,21 @@ export class PartialStreams {
     let handle = null;
     try {
       let at = start;
+      if (e.assist && this.assist) {
+        const pos = { at };
+        try { await this.proxyAssist(e, res, pos, end, stop.signal); }
+        catch (error) { if (stop.signal.aborted) return; this.dropAssist(e, error); }
+        at = pos.at;
+        if (stop.signal.aborted) return;
+        if (at > end) { res.end(); return; }
+      }
       while (at <= end) {
         const ready = await this.waitReadable(e, at, stop.signal);
         handle ||= await this.openWhenWritten([e.file, e.finalFile], stop.signal);
         const buffer = Buffer.allocUnsafe(Math.min(ready, READ_BYTES, end - at + 1));
         const { bytesRead } = await this.readFully(handle, buffer, at, stop.signal);
         at += bytesRead;
-        if (!res.write(bytesRead === buffer.length ? buffer : buffer.subarray(0, bytesRead))) {
-          // Wait for room, or for the reader to go. A response that already closed never emits
-          // again: waiting on it would park this read for ever and its file handle would only be
-          // closed by the garbage collector ("Closing file descriptor ... on garbage collection").
-          await new Promise((resolve) => {
-            const go = () => { res.off('close', go); res.off('drain', go); stop.signal.removeEventListener('abort', go); resolve(); };
-            res.once('drain', go); res.once('close', go); stop.signal.addEventListener('abort', go, { once: true });
-            if (res.destroyed || stop.signal.aborted) go();
-          });
-        }
+        if (!res.write(bytesRead === buffer.length ? buffer : buffer.subarray(0, bytesRead))) await waitDrain(res, stop.signal);
       }
       res.end();
     } catch { res.destroy(); } finally { await handle?.close().catch(() => {}); }
@@ -365,12 +453,14 @@ export class PartialStreams {
   status(e) {
     const t = e.torrent || {};
     const progress = fileProgress(e.layout, e.states);
-    const speed = Number(t.dlspeed) || 0;
+    const speed = (Number(t.dlspeed) || 0) + (e.assist?.rate || 0);
     const left = e.size * (1 - progress);
     const bitrate = e.info?.bitrate || 0;
     return { id: e.id, done: progress >= 1, progress, inOrder: e.size ? this.readable(e, 0) / e.size : 0, speed, eta: speed > 0 ? Math.round(left / speed) : null,
       state: t.state || '', paused: /^(paused|stopped)/.test(t.state || ''), seeds: Number.isFinite(t.num_seeds) ? t.num_seeds : null,
       keepsUp: bitrate > 0 ? speed * 8 >= bitrate * 1.1 : null, duration: e.info?.duration || null,
+      // playhead is fetching what the player needs next (so a seek past the download doesn't wait for it).
+      assisted: Boolean(e.assist),
       // Before playback: how far along the start it waits for is (START_GOAL_SECONDS of video, or the
       // minimum until the video's bitrate is known), and roughly how long that takes at this speed.
       ...this.startStatus(e, speed) };
@@ -388,6 +478,7 @@ export class PartialStreams {
   }
 
   async restore(e) {
+    if (e.assist) { const id = e.assist.id; e.assist = null; await this.assist?.close(id).catch(() => {}); }
     if (e.started) {
       const mbit = ((e.info?.bitrate || 0) / 1e6).toFixed(1);
       this.log.info?.(`[play now] ${e.name}: ${mbit} Mbit/s, the stream waited for the download ${e.holds} times, ${Math.round(e.heldMs / 1000)} s in all`);

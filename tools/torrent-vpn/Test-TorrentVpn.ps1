@@ -25,6 +25,8 @@ $best = (Find-NetRoute -RemoteIPAddress 1.1.1.1 | Where-Object InterfaceAlias | 
 Check 'rest of the machine stays off the tunnel' ($best -ne $cfg.name) "default traffic uses $best"
 $rules = @(Get-NetFirewallRule -DisplayName 'TorrentVpn: block qBittorrent outside tunnel*' -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Block' })
 Check 'firewall kill switch (in + out)' ($rules.Count -eq 2)
+$phRules = @(Get-NetFirewallRule -DisplayName 'TorrentVpn: block playhead outside tunnel*' -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Block' })
+Check 'firewall kill switch for playhead (in + out)' ($phRules.Count -eq 2) (Get-TvPlayheadExe $cfg)
 
 $q = Connect-TvQbit $cfg
 $prefs = Invoke-TvQbit $q '/api/v2/app/preferences'
@@ -35,6 +37,8 @@ Check 'qBittorrent UPnP off' (-not $prefs.upnp)
 $sock = Get-TvQbitSockets $cfg
 Check 'no qBittorrent connections outside the tunnel' ($sock.Leaks.Count -eq 0) ($sock.Leaks -join '; ')
 Check 'no qBittorrent listeners outside the tunnel' ($sock.Strays.Count -eq 0) ($sock.Strays -join '; ')
+$phSock = Get-TvProgramSockets $cfg (Get-TvPlayheadExe $cfg)
+Check 'no playhead connections outside the tunnel' ($phSock.Leaks.Count -eq 0) $(if ($phSock.Ids.Count) { $phSock.Leaks -join '; ' } else { 'not running' })
 
 $homeIp = Get-TvHomeIp
 $exit = Test-TvExit $cfg
@@ -53,6 +57,8 @@ if ($Drill) {
   Check 'drill: nothing gets out on the tunnel address' ($out -eq '000' -or -not $out) "http $out"
   $sock = Get-TvQbitSockets $cfg
   Check 'drill: qBittorrent has no connections outside the tunnel' ($sock.Leaks.Count -eq 0) ($sock.Leaks -join '; ')
+  $phSock = Get-TvProgramSockets $cfg (Get-TvPlayheadExe $cfg)
+  Check 'drill: playhead has no connections outside the tunnel' ($phSock.Leaks.Count -eq 0) ($phSock.Leaks -join '; ')
   $before = (Invoke-TvQbit $q '/api/v2/transfer/info')
   Start-Sleep 10
   $after = (Invoke-TvQbit $q '/api/v2/transfer/info')

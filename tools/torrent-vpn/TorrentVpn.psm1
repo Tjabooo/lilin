@@ -10,6 +10,8 @@ $Script:StateFile = Join-Path $Script:DataDir 'state.json'
 $Script:LogFile = Join-Path $Script:DataDir 'watchdog.log'
 $Script:WgDir = Join-Path $env:ProgramFiles 'WireGuard'
 $Script:RulePrefix = 'TorrentVpn: block qBittorrent outside tunnel'
+# Lilin's Play now helper (src/playhead.js) gets the same fence: tunnel address and loopback only.
+$Script:PlayheadRulePrefix = 'TorrentVpn: block playhead outside tunnel'
 
 function Get-TvDataDir { $Script:DataDir }
 
@@ -159,20 +161,41 @@ function Get-TvBlockedLocalRanges([string]$TunnelIp) {
   $ranges + @('::-::0', '::2-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')
 }
 
-function Set-TvFirewall($Config) {
+# Where Lilin keeps playhead.exe: playheadExe in the config, else PLAYHEAD_BIN or DATA_DIR\bin from
+# Lilin's .env, else the bin folder next to that .env (Lilin's default DATA_DIR).
+function Get-TvPlayheadExe($Config) {
+  if ($Config.playheadExe) { return $Config.playheadExe }
+  $root = Split-Path $Config.envFile
+  $vars = @{}
+  if (Test-Path $Config.envFile) {
+    foreach ($line in Get-Content $Config.envFile) {
+      if ($line -match '^\s*(PLAYHEAD_BIN|DATA_DIR)\s*=\s*"?([^"#]*?)"?\s*$') { $vars[$Matches[1]] = $Matches[2] }
+    }
+  }
+  if ($vars.PLAYHEAD_BIN) { return [IO.Path]::GetFullPath((Join-Path $root $vars.PLAYHEAD_BIN)) }
+  $data = if ($vars.DATA_DIR) { [IO.Path]::GetFullPath((Join-Path $root $vars.DATA_DIR)) } else { $root }
+  Join-Path $data 'bin\playhead.exe'
+}
+
+function Set-TvProgramFirewall($Config, [string]$Prefix, [string]$Exe, [string]$Label) {
   $ranges = Get-TvBlockedLocalRanges $Config.address
-  $sig = "[sig $($Config.address) $($Config.qbitExe)]"
+  $sig = "[sig $($Config.address) $Exe]"
   foreach ($dir in 'Outbound', 'Inbound') {
-    $name = "$($Script:RulePrefix) ($dir)"
+    $name = "$Prefix ($dir)"
     $existing = @(Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue)
     $good = @($existing | Where-Object { $_.Enabled -eq 'True' -and $_.Action -eq 'Block' -and "$($_.Description)".EndsWith($sig) })
     if ($good.Count -eq 1 -and $existing.Count -eq 1) { continue }
-    # New rule first, then drop the old ones, so qBittorrent is never unfenced in between.
-    $rule = New-NetFirewallRule -DisplayName $name -Direction $dir -Action Block -Program $Config.qbitExe -LocalAddress $ranges -Profile Any `
-      -Description "Torrent VPN kill switch: qBittorrent may only use the tunnel address (and loopback for its WebUI). $sig"
+    # New rule first, then drop the old ones, so the program is never unfenced in between.
+    $rule = New-NetFirewallRule -DisplayName $name -Direction $dir -Action Block -Program $Exe -LocalAddress $ranges -Profile Any `
+      -Description "Torrent VPN kill switch: $Label may only use the tunnel address (and loopback for its API). $sig"
     $existing | Where-Object { $_.Name -ne $rule.Name } | Remove-NetFirewallRule
-    Write-TvLog "firewall rule ($dir) set"
+    Write-TvLog "firewall rule for $Label ($dir) set"
   }
+}
+
+function Set-TvFirewall($Config) {
+  Set-TvProgramFirewall $Config $Script:RulePrefix $Config.qbitExe 'qBittorrent'
+  Set-TvProgramFirewall $Config $Script:PlayheadRulePrefix (Get-TvPlayheadExe $Config) 'playhead'
 }
 
 # ---------- qBittorrent ----------
@@ -237,9 +260,13 @@ function Set-TvQbitBinding($Config, $Q) {
 # Leaks = connections actually open or opening on another address (the firewall should make these
 # impossible). Strays = listening or UDP sockets on another address: blocked by the firewall, but
 # reported so a config drift gets noticed. Unconnected "Bound" TCP sockets are neither.
-function Get-TvQbitSockets($Config) {
-  $result = [pscustomobject]@{ Leaks = @(); Strays = @() }
-  $ids = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Config.qbitExe } | ForEach-Object Id)
+function Get-TvQbitSockets($Config) { Get-TvProgramSockets $Config $Config.qbitExe }
+
+# The same for any program (playhead).
+function Get-TvProgramSockets($Config, [string]$Exe) {
+  $result = [pscustomobject]@{ Leaks = @(); Strays = @(); Ids = @() }
+  $ids = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | ForEach-Object Id)
+  $result.Ids = $ids
   if (-not $ids.Count) { return $result }
   $ok = { param($a) $a -eq $Config.address -or $a -like '127.*' -or $a -eq '::1' }
   $tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess -and -not (& $ok $_.LocalAddress) })

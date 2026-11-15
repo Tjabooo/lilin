@@ -8,6 +8,8 @@ export default {
   "Buffering": "Buffrar",
   "This video is still downloading": "Videon laddas fortfarande ner",
   "This part hasn’t downloaded yet": "Den här delen är inte nedladdad än",
+  "Fetching this part": "Hämtar den här delen",
+  "This part is being fetched first, so it plays in a moment. The rest keeps downloading in the background.": "Den här delen hämtas först, så den spelas om en stund. Resten fortsätter laddas ner i bakgrunden.",
   "It’s playing while it downloads, so it has to stop now and then to catch up. If you want it to stop buffering and play in full quality, wait for the download to finish.": "Den spelas medan den laddas ner, så den måste stanna ibland för att komma ikapp. Vill du slippa buffring och se den i full kvalitet får du vänta tills nedladdningen är klar.",
   "It will play when the download gets here. If you want it to stop buffering and play in full quality, wait for the download to finish.": "Den spelas när nedladdningen kommer hit. Vill du slippa buffring och se den i full kvalitet får du vänta tills nedladdningen är klar.",
   "Wait for the download": "Vänta på nedladdningen",
