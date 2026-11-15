@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-15-best-quality-swarm",
+  "date": "2026-11-15",
+  "title": "Best Quality stops picking six-hour downloads",
+  "items": [
+    {
+      "title": "Faster Best Quality picks",
+      "text": "Best Quality used to treat a bigger file as a better one, so it could pick an 80 GB copy with ten people sharing it over a 26 GB copy of the same 4K stream with thousands. Now extra size beyond what a resolution needs barely counts, a huge file with few people sharing it counts against, and copies that may start in a dubbed language (Hindi, Italian and so on) lose out to ones that don't. The picture stays just as good, it just arrives hours sooner."
+    }
+  ]
+},
+{
   "id": "2026-11-15-trailer-controls",
   "date": "2026-11-15",
   "title": "Trailer controls you can actually see",

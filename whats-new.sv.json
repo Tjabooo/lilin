@@ -1,4 +1,13 @@
 {
+  "2026-11-15-best-quality-swarm": {
+    "title": "Bästa kvalitet slutar välja nedladdningar på sex timmar",
+    "items": {
+      "Faster Best Quality picks": {
+        "title": "Snabbare val med Bästa kvalitet",
+        "text": "Bästa kvalitet såg tidigare en större fil som en bättre, så den kunde välja en kopia på 80 GB som tio personer delade framför en kopia på 26 GB av samma 4K-ström som tusentals delade. Nu räknas extra storlek utöver vad upplösningen behöver knappt alls, en jättefil som få delar räknas emot, och kopior som kan börja på ett dubbat språk (hindi, italienska och så vidare) får stå tillbaka. Bilden blir lika bra, den kommer bara flera timmar tidigare."
+      }
+    }
+  },
   "2026-11-15-trailer-controls": {
     "title": "Trailerknappar som syns",
     "items": {

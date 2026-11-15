@@ -17,8 +17,9 @@
 // Picture quality (pictureScore): where the picture came from, then how much of it survived. An
 // untouched remux leads, then disc encodes, web downloads and web re-encodes, each adjusted by its
 // size per film or episode against what its resolution needs. A 0.3 GB "1080p" episode is 1080p in
-// name only. Balanced avoids starved encodes. Best Quality ranks by this score alone: seeders only
-// decide whether a release is usable and settle near-ties, and 4K, 1080p and 720p compete on picture.
+// name only; above the need, more size buys little. Balanced avoids starved encodes. Best Quality
+// ranks by picture first; seeders count a little (a big file on a thin swarm counts against), and
+// 4K, 1080p and 720p compete on picture.
 // (House S06: a 8 GB per episode remux beats a popular 0.8 GB encode.)
 // Never picked while anything else exists, in any profile: 3D, AI upscales and disc images.
 // Hard limits, never relaxed: an exact resolution chosen in Advanced, the largest size per film or
@@ -123,8 +124,13 @@ const UNKNOWN_SOURCE = 1;
 const OLD_CODEC_REMUX = 1.9;
 const OLD_CODEC = /\b(vc ?-?1|mpeg ?-?2)\b/i;
 const INTERPOLATED = /\b(50|60|120) ?fps\b|\binterpolated\b|\bsvp\b/i;
-// "WEB-DL" on an x265 file means someone re-encoded the download.
-const REENCODED = /\b(x\.?265|h\.?265|hevc|av1)\b/i;
+// "WEB-DL" with the x265 encoder named means someone re-encoded the download. H.265 / HEVC alone is
+// how the stores send 4K (iTunes, Netflix, Disney+), so that's the untouched stream.
+const REENCODED = /\bx\.?265\b/i;
+// Above what a resolution needs, more size buys little: twice the need is worth +0.5, never more.
+const MORE_SIZE = 0.5;
+// Best Quality, English wanted: a dual-audio release whose other track is a dub may start in that dub.
+const FOREIGN_DUB = /\b(hindi|tamil|telugu|malayalam|kannada|bengali|urdu|ita|italian|latino|castellano|dublado|truefrench|vff|rus|russian|pldub|lektor)\b/i;
 
 // Picture only (no seeders): how good a release will look. Used to rank Best Quality and to decide
 // whether a release is an upgrade over what's already here.
@@ -133,14 +139,19 @@ export function pictureScore(r, want = {}, kind = 'movie') {
   const source = sourceOf(r.name);
   const tags = tagsOf(r.name);
   let s;
+  const reencoded = source === 'web' && REENCODED.test(tags);
   if (source === 'remux' && (f == null || f >= 0)) {
     // Untouched: a bigger file isn't a better one, so size stops counting. (Too small to be real: below.)
     s = OLD_CODEC.test(tags) ? OLD_CODEC_REMUX : SOURCE_RANK.remux;
+  } else if (source === 'web' && !reencoded && f != null && f >= 0) {
+    // An untouched web download with enough bitrate is the store's own stream: an 80 GB copy of it
+    // isn't better than a 26 GB one, only slower (2026-11-15, Spider-Man: Brand New Day).
+    s = SOURCE_RANK.web + MORE_SIZE;
   } else {
     const start = source === 'remux' ? SOURCE_RANK.bluray
-      : source === 'web' && REENCODED.test(tags) ? SOURCE_RANK.webrip
+      : reencoded ? SOURCE_RANK.webrip
       : SOURCE_RANK[source] ?? UNKNOWN_SOURCE;
-    s = start + (f == null ? 0 : Math.max(-3, Math.min(1, f)));
+    s = start + (f == null ? 0 : f < 0 ? Math.max(-3, f) : Math.min(MORE_SIZE, f / 2));
   }
   s += RES_BONUS[r.quality] ?? 0;
   if (TINY_GROUPS.test(tags)) s -= 1;
@@ -151,8 +162,13 @@ export function pictureScore(r, want = {}, kind = 'movie') {
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
   const profile = want.profile;
-  // Best Quality: seeders only settle near-ties (at most about 0.25 of a picture score).
-  let s = profile === 'best' ? Math.log10(Math.min(r.seeders, 50) + 1) * 0.15 : Math.log10(r.seeders + 1);
+  // Best Quality: seeders weigh less than picture, but a lively swarm still beats a dead one (about
+  // +0.25 at 10 seeders, +0.75 at 1000), and a huge file on a thin swarm (GB per seeder) counts against:
+  // 80 GB on 10 seeders is a six-hour download for a picture nobody can tell apart.
+  let s = profile === 'best' ? Math.log10(Math.min(r.seeders, 1000) + 1) * 0.25 : Math.log10(r.seeders + 1);
+  if (profile === 'best' && r.size && r.seeders > 0) {
+    s -= 0.25 * Math.max(0, Math.min(2, Math.log2(r.size / GB / r.seeders / 2)));
+  }
   if (r.trusted) s += profile === 'best' ? 0.1 : 0.3;
   if (profile !== 'best' && r.tags?.includes('Remux')) s -= 2;
   if (/\b(hc|hardsub|korsub|hcsubs?)\b/i.test(r.name)) s -= 2;
@@ -162,6 +178,7 @@ function score(r, want, kind) {
     // Best Quality, English wanted: most English originals aren't labelled at all, so "ENG" in a name
     // says nothing about the picture. A dub in another language still counts against.
     if (!(profile === 'best' && want.audioLang === 'en' && fit > 0)) s += fit * 0.8;
+    else if (FOREIGN_DUB.test(tagsOf(r.name))) s -= 0.3;
   }
   if (r.remake) s -= 0.5;                                     // Nyaa: a re-upload of someone else's release
   // 10-bit H.264 ("Hi10P", common in older anime) plays on almost no TV or phone without re-encoding.

@@ -359,3 +359,20 @@ test('a Swedish season asks the other source first; torrents fill in what it lac
   assert.ok(!searched.some((q) => /S01E01/.test(q)), 'episode 1 is on its way');
   assert.equal(job.outcome, 'partial');
 });
+
+// 2026-11-15: Best picked an 81.6 GB Hindi dual-audio WEB-DL on 10 seeders (six hours) over the
+// 26 GB iTunes 4K stream on 3000. Above what 4K needs, more size buys little; a thin swarm counts.
+test('Best Quality: no reward for a bloated web copy on a dead swarm', () => {
+  const spidey = [
+    ['Spider-Man- Brand New Day (2026) IMAX 2160p 4K HDR10+ DV WEB-DL Dual Audio [Hindi + English] ESub ~ RemuxDoc', 10, 81.6 * GB],
+    ['Spider-Man.Brand.New.Day.2026.2160p.iT.WEB-DL.DV.HDR10+.DDP5.1.Atmos.H265.MP4-BTM', 2991, 26.3 * GB],
+    ['Spider-Man.Brand.New.Day.2026.2160p.IMAX.BCORE.WEB-DL.HDR.MULTi.Atmos.H265-BTM', 519, 85.5 * GB],
+    ['Spider-Man Brand New Day 2026 iT WEB-DL 2160p HDR10p DV HEVC DDPA 5.1 x265-E', 862, 15.3 * GB],
+    ['Spider-Man.Brand.New.Day.2026.1080p.AMZN.WEB-DL.DDP5.1.H.264-KyoGo', 1952, 9 * GB],
+    ['Spider-Man Brand New Day (2026) [1080p] [WEBRip] [5.1]', 7353, 2.7 * GB],
+  ];
+  const want = { type: 'movie', title: 'Spider-Man: Brand New Day', year: 2026, profile: 'best', audioLang: 'en' };
+  assert.equal(pick(spidey, want), 'Spider-Man.Brand.New.Day.2026.2160p.iT.WEB-DL.DV.HDR10+.DDP5.1.Atmos.H265.MP4-BTM');
+  // A big file on a healthy swarm isn't punished, and a lively 1080p doesn't beat a 4K stream.
+  assert.equal(pick(spidey.filter((r, i) => i !== 1), want), 'Spider-Man.Brand.New.Day.2026.2160p.IMAX.BCORE.WEB-DL.HDR.MULTi.Atmos.H265-BTM');
+});
