@@ -20,6 +20,18 @@
   ]
 },
 {
+  "id": "2026-11-16-live-subtitles-fix",
+  "date": "2026-11-16",
+  "push": false,
+  "title": "Live TV subtitles show up now",
+  "items": [
+    {
+      "title": "No more vanishing lines",
+      "text": "On a computer, Live TV subtitles slid off the top of the screen whenever the controls were showing. They now sit just above the channel bar."
+    }
+  ]
+},
+{
   "id": "2026-11-16-live-subtitles",
   "date": "2026-11-16",
   "title": "Subtitles on Live TV",

@@ -4545,6 +4545,7 @@ async function leaveLive(fromStart) {
 function renderLiveStrip() {
   const strip = $('#live-strip');
   const info = party?.state.live;
+  if (strip.hidden !== !info) requestAnimationFrame(layoutSubs);
   strip.hidden = !info;
   if (!info) return;
   const ch = info.channel || {};
@@ -6652,7 +6653,11 @@ applySubLook();
 function layoutSubs() {
   if (playerEl.hidden) return;
   const box = stage.getBoundingClientRect();
-  const seekTop = seekRow.getBoundingClientRect().top;
+  // Live TV hides the seek bar (display: none reads as top 0, which lifted every line off the screen):
+  // clear the channel strip instead.
+  const liveStrip = $('#live-strip');
+  const seekTop = seekRow.getClientRects().length ? seekRow.getBoundingClientRect().top
+    : !liveStrip.hidden ? liveStrip.getBoundingClientRect().top : controlsEl.getBoundingClientRect().bottom - 60;
   if (!upNextEl.hidden || !skipIntroEl.hidden) {
     playerEl.style.setProperty('--up-next-bottom', `${Math.max(16, playerEl.getBoundingClientRect().bottom - seekTop + 12)}px`);
   }
