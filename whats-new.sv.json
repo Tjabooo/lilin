@@ -1,4 +1,13 @@
 {
+  "2026-11-15-trailer-controls": {
+    "title": "Trailerknappar som syns",
+    "items": {
+      "Normal-sized trailer controls": {
+        "title": "Trailerknappar i normal storlek",
+        "text": "Sedan trailers började spelas i full HD blev YouTubes egna knappar på titelsidans trailer pyttesmå. Nu har trailers Lilins egen kontrollrad i stället: spela och pausa, spolning, ljud av och helskärm, i normal storlek. Klicka på videon för att pausa och dubbelklicka för helskärm."
+      }
+    }
+  },
   "2026-11-14-clip-game-events": {
     "title": "Dina CS2-ögonblick på klippets tidslinje",
     "items": {
