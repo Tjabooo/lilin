@@ -5392,7 +5392,8 @@ async function setupPlayerSubs(f, session) {
   let pref = null;
   try { pref = localStorage.getItem('subs:lang'); } catch { /* blocked */ }
   const want = prefs().subLang;
-  const saved = ccLangs.find((l) => l.code === pref && l.saved) || (want && pref !== '' && ccLangs.find((l) => l.code === want))
+  // Live TV: the language you turned on stays on when the channel moves to the next programme (fetched if need be).
+  const saved = ccLangs.find((l) => l.code === pref && (l.saved || f.live)) || (want && pref !== '' && ccLangs.find((l) => l.code === want))
     // Anime (Japanese audio) for someone who never picked subtitles: the English ones it came with.
     || (data.anime && pref == null && !want && ccLangs.find((l) => l.code === 'en' && l.saved));
   if (!saved) return;

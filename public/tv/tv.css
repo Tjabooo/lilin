@@ -359,4 +359,7 @@ img.is-empty { visibility: hidden; }
 .live-bar { height: 8px; margin: 18px 0 12px; border-radius: 4px; background: rgba(246, 234, 223, .16); overflow: hidden; }
 .live-bar i { display: block; height: 100%; background: #FF5A4E; }
 .live-banner-times { font-size: 26px; color: var(--dust); white-space: pre; }
+.live-banner-hint { margin-top: 10px; font-size: 22px; color: var(--dust); }
+/* Subtitles move up while the channel banner is showing */
+.live-banner.show ~ .subs { bottom: 400px; }
 .live-digits { font-family: var(--display); font-size: 90px; font-weight: 800; color: var(--bulb); }

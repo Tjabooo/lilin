@@ -1653,12 +1653,16 @@
     var av = window.webapis && webapis.avplay;
     if (!av) { toast(T('This TV can’t play videos from here.')); return; }
     var client = tvClient();
-    var s = { id: id, room: null, mediaId: null, closed: false, offset: 0, samples: [], opening: false, seekedAt: 0, beat: null, url: null, lastPos: -1, movedAt: 0, lead: 0.25 };
+    var s = { id: id, room: null, mediaId: null, closed: false, offset: 0, samples: [], opening: false, seekedAt: 0, beat: null, url: null, lastPos: -1, movedAt: 0, lead: 0.25, cues: null, subTick: null };
     var obj = h('object', { id: 'av', type: 'application/avplayer' });
     var banner = h('div', { class: 'live-banner' });
     var spinner = h('div', { class: 'loading show', text: T('Tuning in…') });
-    var el = h('div', { class: 'screen player live-player' }, banner, spinner);
-    var bannerTimer = null, digits = '', digitTimer = null;
+    var subsEl = h('div', { class: 'subs' });
+    var menu = h('div', { class: 'menu' });
+    var el = h('div', { class: 'screen player live-player' }, banner, subsEl, spinner, menu);
+    var bannerTimer = null, digits = '', digitTimer = null, menuItems = [], menuIndex = 0;
+    // The subtitle language stays on across programmes and channels (live.subLang), starting from Settings.
+    if (live.subLang == null) live.subLang = (state.me && state.me.settings && state.me.settings.subLang) || '';
     function serverNow() { return Date.now() + s.offset; }
     function channel() { return live.channels.filter(function (c) { return c.id === s.id; })[0] || (s.room && s.room.live && s.room.live.channel) || { id: s.id }; }
     function showBanner(stay) {
@@ -1677,6 +1681,7 @@
         banner.appendChild(h('div', { class: 'live-banner-now' }, h('b', { text: now.title }), h('span', { text: L.programmeLine(now) ? ' · ' + L.programmeLine(now) : '' })));
         banner.appendChild(bar);
         banner.appendChild(h('div', { class: 'live-banner-times', text: L.clock(now.s) + '–' + L.clock(now.e) + (next ? '   ' + T('Next: {0} at {1}', next.title, L.clock(next.s)) : '') }));
+        banner.appendChild(h('div', { class: 'live-banner-hint', text: T('Right: subtitles') }));
       } else banner.appendChild(h('div', { class: 'live-banner-now' }, h('b', { text: next ? T('Off air. {0} starts at {1}.', next.title, L.clock(next.s)) : T('Off air for a moment.') })));
       banner.classList.add('show');
       clearTimeout(bannerTimer);
@@ -1697,11 +1702,58 @@
     }
     function target() { return L.liveTarget(s.room, serverNow()); }
     function stopAv() { try { av.stop(); } catch (e) { /* already */ } try { av.close(); } catch (e) { /* already */ } }
+    // ---- subtitles (→) ----
+    function setSubs(lang, quiet) {
+      live.subLang = lang || '';
+      s.cues = null; subsEl.textContent = '';
+      var want = s.mediaId;
+      if (!lang || !want) return Promise.resolve();
+      return api('/api/subs/langs?kind=lib&id=' + encodeURIComponent(want)).then(function (d) {
+        // This programme doesn't have that language: stay quiet, the next one may.
+        if (!(d.languages || []).some(function (l) { return l.code === lang; })) { if (!quiet) toast(T('No {0} subtitles for this programme.', lang.toUpperCase())); return null; }
+        return api('/api/subs/fetch', { kind: 'lib', id: want, lang: lang });
+      }).then(function (r) { return r && fetch(SERVER + r.url, { credentials: 'omit' }).then(function (x) { return x.text(); }); })
+        .then(function (text) { if (text && live.subLang === lang && s.mediaId === want && !s.closed) s.cues = L.parseVtt(text); })
+        .catch(function (err) { if (!quiet) toast(T('Couldn’t get those subtitles: {0}', err.message)); });
+    }
+    function drawSubs() {
+      if (!s.cues || s.opening) { if (subsEl.textContent) subsEl.textContent = ''; return; }
+      var t;
+      try { t = av.getCurrentTime() / 1000; } catch (e) { return; }
+      var text = L.cueText(s.cues, t);
+      if (subsEl.textContent !== text) subsEl.textContent = text;
+    }
+    function openMenu() {
+      if (!s.mediaId) { showBanner(); return; }
+      api('/api/subs/langs?kind=lib&id=' + encodeURIComponent(s.mediaId)).then(function (d) { return d.languages || []; }).catch(function () { return []; }).then(function (langs) {
+        if (s.closed) return;
+        menuItems = [{ head: T('Subtitles') }, { label: T('Off'), on: !live.subLang, act: function () { setSubs(''); } }];
+        langs.forEach(function (l) { menuItems.push({ label: l.name, on: live.subLang === l.code, act: function () { toast(T('Getting {0} subtitles…', l.name)); setSubs(l.code); } }); });
+        menuIndex = menuItems.findIndex(function (m) { return m.on; });
+        if (menuIndex < 0) menuIndex = 1;
+        banner.classList.remove('show');
+        menu.classList.add('show');
+        paintMenu();
+      });
+    }
+    function paintMenu() {
+      menu.innerHTML = '';
+      menuItems.forEach(function (m, i) {
+        menu.appendChild(m.head ? h('div', { class: 'menu-head', text: m.head })
+          : h('div', { class: 'menu-item' + (m.on ? ' on' : '') + (i === menuIndex ? ' focus' : ''), text: m.label }));
+      });
+    }
+    function menuMove(d) {
+      var i = menuIndex;
+      do { i += d; } while (menuItems[i] && menuItems[i].head);
+      if (menuItems[i]) { menuIndex = i; paintMenu(); }
+    }
     // A new programme (or the first one): open its video at the live moment.
     function openMedia() {
       var media = s.room.media;
       s.mediaId = media ? media.id : null;
       stopAv();
+      if (live.subLang) setSubs(live.subLang, true); else { s.cues = null; subsEl.textContent = ''; }
       if (!media) { spinner.classList.remove('show'); showBanner(true); return; }
       spinner.textContent = T('Tuning in…'); spinner.classList.add('show');
       var want = media.id;
@@ -1772,7 +1824,7 @@
     function close() {
       if (s.closed) return;
       s.closed = true;
-      clearInterval(s.beat); clearTimeout(bannerTimer); clearTimeout(digitTimer);
+      clearInterval(s.beat); clearInterval(s.subTick); clearTimeout(bannerTimer); clearTimeout(digitTimer);
       stopAv();
       if (s.room) post('leave').catch(function () {});
       if (obj.parentNode) obj.parentNode.removeChild(obj);
@@ -1787,6 +1839,13 @@
       livePlay(nextId, true);
     }
     var me = { el: el, leave: close, key: function (code) {
+      if (menu.classList.contains('show')) {
+        if (code === KEY.UP) menuMove(-1);
+        else if (code === KEY.DOWN) menuMove(1);
+        else if (code === KEY.ENTER) { var item = menuItems[menuIndex]; menu.classList.remove('show'); if (item && item.act) item.act(); }
+        else if (code === KEY.BACK || code === KEY.LEFT || code === KEY.RIGHT || code === KEY.ESC || code === KEY.BACKSPACE) menu.classList.remove('show');
+        return true;
+      }
       var n = code >= 48 && code <= 57 ? code - 48 : code >= 96 && code <= 105 ? code - 96 : -1;
       if (n >= 0) {
         digits = (digits + n).slice(-3);
@@ -1802,7 +1861,8 @@
       if (code === KEY.UP || code === KEY.CH_UP) { var up = L.neighbour(live.channels, s.id, -1); if (up) surfTo(up.id); return true; }
       if (code === KEY.DOWN || code === KEY.CH_DOWN) { var down = L.neighbour(live.channels, s.id, 1); if (down) surfTo(down.id); return true; }
       if (code === KEY.PRE_CH || code === KEY.LEFT) { if (live.last) surfTo(live.last); return true; }
-      if (code === KEY.ENTER || code === KEY.RIGHT) { showBanner(); return true; }
+      if (code === KEY.RIGHT) { openMenu(); return true; }
+      if (code === KEY.ENTER) { showBanner(); return true; }
       if (code === KEY.PLAYPAUSE || code === KEY.PAUSE || code === KEY.PLAY || code === KEY.FF || code === KEY.RW) { toast(T('This is live TV, so it keeps playing.')); return true; }
       if (code === KEY.BACK || code === KEY.STOP) { close(); back(); return true; }
       return true;
@@ -1814,7 +1874,7 @@
     (live.channels.length ? Promise.resolve() : loadGuide().catch(function () {}))
       .then(function () { return sample().then(sample).then(sample).catch(function () {}); })
       .then(tune)
-      .then(function () { if (!s.closed) s.beat = setInterval(heartbeat, 1000); });
+      .then(function () { if (!s.closed) { s.beat = setInterval(heartbeat, 1000); s.subTick = setInterval(drawSubs, 200); } });
   }
 
   // ---------- the player ----------

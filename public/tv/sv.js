@@ -26,6 +26,8 @@ window.LilinTvStrings = {
   'Download request finished.': 'Klart, den är på väg.',
   'Downloads disabled': 'Kan inte lägga till',
   'Down: subtitles and audio': 'Ner: undertexter och ljud',
+  'Right: subtitles': 'Höger: undertexter',
+  'No {0} subtitles for this programme.': 'Inga undertexter på {0} för det här programmet.',
   ', enter this code:': ', ange den här koden:',
   'Episode {0}': 'Avsnitt {0}',
   'Film': 'Film',

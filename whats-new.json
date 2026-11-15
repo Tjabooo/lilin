@@ -20,6 +20,21 @@
   ]
 },
 {
+  "id": "2026-11-16-live-subtitles",
+  "date": "2026-11-16",
+  "title": "Subtitles on Live TV",
+  "items": [
+    {
+      "title": "Subtitles on the TV's channels",
+      "text": "Watching a channel on the TV app, press Right for subtitles. The language you pick stays on when you change channel or the next programme starts."
+    },
+    {
+      "title": "They stay on in the browser too",
+      "text": "On a computer or phone, subtitles you turn on for a channel now come back on the next programme instead of switching off."
+    }
+  ]
+},
+{
   "id": "2026-11-16-tab-names",
   "date": "2026-11-16",
   "push": false,
