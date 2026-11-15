@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-15-trailer-controls",
+  "date": "2026-11-15",
+  "title": "Trailer controls you can actually see",
+  "items": [
+    {
+      "title": "Normal-sized trailer controls",
+      "text": "Since trailers started playing in full HD, YouTube's own buttons on a title page's trailer were tiny. Trailers now have Lilin's own bar instead: play and pause, a seek bar, mute and full screen, at a normal size. Click the video to pause, double-click for full screen."
+    }
+  ]
+},
+{
   "id": "2026-11-15-password-links-close",
   "date": "2026-11-15",
   "title": "Used password links tidy themselves up",

@@ -18,6 +18,7 @@ import { createDocumentaries } from './documentaries.js';
 import { createPeople } from './people.js';
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
+import { trailerSrc, trailerControls } from './trailer-controls.js';
 import { createPeek } from './peek.js';
 
 translatePage();
@@ -2403,7 +2404,8 @@ function detailsHero(t) {
     const play = h('button', { type: 'button', class: 'trailer-btn', 'aria-label': T('Play {0}: {1}', label.toLowerCase(), t.title) },
       icon('play'), h('span', {}, label));
     play.addEventListener('click', () => {
-      const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailer.key)}?autoplay=1&rel=0&playsinline=1&${HD_HINT}`;
+      // YouTube's controls would be shrunk with the scaled player, so Lilin draws its own (trailer-controls.js)
+      const src = trailerSrc(trailer.key, HD_HINT);
       // the backdrop stays behind the player (blurred and dimmed on wide screens, see .is-playing in style.css)
       hero.classList.add('is-playing');
       document.body.classList.add('trailer-live');
@@ -2418,6 +2420,7 @@ function detailsHero(t) {
       box.append(frame);
       hero.append(box);
       fitTrailer(frame, box);
+      trailerControls(box, frame, icon);
     });
     hero.append(play);
   }).catch(() => {});

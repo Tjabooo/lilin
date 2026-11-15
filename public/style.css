@@ -959,6 +959,35 @@ html.has-vt .view { animation: none; }
 #sheet .sheet-hero.is-playing + .sheet-content { padding-top: var(--s5); }
 .trailer-frame { position: relative; z-index: 1; display: block; width: 100%; height: 100%; overflow: hidden; background: #000; }
 .trailer-frame iframe { border: 0; display: block; }
+/* Lilin's own trailer controls (trailer-controls.js): YouTube's are hidden, because the scaled 1080p player shrank them */
+.tc { position: absolute; inset: 0; z-index: 2; visibility: hidden; }
+.trailer-frame.tc-ready .tc { visibility: visible; }
+.tc-hit { position: absolute; inset: 0; cursor: pointer; }
+.trailer-frame.tc-ready:not(.tc-awake):not(.is-paused) .tc-hit { cursor: none; }
+.tc .tc-big {
+  position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+  background: rgb(0 0 0 / .5); opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .15s ease;
+}
+.tc .tc-big svg { width: 28px; height: 28px; fill: currentColor; stroke: none; }
+.trailer-frame.is-paused .tc .tc-big { opacity: 1; pointer-events: auto; }
+.tc-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 40px 10px 6px;
+  background: linear-gradient(transparent, rgb(0 0 0 / .5) 45%, rgb(0 0 0 / .82));
+  opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s .25s;
+}
+.trailer-frame:is(.tc-awake, .is-paused) .tc-bar, .tc-bar:focus-within { opacity: 1; visibility: visible; transition: opacity .2s ease, visibility 0s; }
+.tc-bar .pc-btn { width: 40px; height: 40px; }
+.tc-bar .pc-btn svg { width: 22px; height: 22px; }
+.tc-play svg { fill: currentColor; stroke: none; }
+.tc-bar .pc-time { min-width: 4ch; font-size: 13px; }
+.tc-cur { text-align: right; }
+.tc-seek { margin: 0 6px; }
+.trailer-frame:fullscreen { border-radius: 0; }
+.trailer-frame:fullscreen .tc-bar { padding: 72px 24px 16px; }
+@media (hover: hover) and (pointer: fine) { .tc .tc-big:hover { background: var(--bulb); transform: scale(1.05); } }
+@media (max-width: 480px) { .tc-bar .pc-time { font-size: 12px; } .tc-bar { gap: 2px; padding-inline: 4px; } .tc-seek { margin: 0 4px; } }
 .trailer-btn {
   /* z-index 3: above the page content, which overlaps the hero's lower edge (z-index 2) and covered the button on wide screens */
   position: absolute; right: var(--gutter); bottom: 22%; z-index: 3;
