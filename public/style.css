@@ -3175,6 +3175,85 @@ html.wrapped-on { overflow: hidden; }
 .wr-faces .face { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35); }
 .wr-faces .face + .face { margin-left: -16px; }
 
+/* Wrapped, 2nd edition: backdrops behind some slides, posters, the clock, genre chips, the share button */
+.wrapped::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.6s;
+  background: var(--wr-img) center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.18) 55%, transparent 85%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.18) 55%, transparent 85%);
+}
+.wrapped.has-img::after { opacity: 1; }
+.wrapped[data-slide="wr-h"] { --gx: 80%; --gy: 70%; }
+.wrapped[data-slide="wr-i"] { --gx: 15%; --gy: 15%; --glow: rgba(120, 140, 255, 0.18); }
+.wrapped[data-slide="wr-j"] { --gx: 70%; --gy: 25%; --glow: rgba(255, 155, 133, 0.24); }
+.wrapped[data-slide="wr-k"] { --gx: 50%; --gy: 50%; --glow: color-mix(in srgb, var(--bulb) 32%, transparent); }
+.wrapped[data-slide="wr-l"] { --gx: 30%; --gy: 85%; }
+.wr-posters { display: flex; gap: 12px; margin-bottom: 6px; }
+.wr-poster { width: 88px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.wr-posters .wr-poster:nth-child(1) { transform: rotate(-4deg); }
+.wr-posters .wr-poster:nth-child(3) { transform: rotate(4deg) translateY(4px); }
+.wr-poster-big { width: 132px; border-radius: 14px; animation: wr-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes wr-pop { from { opacity: 0; transform: scale(0.85) rotate(-3deg); } }
+.wr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.wr-chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--dust); font-weight: 600; }
+.wr-chip.on { background: var(--bulb); border-color: var(--bulb); color: var(--on-bulb); }
+.wr-clock { display: grid; gap: 6px; }
+.wr-hours { display: flex; align-items: flex-end; gap: 3px; height: 90px; }
+.wr-hours i { flex: 1; height: calc(4px + var(--v) * 86px); border-radius: 3px 3px 1px 1px; background: var(--dust); opacity: calc(0.25 + var(--v) * 0.5); }
+.wr-hours i.peak { background: var(--bulb); opacity: 1; }
+.wr-hour-labels { display: grid; grid-template-columns: repeat(4, 1fr); font-size: 12px; color: var(--dust); }
+.wrapped[data-slide="wr-k"] .wr-big { color: var(--bulb); }
+.wr-actions {
+  position: absolute; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 64px); z-index: 3;
+  display: flex; justify-content: center; opacity: 0; pointer-events: none; transform: translateY(8px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.wrapped.at-end .wr-actions { opacity: 1; pointer-events: auto; transform: none; }
+.wr-share svg { fill: none; stroke: currentColor; stroke-width: 2.4; }
+@media (prefers-reduced-motion: reduce) { .wr-poster-big { animation: none; } .wr-actions { transition: none; } }
+
+/* Wrapped on the home screen (December to January) */
+.wrapped-banner {
+  position: relative; margin: 0 0 var(--s6); border-radius: 22px; overflow: hidden; isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--bulb) 45%, var(--line));
+  background:
+    radial-gradient(90% 120% at 100% 0%, color-mix(in srgb, var(--bulb) 26%, transparent), transparent 60%),
+    radial-gradient(70% 90% at 0% 100%, rgba(255, 155, 133, 0.18), transparent 65%),
+    var(--curtain);
+  box-shadow: 0 0 40px -12px var(--glow-color);
+}
+.wrapped-banner::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0.3;
+  background: var(--wb-img, none) center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to left, #000, transparent 75%); mask-image: linear-gradient(to left, #000, transparent 75%);
+}
+.wb-open {
+  display: flex; align-items: center; gap: var(--s4); width: 100%; padding: 22px 20px; text-align: left;
+  color: var(--paper); background: none; border: 0; cursor: pointer;
+}
+.wb-open:focus-visible { outline: 2px solid var(--bulb); outline-offset: -4px; border-radius: 22px; }
+.wb-copy { display: grid; gap: 6px; flex: 1; min-width: 0; justify-items: start; }
+.wb-kicker { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bulb); }
+.wb-title { font: 800 clamp(24px, 6vw, 34px)/1.08 var(--display); letter-spacing: -0.015em; padding-right: 28px; }
+.wb-sub { color: var(--dust); font-size: 15px; max-width: 40ch; }
+.wb-cta { margin-top: 8px; pointer-events: none; }
+.wb-posters { position: relative; flex: none; width: 128px; height: 150px; }
+.wb-posters img {
+  position: absolute; top: 8px; width: 80px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5); transition: transform 0.3s;
+}
+.wb-posters img:nth-child(1) { left: 0; transform: rotate(-9deg); }
+.wb-posters img:nth-child(2) { left: 24px; top: 0; z-index: 2; transform: rotate(1deg); }
+.wb-posters img:nth-child(3) { left: 48px; transform: rotate(10deg); }
+.wb-open:hover .wb-posters img:nth-child(1) { transform: rotate(-13deg) translateX(-6px); }
+.wb-open:hover .wb-posters img:nth-child(3) { transform: rotate(14deg) translateX(6px); }
+.wb-hide { position: absolute; top: 8px; right: 8px; color: var(--dust); }
+.wrapped-banner.again .wb-open { padding-block: 14px; }
+.wrapped-banner.again .wb-title { font-size: clamp(19px, 4.6vw, 24px); }
+.wrapped-banner.again .wb-sub, .wrapped-banner.again .wb-posters { display: none; }
+@media (max-width: 420px) { .wb-posters { width: 96px; } .wb-posters img { width: 62px; } .wb-posters img:nth-child(2) { left: 18px; } .wb-posters img:nth-child(3) { left: 36px; } }
+@media (prefers-reduced-motion: reduce) { .wb-posters img { transition: none; } }
+
 /* The picture editor: drag the photo into the circle, zoom, save */
 .face-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 22px; margin: 12px 0 16px; }
 .face-edit-view {

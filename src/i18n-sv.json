@@ -539,5 +539,8 @@
  "You can’t invite people. Ask the server’s owner.": "Du kan inte bjuda in folk. Fråga serverns ägare.",
  "Invites aren’t set up on this server.": "Inbjudningar är inte inställda på den här servern.",
  "You have {0} open invites. Cancel one, or wait until one is used.": "Du har {0} öppna inbjudningar. Avbryt en, eller vänta tills en används.",
- "The owner can always invite people.": "Ägaren kan alltid bjuda in folk."
+ "The owner can always invite people.": "Ägaren kan alltid bjuda in folk.",
+ "Your Lilin Wrapped {0} is here": "Din Lilin Wrapped {0} är här",
+ "{0} hours watched, and one show you couldn’t stop watching. Tap to see your year.": "{0} timmar tittat, och en serie du inte kunde sluta titta på. Tryck för att se ditt år.",
+ "{0} hours watched. Tap to see your year.": "{0} timmar tittat. Tryck för att se ditt år."
 }

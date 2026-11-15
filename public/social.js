@@ -237,43 +237,185 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
   }
 
   // ---------- Lilin Wrapped ----------
-  // A short story of slides: tap or arrow keys to move on. data from /api/me/wrapped.
+  // A short story of slides: tap or arrow keys to move on. data from /api/me/wrapped. A slide can carry
+  // data-img (a backdrop the story fades in behind it); the last one has the share card's actions.
+  const PERSONAS = {
+    owl: [() => T('The Night Owl'), () => T('Most of your watching happened after 22:00. Sleep can wait, the next episode can’t.')],
+    binger: [() => T('The Binger'), (w) => T('{0} episodes of {1} in a single day. Respect.', w.binge?.episodes, w.binge?.title)],
+    social: [() => T('The Host'), (w) => T('{0} of your watching was together with someone.', pct(w.together / w.seconds))],
+    loyal: [() => T('The Loyal One'), (w) => T('{0} of your time went to {1}. You know what you like.', pct(w.top[0].seconds / w.seconds), w.top[0].title)],
+    explorer: [() => T('The Explorer'), (w) => T('{0} different titles. You never stuck to one thing for long.', w.titles)],
+    weekend: [() => T('The Weekend Watcher'), () => T('Saturdays and Sundays were for watching.')],
+    regular: [() => T('The Regular'), () => T('A bit here, a bit there. Steady, like a good habit.')],
+  };
+  const pct = (x) => `${Math.round(Math.min(1, x || 0) * 100)} %`;
+  const hourLabel = (hr) => new Date(2000, 0, 1, hr).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  const posterOf = (t, cls = 'wr-poster') => t?.poster && h('img', { class: cls, src: t.poster, alt: '', loading: 'eager', decoding: 'async' });
+
   function wrappedSlides(w, { name }) {
     const big = (text) => h('p', { class: 'wr-big' }, text);
     const small = (text) => text && h('p', { class: 'wr-small' }, text);
+    const kicker = (text) => h('p', { class: 'wr-kicker' }, text);
     const slides = [];
-    const slide = (cls, ...kids) => slides.push(h('section', { class: `wr-slide ${cls}` }, ...kids.filter(Boolean)));
+    const slide = (cls, ...kids) => { const el = h('section', { class: `wr-slide ${cls}` }, ...kids.filter(Boolean)); slides.push(el); return el; };
     if (w.empty) {
-      slide('wr-a', h('p', { class: 'wr-kicker' }, T('Lilin Wrapped {0}', w.year)), big(T('Nothing here yet')),
+      slide('wr-a', kicker(T('Lilin Wrapped {0}', w.year)), big(T('Nothing here yet')),
         small(T('Watch something and your year starts filling in. Wrapped counts the time you actually spend watching.')));
       return slides;
     }
-    slide('wr-a', h('p', { class: 'wr-kicker' }, T('Lilin Wrapped {0}', w.year)), big(T('{0}here\'s your year', name ? `${name}, ` : '')),
+    const since = w.countingSince && new Date(`${w.countingSince}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long' });
+    slide('wr-a', kicker(T('Lilin Wrapped {0}', w.year)), big(T('{0}here\'s your year', name ? `${name}, ` : '')),
+      since && small(T('Lilin started counting on {0}, so this is the short version. Next year gets the whole thing.', since)),
       small(T('Tap to continue')));
-    slide('wr-b', h('p', { class: 'wr-kicker' }, T('You watched')), big(fmtHours(w.seconds)),
+
+    const days = Math.floor(w.seconds / 86400);
+    slide('wr-b', kicker(T('You watched')), big(fmtHours(w.seconds)),
+      days >= 1 && small(days === 1 ? T('That’s more than a whole day, back to back.') : T('That’s more than {0} whole days, back to back.', days)),
       small(T('{0} {1}: {2} {3} and {4} {5}, on {6} {7}.', w.titles, w.titles === 1 ? T('title') : T('titles'), w.films, w.films === 1 ? T('film') : T('films'), w.episodes, w.episodes === 1 ? T('episode') : T('episodes'), w.activeDays, w.activeDays === 1 ? T('day') : T('days'))),
       w.people > 1 && small(w.rank === 1 ? T('More than anyone else on Lilin ({0} people watched).', w.people) : T('Number {0} of the {1} people who watched here.', w.rank, w.people)));
-    if (w.top?.length) slide('wr-c', h('p', { class: 'wr-kicker' }, T('Your top titles')),
-      h('ol', { class: 'wr-list' }, w.top.map((t) => h('li', {}, h('span', {}, t.title),
-        h('small', {}, t.tv && t.episodes ? `${t.episodes} ${t.episodes === 1 ? T('episode') : T('episodes')} · ${fmtHours(t.seconds)}` : fmtHours(t.seconds))))));
-    if (w.topShow) slide('wr-d', h('p', { class: 'wr-kicker' }, T('Your show of the year')), big(w.topShow.title),
-      small(`${w.topShow.episodes} ${w.topShow.episodes === 1 ? T('episode') : T('episodes')}, ${fmtHours(w.topShow.seconds)}.`));
+
+    if (w.top?.length) {
+      const posters = w.top.slice(0, 3).filter((t) => t.poster);
+      slide('wr-c', kicker(T('Your top titles')),
+        posters.length > 1 && h('div', { class: 'wr-posters', 'aria-hidden': 'true' }, posters.map((t) => posterOf(t))),
+        h('ol', { class: 'wr-list' }, w.top.map((t) => h('li', {}, h('span', {}, t.title),
+          h('small', {}, t.tv && t.episodes ? `${t.episodes} ${t.episodes === 1 ? T('episode') : T('episodes')} · ${fmtHours(t.seconds)}` : fmtHours(t.seconds))))));
+    }
+    if (w.topShow) {
+      const el = slide('wr-d', kicker(T('Your show of the year')), posterOf(w.topShow, 'wr-poster wr-poster-big'), big(w.topShow.title),
+        small(`${w.topShow.episodes} ${w.topShow.episodes === 1 ? T('episode') : T('episodes')}, ${fmtHours(w.topShow.seconds)}.`));
+      if (w.topShow.backdrop) el.dataset.img = w.topShow.backdrop;
+    }
+    if (w.genres?.length) slide('wr-h', kicker(T('Your genre')), big(w.genres[0].name),
+      w.genres.length > 1 && h('div', { class: 'wr-chips' }, w.genres.map((g, i) => h('span', { class: `wr-chip${i ? '' : ' on'}` }, g.name))),
+      small(T('{0} of it, give or take.', fmtHours(w.genres[0].seconds))));
+
     const busy = new Date(`${w.busiestDay.day}T12:00:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
     const max = Math.max(...w.months, 1);
-    slide('wr-e', h('p', { class: 'wr-kicker' }, T('When you watched')), big(w.busiestMonth),
-      h('div', { class: 'wr-months', 'aria-hidden': 'true' }, w.months.map((s) => h('i', { style: `--v:${(s / max).toFixed(3)}` }))),
+    slide('wr-e', kicker(T('When you watched')), big(w.busiestMonth),
+      h('div', { class: 'wr-months', 'aria-hidden': 'true' }, w.months.map((sec) => h('i', { style: `--v:${(sec / max).toFixed(3)}` }))),
       small(T('{0}s were your night. Your biggest day was {1} ({2}).', w.busiestWeekday, busy, fmtHours(w.busiestDay.seconds))),
       w.streak.days > 1 && small(T('Longest run: {0} days in a row.', w.streak.days)));
-    if (w.company?.length) slide('wr-f', h('p', { class: 'wr-kicker' }, T('Watched together')),
+
+    if (w.hours?.length === 24) {
+      const top = Math.max(...w.hours, 1);
+      slide('wr-i', kicker(T('Your prime time')), big(hourLabel(w.peakHour)),
+        h('div', { class: 'wr-clock', 'aria-hidden': 'true' },
+          h('div', { class: 'wr-hours' }, w.hours.map((sec, hr) => h('i', { class: hr === w.peakHour ? 'peak' : null, style: `--v:${(sec / top).toFixed(3)}` }))),
+          h('div', { class: 'wr-hour-labels' }, [0, 6, 12, 18].map((hr) => h('span', {}, hourLabel(hr))))),
+        small(w.night >= 0.2 ? T('{0} of your watching happened after 22:00.', pct(w.night)) : T('Mostly before bedtime. Sensible.')));
+    }
+    if (w.binge) {
+      const day = new Date(`${w.binge.day}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long' });
+      const el = slide('wr-j', kicker(T('Your biggest binge')), big(T('{0} episodes', w.binge.episodes)),
+        small(T('of {0}, all on {1}. {2} in one day.', w.binge.title, day, fmtHours(w.binge.seconds))));
+      if (w.binge.backdrop && w.binge.key !== w.topShow?.key) el.dataset.img = w.binge.backdrop;
+    }
+    if (w.company?.length) slide('wr-f', kicker(T('Watched together')),
       h('div', { class: 'wr-faces' }, w.company.slice(0, 5).map((c) => face(c, { size: 72 }))),
       big(namesText(w.company.map((c) => c.name))),
       small(T('{0} in Watch Together rooms{1}.', fmtHours(w.together), w.company[0] ? T(', most of it with {0}', w.company[0].name) : '')));
-    slide('wr-g', h('p', { class: 'wr-kicker' }, T('It all started with')), big(w.first.title),
+
+    const [personaName, personaLine] = PERSONAS[w.persona] || PERSONAS.regular;
+    slide('wr-k', kicker(T('This year you were')), big(personaName()), small(personaLine(w)));
+
+    if (w.lilin?.people > 1) {
+      const el = slide('wr-l', kicker(T('Lilin’s year')), big(fmtHours(w.lilin.seconds)),
+        small(T('That’s everyone on Lilin together: {0} people.', w.lilin.people)),
+        w.lilin.top && small(T('The one most of you watched: {0} ({1} people).', w.lilin.top.title, w.lilin.top.people)));
+      if (w.lilin.top?.backdrop) el.dataset.img = w.lilin.top.backdrop;
+    }
+
+    slide('wr-g', kicker(T('It all started with')), big(w.first.title),
       small(w.first.season != null ? T('Season {0}, episode {1}', w.first.season, w.first.episode) : ''),
       w.likes > 0 && small(T('You gave {0} thumbs up{1}.', w.likes, w.liked?.length ? T(', including {0}', w.liked.slice(0, 3).join(', ')) : '')),
-      small(T('See you next year.')));
+      small(T('See you next year.'))).dataset.end = '1';
     return slides;
   }
 
-  return { rateRow, refreshRates, popularShelf, planPartyBody, plannedBody, partiesShelf, burst, floatMessage, chatLine, wrappedSlides };
+  // The share card: one portrait image (1080 × 1920, story-sized) of the year, in the app's own colours.
+  async function wrappedCard(w, { name }) {
+    const css = getComputedStyle(document.documentElement);
+    const v = (n, d) => css.getPropertyValue(n).trim() || d;
+    const c = { bg: v('--velvet', '#1F1019'), panel: v('--curtain', '#2B1724'), text: v('--paper', '#F6EADF'), dim: v('--dust', '#BA9DAD'), accent: v('--bulb', '#F4C152'), warm: v('--alert', '#FF9B85') };
+    const display = v('--display', 'system-ui, sans-serif');
+    await document.fonts?.ready;
+    const W = 1080, H = 1920, P = 96;
+    const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
+    const g = canvas.getContext('2d');
+    g.fillStyle = c.bg; g.fillRect(0, 0, W, H);
+    const glow = (x, y, r, color) => {
+      const grad = g.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, color); grad.addColorStop(1, 'transparent');
+      g.globalAlpha = 0.35; g.fillStyle = grad; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+    };
+    glow(W * 0.85, H * 0.08, 900, c.accent); glow(W * 0.1, H * 0.95, 800, c.warm);
+    const text = (str, x, y, font, color, max = W - 2 * P) => {
+      g.font = font; g.fillStyle = color;
+      let s = String(str);
+      while (g.measureText(s).width > max && s.length > 2) s = `${s.slice(0, -2)}…`;
+      g.fillText(s, x, y);
+    };
+    const load = (src) => new Promise((resolve) => {
+      if (!src) return resolve(null);
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img); img.onerror = () => resolve(null); img.src = src;
+    });
+    let y = P + 40;
+    text(T('Lilin Wrapped {0}', w.year).toUpperCase(), P, y, `800 34px ${display}`, c.accent);
+    y += 70; text(name || T('My year'), P, y, `700 52px ${display}`, c.text);
+    y += 190; text(fmtHours(w.seconds), P, y, `800 170px ${display}`, c.text);
+    y += 60; text(T('{0} titles · {1} episodes · {2} days', w.titles, w.episodes, w.activeDays), P, y, `500 36px ${display}`, c.dim);
+
+    // Top three posters in a row, if TMDB's images can be drawn (CORS); otherwise the list carries it.
+    const posters = (await Promise.all(w.top.slice(0, 3).map((t) => load(t.poster)))).filter(Boolean);
+    y += 70;
+    if (posters.length) {
+      const pw = 270, ph = 405, gap = (W - 2 * P - 3 * pw) / 2;
+      posters.forEach((img, i) => {
+        const x = P + i * (pw + gap);
+        g.save(); g.beginPath(); g.roundRect(x, y, pw, ph, 22); g.clip(); g.drawImage(img, x, y, pw, ph); g.restore();
+      });
+      y += ph + 40;
+    }
+    text(T('Top titles').toUpperCase(), P, y + 34, `800 30px ${display}`, c.accent);
+    y += 90;
+    w.top.slice(0, 5).forEach((t, i) => {
+      text(String(i + 1), P, y, `800 48px ${display}`, c.accent);
+      text(t.title, P + 70, y, `700 46px ${display}`, c.text, W - 2 * P - 70);
+      y += 72;
+    });
+    y += 30;
+    const facts = [
+      [T('Show of the year'), w.topShow?.title],
+      [T('Watcher type'), (PERSONAS[w.persona] || PERSONAS.regular)[0]()],
+      [T('Prime time'), w.hours?.length === 24 ? hourLabel(w.peakHour) : null],
+      [T('Genre'), w.genres?.[0]?.name],
+    ].filter(([, val]) => val);
+    const colW = (W - 2 * P) / 2;
+    facts.slice(0, 4).forEach(([label, val], i) => {
+      const x = P + (i % 2) * colW, fy = y + Math.floor(i / 2) * 130;
+      text(label.toUpperCase(), x, fy, `800 26px ${display}`, c.dim, colW - 30);
+      text(val, x, fy + 52, `700 40px ${display}`, c.text, colW - 30);
+    });
+    text('lilin', P, H - P, `800 44px ${display}`, c.accent);
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  }
+
+  // Share the card where the device can (phones), else download it.
+  async function shareWrapped(w, { name }) {
+    const blob = await wrappedCard(w, { name });
+    if (!blob) throw new Error(T('Couldn’t make the picture.'));
+    const file = new File([blob], `lilin-wrapped-${w.year}.png`, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: T('Lilin Wrapped {0}', w.year) }); return 'shared'; }
+      catch (err) { if (err.name === 'AbortError') return 'cancelled'; }
+    }
+    const a = h('a', { href: URL.createObjectURL(blob), download: file.name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    return 'saved';
+  }
+
+  return { rateRow, refreshRates, popularShelf, planPartyBody, plannedBody, partiesShelf, burst, floatMessage, chatLine, wrappedSlides, shareWrapped };
 }

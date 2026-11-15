@@ -1,4 +1,39 @@
 {
+  "2026-12-01-wrapped": {
+    "title": "Lilin Wrapped 2026 är här",
+    "items": {
+      "Your year, on the home screen": {
+        "title": "Ditt år, på startsidan",
+        "text": "Öppna Lilin så väntar din Wrapped högst upp i Upptäck: timmar du tittat, topptitlar, årets serie, din genre, din bästa tid, ditt största maraton och vilka du tittade med. Den ligger kvar till slutet av januari, och i Inställningar efter det."
+      },
+      "What kind of watcher were you?": {
+        "title": "Vilken sorts tittare var du?",
+        "text": "Nu berättar Wrapped det: Nattugglan, Maratontittaren, Värden, Upptäckaren med flera. Det finns också en bild om allas år på Lilin tillsammans."
+      },
+      "Share it": {
+        "title": "Dela det",
+        "text": "På sista bilden gör Dela ditt år om det till en bild för din story eller gruppchatten."
+      }
+    }
+  },
+  "2026-11-15-signin-keeps-email": {
+    "title": "Ett felskrivet lösenord tömmer inte längre din e-post",
+    "items": {
+      "Only retype the password": {
+        "title": "Skriv bara om lösenordet",
+        "text": "Om du skriver fel lösenord när du loggar in behåller Lilin nu e-posten du skrev och sätter markören direkt i lösenordsrutan."
+      }
+    }
+  },
+  "2026-11-15-subtitle-title-case": {
+    "title": "Undertexter Slutar Skriva Varje Ord Med Stor Bokstav",
+    "items": {
+      "House S4 E7 reads normally again": {
+        "title": "House S4 A7 går att läsa normalt igen",
+        "text": "För att rätta namn i undertexter från skivor lånar Lilin de stora bokstäverna från en populär undertext till samma avsnitt. För ett House-avsnitt var den undertexten skriven Med Stor Bokstav På Varje Ord, och Lilin kopierade det. Nu hoppar Lilin över sådana undertexter och provar en annan."
+      }
+    }
+  },
   "2026-11-15-best-quality-streams": {
     "title": "Bästa kvalitet väljer kopior du kan titta på medan de laddas ner",
     "items": {

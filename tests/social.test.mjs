@@ -179,3 +179,44 @@ test('room chat and reactions reach everyone, late joiners get recent chat, both
   const played = rooms.control(token, a, 'alice-client-123456', 'play', 0);
   assert.equal(played.startsAt, null);
 });
+
+test('Wrapped extras: prime time, biggest binge, persona, Lilin totals and the first-year note', () => {
+  const { anna, ben, nameOf } = setup();
+  const show = { titleKey: 'tv:1396', title: 'Breaking Bad', season: 1 };
+  // Five episodes late one night, each 45 min in 1-minute saves.
+  let now = new Date('2026-06-12T22:00:00').getTime();
+  for (let ep = 1; ep <= 5; ep++) {
+    for (let i = 0; i < 45; i++, now += 60000) social.logWatch(anna.id, { ref: `m:bb/s01e0${ep}`, about: { ...show, episode: ep }, watched: 60, now });
+  }
+  for (let i = 0, t = new Date('2026-06-20T18:00:00').getTime(); i < 5; i++, t += 60000) {
+    social.logWatch(ben.id, { ref: 'm:bb/s01e01', about: { ...show, episode: 1 }, watched: 60, now: t });
+  }
+  const w = social.wrapped(anna.id, 2026, nameOf);
+  assert.equal(w.hours.length, 24);
+  assert.ok([22, 23, 0, 1, 2].includes(w.peakHour), `peak ${w.peakHour}`);
+  assert.ok(w.night > 0.9, `night ${w.night}`);
+  // After midnight the log rolls over to the next day, so the binge is the episodes before it.
+  assert.ok(w.binge && w.binge.episodes >= 3 && w.binge.title === 'Breaking Bad', JSON.stringify(w.binge));
+  assert.equal(w.persona, 'owl');
+  assert.equal(w.lilin.people, 2);
+  assert.equal(w.lilin.top.title, 'Breaking Bad');
+  assert.equal(w.lilin.top.people, 2);
+  assert.equal(w.countingSince, '2026-06-12', 'the log started mid-year');
+  assert.deepEqual(w.genreKeys.map((g) => g.key), ['tv:1396']);
+  assert.equal(social.personaFor({ seconds: 600 }), 'regular', 'too little to say');
+  assert.equal(social.personaFor({ seconds: 36000, binge: { episodes: 9 }, night: 0.1 }), 'binger');
+  assert.equal(social.personaFor({ seconds: 36000, titles: 30, share: 0.1 }), 'explorer');
+});
+
+test('Wrapped season: home card from release day to end of January, one push from 18:00 on release day', () => {
+  const at = (s) => new Date(s).getTime();
+  assert.equal(social.wrappedSeason(at('2026-11-30T23:00:00'), '12-01'), null);
+  assert.equal(social.wrappedSeason(at('2026-12-01T00:05:00'), '12-01').year, 2026);
+  assert.equal(social.wrappedSeason(at('2027-01-20T12:00:00'), '12-01').year, 2026, 'January still shows last year');
+  assert.equal(social.wrappedSeason(at('2027-02-01T12:00:00'), '12-01'), null);
+  assert.equal(social.wrappedSeason(at('2026-11-15T12:00:00'), '11-15').year, 2026, 'WRAPPED_FROM moves it');
+  assert.equal(social.wrappedPushDue([], at('2026-12-01T12:00:00'), '12-01'), null, 'not before 18:00');
+  assert.equal(social.wrappedPushDue([], at('2026-12-01T18:01:00'), '12-01'), 2026);
+  assert.equal(social.wrappedPushDue([2026], at('2026-12-01T18:01:00'), '12-01'), null, 'once a year');
+  assert.equal(social.wrappedPushDue([], at('2026-12-10T18:01:00'), '12-01'), null, 'not days late');
+});

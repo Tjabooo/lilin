@@ -250,7 +250,36 @@ async function pushNewUpdates() {
   }
   console.log(`[push] update ${ids.join(', ')}: sent to ${people} ${people === 1 ? 'person' : 'people'} (${devices} device${devices === 1 ? '' : 's'})`);
 }
-const runUpdatePushes = () => pushNewUpdates().catch((err) => console.warn(`[push] update notes: ${err.message}`));
+// Lilin Wrapped release day (social.wrappedSeason): one "your year is here" notification per person who
+// watched something, under the same Lilin updates switch. Sent years are kept in DATA_DIR/.lilin-wrapped-pushes.json.
+const WRAPPED_PUSHES_FILE = path.join(DATA_DIR, '.lilin-wrapped-pushes.json');
+async function pushWrapped() {
+  let sent = [];
+  try { sent = JSON.parse(fs.readFileSync(WRAPPED_PUSHES_FILE, 'utf8')).years || []; } catch { /* none yet */ }
+  const year = social.wrappedPushDue(sent);
+  if (!year) return;
+  fs.writeFileSync(WRAPPED_PUSHES_FILE, JSON.stringify({ years: [year, ...sent] })); // before sending: never twice
+  let people = 0;
+  for (const { id } of accounts.listUsers()) {
+    const user = accounts.userById(id);
+    if (!user || !push.hasDevice(id) || user.settings?.pushUpdate === false) continue;
+    const w = social.wrapped(id, year, personName);
+    if (w.empty) continue;
+    const message = inLanguage(user.settings?.language || 'en', () => ({
+      title: tr('Your Lilin Wrapped {0} is here', year),
+      body: w.topShow ? tr('{0} hours watched, and one show you couldn’t stop watching. Tap to see your year.', Math.max(1, Math.round(w.seconds / 3600)))
+        : tr('{0} hours watched. Tap to see your year.', Math.max(1, Math.round(w.seconds / 3600))),
+      url: `/?wrapped=${year}`, tag: 'lilin-wrapped',
+    }));
+    people++;
+    await push.send([id], 'update', message).catch((err) => console.warn(`[push] ${err.message}`));
+  }
+  console.log(`[push] Wrapped ${year}: sent to ${people} ${people === 1 ? 'person' : 'people'}`);
+}
+const runUpdatePushes = () => {
+  pushNewUpdates().catch((err) => console.warn(`[push] update notes: ${err.message}`));
+  pushWrapped().catch((err) => console.warn(`[push] Wrapped: ${err.message}`));
+};
 setTimeout(runUpdatePushes, 20000).unref();
 setInterval(runUpdatePushes, 120000).unref();
 // The preview switch (preview.js): a second web app this browser can opt into at /preview.
@@ -3387,7 +3416,31 @@ async function handleApi(req, res, url) {
   // Lilin Wrapped: one person's year (defaults to this one).
   if (p === '/api/me/wrapped') {
     const year = Number(url.searchParams.get('year')) || new Date().getFullYear();
-    return sendJson(res, 200, social.wrapped(user.id, year, personName, avatarOf));
+    const w = social.wrapped(user.id, year, personName, avatarOf);
+    if (w.empty || (!TMDB_TOKEN && !TMDB_KEY)) return sendJson(res, 200, w);
+    // Pictures for the top titles, and genres weighted by time, from TMDB (cached, so this stays quick).
+    const keys = [...new Set([...w.top.map((t) => t.key), w.topShow?.key, w.binge?.key, w.lilin.top?.key, ...w.genreKeys.map((g) => g.key)].filter(Boolean))];
+    const details = new Map((await Promise.allSettled(keys.map(async (key) => {
+      const [kind, id] = key.split(':');
+      return [key, await cachedTmdb(`/${kind}/${id}`, {}, 24 * 3600 * 1000)];
+    }))).filter((r) => r.status === 'fulfilled').map((r) => r.value));
+    const pic = (key) => {
+      const d = details.get(key);
+      return d ? { poster: d.poster_path ? `https://image.tmdb.org/t/p/w342${d.poster_path}` : null,
+        backdrop: d.backdrop_path ? `https://image.tmdb.org/t/p/w780${d.backdrop_path}` : null } : {};
+    };
+    const genres = new Map();
+    for (const { key, seconds } of w.genreKeys) {
+      for (const g of details.get(key)?.genres || []) genres.set(g.name, (genres.get(g.name) || 0) + seconds);
+    }
+    const { genreKeys, ...rest } = w;
+    return sendJson(res, 200, { ...rest,
+      top: w.top.map((t) => ({ ...t, ...pic(t.key) })),
+      topShow: w.topShow && { ...w.topShow, ...pic(w.topShow.key) },
+      binge: w.binge && { ...w.binge, ...pic(w.binge.key) },
+      lilin: { ...w.lilin, top: w.lilin.top && { ...w.lilin.top, ...pic(w.lilin.top.key) } },
+      genres: [...genres].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, seconds]) => ({ name, seconds: Math.round(seconds) })),
+    });
   }
   // A browser feature failed on someone's device (picture in picture so far): log the browser's own reason,
   // so it can be fixed without that device at hand. Only logged, never stored.
@@ -3691,6 +3744,7 @@ async function handleApi(req, res, url) {
       rules: accounts.serverSettings(),
       subLangs: subtitles.subtitleLanguages(),
       whatsNew: whatsNew.statusFor(user, webBuildFor(req)),
+      wrapped: social.wrappedSeason(),
       ...(preview.inPreview(req, PREVIEW_DIR) && { preview: true }),
     });
   }

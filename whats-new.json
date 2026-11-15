@@ -1,5 +1,25 @@
 [
 {
+  "id": "2026-12-01-wrapped",
+  "date": "2026-12-01",
+  "push": false,
+  "title": "Lilin Wrapped 2026 is here",
+  "items": [
+    {
+      "title": "Your year, on the home screen",
+      "text": "Open Lilin and your Wrapped is waiting at the top of Discover: hours watched, top titles, your show of the year, your genre, your prime time, your biggest binge and who you watched with. It stays there until the end of January, and in Settings after that."
+    },
+    {
+      "title": "What kind of watcher were you?",
+      "text": "Wrapped now tells you: Night Owl, Binger, Host, Explorer and more. There's also a slide about everyone's year on Lilin together."
+    },
+    {
+      "title": "Share it",
+      "text": "On the last slide, Share your year turns it into a picture for your story or the group chat."
+    }
+  ]
+},
+{
   "id": "2026-11-15-signin-keeps-email",
   "date": "2026-11-15",
   "title": "A wrong password no longer wipes your email",

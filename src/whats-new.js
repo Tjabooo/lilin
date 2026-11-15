@@ -6,7 +6,9 @@
 //      "items": [{ "title": "…", "text": "…", "audience": "owner" (optional: only the owner sees it) }] }]
 //
 // "announce": false keeps an entry in the history (the What's new button) without ever popping it up,
-// for notes written after the fact about older updates.
+// for notes written after the fact about older updates. An entry dated in the future stays hidden until
+// that day, so a note can be written ahead (Wrapped in December). "push": false never sends it as a
+// notification (something else already does).
 //
 // Each person's settings remember the newest update they've seen (seenUpdate). People who have never
 // seen one see the updates published since they joined, so a newcomer isn't shown the whole history.
@@ -40,7 +42,7 @@ export function parseEntries(raw) {
       .filter((i) => i.title || i.text);
     if (!items.length) continue;
     seen.add(e.id);
-    out.push({ id: e.id, date: e.date, title: text(e.title, 120), items, announce: e.announce !== false });
+    out.push({ id: e.id, date: e.date, title: text(e.title, 120), items, announce: e.announce !== false, push: e.push !== false });
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
@@ -54,7 +56,8 @@ function entries() {
     try { raw = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { console.warn(`whats-new.json: ${err.message}`); }
     cache = { mtimeMs: stat.mtimeMs, entries: parseEntries(raw) };
   }
-  return cache.entries;
+  const today = localDate(Date.now());
+  return cache.entries.filter((e) => e.date <= today); // future-dated notes wait for their day
 }
 
 // What this person may read: owner-only items are left out for everyone else.
@@ -75,7 +78,7 @@ function inViewersLanguage(entry) {
 
 function visible(list, user) {
   return list
-    .map(({ announce, ...e }) => ({ ...e, items: e.items.filter((i) => i.audience === 'all' || user?.isOwner).map(({ title, text }) => ({ title, text })) }))
+    .map(({ announce, push, ...e }) => ({ ...e, items: e.items.filter((i) => i.audience === 'all' || user?.isOwner).map(({ title, text }) => ({ title, text })) }))
     .filter((e) => e.items.length)
     .map(inViewersLanguage);
 }
@@ -138,7 +141,7 @@ export function updatesToPush(pushed, { now = Date.now(), settleMs = 90000, list
   }
   const since = localDate(now - 86400000);
   const done = new Set(pushed);
-  return announced(all).filter((e) => !done.has(e.id) && e.date >= since);
+  return announced(all).filter((e) => !done.has(e.id) && e.push !== false && e.date >= since);
 }
 
 const localDate = (ms) => {

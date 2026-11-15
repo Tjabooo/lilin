@@ -205,6 +205,45 @@ export function wrapped(userId, year, nameOf, avatarOf = () => null) {
   const liked = db().prepare('SELECT title FROM ratings WHERE user_id = ? AND value = 1 AND updated_at >= ? AND updated_at < ? ORDER BY updated_at DESC')
     .all(userId, fromMs, toMs);
   const first = rows[0];
+
+  // Hours of the day: each row's seconds spread evenly over the span it was watched in (first to last save).
+  const hours = Array(24).fill(0);
+  const spread = (start, ms, sec) => {
+    const steps = Math.min(96, Math.max(1, Math.ceil(ms / (15 * 60000))));
+    for (let i = 0; i < steps; i++) hours[new Date(start + (ms * (i + 0.5)) / steps).getHours()] += sec / steps;
+  };
+  for (const r of rows) {
+    const ms = Math.max(r.seconds * 1000, 60000), span = r.last_at - r.first_at;
+    // Watched in one go: over the span. Paused and picked up hours later: half at the start, half at the end.
+    if (span <= ms * 2.5) spread(r.first_at, Math.max(span, ms), r.seconds);
+    else { spread(r.first_at, ms / 2, r.seconds / 2); spread(r.last_at - ms / 2, ms / 2, r.seconds / 2); }
+  }
+  const night = [22, 23, 0, 1, 2, 3].reduce((s, h) => s + hours[h], 0) / seconds;
+  const weekend = (weekdays[0] + weekdays[6]) / seconds;
+
+  // Biggest binge: the most episodes of one show on one day.
+  const perDay = new Map();
+  for (const r of rows) {
+    if (r.season == null || r.episode == null) continue;
+    const k = `${r.day}|${r.title_key || r.title.toLowerCase()}`;
+    const b = perDay.get(k) || { day: r.day, key: r.title_key, title: r.title, eps: new Set(), seconds: 0 };
+    b.eps.add(`${r.season}x${r.episode}`); b.seconds += r.seconds; b.title = r.title;
+    perDay.set(k, b);
+  }
+  const bingeRow = [...perDay.values()].sort((a, b) => b.eps.size - a.eps.size || b.seconds - a.seconds)[0];
+  const binge = bingeRow && bingeRow.eps.size >= 3
+    ? { day: bingeRow.day, key: bingeRow.key, title: bingeRow.title, episodes: bingeRow.eps.size, seconds: Math.round(bingeRow.seconds) } : null;
+
+  // Everyone's year, for the "Lilin's year" slide: totals only, nothing about anyone in particular.
+  const everyone = db().prepare(`SELECT title_key, MAX(title) AS title, SUM(seconds) AS s, COUNT(DISTINCT user_id) AS n FROM watch_log
+    WHERE day BETWEEN ? AND ? AND seconds > 0 AND title_key IS NOT NULL GROUP BY title_key ORDER BY n DESC, s DESC LIMIT 1`).get(from, to);
+  const allSeconds = totals.reduce((s, r) => s + r.s, 0);
+  // Wrapped only counts from the day watch time started being logged: say so in that first year.
+  const since = db().prepare('SELECT MIN(day) AS d FROM watch_log').get()?.d;
+
+  const share = ranked[0] ? ranked[0].seconds / seconds : 0;
+  // The titles that make up most of the year, for the genre slide (the server looks their genres up).
+  const genreKeys = ranked.filter((t) => t.key).slice(0, 12).map((t) => ({ key: t.key, seconds: Math.round(t.seconds) }));
   return {
     ...base,
     titles: titles.size,
@@ -225,7 +264,57 @@ export function wrapped(userId, year, nameOf, avatarOf = () => null) {
     rank, people: totals.length,
     likes: liked.length,
     liked: liked.slice(0, 5).map((r) => r.title).filter(Boolean),
+    genreKeys,
+    hours: hours.map(Math.round),
+    peakHour: maxIdx(hours),
+    night: Math.round(night * 100) / 100,
+    weekend: Math.round(weekend * 100) / 100,
+    binge,
+    persona: personaFor({ night, weekend, binge, together: together / seconds, share, titles: titles.size, seconds }),
+    countingSince: since && since > from && since.startsWith(String(year)) ? since : null,
+    lilin: { seconds: Math.round(allSeconds), people: totals.length,
+      top: everyone && everyone.n > 1 ? { key: everyone.title_key, title: everyone.title, people: everyone.n } : null },
   };
+}
+
+// The kind of watcher someone was this year: the trait that stands out most against its threshold.
+// Ids only; the app words them. 'regular' when nothing stands out.
+export function personaFor({ night = 0, weekend = 0, binge = null, together = 0, share = 0, titles = 0, seconds = 0 }) {
+  if (seconds < 3600) return 'regular';
+  const scores = {
+    owl: night / 0.4,
+    binger: (binge?.episodes || 0) / 5,
+    social: together / 0.3,
+    loyal: titles > 1 ? share / 0.5 : 0,
+    explorer: titles / 15,
+    weekend: weekend / 0.55,
+  };
+  const [id, score] = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return score >= 1 ? id : 'regular';
+}
+
+// ---------- Wrapped season ----------
+// Wrapped comes out on the home screen once a year: from WRAPPED_FROM (MM-DD, default 12-01) to the end of
+// January, showing the year it was released in. The notification goes out on release day from 18:00.
+export function wrappedSeason(now = Date.now(), from = process.env.WRAPPED_FROM) {
+  const m = String(from || '12-01').match(/^(\d{2})-(\d{2})$/);
+  const [month, day] = m ? [Number(m[1]), Number(m[2])] : [12, 1];
+  const d = new Date(now);
+  const y = d.getFullYear();
+  const release = (year) => new Date(year, month - 1, day).getTime();
+  if (now >= release(y)) return { year: y, release: release(y) };
+  // January (and anything before this year's release date that's still in January) shows last year.
+  if (d.getMonth() === 0 && release(y - 1) < now) return { year: y - 1, release: release(y - 1) };
+  return null;
+}
+
+// Whether the "your Wrapped is here" push should go out now: release day (or the two days after, if the
+// server was down), from 18:00, for a year that hasn't been sent yet.
+export function wrappedPushDue(sentYears, now = Date.now(), from = process.env.WRAPPED_FROM) {
+  const season = wrappedSeason(now, from);
+  if (!season || sentYears.includes(season.year)) return null;
+  const at = season.release + 18 * 3600000;
+  return now >= at && now < at + 3 * DAY ? season.year : null;
 }
 
 // ---------- planned watch parties ----------

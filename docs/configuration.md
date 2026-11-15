@@ -23,6 +23,7 @@ Settings marked 🔒 are secrets: keep `.env` readable only by the account that 
 | `PREVIEW_DIR` | off | Absolute path to a second copy of the web app (another `public/` folder, e.g. a git worktree of a redesign branch). Opening `/preview` sets a `lilin_preview` cookie that makes this browser get its files (anything missing comes from `public/`); `/preview/off` clears it. Everything else stays the same: the API, sign-in and permissions. Server-drawn pages (sign-in, share pages) also get the folder's `pages.css`. Updating the preview's files needs no restart. See [Previewing a redesign](#previewing-a-redesign). |
 | `STREAM_SECRET` 🔒 | generated | Key that signs stream links. Blank: generated once and stored in `.lilin-secret`. Changing it invalidates links that are already open on TVs. |
 | `LILIN_ENV_FILE` | `.env` in the Lilin folder | Environment only (not read from `.env`): load settings from another file. |
+| `WRAPPED_FROM` | `12-01` | Month and day (`MM-DD`) Lilin Wrapped comes out each year: it shows at the top of everyone's Discover until the end of January, with one notification at 18:00 on that day (under Settings → Notifications → Lilin updates). |
 
 ## Accounts and remote access
 

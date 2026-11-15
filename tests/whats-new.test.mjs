@@ -190,3 +190,21 @@ test('nobody hears about an update they already saw or can not read', () => {
   assert.ok(pushFor(user({ seenUpdate: 'u1' }, undefined, true), ['u2'], { tr: trEn, list }));
   assert.equal(pushFor(user({ seenUpdate: 'u2' }, undefined, true), ['u2'], { tr: trEn, list }), null);
 });
+
+test('a note dated in the future waits for its day, and "push": false is never sent as a notification', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-whats-new-'));
+  const file = path.join(dir, 'whats-new.json');
+  try {
+    initWhatsNew(file);
+    fs.writeFileSync(file, JSON.stringify([entry('later', '2999-12-01'), entry('now', '2026-04-10')]));
+    assert.deepEqual(allFor(user()).map((e) => e.id), ['now']);
+    assert.equal(statusFor(user(), 'b1').latest, 'now');
+    assert.ok(allFor(user()).every((e) => !('push' in e)), 'the flag stays on the server');
+  } finally {
+    initWhatsNew(null);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  const now = Date.parse('2026-12-01T19:00:00');
+  const list = parseEntries([{ ...entry('quiet', '2026-12-01'), push: false }, entry('loud', '2026-12-01')]);
+  assert.deepEqual(updatesToPush([], { now, list }).map((e) => e.id), ['loud']);
+});

@@ -13,7 +13,7 @@ import { SUB_SIZES, SUB_BACKGROUNDS, SUB_POSITIONS, subLook, subRaise, secondCho
 import { comingUp, newEpisodes, watchStatus, todayIso } from './watchlist.js';
 import { travelTitle, sizeWords, stateWords, travelSummary, travelOrder } from './travel.js';
 import { libraryUnion, libraryAvailability, filterLibrary, transferState, transferAttention, transferPaused, packScope } from './library-downloads.js';
-import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText } from './social.js';
+import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText, fmtHours } from './social.js';
 import { createDocumentaries } from './documentaries.js';
 import { createPeople } from './people.js';
 import { createBillboard } from './billboard.js';
@@ -84,6 +84,8 @@ const ICONS = {
   pip: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><rect class="fill" x="12" y="11.5" width="6.5" height="5" rx="1"/></svg>',
   info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M6 12.5v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
 };
 const icon = (name) => { const s = h('span'); s.innerHTML = ICONS[name]; return s.firstChild; };
 
@@ -1215,6 +1217,7 @@ async function renderDiscover() {
     const [r1, r2, r3, r4, ...rest] = data.rows.map(row);
     content.replaceChildren(...[
       data.featured.length && billboard(data.featured, { signal, label: T('Trending this week') }),
+      wrappedBanner(signal),
       continueRow(),
       onItsWayRow(),
       savedShelf(),
@@ -1232,6 +1235,40 @@ async function renderDiscover() {
   } catch (err) {
     if (err.name !== 'AbortError') content.replaceChildren(notice(T('Couldn’t load Discover'), err.message, renderDiscover));
   }
+}
+
+// ---- Lilin Wrapped on the home screen: from release day (status.wrapped) to the end of January ----
+// A big card under the billboard until it's closed; after the story has been seen it says "again".
+let wrappedTeaser = null; // { year, data } once fetched, so Discover re-renders don't refetch
+function wrappedBanner(signal) {
+  const year = state.status?.wrapped?.year;
+  if (!year) return null;
+  let hidden = null, seen = null;
+  try { hidden = localStorage.getItem('lilin:wrappedHidden'); seen = localStorage.getItem('lilin:wrappedSeen'); } catch { /* private mode */ }
+  if (hidden === String(year)) return null;
+  const load = wrappedTeaser?.year === year ? Promise.resolve(wrappedTeaser.data)
+    : api(`/api/me/wrapped?year=${year}`, { signal }).then((data) => { wrappedTeaser = { year, data }; return data; });
+  return rowSlot(load.then((w) => {
+    if (w.empty) return null;
+    const again = seen === String(year);
+    const img = w.topShow?.backdrop || w.top?.find((t) => t.backdrop)?.backdrop;
+    const posters = (w.top || []).filter((t) => t.poster).slice(0, 3);
+    const hide = h('button', { type: 'button', class: 'icon-btn wb-hide', 'aria-label': T('Hide Wrapped from the home screen'), onclick: (e) => {
+      e.stopPropagation();
+      try { localStorage.setItem('lilin:wrappedHidden', String(year)); } catch { /* private mode */ }
+      card.remove(); toast(T('Wrapped is still in Settings'));
+    } }, icon('close'));
+    const card = h('section', { class: `wrapped-banner${again ? ' again' : ''}`, style: img ? `--wb-img:url("${img}")` : null },
+      h('button', { type: 'button', class: 'wb-open', 'aria-label': T('Open Lilin Wrapped {0}', year), onclick: (e) => openWrapped(year, e.currentTarget) },
+        h('span', { class: 'wb-copy' },
+          h('span', { class: 'wb-kicker' }, T('Lilin Wrapped {0}', year)),
+          h('span', { class: 'wb-title' }, again ? T('Your {0}, one more time', year) : T('Your year on Lilin is here')),
+          h('span', { class: 'wb-sub' }, T('{0} watched, your top titles and what kind of watcher you were.', fmtHours(w.seconds))),
+          h('span', { class: 'play-btn wb-cta' }, again ? T('Watch it again') : T('See your year'))),
+        posters.length > 0 && h('span', { class: 'wb-posters', 'aria-hidden': 'true' }, posters.map((t) => h('img', { src: t.poster, alt: '', loading: 'lazy' })))),
+      hide);
+    return card;
+  }), signal);
 }
 
 // ---------- Library ----------
@@ -4545,6 +4582,16 @@ async function openWrapped(year, opener) {
   try { data = await api(`/api/me/wrapped?year=${year}`); } catch (err) { toast(err.message); return; }
   const slides = social.wrappedSlides(data, { name: state.me?.name });
   let at = 0;
+  // The last slide's actions sit above the tap areas: share the year as a picture.
+  const share = h('button', { type: 'button', class: 'play-btn wr-share', onclick: async () => {
+    share.disabled = true;
+    try {
+      const how = await social.shareWrapped(data, { name: state.me?.name });
+      if (how === 'saved') toast(T('Saved your Wrapped picture'));
+    } catch (err) { toast(err.message); }
+    finally { share.disabled = false; }
+  } }, icon('share'), T('Share your year'));
+  const actions = !data.empty && h('div', { class: 'wr-actions' }, share);
   const bars = h('div', { class: 'wr-bars', 'aria-hidden': 'true' }, slides.map(() => h('i')));
   const stage = h('div', { class: 'wr-stage', 'aria-live': 'polite' });
   const years = data.years?.filter((y) => y !== year) || [];
@@ -4552,7 +4599,7 @@ async function openWrapped(year, opener) {
   const prev = h('button', { type: 'button', class: 'wr-tap wr-prev', 'aria-label': T('Previous') });
   const next = h('button', { type: 'button', class: 'wr-tap wr-next', 'aria-label': T('Next') });
   const el = h('div', { class: 'wrapped', role: 'dialog', 'aria-modal': 'true', 'aria-label': T('Lilin Wrapped {0}', year), tabindex: '-1' },
-    bars, close, stage, prev, next,
+    bars, close, stage, prev, next, actions,
     years.length > 0 && h('div', { class: 'wr-years' }, years.map((y) => h('button', { type: 'button', class: 'chip', onclick: async () => {
       await dismissTopOverlay(); openWrapped(y, opener);
     } }, String(y)))));
@@ -4560,7 +4607,14 @@ async function openWrapped(year, opener) {
     at = Math.max(0, Math.min(slides.length - 1, i));
     stage.replaceChildren(slides[at]);
     [...bars.children].forEach((b, n) => b.classList.toggle('done', n <= at));
-    el.dataset.slide = slides[at].className.split(' ').find((c) => /^wr-[a-g]$/.test(c)) || '';
+    el.dataset.slide = slides[at].className.split(' ').find((c) => /^wr-[a-z]$/.test(c)) || '';
+    // A backdrop behind slides that have one (show of the year, the binge, Lilin's favourite).
+    const img = slides[at].dataset.img;
+    if (img) el.style.setProperty('--wr-img', `url("${img}")`);
+    el.classList.toggle('has-img', Boolean(img));
+    const end = Boolean(slides[at].dataset.end);
+    el.classList.toggle('at-end', end);
+    if (end && !data.empty) { try { localStorage.setItem('lilin:wrappedSeen', String(year)); } catch { /* private mode */ } }
   };
   prev.onclick = () => show(at - 1);
   next.onclick = () => (at === slides.length - 1 ? closeTopOverlay() : show(at + 1));
@@ -7402,9 +7456,10 @@ function renderSettings() {
     out.push(settingsRow(T('What’s new'), T('Everything that changed in Lilin lately.'), open));
   }
   {
-    const year = new Date().getFullYear();
+    const season = state.status?.wrapped?.year;
+    const year = season || new Date().getFullYear();
     const open = h('button', { class: 'wrapped-open', type: 'button', onclick: (e) => openWrapped(year, e.currentTarget) },
-      h('span', { class: 'wrapped-open-kicker' }, T('Lilin Wrapped {0}', year)), h('span', {}, T('Your year in watching so far')));
+      h('span', { class: 'wrapped-open-kicker' }, T('Lilin Wrapped {0}', year)), h('span', {}, season ? T('Your year on Lilin is here') : T('Your year in watching so far')));
     out.push(open);
   }
 
@@ -9551,6 +9606,12 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     const f = state.library.find((x) => x.id === playId);
     if (f) { await openPlayer(libraryFile(f), { startAt }); toast(T('Press play, then the pop-out button')); }
     else toast(T('That video isn’t in your library any more'));
+  }
+  // The Wrapped notification opens Lilin as ?wrapped=<year>: straight into the story.
+  const wrappedYear = Number(new URL(location.href).searchParams.get('wrapped'));
+  if (wrappedYear) {
+    const url = new URL(location.href); url.searchParams.delete('wrapped'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    if (wrappedYear > 2000 && wrappedYear < 3000) openWrapped(wrappedYear);
   }
   // An update notification opens Lilin as ?update=<id>: show those notes.
   const updateId = new URL(location.href).searchParams.get('update');
