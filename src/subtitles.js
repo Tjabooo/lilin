@@ -5,7 +5,7 @@ import { currentLanguage, tr } from './i18n.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { cleanSubtitle, wantsReference, referenceFits, titleKeyOf } from './subfix.js';
+import { cleanSubtitle, wantsReference, referenceFits, titleCased, titleKeyOf } from './subfix.js';
 import { applyProofread, enqueue as queueProofread } from './subllm.js';
 import { tidySigns } from './subsigns.js';
 
@@ -431,9 +431,13 @@ async function referenceFor(video, srtPath, text, characters, { ahead = false } 
   const file = path.join(refDir, `${key}.srt`);
   try {
     const ref = decodeText(await fs.promises.readFile(file));
+    // Saved before Title Case files were refused: dropped, and another upload is tried.
+    if (titleCased(ref)) throw Object.assign(new Error('title case'), { titleCase: true });
     if (!ahead) prefetchNext(video, characters);
     return ref;
-  } catch { /* not fetched yet */ }
+  } catch (e) {
+    if (e?.titleCase) await fs.promises.rm(file, { force: true });
+  }
   if (!refJobs.has(key)) {
     const none = await fs.promises.stat(path.join(refDir, `${key}.none`)).catch(() => null);
     if (none && Date.now() - none.mtimeMs < 30 * DAY) return null;
@@ -473,13 +477,30 @@ async function fetchReference(video, key, text, { characters, title }) {
   // The most downloaded human-made one for this exact episode: popular files are the clean ones.
   const sameEpisode = (a) => !episode || (Number(a.feature_details?.season_number) === info.season
     && (info.episode == null || Number(a.feature_details?.episode_number) === info.episode));
-  const best = results
+  const candidates = results
     .filter((r) => isProperUpload(r) && String(r.attributes?.language).toLowerCase() === 'en' && sameEpisode(r.attributes) && r.attributes.files?.[0]?.file_id)
-    .sort((a, b) => (a.attributes.hearing_impaired - b.attributes.hearing_impaired) || (b.attributes.download_count || 0) - (a.attributes.download_count || 0))[0];
+    .sort((a, b) => (a.attributes.hearing_impaired - b.attributes.hearing_impaired) || (b.attributes.download_count || 0) - (a.attributes.download_count || 0))
+    .slice(0, 3);
   await fs.promises.mkdir(refDir, { recursive: true });
   const none = () => fs.promises.writeFile(path.join(refDir, `${key}.none`), '').then(() => null);
-  if (!best) return none();
+  if (!candidates.length) return none();
   await login().catch(() => {});
+  // The most popular upload can still be unusable (Title Case, another cut): up to three are tried.
+  for (const best of candidates) {
+    if (downloadsLeft != null && downloadsLeft <= refReserve()) break;
+    const ref = await downloadReference(best);
+    if (/-->/.test(ref) && referenceFits(text, ref, { characters, title })) {
+      await fs.promises.writeFile(path.join(refDir, `${key}.srt`), ref, 'utf8');
+      console.log(`[subtitles] saved a reference for ${path.basename(video)} (${downloadsLeft ?? '?'} downloads left today)`);
+      return ref;
+    }
+  }
+  // The wrong episode, another language, Title Case or OCR'd itself: not used, and not fetched again for a month.
+  console.log(`[subtitles] no reference for ${path.basename(video)} fit (${downloadsLeft ?? '?'} downloads left today)`);
+  return none();
+}
+
+async function downloadReference(best) {
   let dl;
   try { dl = await osFetch('/download', { method: 'POST', body: { file_id: best.attributes.files[0].file_id } }); } catch (e) {
     if (e.quota) noteDownloadsLeft(0);
@@ -489,15 +510,7 @@ async function fetchReference(video, key, text, { characters, title }) {
   if (!dl.link) throw fail(502, 'no download link');
   const r = await fetch(dl.link, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw fail(502, `download failed (${r.status})`);
-  const ref = decodeText(Buffer.from(await r.arrayBuffer()));
-  // The wrong episode, another language or OCR'd itself: not used, and not fetched again for a month.
-  if (!/-->/.test(ref) || !referenceFits(text, ref, { characters, title })) {
-    console.log(`[subtitles] reference for ${path.basename(video)} didn't fit (${dl.remaining ?? '?'} downloads left today)`);
-    return none();
-  }
-  await fs.promises.writeFile(path.join(refDir, `${key}.srt`), ref, 'utf8');
-  console.log(`[subtitles] saved a reference for ${path.basename(video)} (${dl.remaining ?? '?'} downloads left today)`);
-  return ref;
+  return decodeText(Buffer.from(await r.arrayBuffer()));
 }
 
 const VIDEO_FILE = /\.(mkv|mp4|m4v|mov|webm|avi)$/i;
@@ -515,7 +528,9 @@ function nextSidecar(video) {
 // The reference saved for this subtitle, if any (the proofreader keeps words it contains).
 export function cachedReference(srtPath) {
   if (!refDir) return null;
-  try { return fs.readFileSync(path.join(refDir, `${refKey(srtPath)}.srt`), 'utf8'); } catch { return null; }
+  let ref;
+  try { ref = fs.readFileSync(path.join(refDir, `${refKey(srtPath)}.srt`), 'utf8'); } catch { return null; }
+  return titleCased(ref) ? null : ref;
 }
 
 function prefetchNext(video, characters) {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixEnglishSrt, setLexiconForTest, titleKeyOf, referenceFits } from '../src/subfix.js';
+import { fixEnglishSrt, setLexiconForTest, titleKeyOf, referenceFits, titleCased } from '../src/subfix.js';
 
 const srt = (...lines) => lines.map((l, i) => `${i + 1}\n00:00:0${i},000 --> 00:00:0${i},900\n${l}`).join('\n\n');
 const textOf = (s) => s.split('\n\n').map((b) => b.split('\n').slice(2).join('\n'));
@@ -92,4 +92,15 @@ test('digits OCR read instead of letters take the reference word in the same spo
   const mine = srt('Ebsen was in the wizard of 02, for a day.', 'He had 02 tanks of 02.');
   const ref = srt('Ebsen was in the Wizard of Oz, for a day.', 'He had two tanks of oxygen.');
   assert.deepEqual(textOf(fixEnglishSrt(mine, { reference: ref })), ['Ebsen was in the Wizard of Oz, for a day.', 'He had 02 tanks of 02.']);
+});
+
+test('a reference written in Title Case is refused and never copied from', () => {
+  const words = 'we just went to the house and talked with you about it and that is not what i have in my head for this one';
+  const plain = srt(...Array.from({ length: 5 }, () => words.replace(/^we/, 'We')));
+  const titled = srt(...Array.from({ length: 5 }, () => words.replace(/\b[a-z]/g, (c) => c.toUpperCase())));
+  assert.equal(titleCased(plain), false);
+  assert.equal(titleCased(titled), true);
+  assert.equal(referenceFits(plain, titled), false);
+  // A cached Title Case reference changes nothing.
+  assert.equal(fixEnglishSrt(plain, { reference: titled }), fixEnglishSrt(plain));
 });

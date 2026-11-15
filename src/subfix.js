@@ -495,11 +495,31 @@ export function wantsReference(srt, { characters = [], title = '' } = {}) {
   return casingBroken(cues, nameTable(characters, title));
 }
 
-// Does a downloaded reference fit: English, capitalising names properly, and the same episode
-// (most of this subtitle's longer words appear in it)?
+// "We Just Arrived. The Kids Okay On Your End?": a subtitle written in Title Case capitalises
+// every word, so it can't say which words are names. Counts small words inside a line.
+const SMALL_WORDS = new Set(['the', 'of', 'to', 'and', 'for', 'with', 'that', 'your', 'you', 'me', 'my', 'in', 'on', 'at', 'is', 'it', 'this', 'just', 'but', 'not', 'have', 'was', 'are', 'from', 'be']);
+export function titleCased(srt) {
+  let small = 0;
+  let caps = 0;
+  for (const c of parseCues(srt)) {
+    for (const line of c.lines) {
+      const words = stripMarkup(line).match(/[A-Za-z][A-Za-z']*/g) || [];
+      for (let i = 1; i < words.length; i++) {
+        if (!SMALL_WORDS.has(words[i].toLowerCase())) continue;
+        small++;
+        if (/^[A-Z][a-z]/.test(words[i])) caps++;
+      }
+    }
+  }
+  return small >= 40 && caps > 0.3 * small;
+}
+
+// Does a downloaded reference fit: English, not in Title Case, capitalising names properly, and
+// the same episode (most of this subtitle's longer words appear in it)?
 export function referenceFits(srt, refSrt, { characters = [], title = '' } = {}) {
   const refCues = parseCues(refSrt);
   if (refSrt.length > 4000 && !looksEnglish(refCues.flatMap((c) => c.lines.map(stripMarkup)).join('\n'))) return false;
+  if (titleCased(refSrt)) return false;
   if (casingBroken(refCues, nameTable(characters, title))) return false;
   const bag = (text) => new Set((stripMarkup(text).toLowerCase().match(/[a-z']{5,}/g) || []));
   const mine = bag(srt);
@@ -613,7 +633,7 @@ export function fixEnglishSrt(srt, { characters = [], title = '', reference = nu
   for (const c of cues) c.lines = c.lines.map(repairLine);
   const names = nameTable(characters, title);
   const broken = casingBroken(cues, names);
-  const refTable = reference ? referenceTable(reference) : null;
+  const refTable = reference && !titleCased(reference) ? referenceTable(reference) : null;
   // Walk the words in order, tracking sentence starts across cues, and rewrite each line.
   let start = true;
   let prev = '';
