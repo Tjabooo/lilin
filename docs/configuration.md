@@ -132,6 +132,7 @@ that is a hard disk shared with downloads and conversions.
 | --- | --- | --- |
 | `CONVERT` | `on` | Make MP4 copies of MKV, AVI, WebM and similar files so they play on iPhone and Apple TV (needs ffmpeg). |
 | `CONVERT_DELETE_ORIGINAL` | `off` | Delete originals after conversion, including ones converted while qBittorrent still had them once it no longer does. Never applies to files qBittorrent owns. All subtitle tracks are first copied unchanged into `<name>.subtitles.mks` (MP4 can't hold Blu-ray/DVD image subtitles); if that fails, or the MP4 copy's length doesn't match, the original is kept. |
+| `CONVERT_DETACHED` | `on` | Run each conversion in a process of its own (`src/convert-runner.js`), so restarting or updating Lilin doesn't throw away a half-done copy: the next start picks the running conversion up again and finishes it. `off` runs ffmpeg inside the server, so a restart starts the conversion over. |
 | `BROWSER_H264_DAYS` | `14` | HEVC files added within this many days get an H.264 copy for browsers without HEVC right away; older ones when first played. `0` = off. |
 | `PREPARE_NEXT_EPISODES` | `2` | Browser copies prepared ahead for the next episodes. `0` = off. |
 | `FFMPEG`, `FFPROBE` | on PATH | Full paths to ffmpeg and ffprobe. |

@@ -58,7 +58,8 @@ test('a conversion still running from before a restart is picked up and finished
   assert.equal(convert.jobState(mkv), 'converting', 'the picked-up job holds its lane');
   assert.ok(await waitFor(() => existsSync(output), 30000), 'the copy was moved into place');
   assert.ok(await waitFor(() => !existsSync(runDir), 5000), 'the run folder is removed');
-  assert.equal(convert.jobState(mkv), null);
+  // The lane is released only after the post-copy audio check, a moment after the run folder goes.
+  assert.ok(await waitFor(() => convert.jobState(mkv) === null, 10000), 'the lane is released');
   const { stdout } = await run(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', output]);
   assert.ok(Math.abs(Number(stdout) - 6) < 0.5, `full length (${stdout.trim()} s)`);
 });

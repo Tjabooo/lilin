@@ -284,6 +284,7 @@ test('resumed compatibility polling installs a correction that finished during t
   h.context.CODEC_NAMES = { ac3: 'Dolby Digital' };
   const switched = [];
   h.context.switchToFixedAudio = session => switched.push(session);
+  h.context.showNoteProgress = () => {}; // the progress card (app.js) isn't part of this harness
   vm.runInContext(between('async function watchAudio(', '\nfunction switchToFixedAudio('), h.context);
   const originalWatcher = h.run('watchAudio(current, current)'); await flush();
   assert.equal(h.current.compatibilityPending, true);
