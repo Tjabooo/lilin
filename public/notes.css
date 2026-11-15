@@ -103,8 +103,11 @@ body:has(#view-notes:not([hidden])) main { padding-bottom: 0; }
 .note-import h3 { margin-top: 0; }
 .note-import p { font-size: 13px; }
 .notes-empty { text-align: center; padding: 25px 10px; color: var(--dust); }
-.tabs:has(.tab:nth-child(8)) { overflow-x: auto; scrollbar-width: none; }
-.tabs:has(.tab:nth-child(8)) .tab { flex: 1 0 56px; }
+/* Phones and tablets: eight tabs scroll instead of squeezing (the header layout on wide screens is in style.css) */
+@media (max-width: 899px) {
+  .tabs:has(.tab:nth-child(8)) { overflow-x: auto; scrollbar-width: none; }
+  .tabs:has(.tab:nth-child(8)) .tab { flex: 1 0 56px; }
+}
 @media (max-width: 600px) {
   #view-notes > .view-heading { display: none; }
   /* until fitted: under the header, above the tab bar */

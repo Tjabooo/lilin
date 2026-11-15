@@ -2542,6 +2542,14 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 @media (min-width: 900px) {
   .tabs:has(.tab:nth-child(6)) .tab { font-size: clamp(14px, 12px + .2vw, 17px); padding: 0 11px; }
 }
+/* Owners on wide screens have eight sections: names never get cut; the search box gives up room first,
+   and if the header still runs out the row scrolls (with the edge fades) instead of turning names into "Disc..." */
+@media (min-width: 900px) {
+  .tabs:has(.tab:nth-child(8)) { flex: 0 .2 auto; }
+  .tabs:has(.tab:nth-child(8)) .tab { flex: none; padding: 0 clamp(8px, .45vw + 3px, 11px); }
+  .top-inner:has(.tab:nth-child(8)) .top-actions { flex-shrink: 4; }
+  .top-inner:has(.tab:nth-child(8)) .search { min-width: 150px; }
+}
 
 /* Library: poster grid, shelves, and clear controls for keeping a title longer. */
 .library-grid { grid-template-columns: repeat(auto-fill, minmax(var(--poster-w), 1fr)); }

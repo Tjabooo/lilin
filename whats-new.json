@@ -20,6 +20,19 @@
   ]
 },
 {
+  "id": "2026-11-16-tab-names",
+  "date": "2026-11-16",
+  "push": false,
+  "title": "Section names fit again",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "No more \"Disc...\" in the header",
+      "text": "With Live added, the owner's eight sections got squeezed into cut-off names on computers. They now show in full; on narrower windows the search box gets smaller first."
+    }
+  ]
+},
+{
   "id": "2026-11-15-live-tv",
   "date": "2026-11-15",
   "title": "Live TV: channels that are always on",
