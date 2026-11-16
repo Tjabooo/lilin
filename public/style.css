@@ -2204,7 +2204,12 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* clip trimmer (in the bottom sheet) */
 /* Clip editor: a timeline of kept (gold) and removed (hatched) parts under the video */
-.edit h2 { padding-right: 52px; overflow-wrap: anywhere; }
+/* header: small "Edit clip" label over the clip's name (click or R to rename), clear of the close button */
+.edit-top { padding: var(--s4) 64px 0 0; margin-bottom: 20px; }
+.edit-eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dust); }
+.edit-name .clip-title { font: 750 clamp(20px, 17px + .8vw, 28px)/1.2 var(--display); letter-spacing: -0.015em; white-space: normal; overflow: visible; }
+.edit-name .clip-title svg { width: 18px; height: 18px; }
+.edit-name .clip-rename-form input { font: 750 clamp(20px, 17px + .8vw, 28px)/1.2 var(--display); letter-spacing: -0.015em; padding: 4px 6px; margin: -4px -6px 0; width: calc(100% + 12px); }
 .edit-stage { position: relative; margin: 4px 0 10px; border-radius: 12px; overflow: hidden; background: #000; }
 /* camera overlay: a box over the picture you drag (move) or pull by its corner (resize) */
 .edit-cam-frame { position: absolute; pointer-events: none; }

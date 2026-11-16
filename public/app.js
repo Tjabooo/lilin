@@ -9093,7 +9093,19 @@ async function openTrim(c, opener) {
   const pos = (t) => `${duration ? (t / duration) * 100 : 0}%`;
   // game events: a lane of markers above the timeline (click = jump there), ticks on the track
   const marks = h('div', { class: 'edit-events', hidden: true, role: 'group', 'aria-label': T('Game events') });
-  const keysHint = h('p', { class: 'edit-keys muted' }, T('Space play · S split · X remove or restore · [ ] start or end here · ← → 1 s · , . one frame · Ctrl+Z undo'));
+  const keysHint = h('p', { class: 'edit-keys muted' }, T('Space play · S split · X remove or restore · [ ] start or end here · ← → 1 s · , . one frame · R rename · Ctrl+Z undo'));
+  // The clip's name, renamed right here (same rename as on the clip card; R jumps into it)
+  const nameWrap = inlineName({
+    getName: () => c.title, label: T('Clip'), maxLength: 120,
+    errorId: `edit-rename-error-${c.id}`, successMessage: T('Clip renamed'),
+    save: async (next, previousTitle) => {
+      const renamed = await api(`/api/clips/${c.id}/rename`, jsonPost({ title: next, previousTitle }));
+      c.title = renamed.title;
+      const current = state.clips?.clips.find((item) => item.id === c.id); if (current) current.title = renamed.title;
+      if (state.view === 'clips') renderClips();
+    },
+  });
+  nameWrap.classList.add('edit-name');
   const goToEvent = (e) => { video.currentTime = Math.max(0, e.t - EVENT_LEAD); updateHead(); };
   const jumpEvent = (dir) => {
     const t = video.currentTime;
@@ -9335,7 +9347,7 @@ async function openTrim(c, opener) {
   });
 
   const content = h('div', { class: 'sheet-content edit' },
-    h('h2', { id: 'sheet-title' }, T('Edit · {0}', c.title)),
+    h('div', { class: 'edit-top' }, h('p', { class: 'edit-eyebrow', id: 'sheet-title' }, T('Edit clip')), nameWrap),
     h('div', { class: 'edit-stage' }, video, camFrame),
     h('div', { class: 'edit-transport' }, playBtn, h('span', { class: 'edit-clock' }, now, ' ', total)),
     marks,
@@ -9355,7 +9367,7 @@ async function openTrim(c, opener) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const step = (d) => { video.pause(); video.currentTime = Math.min(Math.max(video.currentTime + d, 0), duration); updateHead(); };
     const run = { ' ': togglePlayback, k: togglePlayback, s: () => act('split'), x: () => act('toggle'), Delete: () => act('toggle'), Backspace: () => act('toggle'),
-      '[': () => act('start'), ']': () => act('end'), ArrowLeft: () => step(-1), ArrowRight: () => step(1), ',': () => step(-frameDur), '.': () => step(frameDur),
+      r: () => nameWrap.querySelector('button')?.click(), '[': () => act('start'), ']': () => act('end'), ArrowLeft: () => step(-1), ArrowRight: () => step(1), ',': () => step(-frameDur), '.': () => step(frameDur),
       ...(events.length ? { n: () => jumpEvent(1), p: () => jumpEvent(-1) } : {}) }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
     if (!run || (e.key === ' ' && e.target.matches?.('button:not(.edit-play)'))) return;
     e.preventDefault();
@@ -9497,7 +9509,7 @@ function inlineName({ getName, save, label, maxLength, errorId, className = '', 
     input.addEventListener('keydown', (e) => {
       if (e.isComposing) return;
       if (e.key === 'Enter') { e.preventDefault(); commit(true); }
-      if (e.key === 'Escape' && !committing) { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape' && !committing) { e.preventDefault(); e.stopPropagation(); finish(true); }
     });
     wrap.replaceChildren(form); input.focus(); input.select();
   }

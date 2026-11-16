@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-16-clip-editor-rename",
+  "date": "2026-11-16",
+  "title": "Rename clips in the clip editor",
+  "items": [
+    {
+      "title": "Rename while you edit",
+      "text": "The clip's name at the top of the editor is now a button: click it (or press R) to rename the clip without leaving the editor. The header also got a calmer look with room to breathe."
+    }
+  ]
+},
+{
   "id": "2026-11-16-live-tv-fresh",
   "date": "2026-11-16",
   "title": "More on Live TV, and four new channels",
