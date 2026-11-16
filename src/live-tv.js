@@ -6,6 +6,7 @@ import { Channels, AUTO, poolFor, liveToken, FREEZE } from './channels.js';
 const MIN = 60000, HOUR = 60 * MIN;
 const AUTO_MIN = 2;   // titles an automatic channel needs before it's shown
 const PICKS_MIN = 5;  // and a person's picks
+const SERIES = new Set(['fresh', 'drama', 'scifi', 'action']); // a show's episodes in order between other titles
 
 // deps: { file, watchRooms, accounts, social, library() -> items (see channels.js poolFor), timesOf(item),
 //   mediaFor(key) -> room media | null, genres() -> [{ name, movie, tv }], name() -> display name, now,
@@ -34,7 +35,7 @@ export function createLiveTv(deps) {
 
   // Every channel there is, before anyone's access: the automatic ones, the owner's, then each person's picks.
   function definitions() {
-    const out = AUTO.map((id, i) => ({ id, number: i + 1, kind: 'auto', order: id === 'anime' ? 'order' : id === 'fresh' ? 'series' : 'shuffle' }));
+    const out = AUTO.map((id, i) => ({ id, number: i + 1, kind: 'auto', order: id === 'anime' ? 'order' : SERIES.has(id) ? 'series' : 'shuffle' }));
     for (const c of channels.custom()) out.push({ ...c, kind: 'custom' });
     const people = accounts.listUsers().sort((a, b) => a.id - b.id);
     people.forEach((u, i) => out.push({ id: `picks-${u.id}`, number: 20 + i, kind: 'picks', picks: u.id, person: u.name, order: 'shuffle' }));
@@ -151,5 +152,15 @@ export function createLiveTv(deps) {
     if (room) watchRooms.end(room);
   }
 
-  return { channels, guide, tune, editor, saveChannel, removeChannel, libraryChanged, definitions, allows, items, FREEZE };
+  // Titles (a show counts once) on each automatic channel: where Live TV picks are needed most.
+  async function sizes() {
+    const list = await items();
+    const out = {};
+    for (const def of definitions().filter((d) => d.kind === 'auto')) {
+      out[def.id] = new Set(poolFor(def, list, { picksOf }).map((i) => (i.kind === 'episode' && i.show) || i.key)).size;
+    }
+    return out;
+  }
+
+  return { sizes, channels, guide, tune, editor, saveChannel, removeChannel, libraryChanged, definitions, allows, items, FREEZE };
 }

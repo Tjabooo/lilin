@@ -1,15 +1,16 @@
-// Live TV picks: the server downloads a few trending films and shows by itself, so the channels have something
-// new on, like a real TV station. Nobody asked for them, so they sit in nobody's library: they air on the
+// Live TV picks: the server downloads popular films and shows by itself, so the channels keep getting something
+// new, like a real TV station. Nobody asked for them, so they sit in nobody's library: they air on the
 // channels (and on Fresh, the channel for what's new) and anyone who likes one keeps it with Add to library.
 //
 // A round runs every few hours. It sees how the picks it started are getting on, makes room (the oldest picks
 // nobody kept go first, and any pick older than MAX_AGE), then starts at most a couple of new ones while the
 // total stays under the owner's cap (LIVE_TV_PICKS_GB) and the media drive keeps a healthy reserve.
 //
-// What to pick: TMDB's trending films and shows (this week and today), drawn at random with the top of the list
-// more likely, films and shows taking turns. Films must be out to stream or buy; a show gets its first season
-// (at most its first EPISODES episodes), because a first season is how you find something new. Anything already
-// on the server, picked before or tried lately is skipped. Reality, talk, news and soap shows never air.
+// What to pick: each pick is for one of the channels (CHANNELS: Anime, Sitcoms, Films, Documentaries, Drama, Sci-Fi &
+// Fantasy, Action & Adventure), the one with the fewest titles most likely, from TMDB's popular titles of that kind (a couple
+// of random pages of the top 100, trending first for films), the top more likely. Films must be out to stream or buy; a
+// show gets its first season (at most its first EPISODES episodes), because a first season is how you find something new.
+// Anything already on the server, picked before or tried lately is skipped. Reality, talk, news and soap shows never air.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -17,14 +18,41 @@ const HOUR = 3600 * 1000, DAY = 24 * HOUR, GB = 1024 ** 3;
 export const ROUND_EVERY = 3 * HOUR;
 export const MAX_AGE = 60 * DAY;          // a pick nobody kept leaves after this, cap or not
 export const RETRY_AFTER = 30 * DAY;      // a title that couldn't be found is tried again after this
-export const IN_FLIGHT = 3;               // picks searching or downloading at once (people's downloads come first)
-export const PER_ROUND = 2;
-export const EPISODES = 10;               // a long first season: just its start
+export const IN_FLIGHT = 4;               // picks searching or downloading at once (people's downloads come first)
+export const PER_ROUND = 3;
+export const EPISODES = 12;               // a long first season: just its start
 export const ESTIMATE = { movie: 12 * GB, tv: 25 * GB }; // what a new pick will probably take
 export const MAX_BYTES = { movie: 16 * GB, tv: 4 * GB }; // per film / per episode
 export const STALLED = 3 * DAY;           // a download that hasn't finished by then is given up
 export const SKIP_GENRES = new Set([10763, 10764, 10766, 10767]); // news, reality, soap, talk
-const LISTS = [['movie', '/trending/movie/week', 2], ['movie', '/trending/movie/day', 1], ['tv', '/trending/tv/week', 2], ['tv', '/trending/tv/day', 1]];
+// The channels picks fill (channels.js poolFor decides what airs where) and TMDB's lists for each: [type, endpoint,
+// discover filters (null: a plain list such as trending)]. weight: how keen the channel is on new titles.
+export const CHANNELS = {
+  anime: { weight: 1.3, lists: [['tv', '/discover/tv', { with_genres: '16', with_original_language: 'ja', 'vote_count.gte': 50 }]] },
+  sitcoms: { lists: [['tv', '/discover/tv', { with_genres: '35', without_genres: '16,99,10762,10763,10764,10766,10767', 'vote_count.gte': 100 }]] },
+  films: { lists: [['movie', '/trending/movie/week', null], ['movie', '/discover/movie', { without_genres: '16,99', 'vote_count.gte': 500 }]] },
+  docs: { weight: 0.6, lists: [['movie', '/discover/movie', { with_genres: '99', 'vote_count.gte': 30 }], ['tv', '/discover/tv', { with_genres: '99', 'vote_count.gte': 30 }]] },
+  drama: { lists: [['tv', '/discover/tv', { with_genres: '18|80|9648', without_genres: '16,35,99,10764,10766,10767', 'vote_count.gte': 200 }]] },
+  scifi: { lists: [['tv', '/discover/tv', { with_genres: '10765', without_genres: '16,99', 'vote_count.gte': 200 }], ['movie', '/discover/movie', { with_genres: '878|14', without_genres: '16,99', 'vote_count.gte': 500 }]] },
+  action: { lists: [['movie', '/discover/movie', { with_genres: '28|12', without_genres: '16,99', 'vote_count.gte': 500 }], ['tv', '/discover/tv', { with_genres: '10759', without_genres: '16,99', 'vote_count.gte': 200 }]] },
+};
+const PAGES = 5; // discover lists are drawn from their first PAGES pages (100 titles), two pages a time
+
+// Two different pages out of the first PAGES.
+export function pickPages(rand = Math.random) {
+  const a = 1 + Math.floor(rand() * PAGES);
+  return [a, 1 + ((a - 1 + 1 + Math.floor(rand() * (PAGES - 1))) % PAGES)];
+}
+
+// The channel the next pick is for: weight / (titles on it + live picks for it + 2), drawn at random, so the
+// shortest channel usually wins but the others still get some. skip: channels already tried this round.
+export function chooseChannel(sizes, picks, skip = new Set(), rand = Math.random) {
+  const ids = Object.keys(CHANNELS).filter((c) => !skip.has(c));
+  const weights = ids.map((c) => (CHANNELS[c].weight || 1) / ((sizes[c] || 0) + picks.filter((p) => p.channel === c).length + 2));
+  let at = rand() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < ids.length; i++) { at -= weights[i]; if (at < 0) return ids[i]; }
+  return ids.at(-1);
+}
 
 // Trending lists -> candidates, best rank first: [{ type, id, rank, title }]. Duplicates keep their best rank.
 export function candidates(lists) {
@@ -35,7 +63,8 @@ export function candidates(lists) {
       if (r.media_type && r.media_type !== type) return;
       const key = `${type}:${r.id}`;
       const have = best.get(key);
-      if (!have || rank < have.rank) best.set(key, { type, id: r.id, rank, title: r.title || r.name || '' });
+      const at = r.rank ?? rank;
+      if (!have || at < have.rank) best.set(key, { type, id: r.id, rank: at, title: r.title || r.name || '' });
     });
   }
   return [...best.values()].sort((a, b) => a.rank - b.rank);
@@ -61,6 +90,7 @@ export function firstSeason(details) {
 
 // deps: { file, capBytes, now?, rand?, tmdb(endpoint, params), filmOut(details) -> { out },
 //   onServer() -> Set of 'movie:<id>' / 'tv:<id>' already on the server or downloading,
+//   channelSizes() -> { [channel]: titles on it now },
 //   start(pick, details) -> job id (a smart download with nobody's name on it; its torrents come back via noteHash),
 //   job(id) -> { state, added: [] } | null, torrents(hashes) -> [{ hash, progress, size, state, added_on }],
 //   sizeOf(key) -> bytes | null (on disk), held(key) -> someone has it in their library,
@@ -179,51 +209,65 @@ export function createTvPicks(deps) {
     return used;
   }
 
+  // TMDB titles for one channel: its lists (trending in order, discover from a couple of random pages for variety).
+  async function listsFor(channel) {
+    const out = [];
+    for (const [type, endpoint, params] of CHANNELS[channel].lists) {
+      const pages = params ? pickPages(deps.rand) : [1, 2];
+      for (const page of pages) {
+        try {
+          const found = await deps.tmdb(endpoint, { ...(params ? { sort_by: 'popularity.desc', include_adult: 'false', ...params } : {}), page });
+          out.push({ type, results: (found?.results || []).map((r, i) => ({ ...r, rank: (page - 1) * 20 + i })) });
+        } catch (e) { log(`[tv-picks] ${endpoint}: ${e.message}`); }
+      }
+    }
+    return out;
+  }
+
   async function pickNew(used) {
     const inFlight = data.picks.filter((p) => p.state === 'searching' || p.state === 'downloading').length;
     let slots = Math.min(PER_ROUND, IN_FLIGHT - inFlight);
     if (slots <= 0) return 0;
-    const lists = [];
-    for (const [type, endpoint, pages] of LISTS) {
-      for (let page = 1; page <= pages; page++) {
-        try { lists.push({ type, results: (await deps.tmdb(endpoint, { page }))?.results || [] }); } catch (e) { log(`[tv-picks] ${endpoint}: ${e.message}`); }
-      }
-    }
     const t = now();
     const here = await Promise.resolve(deps.onServer()).catch(() => new Set());
     const taken = new Set(data.picks.map((p) => `${p.type}:${p.tmdbId}`));
-    let pool = candidates(lists).filter((c) => {
-      const key = `${c.type}:${c.id}`;
-      return !here.has(key) && !taken.has(key) && !(t - (data.tried[key] || 0) < RETRY_AFTER);
-    });
+    const sizes = await Promise.resolve(deps.channelSizes?.()).catch(() => null) || {};
+    const done = new Set();
     let started = 0;
-    for (let tries = 0; slots > 0 && pool.length && tries < 12; tries++) {
-      // Films and shows take turns: the type with fewer live picks goes first.
-      const count = (type) => data.picks.filter((p) => live(p) && p.type === type).length;
-      const want = count('movie') <= count('tv') ? 'movie' : 'tv';
-      const ofType = pool.filter((c) => c.type === want);
-      const c = draw(ofType.length ? ofType : pool, deps.rand);
-      pool = pool.filter((x) => x !== c);
-      const key = `${c.type}:${c.id}`;
-      if (used + ESTIMATE[c.type] > deps.capBytes) continue;
-      const free = await Promise.resolve(deps.freeBytes(c.type)).catch(() => Infinity);
-      if (free - ESTIMATE[c.type] < (deps.reserveBytes ?? 0)) { log('[tv-picks] the media drive is too full for more picks'); break; }
-      data.tried[key] = t;
-      let details;
-      try { details = await deps.tmdb(`/${c.type}/${c.id}`, c.type === 'movie' ? { append_to_response: 'release_dates' } : {}); } catch { continue; }
-      if (!details || details.adult || (details.genres || []).some((g) => SKIP_GENRES.has(g.id))) continue;
-      if (c.type === 'movie' && !deps.filmOut(details).out) continue;
-      const season = c.type === 'tv' ? firstSeason(details) : null;
-      if (c.type === 'tv' && !season) continue;
-      const pick = { id: `${key}:${t}`, type: c.type, tmdbId: c.id, title: String((c.type === 'tv' ? details.name : details.title) || c.title),
-        season: season?.season ?? null, episodes: season?.episodes || null, at: t, state: 'searching', job: null, hashes: [], keys: [] };
-      data.picks.push(pick);
-      try { pick.job = await deps.start(pick, details); } catch (e) {
-        pick.state = 'failed'; pick.why = e.message; log(`[tv-picks] ${label(pick)}: ${e.message}`); continue;
+    while (slots > 0 && done.size < Object.keys(CHANNELS).length) {
+      // The channel with the least on it is the likeliest to get something (live picks for it count too).
+      const channel = chooseChannel(sizes, data.picks.filter(live), done, deps.rand);
+      done.add(channel);
+      let pool = candidates(await listsFor(channel)).filter((c) => {
+        const key = `${c.type}:${c.id}`;
+        return !here.has(key) && !taken.has(key) && !(t - (data.tried[key] || 0) < RETRY_AFTER);
+      });
+      for (let tries = 0; pool.length && tries < 6; tries++) {
+        const c = draw(pool, deps.rand);
+        pool = pool.filter((x) => x !== c);
+        const key = `${c.type}:${c.id}`;
+        if (used + ESTIMATE[c.type] > deps.capBytes) continue;
+        const free = await Promise.resolve(deps.freeBytes(c.type)).catch(() => Infinity);
+        if (free - ESTIMATE[c.type] < (deps.reserveBytes ?? 0)) { log('[tv-picks] the media drive is too full for more picks'); return started; }
+        data.tried[key] = t;
+        let details;
+        try { details = await deps.tmdb(`/${c.type}/${c.id}`, c.type === 'movie' ? { append_to_response: 'release_dates' } : {}); } catch { continue; }
+        if (!details || details.adult || (details.genres || []).some((g) => SKIP_GENRES.has(g.id))) continue;
+        if (c.type === 'movie' && !deps.filmOut(details).out) continue;
+        const season = c.type === 'tv' ? firstSeason(details) : null;
+        if (c.type === 'tv' && !season) continue;
+        const pick = { id: `${key}:${t}`, type: c.type, tmdbId: c.id, channel, title: String((c.type === 'tv' ? details.name : details.title) || c.title),
+          season: season?.season ?? null, episodes: season?.episodes || null, at: t, state: 'searching', job: null, hashes: [], keys: [] };
+        data.picks.push(pick);
+        taken.add(key);
+        try { pick.job = await deps.start(pick, details); } catch (e) {
+          pick.state = 'failed'; pick.why = e.message; log(`[tv-picks] ${label(pick)}: ${e.message}`); continue;
+        }
+        log(`[tv-picks] picked ${label(pick)}${pick.episodes ? ` E01-E${String(EPISODES).padStart(2, '0')}` : ''} for ${channel} (#${c.rank + 1}, ${sizes[channel] ?? '?'} titles on it)`);
+        used += ESTIMATE[c.type];
+        slots--; started++;
+        break; // one per channel per round: the next slot goes to whichever channel is shortest then
       }
-      log(`[tv-picks] picked ${label(pick)}${pick.episodes ? ` E01-E${String(EPISODES).padStart(2, '0')}` : ''} (trending #${c.rank + 1})`);
-      used += ESTIMATE[c.type];
-      slots--; started++;
     }
     return started;
   }
@@ -252,7 +296,7 @@ export function createTvPicks(deps) {
     const list = data.picks.filter(live).sort((a, b) => b.at - a.at);
     let bytes = 0;
     for (const p of list) if (p.state === 'ready') for (const k of p.keys) if (!deps.held(k)) bytes += deps.sizeOf(k) || 0;
-    return { cap: deps.capBytes, bytes, picks: list.map((p) => ({ type: p.type, tmdbId: p.tmdbId, title: p.title, season: p.season, state: p.state, at: p.at })) };
+    return { cap: deps.capBytes, bytes, picks: list.map((p) => ({ type: p.type, tmdbId: p.tmdbId, title: p.title, season: p.season, channel: p.channel || null, state: p.state, at: p.at })) };
   }
 
   return { round, noteHash, noteFiles, ownsHash, isPick, summary, data: () => data };

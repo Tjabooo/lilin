@@ -150,7 +150,7 @@ const liveTv = createLiveTv({
   },
   picks: () => (tvPicks ? tvPicks.summary() : null),
 });
-// Live TV picks (tv-picks.js): trending films and shows the server downloads by itself, up to this many GB. 0 = off.
+// Live TV picks (tv-picks.js): films and shows the server downloads by itself for the channels, up to this many GB. 0 = off.
 const LIVE_TV_PICKS_GB = Math.max(0, Number(process.env.LIVE_TV_PICKS_GB) || 0);
 const PICKS_RESERVE = 300 * 1024 ** 3; // the media drive always keeps this much free for people's own downloads
 const TV_PICK_TAG = 'lilin-tv';
@@ -5312,6 +5312,7 @@ const tvPicks = LIVE_TV_PICKS_GB > 0 && QBIT_URL && MEDIA_DIR && (TMDB_TOKEN || 
     }
     return out;
   },
+  channelSizes: () => liveTv.sizes(),
   start: (pick, details) => startPickJob(pick, details),
   job: (id) => smart.smartJob(id),
   torrents: (hashes) => qbit(`/api/v2/torrents/info?hashes=${hashes.join('|')}`),
@@ -5326,7 +5327,7 @@ const tvPicks = LIVE_TV_PICKS_GB > 0 && QBIT_URL && MEDIA_DIR && (TMDB_TOKEN || 
   log: (msg) => console.log(msg),
 }) : null;
 if (tvPicks) {
-  console.log(`[tv-picks] on: up to ${LIVE_TV_PICKS_GB} GB of trending films and shows for Live TV`);
+  console.log(`[tv-picks] on: up to ${LIVE_TV_PICKS_GB} GB of films and shows for the Live TV channels`);
   setTimeout(() => tvPicks.round(), 5 * 60 * 1000).unref();
   setInterval(() => tvPicks.round(), 3 * 3600 * 1000).unref();
 }

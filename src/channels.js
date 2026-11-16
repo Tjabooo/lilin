@@ -19,7 +19,8 @@ export const KEEP_PAST = 3 * HOUR;    // aired programmes kept for the guide's l
 export const HORIZON = 6 * HOUR;      // how far ahead a schedule is worked out at most
 const MIN_SEGMENT = 2;                // seconds: shorter pieces between skips aren't worth a jump
 const MAX_PICKS = 400;                // programmes worked out per request at most (a cold start, a long guide)
-export const AUTO = ['anime', 'sitcoms', 'films', 'docs', 'fresh'];
+export const AUTO = ['anime', 'sitcoms', 'films', 'docs', 'fresh', 'drama', 'scifi', 'action'];
+const DRAMA = [18, 80, 9648], SCIFI = [878, 14, 10765], ACTION = [28, 12, 10759]; // TMDB film + TV genre ids
 export const COMEDY = 35, DOCUMENTARY = 99, ANIMATION = 16;
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -71,6 +72,10 @@ export function poolFor(channel, items, ctx = {}) {
   else if (channel.id === 'films') pool = items.filter((i) => i.kind === 'film' && !docs(i));
   else if (channel.id === 'docs') pool = items.filter(docs);
   else if (channel.id === 'fresh') pool = items.filter((i) => i.fresh); // new on the server, and the TV picks (tv-picks.js)
+  // Drama: series only (films have the Films channel). Sci-Fi & Fantasy and Action & Adventure: films and series.
+  else if (channel.id === 'drama') pool = items.filter((i) => i.kind === 'episode' && !i.anime && !docs(i) && !genres(i).includes(COMEDY) && genres(i).some((g) => DRAMA.includes(g)));
+  else if (channel.id === 'scifi') pool = items.filter((i) => !i.anime && !docs(i) && genres(i).some((g) => SCIFI.includes(g)));
+  else if (channel.id === 'action') pool = items.filter((i) => !i.anime && !docs(i) && genres(i).some((g) => ACTION.includes(g)));
   else if (channel.picks != null) {
     const picks = ctx.picksOf?.(channel.picks);
     pool = picks ? items.filter((i) => picks.keys.has(i.key) || (i.titleKey && picks.liked.has(i.titleKey))) : [];

@@ -1,10 +1,14 @@
 {
   "2026-11-16-live-tv-fresh": {
-    "title": "Något nytt på Live-tv",
+    "title": "Mer på Live-tv, och fyra nya kanaler",
     "items": {
-      "Fresh, a new channel": {
-        "title": "Nytt, en ny kanal",
-        "text": "Live-tv hämtar nu trendande filmer och serier själv med några timmars mellanrum, som en riktig tv-kanal. De sänds på den nya kanalen Nytt (och på Filmer, Sitcoms och de andra), så det finns alltid något du inte har sett. Serier börjar från säsong 1, avsnitt 1."
+      "The channels fill themselves": {
+        "title": "Kanalerna fyller på sig själva",
+        "text": "Med några timmars mellanrum hämtar Live-tv nu själv några populära filmer och serier, mest till den kanal som har minst: mer anime till Anime, fler sitcoms till Sitcoms, fler filmer till Filmer och så vidare. Serier börjar från säsong 1, avsnitt 1."
+      },
+      "New channels": {
+        "title": "Nya kanaler",
+        "text": "Drama, Sci-fi & fantasy och Action & äventyr ansluter, plus Nytt, som visar allt nytt på servern. Serier spelar sina avsnitt i ordning, med annat emellan."
       },
       "Like it? Keep it": {
         "title": "Gillar du den? Behåll den",

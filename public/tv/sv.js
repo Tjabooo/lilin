@@ -161,6 +161,9 @@ window.LilinTvStrings = {
   "Anime": "Anime",
   "Sitcoms": "Sitcoms",
   "Fresh": "Nytt",
+  "Drama": "Drama",
+  "Sci-Fi & Fantasy": "Sci-fi & fantasy",
+  "Action & Adventure": "Action & äventyr",
   "Your picks": "Dina favoriter",
   "{0}’s picks": "{0}s favoriter",
 };

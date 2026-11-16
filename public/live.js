@@ -3,7 +3,7 @@
 import { T, locale } from './i18n.js';
 
 const MIN = 60000;
-const AUTO_NAMES = () => ({ anime: T('Anime'), sitcoms: T('Sitcoms'), films: T('Films'), docs: T('Documentaries'), fresh: T('Fresh') });
+const AUTO_NAMES = () => ({ anime: T('Anime'), sitcoms: T('Sitcoms'), films: T('Films'), docs: T('Documentaries'), fresh: T('Fresh'), drama: T('Drama'), scifi: T('Sci-Fi & Fantasy'), action: T('Action & Adventure') });
 
 // What a channel is called for this viewer.
 export function channelName(c, me) {
@@ -188,13 +188,13 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
       const picks = data.picks;
       const gb = (b) => Math.round(b / 1024 ** 3);
       const pickState = (p) => (p.state === 'searching' ? T('Finding a copy') : p.state === 'downloading' ? T('Downloading') : '');
-      const picksBlock = picks ? [h('h3', { class: 'live-sub' }, T('Trending picks')),
-        h('p', { class: 'muted' }, T('{0} trending films and shows, {1} of {2} GB. New ones arrive every few hours and air on Fresh; the oldest nobody kept make room.',
+      const picksBlock = picks ? [h('h3', { class: 'live-sub' }, T('Picks for the channels')),
+        h('p', { class: 'muted' }, T('{0} films and shows the server picked for the channels, {1} of {2} GB. New ones arrive every few hours, mostly for the channels with the least on them; the oldest nobody kept make room.',
           picks.picks.length, gb(picks.bytes), gb(picks.cap))),
         picks.picks.length ? h('ul', { class: 'live-picks' }, picks.picks.slice(0, 12).map((p) => h('li', {},
-          `${p.title}${p.season != null ? ` · S${String(p.season).padStart(2, '0')}` : ''}`, pickState(p) ? h('span', { class: 'muted' }, ` · ${pickState(p)}`) : null))) : null] : [];
+          `${p.title}${p.season != null ? ` · S${String(p.season).padStart(2, '0')}` : ''}${p.channel && AUTO_NAMES()[p.channel] ? ` → ${AUTO_NAMES()[p.channel]}` : ''}`, pickState(p) ? h('span', { class: 'muted' }, ` · ${pickState(p)}`) : null))) : null] : [];
       body.replaceChildren(h('h2', { id: 'picker-title' }, T('Your channels')),
-        h('p', { class: 'muted' }, T('Channels run around the clock from what’s on the server. Automatic ones (Anime, Sitcoms, Films, Documentaries, Fresh and everyone’s picks) are always there.')),
+        h('p', { class: 'muted' }, T('Channels run around the clock from what’s on the server. Automatic ones (Anime, Sitcoms, Films, Documentaries, Fresh, Drama, Sci-Fi & Fantasy, Action & Adventure and everyone’s picks) are always there.')),
         h('div', { class: 'live-rename' }, liveName, rename),
         ...picksBlock,
         data.channels.length ? list : null,

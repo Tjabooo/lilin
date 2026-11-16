@@ -2,11 +2,15 @@
 {
   "id": "2026-11-16-live-tv-fresh",
   "date": "2026-11-16",
-  "title": "Something new on Live TV",
+  "title": "More on Live TV, and four new channels",
   "items": [
     {
-      "title": "Fresh, a new channel",
-      "text": "Live TV now picks up trending films and shows by itself every few hours, like a real TV station. They air on the new Fresh channel (and on Films, Sitcoms and the rest), so there's always something you haven't seen. Shows start from season 1, episode 1."
+      "title": "The channels fill themselves",
+      "text": "Every few hours Live TV now fetches a few popular films and shows by itself, mostly for whichever channel has the least on it: more anime for Anime, more sitcoms for Sitcoms, more films for Films and so on. Shows start from season 1, episode 1."
+    },
+    {
+      "title": "New channels",
+      "text": "Drama, Sci-Fi & Fantasy and Action & Adventure join the line-up, plus Fresh, which shows everything new on the server. Series play their episodes in order, with other things in between."
     },
     {
       "title": "Like it? Keep it",
@@ -14,6 +18,7 @@
     }
   ]
 },
+
 {
   "id": "2026-11-16-play-next-episode",
   "date": "2026-11-16",
