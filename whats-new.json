@@ -1,5 +1,20 @@
 [
 {
+  "id": "2026-11-16-live-tv-fresh",
+  "date": "2026-11-16",
+  "title": "Something new on Live TV",
+  "items": [
+    {
+      "title": "Fresh, a new channel",
+      "text": "Live TV now picks up trending films and shows by itself every few hours, like a real TV station. They air on the new Fresh channel (and on Films, Sitcoms and the rest), so there's always something you haven't seen. Shows start from season 1, episode 1."
+    },
+    {
+      "title": "Like it? Keep it",
+      "text": "These picks aren't in anyone's library. If one hooks you, open it from the channel and press Add to library to keep it. The ones nobody keeps make room for new ones after a while."
+    }
+  ]
+},
+{
   "id": "2026-11-16-play-next-episode",
   "date": "2026-11-16",
   "title": "Pick a show up where you left off",

@@ -88,7 +88,7 @@ test('schedules and the owner’s channels survive a restart', async () => {
   const now = Date.UTC(2026, 10, 15, 20, 0, 0);
   const a = new Channels({ file, now: () => now });
   const mine = a.saveCustom({ name: '  Friday   night ', genres: [28], order: 'order' });
-  assert.equal(mine.name, 'Friday night'); assert.equal(mine.number, 5);
+  assert.equal(mine.name, 'Friday night'); assert.equal(mine.number, 6, 'after the automatic channels (Fresh is 5)');
   assert.throws(() => a.saveCustom({ name: 'Empty' }), /at least one/);
   await a.extend(sitcoms, [ep('A', 1, 1), ep('A', 1, 2)], now + 3600000, timesOf);
   a.saveNow();

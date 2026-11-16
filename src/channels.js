@@ -19,7 +19,7 @@ export const KEEP_PAST = 3 * HOUR;    // aired programmes kept for the guide's l
 export const HORIZON = 6 * HOUR;      // how far ahead a schedule is worked out at most
 const MIN_SEGMENT = 2;                // seconds: shorter pieces between skips aren't worth a jump
 const MAX_PICKS = 400;                // programmes worked out per request at most (a cold start, a long guide)
-export const AUTO = ['anime', 'sitcoms', 'films', 'docs'];
+export const AUTO = ['anime', 'sitcoms', 'films', 'docs', 'fresh'];
 export const COMEDY = 35, DOCUMENTARY = 99, ANIMATION = 16;
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -70,6 +70,7 @@ export function poolFor(channel, items, ctx = {}) {
   else if (channel.id === 'sitcoms') pool = items.filter((i) => i.kind === 'episode' && !i.anime && !docs(i) && genres(i).includes(COMEDY));
   else if (channel.id === 'films') pool = items.filter((i) => i.kind === 'film' && !docs(i));
   else if (channel.id === 'docs') pool = items.filter(docs);
+  else if (channel.id === 'fresh') pool = items.filter((i) => i.fresh); // new on the server, and the TV picks (tv-picks.js)
   else if (channel.picks != null) {
     const picks = ctx.picksOf?.(channel.picks);
     pool = picks ? items.filter((i) => picks.keys.has(i.key) || (i.titleKey && picks.liked.has(i.titleKey))) : [];
@@ -190,6 +191,8 @@ export class Channels {
     const sig = hash(`${order}|${pool.map((i) => i.key).sort().join('|')}`).toString('base64url').slice(0, 16);
     let changed = false;
     const before = plan.entries.length;
+    // Series order remembers how far each show got once its programmes leave the guide.
+    if (order === 'series') for (const e of plan.entries) if (e.e < now - KEEP_PAST && e.m?.show) (plan.pos ||= {})[e.m.show] = posKey(e);
     plan.entries = plan.entries.filter((e) => e.e >= now - KEEP_PAST);
     if (plan.entries.length !== before) changed = true;
     // A different library (or channel): keep what has started or is about to, work out the rest again.
@@ -202,19 +205,22 @@ export class Channels {
     // Nobody looked for a while (the last programme ended before now): start afresh on a round minute.
     // Nobody can have seen the gap, so where the new run starts doesn't matter, only that it's the same for everyone.
     if (!plan.entries.length || plan.entries.at(-1).e < now) {
+      if (order === 'series') for (const e of plan.entries) if (e.m?.show) (plan.pos ||= {})[e.m.show] = posKey(e);
       plan.entries = [];
       plan.start = Math.floor(now / MIN) * MIN;
       changed = true;
     }
     const ordered = order === 'order' ? [...pool].sort((a, b) => orderKey(a).localeCompare(orderKey(b))) : null;
     const sorted = ordered || [...pool].sort((a, b) => (a.key < b.key ? -1 : 1));
+    const series = order === 'series' ? seriesOf(pool) : null;
     // A fresh run is numbered from the clock, so it doesn't open with the same programme every time.
     let n = plan.entries.length ? plan.entries.at(-1).n + 1 : Math.floor(now / MIN);
     let picks = 0, misses = 0;
     while ((plan.entries.at(-1)?.e ?? plan.start) < until && picks < MAX_PICKS && misses < 30) {
       const last = plan.entries.at(-1);
       const recent = plan.entries.slice(-Math.min(60, Math.floor(pool.length / 2))).map((e) => e.k);
-      const item = this.pick({ seed, n, sorted, ordered: Boolean(ordered), recent, last, misses });
+      const item = series ? this.pickSeries({ seed, n, series, plan })
+        : this.pick({ seed, n, sorted, ordered: Boolean(ordered), recent, last, misses });
       let segments = null;
       try { segments = segmentsOf(await timesOf(item)); } catch { /* unreadable: another one */ }
       if (!segments) { misses++; n++; continue; }
@@ -247,6 +253,19 @@ export class Channels {
     return from[Math.floor(draw(seed, n) * from.length)];
   }
 
+  // Series: a seeded draw among the titles (a film, or a show) that haven't aired lately; a show plays its next
+  // episode after the one that aired last (from the start again after its last).
+  pickSeries({ seed, n, series, plan }) {
+    const recent = new Set(plan.entries.slice(-Math.min(30, Math.floor(series.length / 2))).map((e) => e.m?.show || e.k));
+    const fresh = series.filter((t) => !recent.has(t.id));
+    const from = fresh.length ? fresh : series;
+    const title = from[Math.floor(draw(seed, n) * from.length)];
+    if (title.items.length === 1) return title.items[0];
+    let was = plan.pos?.[title.id] || null;
+    for (const e of plan.entries) if (e.m?.show === title.id) was = posKey(e);
+    return (was && title.items.find((i) => orderKey(i) > was)) || title.items[0];
+  }
+
   // What's on at `at` (ms): { entry, offset (s into the programme), place: { segment, position, pieceEnds } }, or null.
   at(id, at = this.now()) {
     const plan = this.data.plans[id];
@@ -266,6 +285,21 @@ export class Channels {
   }
   horizon(id) { return this.data.plans[id]?.entries.at(-1)?.e ?? 0; }
 }
+
+// Titles for series order: films alone, a show's episodes together in order. [{ id, items }], sorted.
+function seriesOf(pool) {
+  const by = new Map();
+  for (const i of pool) {
+    const id = i.kind === 'episode' && i.show ? i.show : i.key;
+    if (!by.has(id)) by.set(id, { id, items: [] });
+    by.get(id).items.push(i);
+  }
+  const list = [...by.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+  for (const t of list) t.items.sort((a, b) => orderKey(a).localeCompare(orderKey(b)));
+  return list;
+}
+// Where a programme sits in its show's order (the same key orderKey gives the item).
+const posKey = (e) => orderKey({ key: e.k, showTitle: e.m?.title, season: e.m?.season, episode: e.m?.episode });
 
 // What the guide shows about a programme, kept with it (no lookups when drawing the guide).
 function meta(item) {

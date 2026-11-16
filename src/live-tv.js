@@ -8,7 +8,8 @@ const AUTO_MIN = 2;   // titles an automatic channel needs before it's shown
 const PICKS_MIN = 5;  // and a person's picks
 
 // deps: { file, watchRooms, accounts, social, library() -> items (see channels.js poolFor), timesOf(item),
-//   mediaFor(key) -> room media | null, genres() -> [{ name, movie, tv }], name() -> display name, now }
+//   mediaFor(key) -> room media | null, genres() -> [{ name, movie, tv }], name() -> display name, now,
+//   picks() -> the TV picks for the owner's editor (tv-picks.js summary) | null }
 export function createLiveTv(deps) {
   const now = deps.now || Date.now;
   const channels = deps.channels || new Channels({ file: deps.file, now });
@@ -33,7 +34,7 @@ export function createLiveTv(deps) {
 
   // Every channel there is, before anyone's access: the automatic ones, the owner's, then each person's picks.
   function definitions() {
-    const out = AUTO.map((id, i) => ({ id, number: i + 1, kind: 'auto', order: id === 'anime' ? 'order' : 'shuffle' }));
+    const out = AUTO.map((id, i) => ({ id, number: i + 1, kind: 'auto', order: id === 'anime' ? 'order' : id === 'fresh' ? 'series' : 'shuffle' }));
     for (const c of channels.custom()) out.push({ ...c, kind: 'custom' });
     const people = accounts.listUsers().sort((a, b) => a.id - b.id);
     people.forEach((u, i) => out.push({ id: `picks-${u.id}`, number: 20 + i, kind: 'picks', picks: u.id, person: u.name, order: 'shuffle' }));
@@ -130,6 +131,7 @@ export function createLiveTv(deps) {
     const genres = (await Promise.resolve(deps.genres()).catch(() => [])).filter((g) => present.has(g.movie) || present.has(g.tv));
     return {
       name: deps.name(), nameSetting: accounts.serverSettings().liveName || '',
+      picks: deps.picks ? deps.picks() : null,
       channels: channels.custom(),
       shows: [...shows.values()].sort((a, b) => a.title.localeCompare(b.title)),
       genres: genres.map((g) => ({ name: g.name, ids: [g.movie, g.tv].filter(Boolean) })),

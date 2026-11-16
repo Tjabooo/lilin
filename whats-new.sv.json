@@ -1,4 +1,17 @@
 {
+  "2026-11-16-live-tv-fresh": {
+    "title": "Något nytt på Live-tv",
+    "items": {
+      "Fresh, a new channel": {
+        "title": "Nytt, en ny kanal",
+        "text": "Live-tv hämtar nu trendande filmer och serier själv med några timmars mellanrum, som en riktig tv-kanal. De sänds på den nya kanalen Nytt (och på Filmer, Sitcoms och de andra), så det finns alltid något du inte har sett. Serier börjar från säsong 1, avsnitt 1."
+      },
+      "Like it? Keep it": {
+        "title": "Gillar du den? Behåll den",
+        "text": "De här valen finns inte i någons bibliotek. Fastnar du för något, öppna det från kanalen och tryck på Lägg till i biblioteket för att behålla det. De som ingen behåller får efter ett tag ge plats åt nya."
+      }
+    }
+  },
   "2026-11-16-play-next-episode": {
     "title": "Fortsätt en serie där du slutade",
     "items": {

@@ -3616,6 +3616,8 @@ html.wrapped-on { overflow: hidden; }
 .live-mark { width: 14px; height: 14px; flex: none; border-radius: 50%; background: var(--live);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 22%, transparent), 0 0 18px var(--live); }
 .live-tools { display: flex; gap: var(--s2); margin: calc(-1 * var(--s3)) 0 var(--s4); }
+.live-picks { margin: 0 0 var(--s3); padding-left: 1.2em; color: var(--text); }
+.live-picks li { margin: 2px 0; }
 .live-sub { margin: var(--s5) 0 var(--s3); font: 700 var(--t-kicker)/1.2 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); }
 .live-loading { padding: var(--s6) 0; }
 

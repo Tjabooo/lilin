@@ -72,6 +72,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | --- | --- | --- |
 | `TORRENTS` | `on` | `off` hides torrent search. |
 | `LIVE_TV_NAME` | `Lilin TV` | What Live TV (always-on channels from the library) is called in the app and on the TV. The owner can override it in Settings → Live TV. |
+| `LIVE_TV_PICKS_GB` | `0` (off) | Live TV picks: every 3 hours the server downloads a few of TMDB's trending films and shows by itself (a show's first season, at most 10 episodes; Balanced quality, ≤16 GB a film, ≤4 GB an episode) so the channels always have something new. They air on the Fresh channel and the others, sit in nobody's library (Add to library keeps one), and the oldest nobody kept are deleted once the picks pass this many GB or are 60 days old. The media drive always keeps 300 GB free. The owner sees the picks in Live → Your channels. |
 | `CONTENT_FILTER` | `on` | Keeps adult content off the server: porn is left out of torrent search, adult release names, `.torrent` files and TMDB titles are refused before they reach qBittorrent, and a download whose files turn out to be adult is removed with its files (logged under What happened). `members` exempts the owner, `off` turns it off. |
 | `CONTENT_FILTER_WORDS` | | Extra words or phrases the filter blocks, comma-separated. |
 | `TPB_API` | `https://apibay.org` | The Pirate Bay API base. |

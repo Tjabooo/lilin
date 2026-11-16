@@ -160,6 +160,7 @@ window.LilinTvStrings = {
   "This is live TV, so it keeps playing.": "Det här är live-tv, så det fortsätter spela.",
   "Anime": "Anime",
   "Sitcoms": "Sitcoms",
+  "Fresh": "Nytt",
   "Your picks": "Dina favoriter",
   "{0}’s picks": "{0}s favoriter",
 };

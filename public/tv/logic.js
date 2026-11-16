@@ -249,7 +249,7 @@
   }
   function channelName(c, meId) {
     if (!c) return '';
-    if (c.kind === 'auto') return ({ anime: T('Anime'), sitcoms: T('Sitcoms'), films: T('Films'), docs: T('Documentaries') })[c.id] || c.id;
+    if (c.kind === 'auto') return ({ anime: T('Anime'), sitcoms: T('Sitcoms'), films: T('Films'), docs: T('Documentaries'), fresh: T('Fresh') })[c.id] || c.id;
     if (c.kind === 'picks') return c.id === 'picks-' + meId ? T('Your picks') : T('{0}’s picks', c.person || '');
     return c.name || '';
   }

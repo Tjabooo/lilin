@@ -55,6 +55,7 @@ import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
 import { creditsFor, introFor, initCredits, knownTimes } from './credits.js';
 import { createLiveTv } from './live-tv.js';
+import { createTvPicks, MAX_BYTES as PICK_MAX_BYTES } from './tv-picks.js';
 import * as whatsNew from './whats-new.js';
 import { languageOf, inLanguage, currentLanguage, translate, tr } from './i18n.js';
 import { WatchlistStore, runRound as watchlistRound, baselineFrom, filmOut } from './watchlist.js';
@@ -147,7 +148,13 @@ const liveTv = createLiveTv({
     if (!item) return null;
     try { return roomLibraryMedia(item.id); } catch { return null; }
   },
+  picks: () => (tvPicks ? tvPicks.summary() : null),
 });
+// Live TV picks (tv-picks.js): trending films and shows the server downloads by itself, up to this many GB. 0 = off.
+const LIVE_TV_PICKS_GB = Math.max(0, Number(process.env.LIVE_TV_PICKS_GB) || 0);
+const PICKS_RESERVE = 300 * 1024 ** 3; // the media drive always keeps this much free for people's own downloads
+const TV_PICK_TAG = 'lilin-tv';
+const FRESH_DAYS = 14;                 // the Fresh channel: picks, plus anything that arrived this recently
 activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail });
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR });
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
@@ -1334,7 +1341,7 @@ async function addDownload(opts) {
   downloadAdds.set(hash, done);
   return done;
 }
-async function addDownloadNow({ link, file, user = null, name = '', film = null, show = null, mediaType = null }) {
+async function addDownloadNow({ link, file, user = null, name = '', film = null, show = null, mediaType = null, tags = '' }) {
   // .torrent links are downloaded here and handed to qBittorrent as a file: its own web requests
   // may be fenced off by the torrent VPN kill switch.
   if (!file && /^https?:\/\//i.test(String(link || '').trim())) {
@@ -1342,7 +1349,7 @@ async function addDownloadNow({ link, file, user = null, name = '', film = null,
     try { got = await fetchTorrentFile(String(link).trim()); } catch (e) {
       throw new HttpError(400, e instanceof TorrentFetchError ? e.message : 'Couldn’t download the .torrent file.');
     }
-    if (got.magnet) return addDownload({ link: got.magnet, user, name, film, show, mediaType });
+    if (got.magnet) return addDownload({ link: got.magnet, user, name, film, show, mediaType, tags });
     file = got.file;
   }
   // Adult content never reaches qBittorrent: the name, the magnet's dn, the .torrent's own file names
@@ -1376,6 +1383,8 @@ async function addDownloadNow({ link, file, user = null, name = '', film = null,
   const form = new FormData();
   if (user) {
     form.append('tags', accounts.tagFor(user.id));
+  } else if (tags) {
+    form.append('tags', tags);
   }
   const destination = downloadDestination(MEDIA_DIR, { mediaType, film, name });
   if (destination) {
@@ -2213,7 +2222,9 @@ const validHash = (h) => /^[a-f0-9]{40}$|^[a-f0-9]{64}$/i.test(h);
 
 // Who a torrent is for: recorded when it was added through Lilin, or its lilin-u<id> tag.
 // Torrents added straight in qBittorrent belong to the owner.
-const torrentOwner = (t) => accounts.torrentRow(t.hash)?.user_id ?? accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null;
+// Live TV picks (tv-picks.js) are nobody's.
+const isPickTorrent = (t) => Boolean(tvPicks?.ownsHash(t.hash)) || String(t.tags || '').split(',').some((tag) => tag.trim() === TV_PICK_TAG);
+const torrentOwner = (t) => accounts.torrentRow(t.hash)?.user_id ?? (isPickTorrent(t) ? null : accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null);
 
 // The user's own downloads; `all` (the owner only) lists everyone's, with whose each one is.
 // An SVT Play copy in the shape of a torrent, so every client's download views just show it.
@@ -2550,7 +2561,8 @@ async function liveLibrary() {
       title: kind === 'film' ? fo?.filmTitle || i.title : i.title, season: i.season ?? null, episode: i.episode ?? null,
       episodeName: so?.episodeName || null, genres: (kind === 'episode' ? show?.genres : fo?.genres) || [], anime: Boolean(show?.anime),
       art: so?.still || show?.backdrop || fo?.backdrop || show?.poster || fo?.poster || null,
-      titleKey: kind === 'episode' ? (show?.tmdbId ? `tv:${show.tmdbId}` : null) : (fo?.tmdbId ? `movie:${fo.tmdbId}` : null) });
+      titleKey: kind === 'episode' ? (show?.tmdbId ? `tv:${show.tmdbId}` : null) : (fo?.tmdbId ? `movie:${fo.tmdbId}` : null),
+      fresh: Boolean(tvPicks?.isPick(key)) || (i.added > 0 && Date.now() - i.added < FRESH_DAYS * 24 * 3600 * 1000) });
   }
   return out;
 }
@@ -5170,9 +5182,10 @@ function claimCompletedTorrents(torrents) {
       let row = accounts.torrentRow(t.hash);
       if (deletingDownloads.has(t.hash.toLowerCase())) continue;
       if (!row) {
-        accounts.recordTorrent(t.hash, accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null, t.name);
+        accounts.recordTorrent(t.hash, isPickTorrent(t) ? null : accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null, t.name);
         row = accounts.torrentRow(t.hash);
       }
+      if (tvPicks?.ownsHash(t.hash)) await notePickFiles(t);
       if (!accounts.torrentClaimants(t.hash).length || BUSY_STATES.test(t.state || '')) continue;
       try {
         const files = await torrentFileMetadata(t, { fresh: true });
@@ -5212,6 +5225,110 @@ function claimCompletedTorrents(torrents) {
   const done = task.finally(() => { if (completedClaims === done) completedClaims = null; });
   completedClaims = done;
   return done;
+}
+
+// A Live TV pick's videos as they arrive: Lilin looks after them (so nobody's library adopts them as hand-copied
+// files) and, once all are here and nobody asked for them, the download counts as claimed so it stops seeding.
+async function notePickFiles(t) {
+  if (BUSY_STATES.test(t.state || '')) return;
+  try {
+    const files = await torrentFileMetadata(t, { fresh: true });
+    const videos = files.filter((f) => f.priority !== 0 && isVideo(f.name));
+    const ready = [];
+    for (const f of videos) if (await downloadAvailable(t, f)) ready.push(f);
+    const keys = ready.map((f) => accounts.mediaKey(torrentFilePath(t, f))).filter(Boolean);
+    for (const k of keys) accounts.trackMedia(k);
+    tvPicks.noteFiles(t.hash, keys);
+    const row = accounts.torrentRow(t.hash);
+    if (videos.length && ready.length === videos.length && t.progress >= 1 && row && !row.claimed_at && !accounts.torrentClaimants(t.hash).length) {
+      accounts.markClaimed(t.hash);
+    }
+  } catch { /* next round */ }
+}
+
+// A Live TV pick's download: the Download command (smart-download.js) with nobody's name on it, the owner's
+// subtitle and audio language, Balanced quality and a size limit per film / episode.
+function startPickJob(pick, details) {
+  const type = pick.type;
+  const date = type === 'tv' ? details.first_air_date : details.release_date;
+  const year = date ? Number(date.slice(0, 4)) : null;
+  const original = String((type === 'tv' ? details.original_name : details.original_title) || '').trim();
+  const film = type === 'movie' ? details : null, show = type === 'tv' ? details : null;
+  const owner = accounts.ownerUser();
+  const subs = subtitles.subtitlesConfigured() && owner?.settings?.subLang ? [owner.settings.subLang] : [];
+  const animeCtx = anime.isAnimeDetails(details)
+    ? anime.buildContext(type, pick.tmdbId, tmdb, { details }).catch((e) => { console.warn(`[anime] ${pick.title}: ${e.message}`); return null; })
+    : null;
+  const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
+  const documentary = (details.genres || []).some((g) => g.id === 99);
+  return smart.startSmartJob({
+    type, title: pick.title, year, season: pick.season, episodes: pick.episodes, range: Boolean(pick.episodes), requester: null, subs, anime: animeCtx,
+    originalTitle: original && original !== pick.title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
+    want: { profile: 'balanced', prefer: null, quality: null, maxBytes: PICK_MAX_BYTES[type], audioLang: owner?.settings?.audioLang || '', runtime },
+  }, {
+    parseName, magnetFor1337x: torrents.magnetFor1337x,
+    searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary }),
+    alternative: null,
+    addDownload: async (opts) => {
+      const early = accounts.magnetHash(opts.link);
+      if (early) accounts.systemTorrent(early, opts.name);
+      const added = await addDownload({ ...opts, user: null, film, show, tags: TV_PICK_TAG });
+      if (added?.hash) { accounts.systemTorrent(added.hash, opts.name); tvPicks.noteHash(pick.id, added.hash); }
+      return added;
+    },
+    wantSubtitles: (link, list, name) => { subtitles.wantSubtitles(link, list, name); setTimeout(checkSubtitleWants, 30_000); },
+    filmHave: async () => null, freeBytes: freeBytesFor,
+    seasonEpisodes: (t, y, n) => shows.seasonEpisodes(t, y, n, tmdb),
+    haveEpisodes: (key, n, ctx) => haveEpisodes(key, n, null, ctx),
+    trimPack: (link, n, owned, ctx) => trimSeasonPack(link, n, owned, { ctx }), removePack: removeNewPack,
+    reopenPack: (link, n, owned, ctx) => reopenPack(link, n, owned, { ctx, key: shows.showKey(pick.title) }),
+    torrentsHere: async () => new Set((await qbit('/api/v2/torrents/info')).map((t) => t.hash.toLowerCase())),
+    inOrder: ({ hash, existing }, n) => { if (!existing) orderEpisodes(hash, shows.showKey(pick.title), n); },
+    log: (msg) => console.log(msg),
+  });
+}
+
+let pickSizes = { at: 0, map: new Map() };
+function pickSizeOf(key) {
+  if (Date.now() - pickSizes.at > 30_000) {
+    const map = new Map();
+    for (const i of [...(libraryCache.all || []), ...(libraryCache.items || [])]) {
+      const k = accounts.mediaKey(i.full);
+      if (k && !map.has(k)) map.set(k, i.size || 0);
+    }
+    pickSizes = { at: Date.now(), map };
+  }
+  return pickSizes.map.get(key) ?? null;
+}
+const tvPicks = LIVE_TV_PICKS_GB > 0 && QBIT_URL && MEDIA_DIR && (TMDB_TOKEN || TMDB_KEY) ? createTvPicks({
+  file: path.join(DATA_DIR, '.lilin-tv-picks.json'), capBytes: LIVE_TV_PICKS_GB * 1024 ** 3, reserveBytes: PICKS_RESERVE,
+  tmdb: (endpoint, params) => tmdb(endpoint, params), filmOut,
+  onServer: async () => {
+    const out = new Set((await liveTv.items()).map((i) => i.titleKey).filter(Boolean));
+    for (const t of await qbit('/api/v2/torrents/info')) {
+      const f = shows.filmDownload(t.hash), sh = shows.showDownload(t.hash);
+      if (f?.id) out.add(`movie:${f.id}`);
+      if (sh?.id) out.add(`tv:${sh.id}`);
+    }
+    return out;
+  },
+  start: (pick, details) => startPickJob(pick, details),
+  job: (id) => smart.smartJob(id),
+  torrents: (hashes) => qbit(`/api/v2/torrents/info?hashes=${hashes.join('|')}`),
+  sizeOf: pickSizeOf,
+  held: (key) => accounts.holders(key).length > 0,
+  forget: (key) => accounts.markDeleting(key),
+  dropTorrent: async (hash) => {
+    if (accounts.torrentClaimants(hash).length) return; // someone asked for it since: theirs
+    await qbitRequest('/api/v2/torrents/delete', { method: 'POST', body: new URLSearchParams({ hashes: hash, deleteFiles: 'true' }) });
+  },
+  freeBytes: (type) => freeBytesFor(type),
+  log: (msg) => console.log(msg),
+}) : null;
+if (tvPicks) {
+  console.log(`[tv-picks] on: up to ${LIVE_TV_PICKS_GB} GB of trending films and shows for Live TV`);
+  setTimeout(() => tvPicks.round(), 5 * 60 * 1000).unref();
+  setInterval(() => tvPicks.round(), 3 * 3600 * 1000).unref();
 }
 
 async function claimFiles() {

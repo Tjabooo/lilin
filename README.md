@@ -37,9 +37,10 @@ Docker, and installs as a web app on your phone's home screen.
 - **Jellyfin**: the [Lilin plugin](https://github.com/Tjabooo/jellyfin-plugin-lilin) shows your
   library in your own Jellyfin, in every Jellyfin app, with progress kept in sync.
 - **Watch Together** rooms with synced playback.
-- **Live TV**: always-on channels made from the library (Anime, Sitcoms, Films, Documentaries, each person's picks and
+- **Live TV**: always-on channels made from the library (Anime, Sitcoms, Films, Documentaries, Fresh, each person's picks and
   channels the owner makes), with a guide on the web and the TV apps. Everyone on a channel sees the same frame; the name is
-  yours to pick (`LIVE_TV_NAME`, default Lilin TV).
+  yours to pick (`LIVE_TV_NAME`, default Lilin TV). Optionally the server tops the channels up with trending films and shows
+  it downloads by itself, within a size cap (`LIVE_TV_PICKS_GB`), on a Fresh channel for what's new.
 - **Notifications** on phones and computers (Web Push, nothing to sign up for): downloads ready, new
   episodes and Watch Together invites, each switchable.
 - **Personal accounts** through Cloudflare Access: everyone gets their own library, progress and

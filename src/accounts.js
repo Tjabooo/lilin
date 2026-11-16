@@ -450,6 +450,7 @@ export function mediaKey(full) {
 
 // Videos Lilin looks after (in someone's library, or waiting to be deleted).
 export const trackedKeys = () => new Set(db.prepare("SELECT key FROM media WHERE state != 'gone'").all().map((r) => r.key));
+export const trackMedia = (key) => track(key); // a video Lilin looks after that's in nobody's library (Live TV picks)
 function track(key) {
   db.prepare("INSERT INTO media (key, state, first_seen) VALUES (?, 'tracked', ?) ON CONFLICT(key) DO UPDATE SET state = 'tracked'").run(key, Date.now());
 }
@@ -639,6 +640,16 @@ export function recordTorrent(hash, userId, name) {
   if (!hash) return;
   db.prepare('INSERT INTO torrents (hash, user_id, name, added_at) VALUES (?, ?, ?, ?) ON CONFLICT(hash) DO NOTHING')
     .run(hash.toLowerCase(), userId, String(name || '').slice(0, 300), Date.now());
+}
+// A download the server started for itself (Live TV picks): nobody's, so its files go into no library. A torrent
+// someone already has (or asked for) stays theirs.
+export function systemTorrent(hash, name) {
+  if (!hash) return;
+  hash = String(hash).toLowerCase();
+  db.prepare(`INSERT INTO torrents (hash, user_id, name, added_at) VALUES (?, NULL, ?, ?)
+    ON CONFLICT(hash) DO UPDATE SET user_id = NULL
+    WHERE torrents.claimed_at IS NULL AND NOT EXISTS (SELECT 1 FROM torrent_requests r WHERE r.hash = torrents.hash)`)
+    .run(hash, String(name || '').slice(0, 300), Date.now());
 }
 export function torrentRow(hash) {
   return db.prepare('SELECT * FROM torrents WHERE hash = ?').get(String(hash).toLowerCase()) || null;
