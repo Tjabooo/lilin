@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-trailer-volume",
+  "date": "2026-11-17",
+  "title": "Trailer volume",
+  "items": [
+    {
+      "title": "Volume slider on trailers",
+      "text": "Trailers on a title page now have a volume slider next to the mute button: point at the speaker to show it, or use the up and down arrow keys. Trailers remember the volume you picked. On phones the volume is still your phone's own buttons."
+    }
+  ]
+},
+{
   "id": "2026-11-16-autoplay-asleep",
   "date": "2026-11-16",
   "title": "Fell asleep? Your place is kept",

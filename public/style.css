@@ -984,6 +984,19 @@ html.has-vt .view { animation: none; }
 .tc-bar .pc-time { min-width: 4ch; font-size: 13px; }
 .tc-cur { text-align: right; }
 .tc-seek { margin: 0 6px; }
+.tc-volume { display: flex; align-items: center; }
+.tc-vol {
+  width: 0; height: 4px; margin: 0; opacity: 0;
+  -webkit-appearance: none; appearance: none;
+  background: linear-gradient(to right, var(--paper) var(--val, 100%), rgba(246, 234, 223, 0.25) var(--val, 100%));
+  border-radius: 2px; cursor: pointer;
+  transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+}
+.tc-volume:hover .tc-vol, .tc-volume:focus-within .tc-vol { width: 84px; margin-right: 8px; opacity: 1; }
+.tc-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--paper); border: 0; border-radius: 50%; }
+.tc-vol::-moz-range-thumb { width: 12px; height: 12px; background: var(--paper); border: 0; border-radius: 50%; }
+/* Touch screens: the phone's own buttons are the volume (iOS ignores a page's), so only mute stays */
+@media (hover: none) { .tc-vol { display: none; } }
 .trailer-frame:fullscreen { border-radius: 0; }
 .trailer-frame:fullscreen .tc-bar { padding: 72px 24px 16px; }
 @media (hover: hover) and (pointer: fine) { .tc .tc-big:hover { background: var(--bulb); transform: scale(1.05); } }

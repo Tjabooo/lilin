@@ -1,4 +1,13 @@
 {
+  "2026-11-17-trailer-volume": {
+    "title": "Volym på trailers",
+    "items": {
+      "Volume slider on trailers": {
+        "title": "Volymreglage på trailers",
+        "text": "Trailers på en titelsida har nu ett volymreglage bredvid ljudknappen: peka på högtalaren för att visa det, eller använd upp- och nedpilarna. Trailers kommer ihåg volymen du valde. På mobilen är volymen fortfarande telefonens egna knappar."
+      }
+    }
+  },
   "2026-11-16-autoplay-asleep": {
     "title": "Somnade du? Din plats sparas",
     "items": {

@@ -29,7 +29,9 @@ const el = (tag, cls, attrs = {}) => {
 
 // box: the .trailer-frame around the iframe; icon(name) returns an <svg> from app.js. Returns a stop function.
 export function trailerControls(box, frame, icon) {
-  const st = { state: -1, time: 0, duration: 0, loaded: 0, muted: false, ready: false, dragging: false };
+  const st = { state: -1, time: 0, duration: 0, loaded: 0, muted: false, volume: 100, ready: false, dragging: false };
+  let saved = null; // the volume the person last picked for trailers, put on the player once it answers
+  try { const v = localStorage.getItem('trailer:volume'); if (v !== null && Number(v) >= 0 && Number(v) <= 100) saved = Number(v); } catch { /* blocked */ }
   const send = (func, args = []) => frame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args, id: 1, channel: 'widget' }), YT_ORIGIN);
 
   const ui = el('div', 'tc');
@@ -46,8 +48,11 @@ export function trailerControls(box, frame, icon) {
   seek.append(track, el('div', 'seek-thumb'));
   const dur = el('span', 'pc-time pc-duration tc-dur'); dur.textContent = '0:00';
   const mute = el('button', 'pc-btn tc-mute', { type: 'button', 'aria-label': T('Mute') });
+  const vol = el('input', 'tc-vol', { type: 'range', min: '0', max: '100', step: '5', value: '100', 'aria-label': T('Volume') });
+  const volume = el('div', 'tc-volume');
+  volume.append(mute, vol);
   const full = el('button', 'pc-btn tc-full', { type: 'button', 'aria-label': T('Fullscreen') });
-  bar.append(play, cur, seek, dur, mute, full);
+  bar.append(play, cur, seek, dur, volume, full);
   ui.append(hit, big, bar);
   box.append(ui);
   frame.tabIndex = -1; // focus stays on Lilin's page, so Esc closes the sheet instead of going to YouTube
@@ -57,7 +62,10 @@ export function trailerControls(box, frame, icon) {
     box.classList.toggle('is-paused', st.ready && !playing());
     play.replaceChildren(icon(playing() ? 'pause' : 'play'));
     play.setAttribute('aria-label', playing() ? T('Pause') : T('Play'));
-    mute.replaceChildren(icon(st.muted ? 'muted' : 'volumeHigh'));
+    const level = st.muted ? 0 : st.volume;
+    mute.replaceChildren(icon(level === 0 ? 'muted' : level < 50 ? 'volume' : 'volumeHigh'));
+    if (document.activeElement !== vol) vol.value = String(level);
+    vol.style.setProperty('--val', `${level}%`);
     mute.setAttribute('aria-pressed', String(st.muted));
     full.replaceChildren(icon(document.fullscreenElement === box ? 'fullscreenExit' : 'fullscreen'));
     const pos = st.duration ? Math.min(1, st.time / st.duration) : 0;
@@ -88,7 +96,18 @@ export function trailerControls(box, frame, icon) {
     send('seekTo', [st.time, true]);
     render(); wake();
   };
-  const toggleMute = () => { st.muted = !st.muted; send(st.muted ? 'mute' : 'unMute'); render(); wake(); };
+  const remember = () => { try { localStorage.setItem('trailer:volume', String(st.volume)); } catch { /* blocked */ } };
+  const setVolume = (v) => {
+    st.volume = Math.round(Math.min(100, Math.max(0, v)));
+    send('setVolume', [st.volume]);
+    const silent = st.volume === 0;
+    if (silent !== st.muted) { st.muted = silent; send(silent ? 'mute' : 'unMute'); }
+    remember(); render(); wake();
+  };
+  const toggleMute = () => {
+    if (st.muted && st.volume === 0) { st.volume = 50; send('setVolume', [50]); remember(); } // unmuting at zero would stay silent
+    st.muted = !st.muted; send(st.muted ? 'mute' : 'unMute'); render(); wake();
+  };
   const toggleFull = () => {
     if (document.fullscreenElement === box) document.exitFullscreen?.().catch(() => {});
     else (box.requestFullscreen || box.webkitRequestFullscreen)?.call(box)?.catch?.(() => {});
@@ -106,6 +125,7 @@ export function trailerControls(box, frame, icon) {
   big.addEventListener('click', toggle);
   play.addEventListener('click', toggle);
   mute.addEventListener('click', toggleMute);
+  vol.addEventListener('input', () => setVolume(Number(vol.value)));
   full.addEventListener('click', toggleFull);
 
   const at = (e) => {
@@ -132,10 +152,12 @@ export function trailerControls(box, frame, icon) {
     else if (e.key === 'End') { e.preventDefault(); seekTo(st.duration - 1); }
   });
   box.addEventListener('keydown', (e) => {
-    if (e.target.closest?.('input, textarea')) return;
+    if (e.target.closest?.('textarea') || (e.target.closest?.('input') && e.target !== vol)) return;
+    if (e.target === vol && e.key.startsWith('Arrow')) return; // the slider moves itself
     const k = e.key.toLowerCase();
     if ((k === ' ' && e.target === seek) || k === 'k') { e.preventDefault(); toggle(); }
     else if (k === 'm') toggleMute();
+    else if (k === 'arrowup' || k === 'arrowdown') { e.preventDefault(); setVolume((st.muted ? 0 : st.volume) + (k === 'arrowup' ? 5 : -5)); }
     else if (k === 'f') toggleFull();
     else if (k === 'j' || (k === 'arrowleft' && e.target !== seek)) seekTo(st.time - 5);
     else if (k === 'l' || (k === 'arrowright' && e.target !== seek)) seekTo(st.time + 5);
@@ -159,8 +181,12 @@ export function trailerControls(box, frame, icon) {
       if (typeof info.duration === 'number' && info.duration > 0) st.duration = info.duration;
       if (typeof info.videoLoadedFraction === 'number') st.loaded = info.videoLoadedFraction;
       if (typeof info.muted === 'boolean') st.muted = info.muted;
+      if (typeof info.volume === 'number' && document.activeElement !== vol) st.volume = info.volume;
     }
-    if (st.ready) { clearInterval(hello); box.classList.add('tc-ready'); }
+    if (st.ready) {
+      clearInterval(hello); box.classList.add('tc-ready');
+      if (saved !== null) { st.volume = saved; send('setVolume', [saved]); saved = null; }
+    }
     render();
   };
   window.addEventListener('message', onMessage);
