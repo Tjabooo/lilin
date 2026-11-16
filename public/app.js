@@ -4934,14 +4934,17 @@ function saveProgress(force = false) {
   if (!force && now - lastPush < 15000) return;
   lastPush = now;
   const ref = progressRef(current);
+  // Started by the Next episode countdown and nobody has pressed or tapped anything since: maybe asleep, so the
+  // server doesn't count it as finished (Up next stays on it).
+  const auto = autoChain > 0;
   if (done) delete state.progress[ref];
-  if (done) noteFinished(current, now);
+  if (done && !auto) noteFinished(current, now);
   else state.progress[ref] = { time: video.currentTime, duration: video.duration, at: now };
   invalidateLibraryProgress();
   const watched = Math.round(playedSince * 10) / 10;
   playedSince = 0;
   api('/api/me/progress', { ...jsonPost({ ref, time: done ? null : video.currentTime, duration: video.duration,
-    watched, about: watchAbout(current), room: party?.state.token || undefined }), keepalive: true }).catch(() => {});
+    watched, about: watchAbout(current), room: party?.state.token || undefined, auto: auto || undefined }), keepalive: true }).catch(() => {});
 }
 let lastPush = 0;
 

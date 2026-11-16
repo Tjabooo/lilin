@@ -317,6 +317,8 @@ impl Player {
             "time": if done { Value::Null } else { Value::from(self.time) },
             "duration": self.duration,
             "watched": watched_secs,
+            // Up next started it and nobody has pressed a key since (asleep?): not marked finished on the server.
+            "auto": cx.auto_chain > 0,
             "about": {
                 "titleKey": logic::title_key(f),
                 "title": title,

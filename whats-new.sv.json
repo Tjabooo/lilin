@@ -1,4 +1,13 @@
 {
+  "2026-11-16-autoplay-asleep": {
+    "title": "Somnade du? Din plats sparas",
+    "items": {
+      "Autoplayed episodes don't count as watched": {
+        "title": "Automatiskt spelade avsnitt räknas inte som sedda",
+        "text": "När avsnitt spelas vidare av sig själva och du inte trycker på något räknas de inte längre som sedda. Om du somnar tar Fortsätt titta upp det första avsnittet du missade i stället för att hoppa fram. Tryck på något medan ett avsnitt spelas så räknas det som vanligt. Fungerar på webben, i tv-appen och i Samsung-tv-appen."
+      }
+    }
+  },
   "2026-11-16-continue-latest": {
     "title": "Fortsätt titta följer ditt senaste avsnitt",
     "items": {

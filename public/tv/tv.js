@@ -2023,7 +2023,8 @@
       } else state.progress[key] = { time: s.time, duration: s.duration, at: t };
       var watchedSecs = Math.round(s.played * 10) / 10;
       s.played = 0;
-      api('/api/me/progress', { ref: key, time: done ? null : s.time, duration: s.duration, watched: watchedSecs,
+      // auto: Up next started it and nobody has pressed a key since (asleep?): not marked finished on the server.
+      api('/api/me/progress', { ref: key, time: done ? null : s.time, duration: s.duration, watched: watchedSecs, auto: autoChain > 0,
         about: { titleKey: L.titleKey(f), title: f.filmTitle || f.canonicalTitle || f.title || '', season: f.season != null ? f.season : null, episode: f.episode != null ? f.episode : null } })
         .catch(function () {});
     }

@@ -3487,13 +3487,15 @@ async function handleApi(req, res, url) {
   }
   if (p === '/api/me/progress') {
     if (req.method === 'POST') {
-      const { ref, time, duration, watched, about, room, live: onAir } = await readJson(req);
+      // auto: autoplay started this episode and nobody has touched anything since (asleep?): it plays and counts
+      // as watch time, but isn't marked finished, so Up next stays on the first episode they slept through.
+      const { ref, time, duration, watched, about, room, live: onAir, auto } = await readJson(req);
       // Watching a channel counts as watching (Wrapped), but only "Keep watching" makes a resume point.
       if (!onAir) saveProgressAllVersions(user.id, ref, time, duration);
       // Watch time for Wrapped and Popular on Lilin (see social.js), with who was in the same room.
       if (about && typeof about === 'object') {
         const companions = /^[A-Za-z0-9_-]{24}$/.test(String(room || '')) ? watchRooms.companions(room, user.id) : [];
-        social.logWatch(user.id, { ref, about, watched, finished: !onAir && time == null, companions });
+        social.logWatch(user.id, { ref, about, watched, finished: !onAir && !auto && time == null, companions });
       }
       return sendJson(res, 200, { ok: true });
     }

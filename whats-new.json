@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-16-autoplay-asleep",
+  "date": "2026-11-16",
+  "title": "Fell asleep? Your place is kept",
+  "items": [
+    {
+      "title": "Autoplayed episodes don't count as watched",
+      "text": "When episodes play on by themselves and you don't press or tap anything, they no longer count as watched. If you fall asleep, Continue watching picks up at the first episode you missed instead of jumping ahead. Press or tap anything while an episode plays and it counts as normal. Works on the web, the TV app and the Samsung TV app."
+    }
+  ]
+},
+{
   "id": "2026-11-16-continue-latest",
   "date": "2026-11-16",
   "title": "Continue watching follows your latest episode",
