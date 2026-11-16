@@ -5,6 +5,7 @@
   "title": "Rename clips in the clip editor",
   "items": [
     {
+      "audience": "owner",
       "title": "Rename while you edit",
       "text": "The clip's name at the top of the editor is now a button: click it (or press R) to rename the clip without leaving the editor. The header also got a calmer look with room to breathe."
     }
