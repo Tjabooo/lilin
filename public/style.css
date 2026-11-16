@@ -3731,3 +3731,69 @@ html.wrapped-on { overflow: hidden; }
   .nownext { grid-template-columns: 96px 1fr; }
   .live-strip { bottom: calc(var(--safe-bottom) + 60px); }
 }
+
+/* The idea box (Settings): a lit marquee bulb, a note to the owner, and your ideas with answers. */
+.idea-box {
+  margin: 12px 0 4px; padding: 16px 18px 14px; display: grid; gap: 12px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: radial-gradient(110% 130% at 0% 0%, var(--bulb-dim), transparent 55%), var(--surface-1);
+}
+.idea-head { display: flex; align-items: center; gap: 14px; }
+.idea-bulb {
+  flex: none; width: 14px; height: 14px; margin: 0 4px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff8e1, var(--bulb) 55%, color-mix(in srgb, var(--bulb) 60%, #000));
+  box-shadow: 0 0 0 4px var(--bulb-dim), 0 0 18px 2px var(--bulb-dim);
+}
+.idea-box:focus-within .idea-bulb { box-shadow: 0 0 0 5px var(--bulb-dim), 0 0 26px 6px var(--bulb-dim); transition: box-shadow 0.4s; }
+.idea-title { margin: 0; font: 800 18px/1.25 var(--display); color: var(--bulb); }
+.idea-sub { margin: 2px 0 0; font-size: 14px; color: var(--text-2); }
+.idea-form { display: grid; gap: 10px; }
+.idea-text {
+  width: 100%; min-height: 84px; resize: vertical; padding: 12px 14px; box-sizing: border-box;
+  font-size: 15px; line-height: 1.45; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--hairline-2); border-radius: var(--r-sm);
+}
+.idea-text::placeholder { color: var(--text-3); }
+.idea-text:focus { outline: 2px solid var(--bulb); border-color: transparent; }
+.idea-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.idea-kinds { display: flex; gap: 6px; flex-wrap: wrap; margin-right: auto; }
+.idea-kind {
+  height: 32px; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--text-2);
+  background: none; border: 1px solid var(--hairline-2); border-radius: 999px;
+}
+.idea-kind:hover { color: var(--text); }
+.idea-kind[aria-checked="true"] { color: var(--bulb); border-color: var(--bulb); background: var(--bulb-dim); }
+.idea-count { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.idea-send {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px 0 12px;
+  font-weight: 700; color: var(--on-bulb); background: var(--bulb); border: 0; border-radius: 999px;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.idea-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transform: rotate(45deg); }
+.idea-send:hover:not(:disabled) { transform: translateY(-1px); }
+.idea-send:disabled { opacity: 0.4; cursor: default; }
+.idea-mine summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-2); padding: 2px 0; }
+.idea-mine[open] summary { margin-bottom: 8px; }
+.idea-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.idea-item { padding: 12px 14px; background: var(--surface-2); border-radius: var(--r-sm); display: grid; gap: 6px; }
+.idea-inbox .idea-item { background: var(--surface-1); }
+.idea-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-3); }
+.idea-meta strong { color: var(--text); font-size: 14px; }
+.idea-meta .tag { margin-left: 0; }
+.idea-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.idea-reply {
+  margin: 2px 0 0; padding: 8px 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45;
+  background: var(--bulb-dim); border-left: 3px solid var(--bulb); border-radius: 4px var(--r-xs) var(--r-xs) 4px;
+}
+.idea-reply-who { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bulb); margin-bottom: 2px; }
+.idea-status { padding: 1px 8px; font: 700 11px/18px var(--body); border-radius: 999px; color: var(--text-2); background: var(--surface-1); }
+.idea-status.idea-planned { color: var(--bulb); background: var(--bulb-dim); }
+.idea-status.idea-added { color: var(--on-bulb); background: var(--bulb); }
+.idea-status.idea-notnow { color: var(--text-3); }
+.idea-link { margin-left: auto; padding: 0; font-size: 13px; color: var(--text-3); background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; }
+.idea-link:hover { color: var(--text); }
+.idea-owner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.idea-owner .segmented button { height: 30px; padding: 0 12px; font-size: 13px; }
+.idea-reply-input { height: 38px; }
+.idea-filter { overflow-x: auto; scrollbar-width: none; }
+.idea-empty { margin: 4px 2px; }

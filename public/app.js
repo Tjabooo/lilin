@@ -2374,6 +2374,7 @@ async function applyLive() {
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('avatars') && view === 'library') jobs.push(loadParties());
   if (has('parties') && view === 'library') jobs.push(loadParties());
@@ -7681,6 +7682,8 @@ function renderSettings() {
     out.push(open);
   }
 
+  out.push(me.isOwner ? ideaInboxRow() : ideaBox());
+
   if (me.via === 'session' || me.hasPassword) out.push(accountSection());
 
   out.push(...appearanceSection());
@@ -7730,6 +7733,7 @@ function renderSettings() {
 
   if (me.isOwner) out.push(...ownerSettings());
   body.replaceChildren(...settingsLayout(out.filter(Boolean)));
+  if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $(me.isOwner ? '[data-anchor="idea-inbox"]' : '#idea-box')?.scrollIntoView({ block: 'start' })); }
 }
 // Live updates redraw Settings; not in the middle of a scroll (on a phone that stops the scroll dead), but once it settles.
 let lastPageScroll = 0, settingsRedraw = null;
@@ -7844,6 +7848,146 @@ async function loadPush() {
   })();
   return pushView.loading;
 }
+// ---- the idea box (/api/ideas, src/ideas.js) ----
+// Everyone gets a little box in Settings to send the owner ideas, with their own ideas and the
+// owner's answers under it. The owner gets the inbox instead, in the Server part of Settings.
+const ideasView = { loaded: false, loading: null, mine: [], all: null, kind: 'feature', draft: '', sending: false, filter: 'new', jump: false };
+const IDEA_KINDS = () => [['feature', T('Idea')], ['fix', T('Something’s off')], ['other', T('Other')]];
+const IDEA_STATUS = () => ({ new: T('Sent'), planned: T('Planned'), added: T('Added'), notnow: T('Not now') });
+function loadIdeas() {
+  ideasView.loading ||= api('/api/ideas').then((r) => {
+    ideasView.mine = r.mine || []; ideasView.all = r.all || null; ideasView.loaded = true;
+  }).catch(() => { ideasView.loaded = true; }).finally(() => { ideasView.loading = null; });
+  return ideasView.loading;
+}
+function ideasNeeded() {
+  if (ideasView.loaded) return false;
+  loadIdeas().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); });
+  return true;
+}
+const ideaStatusPill = (status) => h('span', { class: `idea-status idea-${status}` }, IDEA_STATUS()[status] || status);
+
+function ideaBox() {
+  ideasNeeded();
+  const text = h('textarea', { class: 'idea-text', rows: '3', maxlength: '1000', placeholder: T('I wish Lilin could…'), 'aria-label': T('Your idea') });
+  text.value = ideasView.draft;
+  const count = h('span', { class: 'idea-count', 'aria-hidden': 'true' });
+  const send = h('button', { class: 'idea-send', type: 'submit', disabled: ideasView.sending || ideasView.draft.trim().length < 3 },
+    icon('send'), h('span', {}, T('Send')));
+  const showCount = () => { const n = text.value.length; count.textContent = n > 800 ? `${n}/1000` : ''; };
+  showCount();
+  text.addEventListener('input', () => { ideasView.draft = text.value; send.disabled = ideasView.sending || text.value.trim().length < 3; showCount(); });
+  const kinds = h('div', { class: 'idea-kinds', role: 'radiogroup', 'aria-label': T('What kind of idea') },
+    IDEA_KINDS().map(([key, label]) => {
+      const b = h('button', { type: 'button', role: 'radio', class: 'idea-kind', 'aria-checked': String(ideasView.kind === key) }, label);
+      b.addEventListener('click', () => {
+        ideasView.kind = key;
+        kinds.querySelectorAll('.idea-kind').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      });
+      return b;
+    }));
+  const form = h('form', { class: 'idea-form' }, text, h('div', { class: 'idea-actions' }, kinds, count, send));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (ideasView.sending || text.value.trim().length < 3) return;
+    ideasView.sending = true; send.disabled = true;
+    try {
+      const r = await api('/api/ideas', jsonPost({ text: text.value, kind: ideasView.kind }));
+      ideasView.mine = r.mine || ideasView.mine; ideasView.draft = ''; ideasView.kind = 'feature';
+      text.blur();
+      toast(T('Idea sent. Thanks!'));
+    } catch (err) { toast(err.message); }
+    finally { ideasView.sending = false; renderSettings(); }
+  });
+  const mine = ideasView.mine;
+  return h('section', { class: 'idea-box', id: 'idea-box', 'aria-labelledby': 'idea-box-title' },
+    h('div', { class: 'idea-head' },
+      h('span', { class: 'idea-bulb', 'aria-hidden': 'true' }),
+      h('div', {},
+        h('h4', { class: 'idea-title', id: 'idea-box-title' }, T('Idea box')),
+        h('p', { class: 'idea-sub' }, T('Something you wish Lilin did? It goes straight to the owner.')))),
+    form,
+    mine.length > 0 && h('details', { class: 'idea-mine', open: mine.some((i) => i.answered && Date.now() - i.answered < 7 * 86400000) || mine.length <= 3 },
+      h('summary', {}, mine.length === 1 ? T('Your idea') : T('Your ideas ({0})', mine.length)),
+      h('ul', { class: 'idea-list' }, mine.map((i) => h('li', { class: 'idea-item' },
+        h('div', { class: 'idea-meta' }, ideaStatusPill(i.status), h('span', {}, fmtAgo(i.created)),
+          i.status === 'new' && !i.reply && h('button', { type: 'button', class: 'idea-link', onclick: () => takeBackIdea(i) }, T('Take back'))),
+        h('p', { class: 'idea-body' }, i.text),
+        i.reply && h('p', { class: 'idea-reply' }, h('span', { class: 'idea-reply-who' }, T('Owner')), i.reply))))));
+}
+async function takeBackIdea(idea) {
+  try {
+    const r = await api(`/api/ideas/${idea.id}/delete`, jsonPost({}));
+    ideasView.mine = r.mine || ideasView.mine.filter((i) => i.id !== idea.id);
+    toast(T('Idea taken back'));
+  } catch (err) { toast(err.message); }
+  renderSettings();
+}
+
+// The owner's way in from the top of Settings: how many ideas wait, and a jump to the inbox.
+function ideaInboxRow() {
+  if (ideasNeeded()) return null;
+  const waiting = (ideasView.all || []).filter((i) => i.status === 'new').length;
+  const go = h('button', { class: `chip whats-new-open${waiting ? ' has-new' : ''}`, type: 'button',
+    onclick: () => $('[data-anchor="idea-inbox"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
+  waiting ? (waiting === 1 ? T('1 new') : T('{0} new', waiting)) : T('Open'));
+  return settingsRow(T('Idea box'), T('What people would like to see in Lilin.'), go);
+}
+function ideaInbox() {
+  const out = [h('h3', { class: 'set-head', 'data-anchor': 'idea-inbox' }, T('Ideas'))];
+  if (!ideasView.loaded) { ideasNeeded(); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
+  const all = ideasView.all || [];
+  const counts = { new: 0, planned: 0, added: 0, notnow: 0 };
+  for (const i of all) counts[i.status] = (counts[i.status] || 0) + 1;
+  const labels = IDEA_STATUS();
+  const filters = [['new', T('New')], ['planned', labels.planned], ['added', labels.added], ['notnow', labels.notnow], ['all', T('All')]]
+    .map(([key, label]) => [key, key === 'all' ? `${label} ${all.length}` : `${label} ${counts[key] || 0}`]);
+  const filterBar = segmented(filters, ideasView.filter, (v) => { ideasView.filter = v; renderSettings(); }, T('Show ideas'));
+  filterBar.classList.add('idea-filter');
+  out.push(filterBar);
+  const shown = ideasView.filter === 'all' ? all : all.filter((i) => i.status === ideasView.filter);
+  if (!shown.length) {
+    out.push(h('p', { class: 'muted idea-empty' }, all.length ? T('Nothing here.') : T('No ideas yet. They show up here when someone uses the idea box in their Settings.')));
+    return out;
+  }
+  const kinds = Object.fromEntries(IDEA_KINDS());
+  out.push(h('ul', { class: 'idea-list idea-inbox' }, shown.map((i) => {
+    const reply = h('input', { type: 'text', class: 'invite-note idea-reply-input', maxlength: '500', value: i.reply || '',
+      placeholder: i.name ? T('Answer {0}', i.name) : T('Answer'), 'aria-label': i.name ? T('Answer {0}', i.name) : T('Answer'), enterkeyhint: 'send' });
+    const sendReply = () => { if (reply.value.trim() !== (i.reply || '')) answerIdea(i, { reply: reply.value }); };
+    reply.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); reply.blur(); } });
+    reply.addEventListener('change', sendReply);
+    return h('li', { class: 'idea-item' },
+      h('div', { class: 'idea-meta' },
+        h('strong', {}, i.name || T('Someone')), h('span', {}, fmtAgo(i.created)),
+        i.kind !== 'feature' && h('span', { class: 'tag' }, kinds[i.kind] || i.kind)),
+      h('p', { class: 'idea-body' }, i.text),
+      h('div', { class: 'idea-owner' },
+        segmented([['planned', labels.planned], ['added', labels.added], ['notnow', labels.notnow]], i.status,
+          (v) => answerIdea(i, { status: v === i.status ? 'new' : v }), T('Mark idea')),
+        h('button', { type: 'button', class: 'idea-link', onclick: () => deleteIdea(i) }, T('Delete'))),
+      reply);
+  })));
+  return out;
+}
+async function answerIdea(idea, change) {
+  try {
+    const r = await api(`/api/ideas/${idea.id}`, jsonPost(change));
+    ideasView.all = (ideasView.all || []).map((i) => (i.id === idea.id ? r.idea : i));
+    ideasView.mine = ideasView.mine.map((i) => (i.id === idea.id ? r.idea : i));
+    if ('reply' in change) toast(r.idea.reply ? T('Answer sent') : T('Answer removed'));
+  } catch (err) { toast(err.message); }
+  renderSettings();
+}
+async function deleteIdea(idea) {
+  if (!confirm(T('Delete this idea?'))) return;
+  try {
+    await api(`/api/ideas/${idea.id}/delete`, jsonPost({}));
+    ideasView.all = (ideasView.all || []).filter((i) => i.id !== idea.id);
+  } catch (err) { toast(err.message); }
+  renderSettings();
+}
+
 function notificationSettings() {
   const support = pushDevice.pushSupport();
   const p = prefs();
@@ -7890,8 +8034,10 @@ function notificationSettings() {
       toggle(p.pushEpisode !== false, (v) => saveMe({ pushEpisode: v }), T('Notify about new episodes'))));
     out.push(settingsRow(T('Watch Together invites'), T('When someone asks you to join their room. Off: nobody can invite you this way.'),
       toggle(p.pushWatch !== false, (v) => saveMe({ pushWatch: v }), T('Notify about Watch Together invites'))));
-    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new: a short summary of what changed.'),
+    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new, or the owner answers an idea you sent.'),
       toggle(p.pushUpdate !== false, (v) => saveMe({ pushUpdate: v }), T('Notify about Lilin updates'))));
+    if (state.me?.isOwner) out.push(settingsRow(T('New ideas'), T('When someone sends an idea through the idea box.'),
+      toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about new ideas'))));
     if (state.me?.isOwner) out.push(settingsRow(T('Agents'), T('When a script or AI agent on your home machines asks for your attention.'),
       toggle(p.pushAgent !== false, (v) => saveMe({ pushAgent: v }), T('Notify when an agent needs you'))));
     const test = h('button', { class: 'chip', type: 'button' }, T('Send a test'));
@@ -8023,6 +8169,8 @@ function ownerSettings() {
       h('li', {}, T('Set Session Duration to 1 month (it’s 24 hours now) and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
     h('p', { class: 'set-hint' }, T('If someone’s sign-in does run out while Lilin is open, it now tells them and signs them back in with one tap.'))));
+
+  out.push(...ideaInbox());
 
   out.push(h('h3', { class: 'set-head' }, T('People')));
   if (state.peopleError) out.push(h('p', { class: 'muted' }, state.peopleError));
@@ -9787,6 +9935,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
   if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
+  if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
   const view = url.hash.slice(1);
   if (view && view !== state.view && $(`#view-${view}`)) await setView(view);
@@ -9824,6 +9973,12 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (noteId) {
     const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     if (state.status.admin && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
+  }
+  // An idea box notification opens Lilin as ?ideas=1: Settings, scrolled to the ideas.
+  if (new URL(location.href).searchParams.has('ideas')) {
+    const url = new URL(location.href); url.searchParams.delete('ideas'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    ideasView.jump = true;
+    if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings');
   }
   // A "Ready for your phone" notification opens Lilin as ?travel=1.
   if (new URL(location.href).searchParams.has('travel')) {

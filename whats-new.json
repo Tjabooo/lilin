@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-idea-box",
+  "date": "2026-11-17",
+  "title": "The idea box",
+  "items": [
+    {
+      "title": "Tell us what Lilin should do next",
+      "text": "Settings now has an idea box. Write what you wish Lilin did, or something that feels off, and press Send: it goes straight to the owner. Your ideas stay listed under the box, and you see when one is planned or added, plus any answer. With notifications on, you also get a notification when someone answers."
+    }
+  ]
+},
+{
   "id": "2026-11-17-trailer-volume",
   "date": "2026-11-17",
   "title": "Trailer volume",

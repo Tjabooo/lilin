@@ -555,5 +555,17 @@
  "Pick at least one show, genre or library for the channel.": "Välj minst en serie, genre eller ett bibliotek till kanalen.",
  "That’s plenty of channels. Remove one first.": "Det räcker med kanaler. Ta bort en först.",
  "That channel is gone already.": "Den kanalen finns inte längre.",
- "Keep the name under 30 characters.": "Håll namnet under 30 tecken."
+ "Keep the name under 30 characters.": "Håll namnet under 30 tecken.",
+ "{0} has an idea for Lilin": "{0} har en idé till Lilin",
+ "Someone has an idea for Lilin": "Någon har en idé till Lilin",
+ "Your idea is planned": "Din idé är planerad",
+ "Your idea is in Lilin now": "Din idé finns i Lilin nu",
+ "An answer to your idea": "Ett svar på din idé",
+ "Only the server’s owner can answer ideas.": "Bara serverns ägare kan svara på idéer.",
+ "Write a few words about your idea first.": "Skriv några ord om din idé först.",
+ "That’s a lot of ideas for one day. Send the rest tomorrow.": "Det är många idéer för en dag. Skicka resten i morgon.",
+ "You’ve already sent that one.": "Den har du redan skickat.",
+ "That idea is gone.": "Den idén finns inte längre.",
+ "Unknown status.": "Okänd status.",
+ "Only ideas nobody has answered yet can be taken back.": "Bara idéer som ingen har svarat på än kan tas tillbaka."
 }

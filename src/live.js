@@ -21,6 +21,7 @@ const RULES = [
   [/^\/api\/admin\/notes(?:\/import|\/\d+(?:\/\w+)?|\/uploads\/[a-f0-9]{32}\/finish)?$/, 'notes', 'admin'],
   [/^\/api\/(admin\/settings|admin\/users\/\d+|access\/)/, 'people', 'all'],
   [/^\/api\/clips\//, 'clips', 'admin'],
+  [/^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/, 'ideas', 'all'], // the owner's inbox and each sender's list
   [/^\/api\/house\/power$/, 'house', 'admin'],
   [/^\/api\/cast\/(play|[\w-]+\/(control|subtitles))$/, 'sessions', 'all'],
 ];

@@ -23,6 +23,7 @@ import * as load from './load.js';
 import * as screenTime from './screentime.js';
 import * as clips from './clips.js';
 import * as invites from './invites.js';
+import * as ideas from './ideas.js';
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -312,6 +313,7 @@ const androidTv = createAndroidTv({ port: () => PORT }); // the Android TV app's
 const webBuildFor = (req) => (preview.inPreview(req, PREVIEW_DIR) ? preview.previewBuild(PREVIEW_DIR) : WEB_BUILD);
 screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
+ideas.initIdeas({ dataDir: DATA_DIR });
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
@@ -3686,6 +3688,36 @@ async function handleApi(req, res, url) {
     activity.record(req, action === 'wake' ? 'wake' : 'restart', r.detail);
     return sendJson(res, 200, { ok: true, message: r.message });
   }
+  // The idea box (ideas.js): anyone sends the owner an idea for Lilin; the owner answers in Settings.
+  if (p === '/api/ideas' || p.startsWith('/api/ideas/')) {
+    if (p === '/api/ideas' && req.method === 'GET') {
+      return sendJson(res, 200, { mine: ideas.mine(user.id), all: user.isOwner ? ideas.all() : undefined });
+    }
+    if (p === '/api/ideas' && req.method === 'POST') {
+      const idea = ideas.add(user, await readJson(req));
+      activity.record(req, 'idea', idea.text.slice(0, 80));
+      const owner = accounts.ownerUser();
+      if (owner && owner.id !== user.id) {
+        notify([owner.id], 'idea', { title: `${idea.name || 'Someone'} has an idea for Lilin`, body: idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
+      }
+      return sendJson(res, 200, { idea, mine: ideas.mine(user.id) });
+    }
+    if ((m = p.match(/^\/api\/ideas\/([a-f0-9]{8})$/)) && req.method === 'POST') {
+      if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can answer ideas.');
+      const { idea, changed } = ideas.answer(m[1], await readJson(req));
+      if (changed && idea.userId !== user.id) {
+        const title = { planned: 'Your idea is planned', added: 'Your idea is in Lilin now', notnow: 'An answer to your idea' }[idea.status]
+          || (idea.reply ? 'An answer to your idea' : null);
+        if (title) notify([idea.userId], 'update', { title, body: idea.reply || idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
+      }
+      return sendJson(res, 200, { idea });
+    }
+    if ((m = p.match(/^\/api\/ideas\/([a-f0-9]{8})\/delete$/)) && req.method === 'POST') {
+      ideas.remove(m[1], user);
+      return sendJson(res, 200, { ok: true, mine: ideas.mine(user.id) });
+    }
+    throw new HttpError(404, 'Not found.');
+  }
   // Invite links made by members the owner allows to invite ("Can invite people" in People).
   // Same one-time links as the owner's, at most a few open at a time, and only their own.
   if (p === '/api/invites' || p.startsWith('/api/invites/')) {
@@ -4708,7 +4740,7 @@ async function handleRequest(req, res) {
     const allowed = req.method === 'GET' || req.method === 'HEAD'
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

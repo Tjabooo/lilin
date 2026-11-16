@@ -1,4 +1,13 @@
 {
+  "2026-11-17-idea-box": {
+    "title": "Idélådan",
+    "items": {
+      "Tell us what Lilin should do next": {
+        "title": "Berätta vad Lilin ska göra härnäst",
+        "text": "Inställningar har nu en idélåda. Skriv vad du önskar att Lilin gjorde, eller något som känns fel, och tryck på Skicka: det går direkt till ägaren. Dina idéer ligger kvar under lådan, och du ser när en är planerad eller tillagd, plus eventuella svar. Med aviseringar på får du också en avisering när någon svarar."
+      }
+    }
+  },
   "2026-11-17-trailer-volume": {
     "title": "Volym på trailers",
     "items": {
