@@ -16,6 +16,37 @@
       }
     }
   },
+  "2026-11-16-live-subtitles-fix": {
+    "title": "Undertexter på Live-tv syns nu",
+    "items": {
+      "No more vanishing lines": {
+        "title": "Inga fler försvunna rader",
+        "text": "På en dator gled undertexterna på Live-tv upp ur bild när kontrollerna visades. Nu ligger de precis ovanför kanalraden."
+      }
+    }
+  },
+  "2026-11-16-live-subtitles": {
+    "title": "Undertexter på Live-tv",
+    "items": {
+      "Subtitles on the TV's channels": {
+        "title": "Undertexter på tv-appens kanaler",
+        "text": "När du tittar på en kanal i tv-appen trycker du höger för undertexter. Språket du väljer ligger kvar när du byter kanal eller nästa program börjar."
+      },
+      "They stay on in the browser too": {
+        "title": "De ligger kvar i webbläsaren också",
+        "text": "På en dator eller mobil kommer undertexter som du slagit på för en kanal nu tillbaka på nästa program i stället för att stängas av."
+      }
+    }
+  },
+  "2026-11-16-tab-names": {
+    "title": "Avdelningsnamnen får plats igen",
+    "items": {
+      "No more \"Disc...\" in the header": {
+        "title": "Inga fler \"Upp...\" i sidhuvudet",
+        "text": "När Live lades till trängdes ägarens åtta avdelningar ihop till avkortade namn på datorer. Nu visas de i sin helhet; i smalare fönster krymper sökrutan först."
+      }
+    }
+  },
   "2026-11-15-live-tv": {
     "title": "Live-tv: kanaler som alltid sänder",
     "items": {
