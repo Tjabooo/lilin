@@ -1,5 +1,20 @@
 [
 {
+  "id": "2026-11-16-play-next-episode",
+  "date": "2026-11-16",
+  "title": "Pick a show up where you left off",
+  "items": [
+    {
+      "title": "Play next episode",
+      "text": "A show's page now has one big button that carries on where you are: Resume the episode you're partway through, Play next once you've finished one, or Play S01 E01 if you haven't started. Finished the last one? It says you're all caught up."
+    },
+    {
+      "title": "Up next in Continue watching",
+      "text": "When you finish an episode, the next one shows up in Continue watching as Up next, so one tap plays it."
+    }
+  ]
+},
+{
   "id": "2026-12-01-wrapped",
   "date": "2026-12-01",
   "push": false,

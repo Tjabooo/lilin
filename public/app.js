@@ -459,7 +459,7 @@ function savedProgress(f) {
   try { return JSON.parse(localStorage.getItem(resumeKey(f))); } catch { return null; }
 }
 async function loadProgress() {
-  try { state.progress = (await api('/api/me/progress')).progress || {}; } catch { /* local copy only */ }
+  try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; } catch { /* local copy only */ }
 }
 
 // ---------- Save for later and Follow (watchlist.js; the server downloads, src/watchlist.js) ----------
@@ -1000,13 +1000,48 @@ new MutationObserver(() => document.body.classList.toggle('has-billboard', state
 // ---------- Discover: rows of your own ----------
 const homeType = (f) => (disc.type === 'all' ? true : disc.type === 'tv' ? f.season != null || Boolean(f.show) : f.season == null && !f.show);
 // Continue watching, on Discover too: landscape cards that resume where you stopped.
+// ---- where to pick a show up ----
+// The server keeps the last episode you finished of each show (state.finished, "tv:ID" → { season, episode, at });
+// finishing one here updates it at once.
+function noteFinished(f, at = Date.now()) {
+  const key = f?.season != null && titleKeyOf(f);
+  if (!key || !/^tv:/.test(key)) return;
+  state.finished = { ...(state.finished || {}), [key]: { season: f.season, episode: f.episode, at } };
+}
+const byEpisodeOrder = (a, b) => (a.season - b.season) || (a.episode - b.episode);
+// The newest of: an episode you're partway through, or the one after the last you finished. Nothing watched
+// yet: the first episode. Returns { f, progress, kind: 'resume' | 'next' | 'start', at } or null (all caught up).
+function nextUp(showId, files = state.library) {
+  const eps = [...new Map(files.filter((f) => f.show === showId && f.season != null && f.episode != null)
+    .sort(byEpisodeOrder).map((f) => [`${f.season}:${f.episode}`, f])).values()];
+  if (!eps.length) return null;
+  const main = eps.some((f) => f.season > 0) ? eps.filter((f) => f.season > 0) : eps; // specials only when that's all there is
+  const partial = eps.map((f) => ({ f, progress: savedProgress(libraryFile(f)) })).filter((x) => partlyWatched(x.progress))
+    .sort((a, b) => (b.progress.at || 0) - (a.progress.at || 0))[0];
+  const fin = state.finished?.[titleKeyOf({ show: showId })];
+  if (partial && (!fin || (partial.progress.at || 0) >= fin.at)) return { ...partial, kind: 'resume', at: partial.progress.at || 0 };
+  if (fin) {
+    const next = main.find((f) => f.season > fin.season || (f.season === fin.season && f.episode > fin.episode));
+    return next ? { f: next, progress: null, kind: 'next', at: fin.at } : null;
+  }
+  return { f: main[0], progress: null, kind: 'start', at: 0 };
+}
+// "Up next" cards for Continue watching: shows whose last finished episode has a next one ready, and
+// nothing partway through (that card is already there).
+function upNextItems(files) {
+  const shows = [...new Set(files.filter((f) => f.show && f.season != null).map((f) => f.show))];
+  return shows.map((id) => nextUp(id, files)).filter((x) => x?.kind === 'next' && !hiddenFromContinue(x.f, { at: x.at }));
+}
+
 // Taken out of Continue watching on this device (the ⋯ menu): ref → when. Watching it again brings it back.
 const CONTINUE_HIDDEN = 'continue:hidden';
 function continueHidden() { try { return JSON.parse(localStorage.getItem(CONTINUE_HIDDEN)) || {}; } catch { return {}; } }
 const hiddenFromContinue = (f, progress) => { const at = continueHidden()[progressRef(libraryFile(f))]; return at != null && at >= (progress?.at || 0); };
 function continueRow() {
-  const watching = state.library.filter(homeType).map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
-    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).sort((a, b) => (b.progress.at || 0) - (a.progress.at || 0));
+  const home = state.library.filter(homeType);
+  const watching = [...home.map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
+    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })), ...upNextItems(home)]
+    .sort((a, b) => b.at - a.at);
   const seen = new Set(), cards = [];
   for (const { f, progress } of watching) { // one card per show: its latest episode
     const key = f.show || f.mediaKey || f.id;
@@ -1469,7 +1504,8 @@ function renderLibrary() {
   if (ui.shelfKey !== shelfKey || ui.shelfLibrary !== state.library || ui.shelfProgress !== state.progress) {
     ui.shelfKey = shelfKey; ui.shelfLibrary = state.library; ui.shelfProgress = state.progress;
     const q = norm(state.query), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
-    const watching = ready.map(f => ({ f, progress: savedProgress(libraryFile(f)) })).filter(x => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).sort((a,b) => (b.progress.at || 0) - (a.progress.at || 0)).slice(0,12);
+    const partway = ready.map(f => ({ f, progress: savedProgress(libraryFile(f)) })).filter(x => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map(x => ({ ...x, at: x.progress.at || 0 }));
+    const watching = [...partway, ...upNextItems(ready).filter(x => !partway.some(p => p.f.show === x.f.show))].sort((a,b) => b.at - a.at).slice(0,12);
     const leaving = libraryEntries(ready.filter(f => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000));
     ui.shelves.replaceChildren(...[watching.length && continueShelf(watching.map(({f, progress}) => continueCard(f, progress))), comingUpShelf(), leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)))].filter(Boolean));
   }
@@ -1601,15 +1637,16 @@ const CONTINUE_SIZES = '(max-width: 420px) 200px, 240px'; // matches .continue-s
 function continueCard(f, progress) {
   const show = state.libraryShows.find((s) => s.id === f.show);
   const name = show?.title || f.filmTitle || f.title;
-  const left = T('{0} min left', Math.max(1, Math.ceil((progress.duration - progress.time) / 60)));
-  const pct = progress.time / progress.duration * 100;
+  // progress null = "Up next": the episode after the last one you finished.
+  const left = progress ? T('{0} min left', Math.max(1, Math.ceil((progress.duration - progress.time) / 60))) : T('Up next');
+  const pct = progress ? progress.time / progress.duration * 100 : 0;
   const next = nextExpiry([f]), hours = (next - Date.now()) / 3600000;
   const art = f.season != null ? episodeArt(f.still, show, '', CONTINUE_SIZES) : wideArt([f.backdrop, { src: f.poster, contain: true }]);
   art.append(...[
     Number.isFinite(next) && h('span', { class: `poster-expiry${hours < 24 ? ' is-soon' : ''}`, title: timeLeft(next) },
       hours <= 0 ? T('Leaving soon') : hours < 1 ? T('<1h left') : hours < 48 ? T('{0}h left', Math.ceil(hours)) : T('{0}d left', Math.ceil(hours / 24))),
-    h('span', { class: 'poster-progress', 'aria-label': T('{0}% watched', Math.round(pct)) }, h('i', { style: `width:${pct}%` }))].filter(Boolean));
-  return h('li', { class: 'library-card continue-card' },
+    progress && h('span', { class: 'poster-progress', 'aria-label': T('{0}% watched', Math.round(pct)) }, h('i', { style: `width:${pct}%` }))].filter(Boolean));
+  return h('li', { class: `library-card continue-card${progress ? '' : ' is-up-next'}` },
     h('button', { type: 'button', class: 'continue-more', 'aria-label': T('More for {0}', name), title: T('More'), onclick: (e) => openContinueMenu(f, progress, name, e.currentTarget) }, icon('more')),
     h('button', { type: 'button', class: 'title-card', 'data-library-focus': `play-${f.id}`, onclick: () => openPlayer(libraryFile(f)) },
       art, h('div', { class: 'name' }, name),
@@ -1632,7 +1669,8 @@ function openContinueMenu(f, progress, name, opener) {
   const watched = choose(() => {
     delete state.progress[ref];
     try { localStorage.removeItem(resumeKey(file)); } catch { /* blocked */ }
-    api('/api/me/progress', jsonPost({ ref, time: null, duration: progress?.duration || 0 })).catch(() => toast(T('Couldn’t save that. Try again.')));
+    noteFinished(f);
+    api('/api/me/progress', jsonPost({ ref, time: null, duration: progress?.duration || 0, watched: 0, about: watchAbout(file) })).catch(() => toast(T('Couldn’t save that. Try again.')));
     toast(T('Marked as watched'));
   });
   const hide = choose(() => {
@@ -1643,7 +1681,7 @@ function openContinueMenu(f, progress, name, opener) {
   });
   $('#picker-body').replaceChildren(
     h('h2', { id: 'picker-title' }, label),
-    h('p', { class: 'muted' }, T('{0} min left', Math.max(1, Math.ceil(((progress?.duration || 0) - (progress?.time || 0)) / 60)))),
+    h('p', { class: 'muted' }, progress ? T('{0} min left', Math.max(1, Math.ceil(((progress.duration || 0) - (progress.time || 0)) / 60))) : T('Up next')),
     h('div', { class: 'del-actions continue-actions' },
       h('button', { type: 'button', class: 'del-cancel', onclick: watched }, icon('check'), T('Mark as watched')),
       h('button', { type: 'button', class: 'del-cancel', onclick: hide }, T('Remove from Continue watching')),
@@ -1883,6 +1921,15 @@ function fillEpisodeDetails(tmdbId, season) {
     }
   }).catch(() => {});
 }
+// The show page's main button: carry on where you left off (or start at the beginning).
+function showPlayButton(showId) {
+  const up = nextUp(showId);
+  if (!up || up.f.converting) return up ? null : h('p', { class: 'muted show-caught-up' }, T('You’re all caught up.'));
+  const ep = episodeLabel(up.f);
+  const label = up.kind === 'resume' ? T('Resume {0} · {1} min left', ep, Math.max(1, Math.ceil((up.progress.duration - up.progress.time) / 60)))
+    : up.kind === 'next' ? T('Play next: {0}', ep) : T('Play {0}', ep);
+  return h('button', { type: 'button', class: 'play-btn show-play', onclick: () => openPlayer(libraryFile(up.f)) }, icon('play'), h('span', {}, label));
+}
 function renderShow() {
   const entry = showEntry(), show = entry?.show;
   const files = entry?.files || [];
@@ -1942,7 +1989,7 @@ function renderShow() {
   const tv = canGet() && show.tmdbId ? showDownload({ id: show.tmdbId, title: show.title, type: 'tv' }, { season: open?.number ?? null, onAdded: renderShow }) : null;
   $('#sheet-body').replaceChildren(pageHero(show.backdrop),
     h('div', { class: 'sheet-content' }, pageTitle(show.title, 'tv', show.tmdbId), pageFacts([show.year, T('Series'), libraryAvailability(entry)], 'tv', show.tmdbId),
-      h('div', { class: 'title-actions' }, (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
+      h('div', { class: 'title-actions' }, showPlayButton(show.id), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
       h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
       show.overview && h('p', { class: 'overview' }, show.overview), files.length > 0 && keepBar(files, renderShow),
       h('section', { class: 'page-section show-episodes' }, ...content),
@@ -4881,6 +4928,7 @@ function saveProgress(force = false) {
   lastPush = now;
   const ref = progressRef(current);
   if (done) delete state.progress[ref];
+  if (done) noteFinished(current, now);
   else state.progress[ref] = { time: video.currentTime, duration: video.duration, at: now };
   invalidateLibraryProgress();
   const watched = Math.round(playedSince * 10) / 10;

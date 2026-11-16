@@ -1,4 +1,17 @@
 {
+  "2026-11-16-play-next-episode": {
+    "title": "Fortsätt en serie där du slutade",
+    "items": {
+      "Play next episode": {
+        "title": "Spela nästa avsnitt",
+        "text": "En series sida har nu en stor knapp som fortsätter där du är: Fortsätt avsnittet du har påbörjat, Spela nästa när du har sett klart ett, eller Spela S01 E01 om du inte har börjat. Sett det sista? Då står det att du har sett allt som finns."
+      },
+      "Up next in Continue watching": {
+        "title": "Nästa i Fortsätt titta",
+        "text": "När du har sett klart ett avsnitt dyker nästa upp i Fortsätt titta som Nästa, så ett tryck spelar det."
+      }
+    }
+  },
   "2026-12-01-wrapped": {
     "title": "Lilin Wrapped 2026 är här",
     "items": {

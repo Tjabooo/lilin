@@ -2776,6 +2776,8 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .continue-card .continue-episode { margin-top: 1px; color: var(--text); opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .continue-card .continue-episode + .sub { margin-top: 0; }
 .continue-card { position: relative; }
+.show-play { margin: 2px 0 12px; }
+.show-caught-up { margin: 0 0 10px; }
 .continue-more {
   position: absolute; top: 7px; right: 7px; z-index: 3; display: grid; place-items: center;
   width: 32px; height: 32px; padding: 0; border: 1px solid rgb(255 255 255 / .18); border-radius: 50%;

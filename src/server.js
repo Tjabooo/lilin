@@ -3485,7 +3485,7 @@ async function handleApi(req, res, url) {
       }
       return sendJson(res, 200, { ok: true });
     }
-    return sendJson(res, 200, { progress: accounts.progressOf(user.id) });
+    return sendJson(res, 200, { progress: accounts.progressOf(user.id), finished: social.lastFinished(user.id) });
   }
   // Lilin Wrapped: one person's year (defaults to this one).
   if (p === '/api/me/wrapped') {

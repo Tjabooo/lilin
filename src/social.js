@@ -33,6 +33,18 @@ export function rate(userId, key, value, title = '') {
     .run(userId, key, value, cleanText(title, 200) || null, Date.now());
 }
 
+// The last episode this person finished of each show: { "tv:1399": { season, episode, at } }. Progress
+// rows are deleted when an episode ends, so this is what "play the next one" goes by.
+export function lastFinished(userId) {
+  if (userId == null) return {};
+  const rows = db().prepare(`SELECT title_key, season, episode, last_at FROM watch_log
+    WHERE user_id = ? AND finished = 1 AND season IS NOT NULL AND episode IS NOT NULL AND title_key LIKE 'tv:%'
+    ORDER BY last_at`).all(userId);
+  const out = {};
+  for (const r of rows) out[r.title_key] = { season: r.season, episode: r.episode, at: r.last_at };
+  return out;
+}
+
 // Everything one person gave a thumbs down: "movie:603", "tv:1399". Discover leaves these out for them.
 export function dislikedKeys(userId) {
   if (userId == null) return new Set();
