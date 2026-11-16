@@ -6,15 +6,21 @@ fn main() {
     println!("cargo:rerun-if-changed={}", src.display());
     let text = fs::read_to_string(&src).expect("public/tv/sv.js");
     let mut pairs: Vec<(String, String)> = Vec::new();
+    // Lines are 'English': 'Svenska', or the same in double quotes.
     for line in text.lines() {
         let l = line.trim();
-        if !l.starts_with('\'') || !l.ends_with("',") {
-            continue;
-        }
-        let body = &l[1..l.len() - 2];
-        if let Some(i) = body.find("': '") {
-            let unq = |s: &str| s.replace("\\'", "'");
-            pairs.push((unq(&body[..i]), unq(&body[i + 4..])));
+        for q in ['\'', '"'] {
+            let end = format!("{}{}", q, ',');
+            if !l.starts_with(q) || !l.ends_with(&end) {
+                continue;
+            }
+            let body = &l[1..l.len() - 2];
+            let sep = format!("{q}: {q}");
+            if let Some(i) = body.find(&sep) {
+                let esc = format!("\\{}", q);
+                let unq = |s: &str| s.replace(&esc, &q.to_string());
+                pairs.push((unq(&body[..i]), unq(&body[i + 4..])));
+            }
         }
     }
     pairs.sort();

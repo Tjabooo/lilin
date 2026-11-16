@@ -1,4 +1,5 @@
-//! Home: Continue watching, what's on its way, Shows, Films, then the library by genre.
+//! Home: Continue watching, what's on its way, Shows, Films, then the library by genre. The bar on top leads to
+//! Search, Live TV, Discover and Documentaries.
 use super::browse::{self, Kind, Row, Rows};
 use crate::gfx::{rect, SCREEN};
 use crate::host;
@@ -29,8 +30,10 @@ pub struct Home {
     waiting: u32,
 }
 
-fn tops() -> [&'static str; 4] {
-    [t!("Search"), t!("Discover"), t!("Documentaries"), t!("Switch account")]
+/// The bar: Search, Live TV (its name is the owner's pick), Discover, Documentaries, Switch account.
+fn tops(cx: &Cx) -> [String; 5] {
+    let live = if cx.state.live_name.is_empty() { String::from("Lilin TV") } else { cx.state.live_name.clone() };
+    [String::from(t!("Search")), live, String::from(t!("Discover")), String::from(t!("Documentaries")), String::from(t!("Switch account"))]
 }
 
 impl Home {
@@ -176,8 +179,8 @@ impl Screen for Home {
         cx.g.vgrad(rect(0.0, 0.0, 1920.0, 176.0), &[(0.0, ui::VELVET), (0.85, ui::VELVET.alpha(0.96)), (1.0, ui::VELVET.alpha(0.0))]);
         ui::wordmark(cx, ui::EDGE, 66.0, 46.0);
         let f = body(26.0, 700);
-        let labels = tops();
-        let mut ws = [0.0f32; 4];
+        let labels = tops(cx);
+        let mut ws = [0.0f32; 5];
         for (n, l) in labels.iter().enumerate() {
             ws[n] = ui::pill_w(cx, l, f, 26.0, 0.0);
         }
@@ -186,18 +189,18 @@ impl Screen for Home {
         let who = body(26.0, 400);
         let name_w = cx.tx.width(who, &name);
         let shared_w = if shared.is_empty() { 0.0 } else { cx.tx.width(who, &shared) + 28.0 };
-        let mut x = 1920.0 - ui::EDGE - ws[3];
+        let mut x = 1920.0 - ui::EDGE - ws[4];
         let switch_x = x;
         x -= 28.0 + shared_w + name_w;
         let name_x = x;
         x -= 44.0;
-        let mut xs = [0.0f32; 3];
-        for n in (0..3).rev() {
+        let mut xs = [0.0f32; 4];
+        for n in (0..4).rev() {
             x -= ws[n];
             xs[n] = x;
             x -= 18.0;
         }
-        let focus = if self.at_top { ui::hash(labels[self.ti]) } else { 0 };
+        let focus = if self.at_top { ui::hash(&labels[self.ti]) } else { 0 };
         if focus != 0 {
             self.tops_lit.focus(focus);
         } else {
@@ -205,16 +208,21 @@ impl Screen for Home {
         }
         self.tops_lit.step(cx);
         let y = 56.0;
-        for n in 0..3 {
-            let lit = self.tops_lit.get(ui::hash(labels[n]));
-            ui::pill(cx, rect(xs[n], y, ws[n], 58.0), labels[n], f, ui::Pill::Quiet, lit);
+        for n in 0..4 {
+            let lit = self.tops_lit.get(ui::hash(&labels[n]));
+            ui::pill(cx, rect(xs[n], y, ws[n], 58.0), &labels[n], f, ui::Pill::Quiet, lit);
+            if n == 1 {
+                // Live: a small red dot before the name.
+                let d = rect(xs[n] + 12.0, y + 25.0, 8.0, 8.0);
+                cx.g.round(d, 4.0, crate::gfx::hexa(0xFF5A4E, 1.0));
+            }
         }
         cx.tx.draw(&mut cx.g, who, &name, name_x, y + (58.0 - who.line()) / 2.0, ui::DUST);
         if !shared.is_empty() {
             cx.tx.draw(&mut cx.g, who, &shared, name_x + name_w + 28.0, y + (58.0 - who.line()) / 2.0, ui::DUST.alpha(0.8));
         }
-        let lit = self.tops_lit.get(ui::hash(labels[3]));
-        ui::pill(cx, rect(switch_x, y, ws[3], 58.0), labels[3], body(25.0, 700), ui::Pill::Quiet, lit);
+        let lit = self.tops_lit.get(ui::hash(&labels[4]));
+        ui::pill(cx, rect(switch_x, y, ws[4], 58.0), &labels[4], body(25.0, 700), ui::Pill::Quiet, lit);
         let _ = SCREEN;
     }
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
@@ -222,7 +230,7 @@ impl Screen for Home {
         if self.at_top {
             match k.code {
                 key::LEFT => self.ti = self.ti.saturating_sub(1),
-                key::RIGHT => self.ti = (self.ti + 1).min(3),
+                key::RIGHT => self.ti = (self.ti + 1).min(4),
                 key::DOWN => {
                     if !self.empty {
                         self.at_top = false;
@@ -235,10 +243,14 @@ impl Screen for Home {
                             cx.push(Box::new(s));
                         }
                         1 => {
-                            let s = super::discover::Discover::new(cx);
+                            let s = super::live::Guide::new(cx, None);
                             cx.push(Box::new(s));
                         }
                         2 => {
+                            let s = super::discover::Discover::new(cx);
+                            cx.push(Box::new(s));
+                        }
+                        3 => {
                             let s = super::discover::Docs::new(cx);
                             cx.push(Box::new(s));
                         }

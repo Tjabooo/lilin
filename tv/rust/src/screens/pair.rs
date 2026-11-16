@@ -72,6 +72,7 @@ impl Screen for Boot {
                     return;
                 }
                 let me = res.json.get("me").cloned().unwrap_or(Value::Null);
+                cx.state.live_name = String::from(s(&res.json, "liveName"));
                 let has_me = me.get("id").map(|x| !x.is_null()).unwrap_or(false);
                 let token = cx.token();
                 match token {

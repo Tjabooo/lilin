@@ -157,6 +157,9 @@ pub struct State {
     pub focus_pending: bool,
     pub version: u64,
     owned: Option<(u64, Owned)>,
+    /// Live TV's name (the owner picks it) and what the guide and the player share.
+    pub live_name: String,
+    pub live: screens::live::LiveState,
 }
 impl State {
     pub fn owned(&mut self) -> &Owned {
@@ -604,6 +607,8 @@ pub extern "C" fn start(p: *mut u8, n: usize) {
             focus_pending: false,
             version: 0,
             owned: None,
+            live_name: String::new(),
+            live: Default::default(),
         },
         next_sid: 0,
         reqs: BTreeMap::new(),

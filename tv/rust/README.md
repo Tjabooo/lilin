@@ -19,7 +19,7 @@ non-partner apps run as web apps, so Rust reaches the TV as WebAssembly.
 | `src/text.rs`, `src/img.rs` | text cache (measure, ellipsis, wrap) and picture cache (memory budget, fade-in) |
 | `src/ui.rs` | the look: palette, room light, pills, focus glow, bars, easing |
 | `src/logic.rs` | the same rules as `public/tv/logic.js` |
-| `src/screens/` | sign-in, Home, Discover, Documentaries, grids, Search, title, show, SVT Play, player |
+| `src/screens/` | sign-in, Home, Discover, Documentaries, grids, Search, title, show, SVT Play, player, Live TV (guide + channel player) |
 
 Strings are the English lines of `public/tv/sv.js`, compiled in by `build.rs`; `tests/tv-app.test.mjs` fails when a
 `t!("…")` line has no Swedish.

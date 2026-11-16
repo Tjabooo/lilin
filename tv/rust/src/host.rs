@@ -8,6 +8,7 @@ extern "C" {
     fn log(p: *const u8, n: usize);
     fn now() -> f64;
     fn wall() -> f64;
+    fn tz() -> f64;
     fn request_frame();
     fn set_timer(id: u32, ms: f64);
     fn clear_timer(id: u32);
@@ -63,6 +64,10 @@ pub fn time() -> f64 {
 }
 pub fn epoch_ms() -> f64 {
     unsafe { wall() }
+}
+/// The TV's time zone: minutes ahead of UTC (Sweden: 60, 120 in summer).
+pub fn tz_minutes() -> f64 {
+    unsafe { tz() }
 }
 pub fn frame() {
     unsafe { request_frame() }

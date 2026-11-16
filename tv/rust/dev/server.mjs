@@ -1,5 +1,6 @@
 // Dev server for the Rust TV app: serves public/ and the TV shell, and passes API GETs through to a real
-// Lilin (LILIN_URL). Anything that would change data (POST, PUT, DELETE) is refused, so browsing a live
+// Lilin (LILIN_URL). Anything that would change data (POST, PUT, DELETE) is refused (but subtitles and tuning in to a
+// Live TV channel), so browsing a live
 // library from a desktop browser is safe.   LILIN_URL=http://host:8080 node tv/rust/dev/server.mjs [port]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -33,7 +34,9 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/c/')) {
     // Subtitles: the TV asks the server to fetch them on every play; that only fills its cache.
-    const allowed = req.method === 'POST' && url.pathname === '/api/subs/fetch';
+    // Allowed writes: subtitles, and watching a Live TV channel (tune in, heartbeats, leave: room membership only).
+    const allowed = req.method === 'POST' && (url.pathname === '/api/subs/fetch' || /^\/api\/live\/[\w-]+\/tune$/.test(url.pathname)
+      || /^\/api\/watch\/L[\w-]+\/(heartbeat|leave)$/.test(url.pathname));
     if (req.method !== 'GET' && !allowed) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'The dev server only reads (blocked ' + req.method + ').' }));

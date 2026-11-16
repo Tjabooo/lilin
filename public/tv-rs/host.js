@@ -219,6 +219,7 @@
       log: function (p, n) { try { console.log('[lilin] ' + str(p, n)); } catch (e) { /* none */ } },
       now: function () { return root.performance ? performance.now() : Date.now(); },
       wall: function () { return Date.now(); },
+      tz: function () { return -new Date().getTimezoneOffset(); },
       request_frame: function () { if (!frameAsked) { frameAsked = true; requestAnimationFrame(onFrame); } },
       set_timer: function (id, ms) {
         clearTimeout(timers[id]);
@@ -394,7 +395,7 @@
     }
 
     var KEYS = ['MediaPlayPause', 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaFastForward', 'MediaRewind',
-      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+      'ChannelUp', 'ChannelDown', 'PreviousChannel', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
     function onKey(e) {
       if (failed || !ex) return;
       var ch = e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey ? e.key.charCodeAt(0) : 0;
