@@ -1,4 +1,22 @@
 {
+  "2026-11-16-continue-latest": {
+    "title": "Fortsätt titta följer ditt senaste avsnitt",
+    "items": {
+      "Back where you really stopped": {
+        "title": "Där du faktiskt slutade",
+        "text": "Om du går tillbaka till ett avsnitt du redan sett klart och slutar halvvägs tar Fortsätt titta nu upp just det avsnittet igen i stället för att hoppa till nästa. Det fungerar mellan alla dina enheter."
+      }
+    }
+  },
+  "2026-11-16-clip-editor-rename": {
+    "title": "Byt namn på klipp i klippredigeraren",
+    "items": {
+      "Rename while you edit": {
+        "title": "Byt namn medan du redigerar",
+        "text": "Klippets namn högst upp i redigeraren är nu en knapp: klicka på den (eller tryck R) för att byta namn på klippet utan att lämna redigeraren. Sidhuvudet har också fått ett lugnare utseende med mer luft."
+      }
+    }
+  },
   "2026-11-16-live-tv-fresh": {
     "title": "Mer på Live-tv, och fyra nya kanaler",
     "items": {

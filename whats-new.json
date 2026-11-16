@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-16-continue-latest",
+  "date": "2026-11-16",
+  "title": "Continue watching follows your latest episode",
+  "items": [
+    {
+      "title": "Back where you really stopped",
+      "text": "If you go back to an episode you already finished and stop halfway, Continue watching now picks up that episode again instead of jumping to the one after it. This works across your devices."
+    }
+  ]
+},
+{
   "id": "2026-11-16-clip-editor-rename",
   "date": "2026-11-16",
   "title": "Rename clips in the clip editor",

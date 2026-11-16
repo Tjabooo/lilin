@@ -1019,7 +1019,10 @@ function nextUp(showId, files = state.library) {
   const partial = eps.map((f) => ({ f, progress: savedProgress(libraryFile(f)) })).filter((x) => partlyWatched(x.progress))
     .sort((a, b) => (b.progress.at || 0) - (a.progress.at || 0))[0];
   const fin = state.finished?.[titleKeyOf({ show: showId })];
-  if (partial && (!fin || (partial.progress.at || 0) >= fin.at)) return { ...partial, kind: 'resume', at: partial.progress.at || 0 };
+  // Partway through the finished episode itself or a later one: resume it whatever the clocks say (finishing an
+  // episode deletes its progress, so this is a rewatch or the next one). An older episode goes by which is newer.
+  const notBehind = (f) => f.season > fin.season || (f.season === fin.season && f.episode >= fin.episode);
+  if (partial && (!fin || notBehind(partial.f) || (partial.progress.at || 0) >= fin.at)) return { ...partial, kind: 'resume', at: partial.progress.at || 0 };
   if (fin) {
     const next = main.find((f) => f.season > fin.season || (f.season === fin.season && f.episode > fin.episode));
     return next ? { f: next, progress: null, kind: 'next', at: fin.at } : null;

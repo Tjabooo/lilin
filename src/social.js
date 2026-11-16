@@ -37,11 +37,11 @@ export function rate(userId, key, value, title = '') {
 // rows are deleted when an episode ends, so this is what "play the next one" goes by.
 export function lastFinished(userId) {
   if (userId == null) return {};
-  const rows = db().prepare(`SELECT title_key, season, episode, last_at FROM watch_log
+  const rows = db().prepare(`SELECT title_key, season, episode, COALESCE(finished_at, last_at) AS at FROM watch_log
     WHERE user_id = ? AND finished = 1 AND season IS NOT NULL AND episode IS NOT NULL AND title_key LIKE 'tv:%'
-    ORDER BY last_at`).all(userId);
+    ORDER BY at`).all(userId);
   const out = {};
-  for (const r of rows) out[r.title_key] = { season: r.season, episode: r.episode, at: r.last_at };
+  for (const r of rows) out[r.title_key] = { season: r.season, episode: r.episode, at: r.at };
   return out;
 }
 
@@ -111,12 +111,12 @@ export function logWatch(userId, { ref, about = {}, watched, finished = false, c
   const day = localDay(now);
   const others = [...new Set(companions.map(Number))].filter((id) => Number.isSafeInteger(id) && id !== userId).slice(0, 12);
   const together = others.length ? credit : 0;
-  db().prepare(`INSERT INTO watch_log (user_id, day, ref, title_key, title, season, episode, seconds, together, finished, first_at, last_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  db().prepare(`INSERT INTO watch_log (user_id, day, ref, title_key, title, season, episode, seconds, together, finished, first_at, last_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id, day, ref) DO UPDATE SET seconds = seconds + excluded.seconds, together = together + excluded.together,
       finished = MAX(finished, excluded.finished), title = excluded.title, title_key = COALESCE(excluded.title_key, title_key),
-      last_at = excluded.last_at`)
-    .run(userId, day, ref, titleKey, title, season, episode, credit, together, finished ? 1 : 0, now, now);
+      last_at = excluded.last_at, finished_at = COALESCE(excluded.finished_at, finished_at)`)
+    .run(userId, day, ref, titleKey, title, season, episode, credit, together, finished ? 1 : 0, now, now, finished ? now : null);
   const company = db().prepare(`INSERT INTO watch_company (user_id, other_id, day, seconds) VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id, other_id, day) DO UPDATE SET seconds = seconds + excluded.seconds`);
   if (credit > 0) for (const other of others) {

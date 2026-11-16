@@ -171,6 +171,11 @@ export function initAccounts({ dataDir, adminEmails, mediaDir: dir }) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'can_invite'").get()) {
     db.exec('ALTER TABLE users ADD COLUMN can_invite INTEGER NOT NULL DEFAULT 0');
   }
+  // Added later: when the episode was finished. last_at keeps moving when you rewatch part of it the same day,
+  // so it can't tell "finished" from "started again" (old rows: null, last_at stands in).
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('watch_log') WHERE name = 'finished_at'").get()) {
+    db.exec('ALTER TABLE watch_log ADD COLUMN finished_at INTEGER');
+  }
 }
 // The open database, for modules that keep their own tables here (social.js).
 export const database = () => db;
