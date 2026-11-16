@@ -1037,17 +1037,22 @@ function upNextItems(files) {
 const CONTINUE_HIDDEN = 'continue:hidden';
 function continueHidden() { try { return JSON.parse(localStorage.getItem(CONTINUE_HIDDEN)) || {}; } catch { return {}; } }
 const hiddenFromContinue = (f, progress) => { const at = continueHidden()[progressRef(libraryFile(f))]; return at != null && at >= (progress?.at || 0); };
-function continueRow() {
-  const home = state.library.filter(homeType);
-  const watching = [...home.map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
-    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })), ...upNextItems(home)]
+// What Continue watching shows (Discover and Library both use this, so they always agree): everything partway
+// plus Up next cards, newest first, one card per show (its latest), at most 12.
+function continueItems(files) {
+  const watching = [...files.map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
+    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })), ...upNextItems(files)]
     .sort((a, b) => b.at - a.at);
-  const seen = new Set(), cards = [];
-  for (const { f, progress } of watching) { // one card per show: its latest episode
-    const key = f.show || f.mediaKey || f.id;
-    if (seen.has(key) || cards.length >= 12) continue;
-    seen.add(key); cards.push(continueCard(f, progress));
+  const seen = new Set(), items = [];
+  for (const x of watching) {
+    const key = x.f.show || x.f.mediaKey || x.f.id;
+    if (seen.has(key) || items.length >= 12) continue;
+    seen.add(key); items.push(x);
   }
+  return items;
+}
+function continueRow() {
+  const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
 // On its way: what's downloading for you, with how far along it is.
@@ -1504,8 +1509,7 @@ function renderLibrary() {
   if (ui.shelfKey !== shelfKey || ui.shelfLibrary !== state.library || ui.shelfProgress !== state.progress) {
     ui.shelfKey = shelfKey; ui.shelfLibrary = state.library; ui.shelfProgress = state.progress;
     const q = norm(state.query), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
-    const partway = ready.map(f => ({ f, progress: savedProgress(libraryFile(f)) })).filter(x => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map(x => ({ ...x, at: x.progress.at || 0 }));
-    const watching = [...partway, ...upNextItems(ready).filter(x => !partway.some(p => p.f.show === x.f.show))].sort((a,b) => b.at - a.at).slice(0,12);
+    const watching = continueItems(ready);
     const leaving = libraryEntries(ready.filter(f => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000));
     ui.shelves.replaceChildren(...[watching.length && continueShelf(watching.map(({f, progress}) => continueCard(f, progress))), comingUpShelf(), leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)))].filter(Boolean));
   }
