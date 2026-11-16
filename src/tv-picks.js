@@ -29,7 +29,7 @@ export const SKIP_GENRES = new Set([10763, 10764, 10766, 10767]); // news, reali
 // discover filters (null: a plain list such as trending)]. weight: how keen the channel is on new titles.
 export const CHANNELS = {
   anime: { weight: 1.3, lists: [['tv', '/discover/tv', { with_genres: '16', with_original_language: 'ja', 'vote_count.gte': 50 }]] },
-  sitcoms: { lists: [['tv', '/discover/tv', { with_genres: '35', without_genres: '16,99,10762,10763,10764,10766,10767', 'vote_count.gte': 100 }]] },
+  sitcoms: { lists: [['tv', '/discover/tv', { with_genres: '35', without_genres: '16,18,99,10759,10762,10763,10764,10765,10766,10767', 'vote_count.gte': 100 }]] },
   films: { lists: [['movie', '/trending/movie/week', null], ['movie', '/discover/movie', { without_genres: '16,99', 'vote_count.gte': 500 }]] },
   docs: { weight: 0.6, lists: [['movie', '/discover/movie', { with_genres: '99', 'vote_count.gte': 30 }], ['tv', '/discover/tv', { with_genres: '99', 'vote_count.gte': 30 }]] },
   drama: { lists: [['tv', '/discover/tv', { with_genres: '18|80|9648', without_genres: '16,35,99,10764,10766,10767', 'vote_count.gte': 200 }]] },
