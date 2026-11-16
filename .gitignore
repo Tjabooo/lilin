@@ -16,6 +16,8 @@
 .lilin-notes-imports/
 .lilin-avatars/
 .lilin-convert-runs/
+/playhead/
+/bin/
 data/
 logs/
 cache/
