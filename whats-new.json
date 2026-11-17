@@ -5,6 +5,10 @@
   "title": "A round of fixes",
   "items": [
     {
+      "title": "Arrows on profile rows",
+      "text": "On a computer, the Liked row on a profile now has arrows next to its title, so you can reach the rest of the posters without a touchpad."
+    },
+    {
       "title": "Name and picture on your profile",
       "text": "Change your picture by tapping it on your profile, and your name under Edit profile. Settings is shorter: the picture, name and What's new rows are gone from the top."
     },

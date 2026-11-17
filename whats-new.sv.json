@@ -2,6 +2,10 @@
   "2026-11-17-fleet-fixes": {
     "title": "En omgång rättningar",
     "items": {
+      "Arrows on profile rows": {
+        "title": "Pilar på profilrader",
+        "text": "På en dator har raden Gillade på en profil nu pilar bredvid rubriken, så du når resten av affischerna utan touchpad."
+      },
       "Name and picture on your profile": {
         "title": "Namn och bild på din profil",
         "text": "Byt bild genom att trycka på den på din profil, och namnet under Redigera profil. Inställningarna är kortare: bild, namn och Nyheter är borta från toppen."

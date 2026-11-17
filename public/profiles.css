@@ -202,6 +202,10 @@
 .pf-strip { display: grid; grid-auto-flow: column; grid-auto-columns: clamp(84px, 20vw, 120px); gap: 10px; margin: 0 calc(-1 * var(--gutter)); padding: 2px var(--gutter) 10px;
   list-style: none; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: var(--gutter); scrollbar-width: none; }
 .pf-strip::-webkit-scrollbar { display: none; }
+.pf-sec-side { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.pf-strip-arrows .carousel-arrow { width: 30px; height: 30px; }
+.pf-strip-arrows .carousel-arrow svg { width: 15px; height: 15px; }
+.pf-strip:focus-visible { outline: none; }
 .pf-strip > li { scroll-snap-align: start; }
 
 /* friends */
