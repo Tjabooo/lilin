@@ -40,6 +40,7 @@ test('race: a slow pick tries a spare next to it and keeps whichever is clearly 
   assert.deepEqual(trial(0.25e6), { settle: true }, 'not clearly faster: the pick stays');
   assert.deepEqual(trial(1.5e6, { watching: true }), { settle: true }, 'someone is already watching the pick');
   assert.deepEqual(raceStep(pick({ rate: 0.2e6, lead: 200, spares: [spare()] }), at), { settle: true }, 'a good lead already');
+  assert.deepEqual(raceStep(pick({ rate: 20e6, orderRate: 0.1e6, spares: [spare()] }), at), { start: 's1' }, 'fast, but with a hole near the start');
   // Hopeless (a tenth of the bitrate): the spare starts early, and a clear winner takes over early too.
   const early = T0 + 10_000 + 12_000;
   assert.deepEqual(raceStep(pick({ rate: 0.1e6, spares: [spare()] }), early), { start: 's1' });
@@ -62,6 +63,7 @@ test('a half-fetched piece at the edge with plenty after it is stuck; a slow swa
   assert.equal(stuckEdge(layout, states, 3, T0, T0 + 13_000), true);
   assert.equal(stuckEdge(layout, states, 3, T0, T0 + 5_000), false, 'not for long yet');
   assert.equal(stuckEdge(layout, [0, 0, 2, 1, 2, 2, 1, 1, 0], 3, T0, T0 + 60_000), false, 'nothing much after it: just slow');
+  assert.equal(stuckEdge(layout, [0, 0, 2, 0, ...new Array(10).fill(2)], 3, T0, T0 + 13_000), true, 'not even asked for (no peer has it)');
   assert.equal(edgePiece(layout, new Array(21).fill(2)), null);
 });
 
@@ -175,7 +177,7 @@ function world({ primaryMeta = true, spareMeta = true, files = (h) => [{ index: 
       prewarm: async (id, { until }) => { prewarmed.push(id); const e = entries.get(id) || { id, size: 4e9, info: null, torrent: { dlspeed: torrents.get(id.split('-')[0])?.dlspeed || 0 } };
         e.torrent.dlspeed = torrents.get(id.split('-')[0])?.dlspeed || 0; e.until = until; entries.set(id, e); return e; },
       drop: async (id) => { entries.delete(id); log.push(['drop', id]); },
-      readable: () => 0,
+      readable: () => 4e9, // (all in order: speed alone decides here)
       status: () => ({ done: false }),
     },
     addSpare: async (c, r) => { add(r.hash, spareMeta); return { hash: r.hash, name: r.name }; },

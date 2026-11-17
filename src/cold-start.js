@@ -26,7 +26,8 @@ const HOPELESS = 0.3;                  // ...when it brings less than this share
 const CLEAR_WIN = 2;                   // a spare this much faster than the pick (and well above the bitrate) wins early
 const STUCK_MS = 12_000;               // the in-order edge piece half-fetched this long while later pieces arrive: stuck
 const STUCK_AHEAD = 8;                 // ...with at least this many pieces past it already there
-const MAX_KICKS = 2;
+const MAX_KICKS = 1;                   // (a restart costs a thin swarm its few peers for a while: once, on a fast one)
+const KICK_SPEED = 3;                  // only when the download runs at this many times the picture's bitrate
 
 // The first piece of the file that qBittorrent doesn't have yet (in order), or null.
 export function edgePiece(layout, states) {
@@ -35,9 +36,9 @@ export function edgePiece(layout, states) {
   return null;
 }
 // One slow peer can hold a block of the piece playback needs next for a minute (libtorrent asks someone else only
-// after its request timeout) while every later piece arrives. Returns true when it's that.
+// after its request timeout), or none of the connected peers has it, while every later piece arrives. True when it's that.
 export function stuckEdge(layout, states, edge, since, now = Date.now()) {
-  if (edge == null || states?.[edge] !== 1 || now - since < STUCK_MS) return false;
+  if (edge == null || !Array.isArray(states) || states[edge] === 2 || now - since < STUCK_MS) return false;
   let ahead = 0;
   for (let i = edge + 1; i <= layout.last && ahead < STUCK_AHEAD; i++) if (states[i] === 2) ahead++;
   return ahead >= STUCK_AHEAD;
@@ -47,7 +48,9 @@ const SMOOTH = 0.3;                    // speed smoothing (new sample's weight)
 // What to do next. c: { addedAt, metaAt, fake, rate, need, lead, done, watching, spares: [{ hash, metaAt, fake,
 // running, startedAt, rate, tried }] }. Returns { swap, why } | { start } | { settle } | null (wait).
 export function raceStep(c, now = Date.now()) {
-  const clean = (c.spares || []).filter((s) => s.metaAt != null && !s.fake);
+  // What counts is how fast the video arrives in order: a fast download with a hole near the start plays nothing.
+  c = { ...c, rate: Math.min(c.rate, c.orderRate ?? c.rate) };
+  const clean = (c.spares || []).filter((s) => s.metaAt != null && !s.fake).map((s) => ({ ...s, rate: Math.min(s.rate, s.orderRate ?? s.rate) }));
   const running = clean.find((s) => s.running);
   if (c.fake) {
     if (running || clean[0]) return { swap: (running || clean[0]).hash, why: 'fake' };
@@ -183,7 +186,9 @@ export class ColdStarts {
       this.measure(c, entry, t);
       const size = entry.size || 0, duration = entry.info?.duration || 0;
       c.need = entry.info?.bitrate ? entry.info.bitrate / 8 : size && c.runtime ? size / (c.runtime * 60) : 0;
-      c.lead = duration && size ? (this.deps.partial.readable(entry, 0) / size) * duration : 0;
+      const inOrder = this.deps.partial.readable(entry, 0);
+      c.lead = duration && size ? (inOrder / size) * duration : 0;
+      if (c.metaAt != null) c.orderRate = inOrder / Math.max(1, (now - c.metaAt) / 1000);
       c.done = this.deps.partial.status(entry).done;
       c.watching = Boolean(entry.opened && entry.started);
       await this.unstick(c, entry, now);
@@ -194,7 +199,10 @@ export class ColdStarts {
       if (!st) { c.spares = c.spares.filter((x) => x !== s); continue; }
       if (s.running) {
         const { entry: se } = await this.warm(c, st, s, until);
-        if (se) this.measure(s, se, st);
+        if (se) {
+          this.measure(s, se, st);
+          s.orderRate = this.deps.partial.readable(se, 0) / Math.max(1, (now - s.startedAt) / 1000);
+        }
         continue;
       }
       // (qBittorrent stops a spare once its file list is there; one that keeps going is stopped here.)
@@ -236,14 +244,15 @@ export class ColdStarts {
     if (now - c.addedAt > LIFETIME && c.settled) { c.ended = true; this.starts.delete(c.id); }
   }
 
-  // Stopping and starting the torrent drops the stuck request (and every connection, which come back in seconds).
-  // Only while it's starting, when playhead isn't there to fetch that piece itself (or has hardly any peers), and
-  // twice at most.
+  // Stopping and starting the torrent drops the stuck request (and every connection, which come back in seconds on a
+  // lively swarm). Only while it's starting, on a fast download, when playhead isn't there to fetch that piece itself
+  // (or has hardly any peers), and once.
   async unstick(c, entry, now) {
     if (!isCold(c, now) || (entry.assist && entry.assist.peers >= 3) || !this.deps.kick) return;
     const edge = edgePiece(entry.layout, entry.states);
     if (c.edge?.piece !== edge) { c.edge = { piece: edge, since: now }; return; }
     if ((c.kicks || 0) >= MAX_KICKS || !stuckEdge(entry.layout, entry.states, edge, c.edge.since, now)) return;
+    if (!(c.need > 0) || c.rate < c.need * KICK_SPEED) return;
     c.kicks = (c.kicks || 0) + 1;
     this.deps.log?.info?.(`[cold] ${c.name}: piece ${edge} has been stuck for ${Math.round((now - c.edge.since) / 1000)} s; restarting the download to ask other peers`);
     c.edge.since = now;
@@ -260,7 +269,7 @@ export class ColdStarts {
     if (was.fileIndex != null) await this.deps.partial.drop(`${was.hash}-${was.fileIndex}`);
     c.spares = c.spares.filter((s) => s !== spare);
     Object.assign(c, { hash: spare.hash, name: spare.name, metaAt: spare.metaAt, fake: false, fileIndex: spare.fileIndex, rate: spare.rate || 0,
-      samples: spare.samples || 0, swaps: c.swaps + 1, watching: false });
+      orderRate: spare.orderRate, samples: spare.samples || 0, swaps: c.swaps + 1, watching: false, edge: null, kicks: 0 });
     if (spare.running) c.metaAt = spare.startedAt; // its speed has been measured since then
     if (why === 'faster') await this.settle(c);
   }
