@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-account-page",
+  "date": "2026-11-17",
+  "title": "A real Account page",
+  "items": [
+    {
+      "title": "See where you're signed in",
+      "text": "You → Account now lists the browsers and TVs signed in as you. Lost a phone? Sign out everywhere else, and every other device needs your password to get back in. Changing your password does the same."
+    }
+  ]
+},
+{
   "id": "2026-11-17-continue-title-link",
   "date": "2026-11-17",
   "title": "Titles in Continue watching open the page",

@@ -8335,10 +8335,64 @@ function youOverview() {
 
 function accountPage() {
   const me = state.me;
+  // The shared home account has no sign-in of its own: the page offers your own instead.
+  if (!me.email) return [
+    settingsRow(T('Home network'), T('Everyone at home who opens the server’s local address shares this account: one history, one library.'), null),
+    settingsRow(T('Sign in as yourself'), T('Your own history, friends and settings on this device.'),
+      h('a', { class: 'chip', href: '/signin?own=1&next=%2Fyou' }, T('Sign in'))),
+  ];
+  const signedIn = me.via === 'session' || me.hasPassword;
   return [
-    h('div', { class: 'set-card' }, h('p', {}, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
-      : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email))),
-    ...(me.via === 'session' || me.hasPassword ? accountSection() : []),
+    settingsRow(T('Email'), me.via === 'session' ? T('You sign in with {0}.', me.email) : T('You sign in with {0} through Cloudflare.', me.email), null),
+    ...(signedIn ? [passwordRow()] : []),
+    ...(signedIn ? devicesSection() : []),
+    h('h3', { class: 'set-head' }, T('This device')),
+    signOutRow(),
+  ];
+}
+// Account → Signed in on: your browsers and TVs, loaded when the page opens.
+const signInsView = { list: null, loading: null };
+function loadSignIns() {
+  signInsView.loading ??= api('/api/auth/devices')
+    .then((d) => { signInsView.list = d.devices; })
+    .catch(() => { signInsView.list ??= []; })
+    .finally(() => { signInsView.loading = null; redrawYouPage(); });
+  return signInsView.loading;
+}
+function deviceName(d) {
+  if (d.kind === 'tv') return /Mozilla|AppleWebKit/.test(d.agent) ? T('TV') : (d.agent === 'Lilin TV app' ? T('Lilin TV app') : d.agent || T('TV'));
+  return pushDevice.deviceLabel(d.agent);
+}
+function devicesSection() {
+  if (!signInsView.list && !signInsView.loading) loadSignIns();
+  const list = signInsView.list;
+  const others = (list || []).filter((d) => !d.current);
+  const rows = (list || []).map((d) => h('div', { class: 'set-row' },
+    h('div', { class: 'set-text' }, h('div', { class: 'set-label' }, deviceName(d)),
+      h('div', { class: 'set-hint' }, d.current ? T('This device') : T('Last used {0}', fmtAgo(d.lastSeen) || T('today')))),
+    // TVs sign out one at a time; a browser that came in through Cloudflare would walk straight back in, so
+    // browsers go all together (Sign out everywhere else ends Cloudflare's sign-ins too).
+    h('div', { class: 'set-control' }, d.kind === 'tv' && !d.current && h('button', { type: 'button', class: 'chip', 'aria-label': T('Sign out {0}', deviceName(d)), onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      try { signInsView.list = (await api('/api/auth/devices/sign-out', jsonPost({ id: d.id }))).devices; toast(T('{0} is signed out', deviceName(d))); }
+      catch (err) { toast(err.message); }
+      redrawYouPage();
+    } }, T('Sign out')))));
+  const everywhere = h('button', { type: 'button', class: 'chip', onclick: async (e) => {
+    if (!confirm(T('Sign out every other browser and TV? They’ll need your password to get back in.'))) return;
+    e.currentTarget.disabled = true;
+    try {
+      const r = await api('/api/auth/devices/sign-out', jsonPost({ others: true }));
+      // Through Cloudflare this browser's own Access sign-in ended too: a reload signs it straight back in.
+      if (r.reload) { location.reload(); return; }
+      signInsView.list = r.devices; toast(T('Your other devices are signed out'));
+    } catch (err) { toast(err.message); }
+    redrawYouPage();
+  } }, T('Sign out everywhere else'));
+  return [
+    h('h3', { class: 'set-head' }, T('Signed in on')),
+    ...(list ? rows : [h('p', { class: 'set-hint' }, T('Loading…'))]),
+    settingsRow(T('Lost a phone or shared a password?'), T('Every other browser and TV has to sign in again with your password.'), everywhere),
   ];
 }
 function watchingPage() {
@@ -8790,8 +8844,8 @@ function showPasswordGate() {
   pass.focus();
 }
 
-// Lilin's own sign-in: change the password, sign out of this browser.
-function accountSection() {
+// Account → Password: change it here (signs every other device out, Cloudflare's sign-ins too).
+function passwordRow() {
   const current = h('input', { type: 'password', class: 'invite-note', autocomplete: 'current-password', placeholder: T('Current password'), 'aria-label': T('Current password') });
   const next = h('input', { type: 'password', class: 'invite-note', autocomplete: 'new-password', minlength: '10', placeholder: T('New password (10+ characters)'), 'aria-label': T('New password') });
   const save = h('button', { class: 'chip', type: 'submit' }, T('Change password'));
@@ -8801,11 +8855,21 @@ function accountSection() {
     e.preventDefault();
     save.disabled = true;
     try {
-      await api('/api/auth/password', jsonPost({ current: current.value, next: next.value }));
+      const r = await api('/api/auth/password', jsonPost({ current: current.value, next: next.value }));
       current.value = next.value = '';
+      if (r.reload) { toast(T('Password changed. Other devices were signed out.')); setTimeout(() => location.reload(), 1200); return; }
       msg.textContent = T('Password changed. Other devices were signed out.');
+      signInsView.list = null; loadSignIns();
     } catch (err) { msg.textContent = err.message; } finally { save.disabled = false; }
   });
+  return h('details', { class: 'set-details' },
+    h('summary', {},
+      h('span', { class: 'set-text' }, h('span', { class: 'set-label' }, T('Change password')),
+        h('span', { class: 'set-hint' }, T('Your other devices are signed out when you change it.'))),
+      h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
+    form);
+}
+function signOutRow() {
   const out = h('button', { class: 'chip', type: 'button' }, T('Sign out'));
   out.addEventListener('click', async () => {
     out.disabled = true;
@@ -8813,13 +8877,7 @@ function accountSection() {
     // Through Cloudflare Access its own sign-in has to end too, or the next visit walks straight back in.
     location.assign(state.me?.via === 'proxy' ? '/cdn-cgi/access/logout' : '/signin');
   });
-  return h('div', { class: 'set-account' }, settingsRow(T('Sign out'), T('Signs this browser out of Lilin.'), out),
-    h('details', { class: 'set-details' },
-      h('summary', {},
-        h('span', { class: 'set-text' }, h('span', { class: 'set-label' }, T('Change password')),
-          h('span', { class: 'set-hint' }, T('Your other devices are signed out when you change it.'))),
-        h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
-      form));
+  return settingsRow(T('Sign out'), T('Signs this browser out of Lilin.'), out);
 }
 
 // House → Server rules: how long downloads stay, and what new people get.

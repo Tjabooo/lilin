@@ -5093,7 +5093,9 @@ function sendSignIn(req, res, url) {
 }
 function drawSignIn(req, res, url) {
   const next = safeNext(url.searchParams.get('next'));
-  if (req.auth.via) { res.writeHead(303, { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
+  // The shared home account may still ask for the page (Account → Sign in as yourself): ?own=1.
+  const switching = req.auth.via === 'home' && url.searchParams.has('own');
+  if (req.auth.via && !switching) { res.writeHead(303, { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
   const errors = { wrong: 'That email and password don’t match.', wait: 'Too many tries. Wait a few minutes and try again.', missing: 'Enter your email and password.' };
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote, email: url.searchParams.get('email') || '', qr: auth.hasLogins() }));
@@ -5107,6 +5109,14 @@ async function readCredentials(req) {
     return { form: true, ...Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString())) };
   }
   return { form: false, ...(await readJson(req, 4096)) };
+}
+
+// Ends someone's Cloudflare Access sign-ins on every device (their own request: password change, sign out
+// everywhere else). True when this browser came in through Cloudflare and should reload to sign back in.
+async function revokeCloudflare(req) {
+  if (!invites.invitesConfigured() || !req.auth?.email) return false;
+  try { await invites.revokeAccess(req.auth.email); } catch (e) { console.warn('[auth] revoke:', e.message); return false; }
+  return req.auth.via === 'proxy';
 }
 
 async function handleAuth(req, res, p) {
@@ -5145,7 +5155,27 @@ async function handleAuth(req, res, p) {
     const body = await readJson(req, 4096);
     const { setCookie } = await auth.changePassword(req, body.current, body.next);
     res.setHeader('Set-Cookie', setCookie);
-    return sendJson(res, 200, { ok: true });
+    // Through Cloudflare the other devices still hold an Access sign-in (weeks long): end those too, or
+    // "other devices were signed out" isn't true. This browser has its new Lilin session and walks back in.
+    const cloudflare = await revokeCloudflare(req);
+    activity.record(req, 'signin', 'Changed their Lilin password');
+    return sendJson(res, 200, { ok: true, reload: cloudflare });
+  }
+  // Account → Signed in on: your own browsers and TVs.
+  if (p === '/api/auth/devices' && req.method === 'GET') {
+    return sendJson(res, 200, { devices: auth.devices(req) });
+  }
+  if (p === '/api/auth/devices/sign-out' && req.method === 'POST') {
+    const body = await readJson(req, 4096);
+    if (body.others) {
+      const { setCookie, kept } = auth.endOtherDevices(req);
+      if (setCookie) res.setHeader('Set-Cookie', setCookie);
+      const cloudflare = kept && await revokeCloudflare(req);
+      activity.record(req, 'signin', 'Signed out their other devices');
+      return sendJson(res, 200, { ok: true, devices: auth.devices(req), reload: Boolean(cloudflare) });
+    }
+    auth.endDevice(req, body.id);
+    return sendJson(res, 200, { ok: true, devices: auth.devices(req) });
   }
   throw new HttpError(404, 'Not found.');
 }

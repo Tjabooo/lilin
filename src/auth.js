@@ -380,6 +380,50 @@ export function createAuth({
     return cookie(req, '', 0);
   }
 
+  // Your signed-in browsers and TVs (Account): newest use first, this one marked. Ids are token hashes:
+  // they name a session, but can't be turned back into the cookie that opens it.
+  function devices(req) {
+    const e = normalEmail(req.auth?.email);
+    if (!e) return [];
+    const token = sessionCookie(req);
+    const here = token ? tokenHash(token) : null;
+    const t = now();
+    const rows = (table, kind) => store.db.prepare(`SELECT id, created_at, last_seen, agent FROM ${table} WHERE email = ? AND expires_at > ?`).all(e, t)
+      .map((r) => ({ id: r.id, kind, agent: r.agent || '', createdAt: r.created_at, lastSeen: r.last_seen, current: r.id === here }));
+    return [...rows('sessions', 'browser'), ...rows('tv_sessions', 'tv')]
+      .sort((a, b) => b.current - a.current || b.lastSeen - a.lastSeen);
+  }
+
+  // Signs one of your own devices out. This browser signs out with Sign out (it needs its cookie cleared).
+  function endDevice(req, id) {
+    const e = normalEmail(req.auth?.email);
+    const token = sessionCookie(req);
+    if (!e || typeof id !== 'string' || !id) throw httpError(400, 'Choose a device.');
+    if (token && tokenHash(token) === id) throw httpError(400, 'Use Sign out for this device.');
+    let n = 0;
+    for (const table of ['sessions', 'tv_sessions']) n += store.db.prepare(`DELETE FROM ${table} WHERE id = ? AND email = ?`).run(id, e).changes;
+    if (!n) throw httpError(404, 'That device is already signed out.');
+  }
+
+  // Every other browser and TV of yours signs out; this one stays. Someone who came in through Cloudflare
+  // without a Lilin session on this browser gets one first (they're already in), so once their Cloudflare
+  // sign-ins are revoked this browser walks straight back in through Lilin's own login and the others can't.
+  function endOtherDevices(req) {
+    const e = normalEmail(req.auth?.email);
+    if (!e) throw httpError(400, 'Only people signed in with an email have devices to sign out.');
+    const token = sessionCookie(req);
+    let here = token && sessionFor(token) ? tokenHash(token) : null;
+    let setCookie = null;
+    if (!here && store.login(e)) {
+      const started = startSession(req, e);
+      setCookie = started.setCookie;
+      here = tokenHash(setCookie.slice(COOKIE.length + 1).split(';')[0]);
+    }
+    let n = 0;
+    for (const table of ['sessions', 'tv_sessions']) n += store.db.prepare(`DELETE FROM ${table} WHERE email = ? AND id != ?`).run(e, here || '').changes;
+    return { ended: n, setCookie, kept: Boolean(here) };
+  }
+
   async function changePassword(req, current, next) {
     const login = req.auth?.email ? store.login(req.auth.email) : null;
     if (!login && req.auth?.via !== 'session') throw httpError(400, 'Your password is managed where you sign in (Cloudflare or your proxy).');
@@ -402,6 +446,9 @@ export function createAuth({
     signOut,
     createSession,
     changePassword,
+    devices,
+    endDevice,
+    endOtherDevices,
     hasLogins: () => store.count() > 0,
     hasPassword: (email) => Boolean(email && store.login(email)),
   };

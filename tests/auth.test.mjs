@@ -111,6 +111,35 @@ test('sessions identify people; the shared account is for the home network only'
   strict.store.close();
 });
 
+test('Account lists your devices and signs the others out, keeping this one', async () => {
+  const auth = createAuth({ dataDir: await tmp() });
+  await auth.store.setPassword('ana@example.com', 'a long password here');
+  await auth.store.setPassword('bo@example.com', 'a long password here');
+  const cookieOf = (r) => r.setCookie.split(';')[0];
+  const phone = cookieOf(await auth.signIn(fakeReq({ headers: { 'user-agent': 'iPhone' } }), 'ana@example.com', 'a long password here'));
+  const laptop = cookieOf(await auth.signIn(fakeReq({ headers: { 'user-agent': 'Firefox' } }), 'ana@example.com', 'a long password here'));
+  const bo = cookieOf(await auth.signIn(fakeReq(), 'bo@example.com', 'a long password here'));
+  auth.createSession(fakeReq(), 'ana@example.com', 'Lilin TV app');
+  const as = (cookie) => { const r = fakeReq({ headers: { cookie } }); auth.identify(r); return r; };
+  const mine = auth.devices(as(phone));
+  assert.equal(mine.length, 3, 'two browsers and a TV, not Bo’s');
+  assert.equal(mine[0].current, true); assert.equal(mine[0].agent, 'iPhone');
+  const tv = mine.find((d) => d.kind === 'tv');
+  assert.throws(() => auth.endDevice(as(bo), tv.id), { status: 404 }, 'only your own devices');
+  assert.throws(() => auth.endDevice(as(phone), mine[0].id), { status: 400 }, 'this one signs out with Sign out');
+  auth.endDevice(as(phone), tv.id);
+  assert.equal(auth.devices(as(phone)).length, 2);
+  const r = auth.endOtherDevices(as(phone));
+  assert.equal(r.ended, 1); assert.equal(r.setCookie, null); assert.equal(r.kept, true);
+  assert.equal(as(phone).auth.via, 'session'); assert.equal(as(laptop).auth.via, 'home'); assert.equal(as(bo).auth.via, 'session');
+  // Through Cloudflare with no Lilin session here yet: this browser gets one, so it can walk back in.
+  const proxied = fakeReq({ headers: { 'cf-access-authenticated-user-email': 'ana@example.com' } }); auth.identify(proxied);
+  const p = auth.endOtherDevices(proxied);
+  assert.ok(p.setCookie && p.kept); assert.equal(as(phone).auth.via, 'home');
+  assert.equal(as(p.setCookie.split(';')[0]).auth.via, 'session');
+  auth.store.close();
+});
+
 test('the sign-in page escapes what it echoes and only redirects within Lilin', () => {
   for (const bad of ['//evil.example', 'https://evil.example', '/\\evil.example', 'javascript:alert(1)', '/ok\r\nSet-Cookie: x=1']) assert.equal(safeNext(bad), '/');
   assert.equal(safeNext('/#library'), '/#library');

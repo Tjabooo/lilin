@@ -1,4 +1,13 @@
 {
+  "2026-11-17-account-page": {
+    "title": "En riktig Konto-sida",
+    "items": {
+      "See where you're signed in": {
+        "title": "Se var du är inloggad",
+        "text": "Du → Konto visar nu webbläsarna och TV-apparaterna som är inloggade som du. Tappat mobilen? Logga ut överallt annars, så behöver alla andra enheter ditt lösenord för att komma in igen. Att byta lösenord gör samma sak."
+      }
+    }
+  },
   "2026-11-17-scan-to-sign-in": {
     "title": "Logga in genom att skanna en kod",
     "items": {

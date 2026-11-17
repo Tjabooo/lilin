@@ -2493,6 +2493,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 /* You: Sign out row + Change password, a row that opens into a small form */
 .set-account > .set-row { margin: 0; background: none; }
 .set-account > .set-details { border-top: 1px solid var(--hairline); }
+.set-stack > .set-details { padding: 0; }
 .set-details > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 16px;
   padding: 14px 16px; transition: background-color var(--d-1);

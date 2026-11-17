@@ -713,5 +713,9 @@
  "No camera? In Lilin, open You → Devices and notifications and enter": "Ingen kamera? Öppna Du → Enheter och aviseringar i Lilin och skriv in",
  "or": "eller",
  "That code has expired or was already used. Show a new one on the computer.": "Koden har gått ut eller redan använts. Visa en ny på datorn.",
- "Sign in with your own account on this phone first: the shared home network account can’t sign in a computer.": "Logga in med ditt eget konto på mobilen först: det delade hemnätverkskontot kan inte logga in en dator."
+ "Sign in with your own account on this phone first: the shared home network account can’t sign in a computer.": "Logga in med ditt eget konto på mobilen först: det delade hemnätverkskontot kan inte logga in en dator.",
+ "Choose a device.": "Välj en enhet.",
+ "Use Sign out for this device.": "Använd Logga ut för den här enheten.",
+ "That device is already signed out.": "Den enheten är redan utloggad.",
+ "Only people signed in with an email have devices to sign out.": "Bara den som är inloggad med e-post har enheter att logga ut."
 }
