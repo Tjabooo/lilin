@@ -1,4 +1,29 @@
 {
+  "2026-11-17-revamp-2": {
+    "title": "Lilin har städats upp",
+    "items": {
+      "Four tabs: Discover, Live, Library and You": {
+        "title": "Fyra flikar: Upptäck, Live, Bibliotek och Du",
+        "text": "Lilin har fått många nya funktioner på sistone, så allt har fått en tydligare plats. Flikarna heter nu Upptäck, Live, Bibliotek och Du. Inställningar finns nu under Du, tillsammans med din profil, dina vänner, ögonblick och det du har tittat på. Ägare har alla sina verktyg i en flik, Huset."
+      },
+      "Library in three parts": {
+        "title": "Biblioteket i tre delar",
+        "text": "Biblioteket har nu Titlar, Bevakat och Nedladdningar. Bevakat är en enda lista för det du sparat till senare, det som är på gång och serierna du följer. Under Nedladdningar finns allt om det som är på väg."
+      },
+      "A shorter Discover with Right now": {
+        "title": "Ett kortare Upptäck med Just nu",
+        "text": "Upptäck är kortare. Direkt under den stora bilden visar Just nu det som väntar på dig i dag: en tittarkväll, något som snart försvinner eller en nedladdning som är klar."
+      },
+      "Watch with someone on Live": {
+        "title": "Titta med någon under Live",
+        "text": "Live har fått en ny del högst upp, Titta med någon: starta Välj tillsammans, eller gå med i tittarkvällarna ni har planerat."
+      },
+      "One title page, one way to invite, smarter search": {
+        "title": "En titelsida, ett sätt att bjuda in, smartare sökning",
+        "text": "Alla filmer och serier öppnar samma sida, med en huvudknapp för det du troligen vill göra härnäst. Att bjuda in folk fungerar likadant överallt. Sökningen hittar också platser och inställningar, så skriver du \"undertexter\" kommer du direkt dit."
+      }
+    }
+  },
   "2026-11-17-theme-music": {
     "title": "Ledmotiv",
     "items": {

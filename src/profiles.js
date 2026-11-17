@@ -142,10 +142,11 @@ export function idForHandle(handle) {
 
 const social = (user) => Boolean(user) && user.email !== HOME && user.email !== null;
 
-// What the viewer may see of target's profile: 'self', 'full' or 'locked'. Throws 404 for nobody / Home network.
+// What the viewer may see of target's profile: 'self', 'full' or 'locked'. Throws 404 for nobody, and for the Home
+// network's shared account to anyone but itself (it sees its own history in You; it can't publish a page).
 export function access(viewer, target) {
+  if (target && viewer?.id === target.id) return 'self';
   if (!target || !social(target)) throw fail(404, 'No such profile.');
-  if (viewer.id === target.id) return 'self';
   if (isRestricted(viewer) || isRestricted(target)) return 'locked';
   const vis = profileOf(target).visibility;
   if (vis === 'public') return 'full';
@@ -313,9 +314,10 @@ export function reviewsBy(userId, { offset = 0, limit = 3 } = {}) {
   return { reviews: rows.slice(0, limit).map((r) => ({ key: r.title_key, stars: r.stars, text: r.text, spoiler: Boolean(r.spoiler), title: r.title, created: r.created_at })), more };
 }
 
-// Titles they gave a thumbs up, newest first.
-export function likedBy(userId, limit = 12) {
-  return db().prepare('SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1 ORDER BY updated_at DESC LIMIT ?').all(userId, limit);
+// Titles they gave a thumbs up, newest first (offset: the next page, for You → Liked).
+export function likedBy(userId, limit = 12, offset = 0) {
+  return db().prepare('SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1 ORDER BY updated_at DESC, rowid DESC LIMIT ? OFFSET ?')
+    .all(userId, limit, Math.max(0, Number(offset) || 0));
 }
 
 // Their friends (faces on the profile), never restricted people.

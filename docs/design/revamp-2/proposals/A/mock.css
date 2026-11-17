@@ -1,0 +1,86 @@
+/* Proposal A mockups: only what the static pages need on top of public/style.css (the real tokens + components). */
+@font-face {
+  font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800; font-stretch: 75% 100%;
+  src: url("../../../../../public/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+}
+.view { animation: none; }
+html, body { overflow-x: hidden; }
+
+/* billboard (simplified) */
+.mk-bb { position: relative; margin: calc(-1 * (var(--head-h) + 8px)) calc(-1 * var(--gutter)) 0; aspect-ratio: 4 / 5; overflow: hidden; color: var(--on-image); }
+.mk-bb > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mk-bb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--velvet) 0%, rgb(var(--picture-dark) / .55) 30%, rgb(var(--picture-dark) / 0) 60%), var(--scrim-top); background-size: 100% 100%, 100% 120px; background-repeat: no-repeat; }
+.mk-bb-text { position: absolute; z-index: 1; left: var(--gutter); right: var(--gutter); bottom: 18px; display: grid; justify-items: center; text-align: center; gap: 8px; }
+.mk-bb-title { margin: 0; font: 800 46px/0.92 var(--display); letter-spacing: .06em; color: #c9d6ff; text-shadow: 0 2px 18px rgb(0 0 0 / .5); }
+.mk-meta { font-size: 13px; font-weight: 600; color: rgb(255 255 255 / .86); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.mk-meta .on { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: rgb(var(--picture-dark) / .6); font-size: 11.5px; }
+.mk-meta .on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 6px var(--bulb); }
+.mk-btns { display: flex; gap: 10px; margin-top: 4px; }
+.mk-btns .play-btn, .mk-btns .btn-glass { height: 44px; }
+.mk-dots { display: flex; gap: 7px; justify-content: center; margin-top: 6px; }
+.mk-dots i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid rgb(255 255 255 / .5); }
+.mk-dots i:first-child { background: var(--bulb); border-color: var(--bulb); box-shadow: 0 0 8px var(--bulb); }
+
+/* the one Discover control row (every width) */
+.mk-controls { display: flex; gap: 8px; align-items: center; margin: 14px calc(-1 * var(--gutter)) 22px; padding: 0 var(--gutter); overflow: hidden; white-space: nowrap; }
+.mk-controls .segmented { flex: none; }
+.mk-controls .chip { flex: none; min-height: 40px; }
+.chev-d { width: 7px; height: 7px; margin: -3px 0 0 2px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+
+/* proposal notes: dashed, info-blue, never mistaken for UI */
+.mk-note { display: block; width: fit-content; max-width: 100%; margin: 0 0 10px; padding: 3px 9px; font: 700 11px/1.3 var(--body); letter-spacing: .02em; color: var(--info); border: 1px dashed color-mix(in srgb, var(--info) 70%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--info) 8%, transparent); white-space: normal; }
+.mk-note b { font-weight: 800; }
+.mk-note.abs { position: absolute; z-index: 40; margin: 0; }
+
+/* rows */
+.shelf { margin-bottom: 26px; }
+.shelf-head h3 { margin: 0; font: 700 var(--t-h2)/1.15 var(--display); letter-spacing: -.01em; }
+.shelf-head .kicker { margin: 0 0 2px; }
+.shelf-items { overflow: hidden; }
+.poster .mk-badge { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 6px; background: rgb(var(--picture-dark) / .6); display: grid; place-items: center; }
+.poster .mk-badge::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 6px var(--bulb); }
+.mk-progress { position: absolute; left: 8px; right: 8px; bottom: 7px; height: 4px; border-radius: 3px; background: rgb(255 255 255 / .25); }
+.mk-progress i { display: block; height: 100%; border-radius: inherit; background: var(--bulb); }
+.mk-left { position: absolute; left: 8px; bottom: 16px; padding: 2px 7px; font-size: 11px; font-weight: 700; border-radius: 6px; background: rgb(var(--picture-dark) / .7); color: #fff; }
+.mk-fallback { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 10px; font: 700 14px/1.15 var(--display); color: var(--text-2); background: radial-gradient(120% 80% at 30% 0%, color-mix(in srgb, var(--bulb) 12%, transparent), transparent 60%), var(--surface-2); }
+.mk-faces { display: inline-flex; vertical-align: -4px; margin-right: 4px; }
+.mk-faces .face { box-shadow: 0 0 0 2px var(--velvet); }
+.mk-faces .face + .face { margin-left: -6px; }
+
+/* Pick together tile in the Moods row */
+.vibe-tile .mk-sub { position: relative; font-size: 12px; font-weight: 600; opacity: .85; margin-top: 2px; }
+.vibe-tile .mk-kick { position: absolute; top: 10px; left: 12px; font: 800 10px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: rgb(255 255 255 / .85); }
+.mk-cards { position: absolute; top: 10px; right: 12px; width: 40px; height: 34px; }
+.mk-cards i { position: absolute; top: 0; width: 22px; height: 31px; border-radius: 5px; background: rgb(255 255 255 / .9); box-shadow: 0 4px 10px rgb(0 0 0 / .35); }
+.mk-cards i:first-child { left: 2px; transform: rotate(-12deg); background: color-mix(in srgb, #fff 70%, var(--v2)); }
+.mk-cards i:last-child { right: 2px; transform: rotate(10deg); }
+
+/* sticky sub-navigation: Library segments, Owner chips, Settings index */
+.mk-subnav { display: flex; gap: 8px; margin: 0 calc(-1 * var(--gutter)) 18px; padding: 0 var(--gutter); overflow: hidden; white-space: nowrap; }
+.mk-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; font-size: 11px; font-weight: 800; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+.segmented button[aria-pressed="true"] .mk-count { background: color-mix(in srgb, var(--velvet) 14%, transparent); color: var(--velvet); }
+.mk-count.lit { background: var(--bulb); color: var(--on-bulb); }
+.mk-line { margin: -12px 0 16px; font-size: 13px; color: var(--text-2); }
+
+/* list rows (people, downloads, watchlist) */
+.mk-list { display: grid; gap: 8px; margin: 0 0 22px; padding: 0; list-style: none; }
+.mk-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.mk-row .mk-t { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mk-row .mk-t strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-row .mk-t span { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-row .mk-more { width: 36px; height: 36px; display: grid; place-items: center; color: var(--text-2); border-radius: 50%; }
+.mk-row .mk-more svg { width: 18px; height: 18px; }
+.mk-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+.mk-tags span { padding: 1px 7px; font-size: 11px; font-weight: 700; color: var(--text-2); border: 1px solid var(--hairline-2); border-radius: 999px; }
+.mk-tags span.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.mk-h { margin: 6px 0 10px; font: 700 var(--t-h3)/1.2 var(--display); display: flex; align-items: baseline; gap: 8px; }
+.mk-h small { font: 600 13px/1 var(--body); color: var(--text-2); }
+.mk-thumb { width: 40px; height: 60px; flex: none; border-radius: 6px; overflow: hidden; }
+.mk-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mk-date { flex: none; width: 46px; text-align: center; font: 800 18px/1 var(--display); color: var(--text); }
+.mk-date small { display: block; font: 700 10px/1.4 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--bulb); }
+
+.mk-toolbar { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; }
+.mk-toolbar .spacer { flex: 1; }
+.mk-select { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; font-size: 14px; font-weight: 600; background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: 999px; }
+.mk-select .chev-d { margin-left: 4px; }

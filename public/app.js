@@ -12,7 +12,8 @@ import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
 import { SUB_SIZES, SUB_BACKGROUNDS, SUB_POSITIONS, subLook, subRaise, secondChoices, createNightAudio,
   SLEEP_MINUTES, sleepTimer, sleepSecondsLeft, sleepFade, sleepLabel } from './player-comfort.js';
-import { comingUp, newEpisodes, watchStatus, todayIso } from './watchlist.js';
+import { comingUp, newEpisodes, watchStatus, todayIso, createWatchlistView } from './watchlist.js';
+import { createRightNow } from './right-now.js';
 import { travelTitle, sizeWords, stateWords, travelSummary, travelOrder } from './travel.js';
 import { libraryUnion, libraryAvailability, filterLibrary, transferState, transferAttention, transferPaused, packScope } from './library-downloads.js';
 import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText, fmtHours } from './social.js';
@@ -25,6 +26,7 @@ import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
 import { createMoments } from './moments.js'; // friends: Moments
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
+import { createInvite } from './invite.js'; // one Invite sheet: Lilin, Friend, Room, Pick, Moment
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
@@ -33,6 +35,9 @@ import { createComingSoon as createComingSoonView } from './coming-soon.js'; // 
 import { createScout, scoutWaiting } from './scout.js'; // scout: the idea scout's cards in the owner's inbox
 import { createTitleDetails } from './details.js'; // details: More details at the bottom of title pages
 import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme music on show pages
+import { ROUTES, allowedRoute, tabsFor, pagesOf, resolve, linkRoute, startRoute } from './routes.js'; // the shell: tabs, addresses, Back
+import { createSearch } from './search.js'; // search: titles + Go to (places.js)
+import { titleModel } from './title-model.js'; // the one title page: its state, gold button, chips and ⋯ menu
 
 translatePage();
 saveLanguage(lang);
@@ -73,6 +78,7 @@ const ICONS = {
   tv: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/></svg>',
   back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
+  filter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16l-6.2 7.3V19l-3.6 1.6v-7.8z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M10 4h4M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v6M14 11v6"/></svg>',
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg>',
   bookmark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg>',
@@ -198,10 +204,9 @@ const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 // ---------- state ----------
 const state = {
-  view: 'discover',
+  view: 'discover', route: 'discover', sub: null, // routes.js: the view on screen, its address and the page inside it
   sessions: [],
   convert: null,
-  query: '',
   status: { search: false, library: false, downloads: false, torrents: false, subtitles: false },
   library: [],
   libraryShows: [], // episodes grouped into shows (server side, TMDB posters per season)
@@ -214,8 +219,9 @@ const state = {
   rules: null,      // the server's auto-delete rules
   progress: {},     // where this person stopped watching, from any device
   libFilter: 'all',
-  libAvailability: 'all',
-};
+};// Page filters (Library, Activity, House → Machines, Game clips, Notes): what's typed in each page's own field.
+const pageFilters = { library: '', activity: '', house: '', clips: '', notes: '' };
+
 const canDownload = () => state.status.downloads && state.me?.canDownload !== false;
 const prefs = () => state.me?.settings || {};
 
@@ -512,7 +518,6 @@ async function loadWatchlist() {
 function refreshWatchViews() {
   document.querySelectorAll('.watch-box').forEach((box) => box._update?.());
   if (state.view === 'library') renderLibrary();
-  if (state.view === 'discover' && !state.query.trim() && !disc.list && !disc.genre) refreshSavedShelf();
   document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: Save / Follow on its cards
 }
 async function setWatch(t, flags) {
@@ -523,8 +528,14 @@ async function setWatch(t, flags) {
   refreshWatchViews();
   return item;
 }
-// Save (any title), Follow (shows) and the automatic-download switch, with one status line.
-function watchBox(t) {
+// Saved or followed: the toast's button goes to Library › Watchlist, closing the sheets on the way.
+const watchlistToast = (text) => actionToast(text, T('Watchlist'), async () => {
+  try { while (overlayStack.length) await dismissTopOverlay(); } catch { /* a sheet stayed open */ }
+  setView('library/watchlist');
+}, 4000);
+// Save (any title), Follow (shows) and the automatic-download switch, with one status line. The title page puts
+// box.save and box.follow in its button bar (lead: the one that's its gold button); the box keeps the rest.
+function watchBox(t, { lead = null } = {}) {
   const isTv = t.type === 'tv';
   const box = h('div', { class: 'watch-box' });
   let busy = false;
@@ -533,9 +544,13 @@ function watchBox(t) {
     busy = true; box.classList.add('is-busy');
     try {
       const item = await setWatch(t, flags);
-      if (what) toast(what(item));
+      if (what) (flags.saved || flags.follow ? watchlistToast : toast)(what(item));
     } catch (err) { toast(err.message); } finally { busy = false; box.classList.remove('is-busy'); box._update(); }
   };
+  const toggle = (id, run) => h('button', { type: 'button', class: `${lead === id ? 'play-btn action-btn' : 'chip'} watch-toggle`, 'data-act': id, onclick: () => run() });
+  box.save = toggle('save', () => { const saved = Boolean(watchItem(t.type, t.id)?.saved); act({ saved: !saved }, (i) => (i?.saved ? T('Saved for later') : T('Removed from Saved'))); });
+  box.follow = isTv ? toggle('follow', () => { const follow = Boolean(watchItem(t.type, t.id)?.follow);
+    act({ follow: !follow }, (i) => (i?.follow ? (i.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'))); }) : null;
   box._update = () => {
     if (!box.isConnected && box._drawn) return;
     box._drawn = true;
@@ -543,49 +558,25 @@ function watchBox(t) {
     const saved = Boolean(item?.saved), follow = Boolean(item?.follow);
     const auto = Boolean(item?.auto) && watch.autoDownload;
     const inLibrary = !isTv && matchesFor(t).some((f) => f.done);
-    const save = h('button', { type: 'button', class: `chip watch-toggle${saved ? ' is-on' : ''}`, 'aria-pressed': String(saved),
-      onclick: () => act({ saved: !saved }, (i) => (i?.saved ? T('Saved for later') : T('Removed from Saved'))) }, icon('bookmark'), saved ? T('Saved') : T('Save'));
-    const followBtn = isTv && h('button', { type: 'button', class: `chip watch-toggle${follow ? ' is-on' : ''}`, 'aria-pressed': String(follow),
-      onclick: () => act({ follow: !follow }, (i) => (i?.follow ? (i.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'))) },
-      icon('bell'), follow ? T('Following') : T('Follow'));
+    box.save.classList.toggle('is-on', saved); box.save.setAttribute('aria-pressed', String(saved));
+    box.save.replaceChildren(icon('bookmark'), h('span', {}, saved ? T('Saved') : T('Save')));
+    if (box.follow) {
+      box.follow.classList.toggle('is-on', follow); box.follow.setAttribute('aria-pressed', String(follow));
+      box.follow.replaceChildren(icon('bell'), h('span', {}, follow ? T('Following') : T('Follow')));
+    }
     // Films: wait for the release. Shows: new episodes as they air (only while following).
     const offerAuto = watch.autoDownload && (isTv ? follow : saved && !inLibrary && item?.state !== 'got');
     const autoSwitch = offerAuto && h('label', { class: 'watch-auto' },
       h('input', { type: 'checkbox', checked: auto, onchange: (e) => act({ auto: e.currentTarget.checked }) }),
       h('span', {}, isTv ? T('Add new episodes as they air') : T('Add it when a good copy is out')));
     const line = watchStatus(item, { today: todayIso(), autoDownload: watch.autoDownload, inLibrary });
-    box.replaceChildren(...[h('div', { class: 'watch-buttons' }, save, followBtn), autoSwitch, line && h('p', { class: 'watch-status', role: 'status' }, line)].filter(Boolean));
+    box.replaceChildren(...[autoSwitch, line && h('p', { class: 'watch-status', role: 'status' }, line)].filter(Boolean));
+    box.hidden = !autoSwitch && !line;
   };
   box._update();
   return box;
 }
 
-// Discover: your saved titles first, as their own row.
-function savedShelf() {
-  const items = watch.items.filter((i) => i.saved && (disc.type === 'all' || disc.type === i.type));
-  if (!items.length) return h('div', { class: 'saved-shelf', hidden: true });
-  const list = h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('Saved for later') }, items.map(titleCard));
-  const node = carousel(T('Saved for later'), list);
-  node.classList.add('saved-shelf');
-  return node;
-}
-function refreshSavedShelf() {
-  const old = $('#discover-body .saved-shelf');
-  if (old) old.replaceWith(savedShelf());
-}
-
-// Library: the next episode of each followed show and the release of each saved film, soonest first.
-function comingUpShelf() {
-  const list = comingUp(watch.items, todayIso())
-    .filter((c) => state.libFilter === 'all' || state.libFilter === c.item.type)
-    .filter((c) => !state.query.trim() || norm(c.item.title).includes(norm(state.query))).slice(0, 20);
-  if (!list.length) return null;
-  return libraryShelf(T('Coming up'), list.map((c) => h('li', { class: 'library-card continue-card coming-card' },
-    h('button', { type: 'button', class: 'title-card', onclick: (e) => openDetails(c.item, e.currentTarget) },
-      (() => { const art = wideArt([c.item.backdrop, { src: c.item.poster, contain: true }], '', CONTINUE_SIZES); art.append(h('span', { class: 'coming-date' }, c.when)); return art; })(),
-      h('div', { class: 'name' }, c.item.title),
-      h('div', { class: 'sub' }, c.what)))), 'continue-shelf coming-shelf');
-}
 // "3 new" on a followed show's card, for episodes that downloaded by themselves since you last opened it.
 function newBadgeCount(entry) {
   const id = entry.show?.tmdbId;
@@ -612,26 +603,6 @@ function timeLeft(ms) {
 }
 const canExtend = (f) => f.expiresAt != null && (!state.rules?.maxExtensions || (f.extensions || 0) < state.rules.maxExtensions);
 const extendDays = () => state.rules?.extendDays || 7;
-
-// The "4 days left · Keep 7 more days" part of a row's meta line. Re-renders itself after extending.
-function expiryBits(f) {
-  if (f.expiresAt == null) return null;
-  const soon = f.expiresAt - Date.now() < 86400000;
-  const wrap = h('span', { class: 'expiry-wrap' },
-    h('span', { class: `expiry${soon ? ' is-soon' : ''}`, title: T('Deletes {0}', new Date(f.expiresAt).toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) }, timeLeft(f.expiresAt)),
-    canExtend(f) && h('button', {
-      type: 'button', class: 'keep-btn', 'aria-label': T('Keep {0}{1} {2} more days', f.title, episodeLabel(f) ? ` ${episodeLabel(f)}` : '', extendDays()),
-      onclick: async (e) => {
-        e.stopPropagation();
-        const b = e.currentTarget;
-        b.disabled = true;
-        const [updated] = await extendItems([f]);
-        if (updated) wrap.replaceWith(expiryBits({ ...f, ...updated }) || '');
-        else b.disabled = false;
-      },
-    }, T('Keep {0} more days', extendDays())));
-  return wrap;
-}
 
 // Pushes back when these library videos are deleted. Returns the updated items (or [] on failure).
 async function extendItems(files) {
@@ -661,36 +632,19 @@ function rowMenu(label, items) {
       menu.open = false;
       run(summary);
     } }, ic, h('span', {}, text)))));
-  menu.addEventListener('toggle', () => { if (menu.open) menu.querySelector('.row-menu-item')?.focus(); });
+  menu.addEventListener('toggle', () => {
+    if (!menu.open) return;
+    // Opens upward when there's no room below (a short title page, the last row of a list).
+    const list = menu.querySelector('.row-menu');
+    list.classList.remove('is-up');
+    const box = list.getBoundingClientRect(), floor = Math.min(innerHeight, menu.closest('.sheet')?.getBoundingClientRect().bottom ?? innerHeight);
+    if (box.bottom > floor - 8 && box.top - box.height - summary.offsetHeight > 8) list.classList.add('is-up');
+    menu.querySelector('.row-menu-item:not([hidden])')?.focus();
+  });
   menu.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.open) { e.stopPropagation(); menu.open = false; summary.focus(); } });
   return menu;
 }
 document.addEventListener('click', (e) => { for (const m of document.querySelectorAll('details.row-more[open]')) if (!m.contains(e.target)) m.open = false; });
-
-function fileRow(f) {
-  const title = episodeLabel(f) || f.file || f.name;
-  const saved = savedProgress(f);
-  const pct = saved?.duration ? Math.min(100, (saved.time / saved.duration) * 100) : 0;
-  const meta = f.done
-    ? (f.versionKey && (f.versions?.length > 1 || f.versionOf) ? [f.versionLabel]
-      : [f.format?.toUpperCase() || (f.name?.match(/\.(\w{2,4})$/)?.[1] || '').toUpperCase(), fmtBytes(f.size)])
-    : [T('Downloading {0}%', Math.floor(f.progress * 100))];
-  return h('li', { class: 'row' },
-    h('div', { class: 'row-text' },
-      h('div', { class: 'row-title' }, title),
-      h('div', { class: 'row-meta' }, meta.filter(Boolean).map((m) => h('span', {}, m)), f.kind === 'lib' && expiryBits(f)),
-      pct > 1 && h('div', { class: 'resume-track', title: T('Watched so far') }, h('i', { style: `width:${pct}%` }))),
-    f.done && h('div', { class: 'row-actions' },
-      // Everything but Play waits behind one ⋯ button, with words, so a row has one obvious thing to press.
-      rowMenu(T('More for {0}', title), [
-        [icon('tv'), T('Play on TV'), (opener) => openPicker(f, opener)],
-        f.kind === 'lib' && [icon('phone'), T('Download to phone'), (opener) => openTravel(f, opener)],
-        f.kind === 'lib' && [icon('trash'), T('Delete'), (opener) => openDelete(f, opener), 'is-danger'],
-      ]),
-      f.converting
-        ? h('button', { class: 'play-btn round is-disabled', 'aria-disabled': 'true', title: T('Getting ready to play'), 'aria-label': T('{0}: getting ready to play', title), onclick: () => toast(T('Almost ready. It can be played in a moment.')) }, icon('play'))
-        : h('button', { class: 'play-btn round', 'aria-label': T('Play {0} here', title), onclick: () => openPlayer(f) }, icon('play'))));
-}
 
 // ---------- Download to phone (travel.js; the server makes the copies, src/travel.js) ----------
 // Small MP4s to watch offline: Small (480p) or Standard (720p), or the file at full quality.
@@ -786,6 +740,24 @@ function openTravelSeason(files, label, opener) {
   travelOverlay(opener, draw);
 }
 
+// Phone copies as rows, with Download buttons as copies finish: in the For your phone sheet and Library › Downloads.
+function travelRows(items, redraw) {
+  return items.map((item) => h('li', { class: 'row travel-row' },
+    h('div', { class: 'row-text' },
+      h('div', { class: 'row-title' }, item.title),
+      h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
+        item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
+      travelProgress(item)),
+    h('div', { class: 'row-actions' },
+      item.state === 'failed' && h('button', { type: 'button', class: 'chip', onclick: (e) => askTravel([{ kind: item.kind, id: item.id, title: item.title }], item.quality, e.currentTarget).then(redraw) }, T('Try again')),
+      item.url && travelLink(item.url),
+      h('button', { type: 'button', class: 'cast-btn del-btn', title: T('Remove'), 'aria-label': T('Remove {0} ({1}) from your phone list', item.title, item.label), onclick: async (e) => {
+        e.currentTarget.disabled = true;
+        try { travelView.items = (await api('/api/travel/remove', jsonPost({ kind: item.kind, id: item.id, quality: item.quality }))).items; } catch (err) { toast(err.message); }
+        redraw();
+        if (state.view === 'library') renderLibrary();
+      } }, icon('trash')))));
+}
 // Everything you asked for, with Download buttons as copies finish.
 function openTravelList(opener) {
   function draw() {
@@ -793,21 +765,7 @@ function openTravelList(opener) {
     $('#picker-body').replaceChildren(
       h('h2', { id: 'picker-title' }, T('For your phone')),
       h('p', { class: 'muted picker-sub' }, travelSummary(items, items.length === 1 ? T('1 copy') : T('{0} copies', items.length)) || T('Nothing yet. Open a film or episode and choose Download to phone.')),
-      h('ul', { class: 'rows travel-list' }, items.map((item) => h('li', { class: 'row travel-row' },
-        h('div', { class: 'row-text' },
-          h('div', { class: 'row-title' }, item.title),
-          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
-            item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
-          travelProgress(item)),
-        h('div', { class: 'row-actions' },
-          item.state === 'failed' && h('button', { type: 'button', class: 'chip', onclick: (e) => askTravel([{ kind: item.kind, id: item.id, title: item.title }], item.quality, e.currentTarget).then(draw) }, T('Try again')),
-          item.url && travelLink(item.url),
-          h('button', { type: 'button', class: 'cast-btn del-btn', title: T('Remove'), 'aria-label': T('Remove {0} ({1}) from your phone list', item.title, item.label), onclick: async (e) => {
-            e.currentTarget.disabled = true;
-            try { travelView.items = (await api('/api/travel/remove', jsonPost({ kind: item.kind, id: item.id, quality: item.quality }))).items; } catch (err) { toast(err.message); }
-            draw();
-            if (state.view === 'library') renderLibrary();
-          } }, icon('trash')))))),
+      h('ul', { class: 'rows travel-list' }, travelRows(items, draw)),
       ...(items.length ? [h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.'))] : []));
   }
   travelOverlay(opener, draw);
@@ -816,7 +774,6 @@ function openTravelList(opener) {
 
 // ---------- Discover ----------
 let searchCtrl;
-let searchTimer;
 const disc = { type: 'all', genre: null, sort: 'popular', list: null, genres: null, cache: new Map() };
 const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['docs', T('Documentaries')]];
 const SORT_LABELS = [['popular', T('Popular')], ['rating', T('Top rated')], ['newest', T('Newest')]];
@@ -884,46 +841,25 @@ function pickDiscover(changes) {
   window.scrollTo({ top: 0 });
   renderDiscover();
 }
-// The header's Browse button (phones, tablets): what Discover shows right now, and a sheet to change it.
-function updateBrowseButton() {
-  const label = disc.genre ? disc.genre.name : disc.type === 'all' ? T('Browse') : (TYPE_LABELS.find(([k]) => k === disc.type) || [])[1];
-  $('#browse-label').textContent = label;
-  $('#browse-btn').classList.toggle('is-set', disc.type !== 'all' || Boolean(disc.genre));
-  $('#browse-btn').setAttribute('aria-label', T('Browse: {0}', label));
-}
-function openBrowse(opener) {
-  const choose = (changes) => { closeTopOverlay(); pickDiscover(changes); };
-  const types = h('div', { class: 'browse-types', role: 'group', 'aria-label': T('Show') }, TYPE_LABELS.map(([key, text]) =>
-    h('button', { type: 'button', class: 'browse-type', 'aria-pressed': String(disc.type === key && !disc.genre), onclick: () => choose({ type: key, genre: null }) }, text)));
-  const genres = disc.type !== 'docs' && (disc.genres || []).filter(genreFits);
-  $('#picker-body').replaceChildren(
-    h('h2', { id: 'picker-title' }, T('Browse')),
-    types,
-    genres && genres.length > 0 && h('h3', { class: 'browse-head' }, T('Genres')),
-    genres && genres.length > 0 && h('div', { class: 'browse-genres', role: 'group', 'aria-label': T('Genre') }, genres.map((g) =>
-      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(disc.genre?.name === g.name), onclick: () => choose({ genre: g }) }, g.name))));
-  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => opener?.focus({ preventScroll: true })));
-}
-$('#browse-btn').addEventListener('click', (e) => openBrowse(e.currentTarget));
-
-function discoverFilters() {
+// The one control row, on every width: All · Films · Shows · Documentaries, then Genres, which opens the genre chips
+// under the row. A picked genre turns the chip into "Comedy ✕". In the page flow under the billboard and Right now;
+// everything above it is yours and unfiltered, everything below follows it.
+function discoverControls() {
   const pick = pickDiscover;
-  const open = Boolean(disc.genresOpen || disc.genre);
+  const open = Boolean(disc.genresOpen && !disc.genre);
   const chips = h('div', { class: 'genre-chips', id: 'genre-chips', role: 'group', 'aria-label': T('Genre'), hidden: !open },
-    h('button', { type: 'button', class: 'chip', 'aria-pressed': String(!disc.genre), onclick: () => pick({ genre: null }) }, T('All genres')),
-    (disc.genres || []).filter(genreFits).map((g) => h('button', {
-      type: 'button', class: 'chip', 'aria-pressed': String(disc.genre?.name === g.name), onclick: () => pick({ genre: g }),
-    }, g.name)));
-  requestAnimationFrame(() => { if (!chips.hidden) chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' }); });
-  // Genres fold away behind one chip, so the billboard keeps the top of the page.
-  const toggle = h('button', { type: 'button', class: 'chip genres-toggle', 'aria-expanded': String(open), 'aria-controls': 'genre-chips', onclick: () => {
-    disc.genresOpen = chips.hidden;
-    chips.hidden = !chips.hidden;
-    toggle.setAttribute('aria-expanded', String(!chips.hidden));
-    if (!chips.hidden) chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  } }, h('span', {}, disc.genre ? disc.genre.name : T('Genres')), h('i', { class: 'chev', 'aria-hidden': 'true' }));
-  return h('div', { class: 'discover-filters' },
-    segmented(TYPE_LABELS, disc.type, (type) => pick({ type }), T('Show')), disc.type !== 'docs' && toggle, disc.type !== 'docs' && chips);
+    (disc.genres || []).filter(genreFits).map((g) => h('button', { type: 'button', class: 'chip', onclick: () => pick({ genre: g, genresOpen: false }) }, g.name)));
+  const toggle = disc.genre
+    ? h('button', { type: 'button', class: 'chip genres-toggle', 'aria-pressed': 'true', 'aria-label': T('{0}: show all genres', disc.genre.name), onclick: () => pick({ genre: null }) },
+      h('span', {}, disc.genre.name), icon('close'))
+    : h('button', { type: 'button', class: 'chip genres-toggle', 'aria-expanded': String(open), 'aria-controls': 'genre-chips', onclick: () => {
+      disc.genresOpen = chips.hidden;
+      chips.hidden = !chips.hidden;
+      toggle.setAttribute('aria-expanded', String(!chips.hidden));
+    } }, h('span', {}, T('Genres')), h('i', { class: 'chev', 'aria-hidden': 'true' }));
+  return h('div', { class: 'discover-controls' },
+    h('div', { class: 'dc-line' }, segmented(TYPE_LABELS, disc.type, (type) => pick({ type }), T('Show')), disc.type !== 'docs' && toggle),
+    disc.type !== 'docs' && !disc.genre && chips);
 }
 
 function heroSlide(t) {
@@ -1009,7 +945,7 @@ function quickAction(t) {
     if (cardUnreleased(t) && !serverMatchesFor(t).length) return null; // not aired yet: the corner Follow is the action
     return { icon: 'plus', label: T('Add'), run: (b) => {
       openDetails(t, b);
-      $('#sheet-body .title-actions .action-row button')?.click(); // the page's own Add: adds what's here, or opens the season panel
+      $('#sheet-body .title-bar .title-add')?.click(); // the page's own Add: adds what's here, or opens the season panel
     } };
   }
   const s = titleState(t);
@@ -1111,30 +1047,7 @@ function continueRow() {
   const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
-// On its way: what's downloading for you, with how far along it is.
-function onItsWayRow() {
-  const entries = unifiedLibrary().filter((e) => (e.active.length || e.preparing) && (disc.type === 'all' || e.type === disc.type));
-  if (!entries.length) return null;
-  const cards = entries.slice(0, 12).map((e) => {
-    const d = e.transfers[0];
-    const art = wideArt([d?.backdrop || e.show?.backdrop, { src: e.poster || d?.poster, contain: true }]);
-    if (e.progress != null) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${Math.floor(e.progress * 100)}%` })));
-    const button = h('button', { type: 'button', class: 'title-card', onclick: (ev) => openUnifiedTitle(e, ev.currentTarget) },
-      art, h('div', { class: 'name' }, e.name),
-      h('div', { class: `sub${e.attention ? ' is-error' : ''}` }, [e.state, e.progress != null && `${Math.floor(e.progress * 100)}%`].filter(Boolean).join(' · ')));
-    return h('li', { class: 'library-card continue-card' }, button);
-  });
-  return carousel(T('On its way'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('On its way') }, cards), null, 'library-shelf continue-shelf home-shelf');
-}
-// New in your library: the last three weeks, newest first, one card per show.
-function newInLibraryRow() {
-  const since = Date.now() - 21 * 86400000;
-  const fresh = state.library.filter((f) => homeType(f) && (f.added || 0) > since).sort((a, b) => (b.added || 0) - (a.added || 0));
-  if (!fresh.length) return null;
-  const entries = libraryEntries(fresh).slice(0, 16);
-  return carousel(T('New in your library'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('New in your library') }, entries.map((e) => libraryCard(e))), null, 'home-shelf');
-}
-// What you watched last (with a TMDB id), newest first: the seeds for "Because you watched" and Top picks.
+// What you watched last (with a TMDB id), newest first: the seeds for For you.
 function watchedSeeds() {
   const shows = new Map(state.libraryShows.map((x) => [x.id, x]));
   const seeds = [], seen = new Set();
@@ -1150,51 +1063,50 @@ function watchedSeeds() {
   return seeds;
 }
 const ownedTitle = (t) => matchesFor(t).some((f) => f.done) || (t.type === 'tv' && state.libraryShows.some((x) => x.tmdbId === t.id));
-async function becauseRow(seed, signal) {
-  const page = await pageInfo(seed.type, seed.id).catch(() => null);
-  const items = (page?.similar || []).filter((t) => !ownedTitle(t) && (disc.type === 'all' || t.type === disc.type));
-  if (items.length < 4 || signal.aborted) return null;
-  const title = T('Because you watched {0}', seed.title);
-  return carousel(title, h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': title }, items.map(titleCard)), null, 'home-shelf');
-}
-async function topPicksRow(seeds, skip, signal) {
+// For you: titles like the last few things you watched, the ones several of them point at first. Its See all page
+// groups them by what you watched ("Because you watched …").
+async function forYouGroups(seeds, signal) {
   const pages = await Promise.all(seeds.map((x) => pageInfo(x.type, x.id).catch(() => null)));
+  if (signal.aborted) return [];
+  return seeds.map((seed, i) => ({ seed, items: (pages[i]?.similar || []).filter((t) => !ownedTitle(t) && (disc.type === 'all' || t.type === disc.type)) }));
+}
+function forYouItems(groups) {
   const tally = new Map();
-  for (const page of pages) for (const t of page?.similar || []) {
-    const key = `${t.type}:${t.id}`;
-    if (skip.has(key) || ownedTitle(t) || (disc.type !== 'all' && t.type !== disc.type)) continue;
-    const hit = tally.get(key) || { t, n: 0 };
+  for (const { items } of groups) for (const t of items) {
+    const key = `${t.type}:${t.id}`, hit = tally.get(key) || { t, n: 0 };
     hit.n += 1; tally.set(key, hit);
   }
-  const items = [...tally.values()].sort((a, b) => b.n - a.n || (b.t.rating || 0) - (a.t.rating || 0)).map((x) => x.t).slice(0, 20);
-  if (items.length < 4 || signal.aborted) return null;
-  return carousel(T('Top picks for you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('Top picks for you') }, items.map(titleCard)), null, 'home-shelf');
+  return [...tally.values()].sort((a, b) => b.n - a.n || (b.t.rating || 0) - (a.t.rating || 0)).map((x) => x.t).slice(0, 20);
 }
-// Moods: genre rows that change from day to day.
-const MOODS = [
-  { title: T('Laugh out loud'), movie: 35, tv: 35 },
-  { title: T('Edge of your seat'), movie: 53, tv: 9648 },
-  { title: T('Out of this world'), movie: 878, tv: 10765 },
-  { title: T('Big feelings'), movie: 18, tv: 18, sort: 'rating' },
-  { title: T('Animated worlds'), movie: 16, tv: 16 },
-  { title: T('After dark'), movie: 27, tv: null },
-  { title: T('Love stories'), movie: 10749, tv: null },
-  { title: T('Into the unknown'), movie: 12, tv: 10759 },
-  { title: T('Crime scenes'), movie: 80, tv: 80, sort: 'rating' },
-  { title: T('Real lives'), movie: 99, tv: 99 },
-];
-function todaysMoods(n) {
-  const fits = MOODS.filter((m) => (disc.type === 'tv' ? m.tv : disc.type === 'movie' ? m.movie : true));
-  const day = Math.floor(Date.now() / 86400000);
-  return Array.from({ length: Math.min(n, fits.length) }, (_, i) => fits[(day * 3 + i * 4) % fits.length]).filter((m, i, all) => all.indexOf(m) === i);
-}
-async function moodRow(m, signal) {
-  const data = await cachedApi(`/api/discover/genre?type=${disc.type}&movie=${m.movie || ''}&tv=${m.tv || ''}&sort=${m.sort || 'popular'}&page=1`, signal).catch(() => null);
-  const items = (data?.results || []).filter((t) => t.poster);
+async function forYouRow(seeds, signal) {
+  const items = forYouItems(await forYouGroups(seeds, signal));
   if (items.length < 4 || signal.aborted) return null;
-  const genre = (disc.genres || []).find((g) => g.movie === m.movie || (m.tv && g.tv === m.tv));
-  const seeAll = genre && h('button', { class: 'see-all', onclick: () => { disc.genre = genre; disc.sort = m.sort || 'popular'; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all'));
-  return carousel(m.title, h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': m.title }, items.map(titleCard)), seeAll);
+  return carousel(T('For you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('For you') }, items.map(titleCard)),
+    h('button', { class: 'see-all', onclick: () => { disc.list = { key: 'for-you', title: T('For you') }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')), 'home-shelf');
+}
+async function forYouPage(content, signal) {
+  content.replaceChildren(skeletonGrid());
+  const groups = (await forYouGroups(watchedSeeds(), signal)).filter((g) => g.items.length);
+  if (signal.aborted) return;
+  content.replaceChildren(...(groups.length ? groups.map((g) => h('section', { class: 'lib-group' },
+    h('h3', { class: 'lib-subhead' }, T('Because you watched {0}', g.seed.title)), titleGrid(g.items)))
+    : [notice(T('Nothing here'), T('Watch something and Lilin finds more like it.'))]));
+}
+// Popular and Top rated on All: TMDB's film and show lists woven into one row (the TV apps keep both rows).
+const MERGED_ROWS = { 'popular-movie': ['popular-tv', 'Popular'], 'top-movie': ['top-tv', 'Top rated'] };
+function mergeHomeRows(rows) {
+  const out = [];
+  for (const r of rows) {
+    if (Object.values(MERGED_ROWS).some(([tv]) => tv === r.key) && rows.some((x) => MERGED_ROWS[x.key]?.[0] === r.key)) continue;
+    const pair = MERGED_ROWS[r.key] && rows.find((x) => x.key === MERGED_ROWS[r.key][0]);
+    if (!pair) { out.push(r); continue; }
+    const items = [], seen = new Set();
+    for (let i = 0; i < Math.max(r.items.length, pair.items.length); i++) for (const t of [r.items[i], pair.items[i]]) {
+      if (t && !seen.has(`${t.type}:${t.id}`)) { seen.add(`${t.type}:${t.id}`); items.push(t); }
+    }
+    out.push({ key: r.key, keys: [r.key, pair.key], title: T(MERGED_ROWS[r.key][1]), items });
+  }
+  return out;
 }
 // Rows that arrive later fill a slot, so nothing above them jumps.
 function rowSlot(promise, signal) {
@@ -1244,13 +1156,14 @@ async function pagedGrid(content, urlFor, signal, gridClass = 'grid') {
   await load();
 }
 
+// Discover's home, at most 12 blocks: billboard · Right now · (the control row) · Continue watching · Moods ·
+// Trending · For you · Popular on Lilin · then TMDB's rows (on All, Popular and Top rated are one row each).
+// Films and Shows keep the same order with their own TMDB rows. Sub-pages (See all, a genre, a mood) have no Right now.
 async function renderDiscover() {
   const body = $('#discover-body');
-  if (state.view === 'discover') { $('#browse-btn').hidden = false; updateBrowseButton(); }
   const heading = $('#discover-heading');
-  const q = state.query.trim();
-  heading.textContent = q ? T('Results for “{0}”', q) : T('Discover');
-  heading.classList.toggle('sr-only', !q);
+  heading.textContent = T('Discover');
+  heading.classList.add('sr-only');
 
   if (!state.status.search) {
     body.replaceChildren(notice(T('Discover isn’t set up yet'),
@@ -1262,22 +1175,6 @@ async function renderDiscover() {
   searchCtrl = new AbortController();
   const { signal } = searchCtrl;
 
-  if (q) {
-    body.replaceChildren(skeletonGrid());
-    try {
-      const data = await api(`/api/search?q=${encodeURIComponent(q)}`, { signal });
-      const svtHits = data.svt || [];
-      body.replaceChildren(...[
-        svtHits.length > 0 && carousel(T('Free on SVT Play'), h('ul', { class: 'shelf-items wide-cards', tabindex: '0', 'aria-label': T('Free on SVT Play') }, svtHits.map(titleCard))),
-        data.results.length ? titleGrid(data.results)
-          : !svtHits.length && emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')),
-      ].filter(Boolean));
-    } catch (err) {
-      if (err.name !== 'AbortError') body.replaceChildren(notice(T('Search didn’t work'), err.message, renderDiscover));
-    }
-    return;
-  }
-
   if (!disc.genres) {
     try { disc.genres = (await cachedApi('/api/discover/genres', signal)).genres; } catch { disc.genres = []; }
     if (signal.aborted) return;
@@ -1285,15 +1182,28 @@ async function renderDiscover() {
   const content = h('div', { class: 'discover-content' });
   // vibes: a mood's page has its own header and type filter
   if (vibesUi.active()) { body.replaceChildren(content); return vibesUi.render(content, signal); }
-  body.replaceChildren(discoverFilters(), content);
+  const home = !disc.list && !disc.genre;
+  body.replaceChildren(...(home ? [] : [discoverControls()]), content);
 
-  if (disc.type === 'docs') return documentaries.render(content, signal);
+  if (disc.type === 'docs') {
+    if (documentaries.inCategory()) { body.prepend(discoverControls()); return documentaries.render(content, signal); }
+    await documentaries.render(content, signal);
+    if (!signal.aborted && !body.querySelector('.discover-controls')) content.prepend(...homeTop(null)); // no billboard today
+    return;
+  }
 
+  if (disc.list?.key === 'for-you') {
+    content.before(h('div', { class: 'discover-head' },
+      h('button', { class: 'back-link', onclick: () => { disc.list = null; renderDiscover(); } }, T('‹ Discover')), h('h3', {}, disc.list.title)));
+    return forYouPage(content, signal);
+  }
   if (disc.list && comingSoon.handles(disc.list.key)) return comingSoon.page(content, signal); // comingsoon: its own page
   if (disc.list) {
+    const { keys } = disc.list;
     content.before(h('div', { class: 'discover-head' },
       h('button', { class: 'back-link', onclick: () => { disc.list = null; renderDiscover(); } }, T('‹ Discover')),
-      h('h3', {}, disc.list.title)));
+      h('h3', {}, disc.list.title),
+      keys && segmented([[keys[0], T('Films')], [keys[1], T('Shows')]], disc.list.key, (key) => { disc.list = { ...disc.list, key }; renderDiscover(); }, T('Show'))));
     return pagedGrid(content, (page) => `/api/discover/list?key=${disc.list.key}&page=${page}`, signal);
   }
 
@@ -1311,28 +1221,18 @@ async function renderDiscover() {
     const data = await cachedApi(`/api/discover/home?type=${disc.type}`, signal);
     // Popular on Lilin arrives separately (it's quick, but shouldn't hold up TMDB's rows).
     const popularSlot = h('div', { class: 'popular-slot' });
-    // Your own rows sit between TMDB's: what you're watching first, then picks from what you watched.
     const seeds = watchedSeeds();
-    const [because, ...others] = seeds;
-    const moods = todaysMoods(2);
-    const [r1, r2, r3, r4, ...rest] = data.rows.map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
+    const rows = (disc.type === 'all' ? mergeHomeRows(data.rows) : data.rows).map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
+    const [trending, ...rest] = rows;
+    const moods = pickUi.tile(signal).catch(() => null) // pick: the first Moods tile
+      .then((pick) => vibesUi.row(disc.type, signal, { lead: pick })); // vibes: the Moods row
     content.replaceChildren(...[
-      data.featured.length && billboard(data.featured, { signal, label: T('Trending this week') }),
-      wrappedBanner(signal),
+      ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: T('Trending this week') }) : null),
       continueRow(),
-      onItsWayRow(),
-      savedShelf(),
+      rowSlot(moods, signal),
+      trending,
+      seeds.length > 0 && rowSlot(forYouRow(seeds, signal), signal),
       popularSlot,
-      because && rowSlot(becauseRow(because, signal), signal),
-      r1,
-      rowSlot(vibesUi.row(disc.type, signal), signal), // vibes: the Moods row, right after Trending
-      rowSlot(pickUi.entry(signal), signal), // pick: Pick together, one quiet line
-      r2,
-      moods[0] && rowSlot(moodRow(moods[0], signal), signal),
-      newInLibraryRow(),
-      r3, r4,
-      seeds.length > 0 && rowSlot(topPicksRow(others.length ? others : seeds, new Set(), signal), signal),
-      moods[1] && rowSlot(moodRow(moods[1], signal), signal),
       ...rest,
     ].filter(Boolean));
     social.popularShelf(disc.type, { carousel, titleCard, signal }).then((shelf) => { if (shelf && !signal.aborted) popularSlot.replaceWith(shelf); });
@@ -1340,40 +1240,69 @@ async function renderDiscover() {
     if (err.name !== 'AbortError') content.replaceChildren(notice(T('Couldn’t load Discover'), err.message, renderDiscover));
   }
 }
-
-// ---- Lilin Wrapped on the home screen: from release day (status.wrapped) to the end of January ----
-// A big card under the billboard until it's closed; after the story has been seen it says "again".
-let wrappedTeaser = null; // { year, data } once fetched, so Discover re-renders don't refetch
-function wrappedBanner(signal) {
-  const year = state.status?.wrapped?.year;
-  if (!year) return null;
-  let hidden = null, seen = null;
-  try { hidden = localStorage.getItem('lilin:wrappedHidden'); seen = localStorage.getItem('lilin:wrappedSeen'); } catch { /* private mode */ }
-  if (hidden === String(year)) return null;
-  const load = wrappedTeaser?.year === year ? Promise.resolve(wrappedTeaser.data)
-    : api(`/api/me/wrapped?year=${year}`, { signal }).then((data) => { wrappedTeaser = { year, data }; return data; });
-  return rowSlot(load.then((w) => {
-    if (w.empty) return null;
-    const again = seen === String(year);
-    const img = w.topShow?.backdrop || w.top?.find((t) => t.backdrop)?.backdrop;
-    const posters = (w.top || []).filter((t) => t.poster).slice(0, 3);
-    const hide = h('button', { type: 'button', class: 'icon-btn wb-hide', 'aria-label': T('Hide Wrapped from the home screen'), onclick: (e) => {
-      e.stopPropagation();
-      try { localStorage.setItem('lilin:wrappedHidden', String(year)); } catch { /* private mode */ }
-      card.remove(); toast(T('Wrapped is still in Settings'));
-    } }, icon('close'));
-    const card = h('section', { class: `wrapped-banner${again ? ' again' : ''}`, style: img ? `--wb-img:url("${img}")` : null },
-      h('button', { type: 'button', class: 'wb-open', 'aria-label': T('Open Lilin Wrapped {0}', year), onclick: (e) => openWrapped(year, e.currentTarget) },
-        h('span', { class: 'wb-copy' },
-          h('span', { class: 'wb-kicker' }, T('Lilin Wrapped {0}', year)),
-          h('span', { class: 'wb-title' }, again ? T('Your {0}, one more time', year) : T('Your year on Lilin is here')),
-          h('span', { class: 'wb-sub' }, T('{0} watched, your top titles and what kind of watcher you were.', fmtHours(w.seconds))),
-          h('span', { class: 'play-btn wb-cta' }, again ? T('Watch it again') : T('See your year'))),
-        posters.length > 0 && h('span', { class: 'wb-posters', 'aria-hidden': 'true' }, posters.map((t) => h('img', { src: t.poster, alt: '', loading: 'lazy' })))),
-      hide);
-    return card;
-  }), signal);
+// The top of Discover (and of Documentaries): the billboard, Right now (when Discover is where you start) and the
+// control row, in that order.
+function homeTop(bb) {
+  if (rightNowHome() === 'discover') loadRightNow();
+  return [bb, rightNowHome() === 'discover' && rightNow.mount(), discoverControls()].filter(Boolean);
 }
+// Documentaries draws its own billboard: the same top goes with it.
+const docsBillboard = (items, o) => { const f = document.createDocumentFragment(); f.append(...homeTop(billboard(items, o))); return f; };
+
+// ---- Right now (right-now.js): what it ranks, and what its rows do ----
+const rnData = { parties: null, partiesAt: 0, wrapped: undefined };
+function rightNowContext() {
+  const jobs = state.convert?.active || (state.convert?.current ? [state.convert.current] : []);
+  return {
+    now: Date.now(), locale, entries: unifiedLibrary(), keep: Boolean(state.me?.keep), canExtend, extendDays: extendDays(),
+    parties: (rnData.parties || []).map((p) => ({ token: p.token, startsAt: p.startsAt, started: p.started, mine: p.mine, host: p.host,
+      title: partyTitle(p.media), poster: state.library.find((f) => f.id === p.media?.id)?.poster })),
+    played: (f) => Boolean(savedProgress(libraryFile(f))),
+    convert: (e) => jobs.find((j) => e.files.some((f) => f.converting && j.name === f.file))?.percent ?? null,
+    travel: travelView.items, touch: touchDevice(), wrapped: rnData.wrapped || null,
+  };
+}
+// Parties (a minute old at most) and the Wrapped season arrive after the page; the strip updates when they do.
+async function loadRightNow(force = false) {
+  const jobs = [];
+  if (force || Date.now() - rnData.partiesAt > 60000) {
+    rnData.partiesAt = Date.now();
+    jobs.push(api('/api/watch/parties').then((d) => { rnData.parties = d.parties || []; }).catch(() => {}));
+  }
+  const year = state.status?.wrapped?.year;
+  if (year && rnData.wrapped === undefined) {
+    rnData.wrapped = null;
+    let hidden = null, seen = null;
+    try { hidden = localStorage.getItem('lilin:wrappedHidden'); seen = localStorage.getItem('lilin:wrappedSeen'); } catch { /* private mode */ }
+    if (hidden !== String(year)) jobs.push(api(`/api/me/wrapped?year=${year}`).then((w) => { if (!w.empty) rnData.wrapped = { year, again: seen === String(year) }; }).catch(() => {}));
+  }
+  if (!jobs.length) return;
+  await Promise.all(jobs);
+  rightNow.update();
+}
+async function runRightNow(a, opener) {
+  if (a.do === 'join') return offerWatchRoom(a.token);
+  if (a.do === 'route') return setView(a.to);
+  if (a.do === 'title') return openUnifiedTitle(a.entry, opener);
+  if (a.do === 'wrapped') return openWrapped(a.year, opener);
+  if (a.do === 'travel') return openTravelList(opener);
+  if (a.do === 'titles') { state.me.settings = { ...prefs(), librarySort: a.sort }; state.libFilter = 'all'; return setView('library'); }
+  if (a.do === 'keep') { opener.disabled = true; await extendItems(a.files); return rightNow.update(); }
+  if (a.do === 'play') {
+    const e = a.entry;
+    e.files.forEach(rightNow.played);
+    const up = e.show && nextUp(e.show.id);
+    return openPlayer(libraryFile(up?.f || e.files[0]));
+  }
+}
+const rightNow = createRightNow({ h, icon, toast, context: rightNowContext, run: runRightNow });
+// Library › Watchlist (watchlist.js)
+const watchlistView = createWatchlistView({ h, icon, toast, norm, titleCard, emptyState,
+  items: () => watch.items, autoDownload: () => watch.autoDownload && canDownload(),
+  inLibrary: (i) => ownedTitle({ type: i.type, id: i.id }),
+  setWatch: ({ type, id, ...flags }) => setWatch({ type, id }, flags),
+  openDetails: (i, opener) => openDetails(i, opener),
+  openComingSoon: () => { disc.list = { key: 'coming-soon', title: T('Coming soon') }; disc.type = 'all'; setView('discover'); } });
 
 // ---------- Library ----------
 let libraryRequest = null;
@@ -1487,43 +1416,99 @@ let libraryUI = null;
 const unifiedLibrary = () => libraryUnion(state.library, state.libraryShows, state.downloads);
 // "Pappa", "Pappa and Anita", "Pappa, Anita and Home network"
 const nameList = (names) => names.length < 2 ? names.join('') : T('{0} and {1}', names.slice(0, -1).join(', '), names[names.length - 1]);
-// The people this person shares one library with (the owner sets it in Settings → People).
+// The people this person shares one library with (the owner sets it in House › People).
 const libraryMates = () => (state.me?.sharedWith || []).map((m) => m.name);
+
+// ---- Library: three segments with their own address (#library, #library/watchlist, #library/downloads) ----
+// Only the open segment is drawn. Titles keeps its cards between renders, so polling never steals focus or posters.
+const LIB_SEGMENTS = [['titles', 'Titles', 'library'], ['watchlist', 'Watchlist', 'library/watchlist'], ['downloads', 'Downloads', 'library/downloads']];
+const libSegment = () => (state.sub === 'watchlist' || state.sub === 'downloads' ? state.sub : 'titles');
+const LIB_SORTS = [['watched', T('Recently watched')], ['newest', T('Newest')], ['expiring', T('Leaving soonest')], ['title', 'A–Z']];
+const librarySort = () => (LIB_SORTS.some(([k]) => k === prefs().librarySort) ? prefs().librarySort : 'watched');
+// When you last watched something in an entry (Recently watched): its newest resume point or finished episode.
+const lastWatched = (e) => Math.max(0, ...e.files.map((f) => savedProgress(libraryFile(f))?.at || 0), (e.show && state.finished?.[`tv:${e.show.tmdbId}`]?.at) || 0);
+function libraryCounts(all) {
+  return {
+    watchlist: watch.items.filter((i) => i.saved || i.follow).length,
+    downloads: all.filter((e) => e.active.length || e.preparing).length,
+    attention: all.filter((e) => e.attention).length,
+  };
+}
+// Right now goes where the person starts: Discover, or the top of Titles for people who open Lilin on the Library.
+const rightNowHome = () => (['library', 'downloads'].includes(prefs().startView) ? 'library' : 'discover');
 
 function renderLibrary() {
   libraryRenderPending = false;
+  const field = filterField('library', T('Filter your library'), renderLibrary);
   const body = $('#library-body');
+  const seg = libSegment();
   if (!libraryUI || !body.contains(libraryUI.root)) {
-    const filters = segmented(LIB_FILTERS, state.libFilter, v => { state.libFilter = v; renderLibrary(); }, T('Show'));
-    const availability = select([['all', T('All titles')], ['ready', T('Ready to watch')], ['downloading', T('On the way')], ['attention', T('Needs attention')]], state.libAvailability, v => { state.libAvailability = v; renderLibrary(); }, T('Availability'));
-    const groups = new Map(['movie', 'tv', 'unknown'].map(type => {
-      const list = h('ul', { class: 'grid library-grid' });
-      return [type, { list, section: h('section', { class: 'lib-group' }, h('h3', { class: 'lib-subhead' }, { movie: T('Films'), tv: T('Shows'), unknown: T('Unidentified') }[type]), list) }];
-    }));
+    const tabs = h('div', { class: 'segmented library-seg', role: 'group', 'aria-label': T('Library') }, LIB_SEGMENTS.map(([key, label, route]) =>
+      h('button', { type: 'button', 'data-seg': key, 'data-library-focus': `seg-${key}`, onclick: () => {
+        if (libSegment() === key) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        setView(route, { address: false }); rememberView(route); // segments replace each other: Back leaves the Library
+      } }, h('span', {}, T(label)), h('b', { class: 'seg-count' }))));
     const root = h('div', { class: 'unified-library' });
-    libraryUI = { root, groups, filters, availability, shared: h('p', { class: 'library-shared muted', hidden: true }), notices: h('div'), travel: h('button', { type: 'button', class: 'library-summary travel-summary', hidden: true, onclick: (e) => openTravelList(e.currentTarget) }), parties: h('div', { class: 'parties-slot' }), shelves: h('div'), summary: h('button', { class: 'library-summary', onclick: () => { state.libAvailability = 'downloading'; renderLibrary(); } }), empty: h('div') };
-    root.append(h('div', { class: 'dl convert-banner', id: 'convert-banner', hidden: true }),
-      h('div', { class: 'library-toolbar' }, filters, h('label', { class: 'library-availability' }, T('Availability'), availability)), libraryUI.shared, libraryUI.summary, libraryUI.travel, libraryUI.notices, libraryUI.parties, libraryUI.shelves, ...[...groups.values()].map(g => g.section), libraryUI.empty);
+    libraryUI = { root, tabs, shared: h('p', { class: 'library-shared muted', hidden: true }), content: h('div'), seg: null };
+    root.append(libraryUI.shared, tabs, libraryUI.content);
     body.replaceChildren(root);
-    loadParties();
     libraryCards.clear();
   }
   const ui = libraryUI;
-  ui.availability.value = state.libAvailability;
-  ui.filters.querySelectorAll('button').forEach((button, i) => { button.setAttribute('data-library-focus', `filter-${LIB_FILTERS[i][0]}`); button.setAttribute('aria-pressed', String(state.libFilter === LIB_FILTERS[i][0])); button.classList.toggle('active', state.libFilter === LIB_FILTERS[i][0]); });
   const all = unifiedLibrary();
-  const entries = filterLibrary(all, { type: state.libFilter, availability: state.libAvailability, query: state.query, sort: prefs().librarySort });
-  const active = all.flatMap(e => e.active).length, attention = all.filter(e => e.attention).length;
-  ui.summary.hidden = !active;
+  const counts = libraryCounts(all);
+  for (const b of ui.tabs.children) {
+    const key = b.dataset.seg, n = counts[key];
+    b.setAttribute('aria-pressed', String(key === seg));
+    const count = b.querySelector('.seg-count');
+    count.textContent = n ? String(n) : '';
+    count.classList.toggle('is-lit', key === 'downloads' && counts.attention > 0);
+  }
   const mates = libraryMates();
   ui.shared.hidden = !mates.length;
   const sharedText = mates.length ? T('Shared library with {0}: you all see and manage the same titles.', nameList(mates)) : '';
   if (ui.shared.textContent !== sharedText) ui.shared.textContent = sharedText;
-  ui.summary.textContent = T('{0} downloading{1}', active, attention ? T(' · {0} needs attention', attention) : '');
-  const phone = travelSummary(travelView.items);
-  ui.travel.hidden = !phone;
-  if (ui.travel.textContent !== phone) ui.travel.replaceChildren(icon('phone'), h('span', {}, phone));
-  const errors = [state.libraryError && T('Library scan unavailable: {0}', state.libraryError), state.downloadsError && T('Downloads unavailable: {0}', state.downloadsError), !state.status.library && T('No media folder is configured. Downloads will still appear here.')].filter(Boolean);
+  if (field) field.hidden = seg === 'downloads';
+  if (ui.seg !== seg) {
+    ui.seg = seg; ui.titles = null; ui.dl = null; ui.wlKey = null;
+    ui.content.replaceChildren();
+    libraryCards.clear();
+  }
+  if (seg === 'titles') renderLibraryTitles(all);
+  else if (seg === 'watchlist') {
+    const key = JSON.stringify([watch.revision, pageFilters.library, librarySignature, todayIso()]);
+    if (ui.wlKey !== key) { ui.wlKey = key; watchlistView.render(ui.content, { query: pageFilters.library }); }
+  }
+  else renderLibraryDownloads(all);
+  updateOpenTitle();
+}
+
+// ---- Titles: Right now (Library starters), type + sort, New and Leaving soon shelves, the grids, a footer ----
+function renderLibraryTitles(all) {
+  if (!libraryUI.titles) {
+    const filters = segmented(LIB_FILTERS, state.libFilter, (v) => { state.libFilter = v; renderLibrary(); }, T('Show'));
+    const sort = select(LIB_SORTS, librarySort(), (v) => {
+      state.me.settings = { ...prefs(), librarySort: v };
+      renderLibrary();
+      saveMe({ librarySort: v }, null);
+    }, T('Sort by'));
+    const groups = new Map(['movie', 'tv', 'unknown'].map(type => {
+      const list = h('ul', { class: 'grid library-grid' });
+      return [type, { list, section: h('section', { class: 'lib-group' }, h('h3', { class: 'lib-subhead' }, { movie: T('Films'), tv: T('Shows'), unknown: T('Unidentified') }[type]), list) }];
+    }));
+    const toolbar = h('div', { class: 'library-toolbar' }, filters, h('label', { class: 'library-sort' }, h('span', { class: 'sr-only' }, T('Sort by')), sort));
+    libraryUI.titles = { groups, filters, sort, toolbar, notices: h('div'), shelves: h('div'), empty: h('div'), foot: h('div', { class: 'library-foot' }) };
+    const t = libraryUI.titles;
+    if (rightNowHome() === 'library') loadRightNow();
+    libraryUI.content.append(...[rightNowHome() === 'library' && rightNow.mount(),
+      toolbar, t.notices, t.shelves, ...[...groups.values()].map(g => g.section), t.empty, t.foot].filter(Boolean));
+  }
+  const ui = libraryUI.titles;
+  ui.sort.value = librarySort();
+  ui.toolbar.hidden = !all.length; // nothing to sort or narrow yet
+  ui.filters.querySelectorAll('button').forEach((button, i) => { button.setAttribute('data-library-focus', `filter-${LIB_FILTERS[i][0]}`); button.setAttribute('aria-pressed', String(state.libFilter === LIB_FILTERS[i][0])); button.classList.toggle('active', state.libFilter === LIB_FILTERS[i][0]); });
+  const entries = filterLibrary(all, { type: state.libFilter, query: pageFilters.library, sort: librarySort(), watchedAt: lastWatched });
+  const errors = [state.libraryError && T('Library scan unavailable: {0}', state.libraryError), !state.status.library && T('No media folder is configured. Downloads will still appear here.')].filter(Boolean);
   const noticeText = errors.join(' ');
   if (ui.notices.textContent !== noticeText) ui.notices.replaceChildren(...errors.map(message => h('p', { class: 'library-source-notice', role: 'status' }, message)));
   const seen = new Set(), positions = new Map(), aliases = new Map(), latestByKey = new Map(all.map(entry => [entry.key, entry])), latestByAlias = new Map(), focusedAnchors = new Map();
@@ -1561,13 +1546,11 @@ function renderLibrary() {
   }
   for (const group of ui.groups.values()) group.section.hidden = !group.list.children.length;
   // Filtered down to nothing: say which filter did it, and offer the way back to everything.
-  const filteredText = () => state.query.trim() ? T('Nothing in your library matches “{0}”.', state.query.trim())
-    : ({ attention: T('Nothing needs attention right now.'), downloading: T('Nothing is on its way right now.'), ready: T('Nothing is ready to watch yet.') })[state.libAvailability]
-    || T('No titles match these filters.');
+  const filteredText = () => pageFilters.library.trim() ? T('Nothing in your library matches “{0}”.', pageFilters.library.trim()) : T('No titles match these filters.');
   const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? filteredText() : T('Nothing here yet. Find something in Discover and press Add to start watching.');
   const showAll = () => {
-    state.libFilter = 'all'; state.libAvailability = 'all';
-    if (state.query) { input.value = ''; input.dispatchEvent(new Event('input')); }
+    state.libFilter = 'all';
+    clearFilter('library');
     renderLibrary();
   };
   if (ui.empty.dataset.text !== emptyText) {
@@ -1576,57 +1559,143 @@ function renderLibrary() {
       : emptyState(T('Your library is empty'), emptyText, { label: T('Find something to watch'), icon: 'search', run: () => setView('discover') }));
   }
   // Shelves use ready files only; transfers never create fake playback progress.
-  const shelfKey = JSON.stringify([librarySignature, state.libFilter, state.query, libraryProgressRevision, watch.revision, todayIso()]);
+  const shelfKey = JSON.stringify([librarySignature, state.libFilter, pageFilters.library, libraryProgressRevision, todayIso()]);
   // Also rebuilt when this page changed the list itself (a delete), before the server's copy catches up.
   if (ui.shelfKey !== shelfKey || ui.shelfLibrary !== state.library || ui.shelfProgress !== state.progress) {
     ui.shelfKey = shelfKey; ui.shelfLibrary = state.library; ui.shelfProgress = state.progress;
-    const q = norm(state.query), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
-    const watching = continueItems(ready);
+    const q = norm(pageFilters.library), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
+    const since = Date.now() - 21 * 86400000;
+    const fresh = libraryEntries(ready.filter(f => (f.added || 0) > since).sort((a, b) => (b.added || 0) - (a.added || 0))).slice(0, 16);
     const leaving = libraryEntries(ready.filter(f => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000));
-    ui.shelves.replaceChildren(...[watching.length && continueShelf(watching.map(({f, progress}) => continueCard(f, progress))), comingUpShelf(), leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)))].filter(Boolean));
+    ui.shelves.replaceChildren(...[fresh.length && libraryShelf(T('New in your library'), fresh.map(e => libraryCard(e))),
+      leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)), 'leaving-shelf')].filter(Boolean));
+    ui.foot.replaceChildren(...libraryFoot(all));
   }
-  ui.shelves.hidden = state.libAvailability !== 'all' && state.libAvailability !== 'ready';
-  if (showView.id) updateOpenShow();
-  if (filmView.id) updateOpenFilm();
+  ui.foot.hidden = !all.length;
+  rightNow.update();
+}
+// "214 titles · 1.2 TB · Next to go: Dune, 13 h left", the deletion rule, and a way to see what goes first.
+function libraryFoot(all) {
+  const mine = state.library, r = state.rules || {};
+  const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
+  const line = [plural(all.filter((e) => e.files.length).length, 'title'), fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0)),
+    next && T('Next to go: {0}, {1}', [next.filmTitle || next.title, episodeLabel(next)].filter(Boolean).join(' '), timeLeft(next.expiresAt))].filter(Boolean).join(' · ');
+  return [h('p', {}, line, next && librarySort() !== 'expiring' ? h('button', { type: 'button', class: 'link-btn', onclick: () => {
+    state.me.settings = { ...prefs(), librarySort: 'expiring' }; renderLibrary(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  } }, T('Sort by leaving soonest')) : ''),
+  h('p', { class: 'muted' }, state.me?.keep ? T('The owner has set your videos to stay until you delete them.')
+    : r.retentionDays
+      ? T('Downloads are deleted {0} after they finish, to keep space free on the server. Use “Keep {1} more days” in the Library to hold on to something{2}.', plural(r.retentionDays, 'day'), r.extendDays, r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
+      : T('Nothing is deleted automatically.'))];
+}
+
+// ---- Downloads: everything about transfers, in one place ----
+// Preparing playback, Needs attention and On the way (one row per title, ⋯ = its transfers), then On this phone.
+const touchDevice = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
+function renderLibraryDownloads(all) {
+  if (!libraryUI.dl) {
+    const actions = h('div', { class: 'lib-actions' },
+      state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => findTorrents('', e.currentTarget) }, icon('search'), T('Find torrents')),
+      state.me?.isOwner && h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails(null, e.currentTarget) }, T('All server downloads')));
+    const section = (title, cls = 'rn-list') => { const list = h('ul', { class: cls }); return { list, node: h('section', { class: 'shelf dl-section', 'aria-label': title, hidden: true }, h('h3', { class: 'lib-subhead' }, title), list) }; };
+    libraryUI.dl = { attention: section(T('Needs attention')), onway: section(T('On the way')), phone: section(T('On this phone'), 'rows travel-list'), rows: new Map(), notices: h('div'), empty: h('div') };
+    const d = libraryUI.dl;
+    libraryUI.content.append(...[actions.childElementCount && actions,
+      h('section', { class: 'shelf dl-section' }, h('div', { class: 'dl convert-banner', id: 'convert-banner', hidden: true })),
+      d.attention.node, d.onway.node, d.empty, d.phone.node, d.notices].filter(Boolean));
+  }
+  const d = libraryUI.dl;
+  const attention = all.filter((e) => e.attention), onway = all.filter((e) => !e.attention && (e.active.length || e.preparing));
+  const seen = new Set();
+  for (const [sec, list] of [[d.attention, attention], [d.onway, onway]]) {
+    list.forEach((e, i) => {
+      let row = d.rows.get(e.key);
+      if (!row) { row = downloadRow(e); d.rows.set(e.key, row); }
+      updateDownloadRow(row, e);
+      seen.add(e.key);
+      if (sec.list.children[i] !== row) sec.list.insertBefore(row, sec.list.children[i] || null);
+    });
+    sec.node.hidden = !list.length;
+  }
+  for (const [key, row] of d.rows) if (!seen.has(key)) { row.remove(); d.rows.delete(key); }
+  const busy = attention.length + onway.length > 0 || Boolean(state.convert?.active?.length || state.convert?.current);
+  const emptyKey = busy ? '' : 'empty';
+  if (d.empty.dataset.key !== emptyKey) {
+    d.empty.dataset.key = emptyKey;
+    d.empty.replaceChildren(busy ? '' : emptyState(T('Nothing on its way'), T('Downloads you start show their progress here.'),
+      canDownload() ? { label: T('Find something to add'), icon: 'search', run: () => setView('discover') } : null));
+  }
+  const copies = travelOrder(travelView.items);
+  d.phone.node.hidden = !copies.length && !touchDevice();
+  const phoneKey = JSON.stringify(copies.map((i) => [i.id, i.quality, i.state, i.percent, i.url, i.downloadedAt]));
+  if (d.phone.key !== phoneKey) {
+    d.phone.key = phoneKey;
+    d.phone.list.replaceChildren(...(copies.length ? travelRows(copies, () => { d.phone.key = null; renderLibrary(); })
+      : [h('li', { class: 'muted dl-none' }, T('Copies you save to watch offline show here.'))]));
+  }
+  const errors = [state.downloadsError && T('Downloads unavailable: {0}', state.downloadsError)].filter(Boolean);
+  if (d.notices.textContent !== errors.join(' ')) d.notices.replaceChildren(...errors.map(message => h('p', { class: 'library-source-notice', role: 'status' }, message)));
   renderConvertBanner();
 }
+// One title's downloads as a row: art, name, state and percent, a bar, and ⋯ for the transfers (Pause, Delete, Retry).
+function downloadRow(e) {
+  const row = h('li', { class: 'rn-row' },
+    h('button', { type: 'button', class: 'rn-open', 'data-library-focus': `dl-${e.key}`, onclick: (ev) => openUnifiedTitle(row._entry, ev.currentTarget) },
+      h('span', { class: 'rn-thumb' }), h('span', { class: 'rn-text' }, h('strong', { class: 'rn-title' }), h('span', { class: 'rn-sub' }))),
+    h('button', { type: 'button', class: 'icon-btn rn-more', 'data-library-focus': `dl-more-${e.key}`, onclick: (ev) => openTransferDetails(row._entry, ev.currentTarget) }, icon('more')),
+    h('span', { class: 'rn-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('i')));
+  return row;
+}
+function updateDownloadRow(row, e) {
+  const old = row._entry;
+  row._entry = e;
+  if (!old || old.poster !== e.poster) row.querySelector('.rn-thumb').replaceChildren(e.poster ? h('img', { src: e.poster, alt: '', loading: 'lazy', decoding: 'async' }) : icon('download'));
+  const pct = e.progress == null ? null : Math.floor(e.progress * 100);
+  row.querySelector('.rn-title').textContent = e.name;
+  const sub = row.querySelector('.rn-sub');
+  sub.textContent = [e.state, pct != null && `${pct}%`, e.speed > 0 && `${fmtBytes(e.speed)}/s`].filter(Boolean).join(' · ');
+  row.classList.toggle('is-alert', e.attention);
+  row.classList.toggle('is-paused', e.state === T('Paused'));
+  row.querySelector('.rn-more').setAttribute('aria-label', T('Download details for {0}', e.name));
+  const bar = row.querySelector('.rn-bar');
+  bar.hidden = pct == null;
+  bar.setAttribute('aria-label', T('{0} download progress', e.name));
+  if (pct != null) { bar.setAttribute('aria-valuenow', String(pct)); bar.firstChild.style.width = `${pct}%`; }
+}
+
 function makeUnifiedCard(entry) {
   const card = h('li', { class: 'library-card unified-card' });
   const button = h('button', { class: 'title-card', type: 'button', onclick: e => openUnifiedTitle(card._entry, e.currentTarget) },
     h('div', { class: 'poster' }), h('div', { class: 'name' }), h('div', { class: 'sub' }));
-  const panel = h('div', { class: 'library-transfer' }, h('div', { class: 'transfer-line' }, h('span', { class: 'transfer-state' }), h('span', { class: 'transfer-percent' })),
-    h('div', { class: 'transfer-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('i')));
-  card.append(button, panel, h('button', { class: 'library-more', type: 'button', 'aria-label': T('Download details for {0}', entry.name), onclick: e => openTransferDetails(card._entry, e.currentTarget) }, '•••'));
+  card.append(button);
   return card;
 }
+// A card shows how its title is doing: New, the deletion countdown, how far you watched or, while it's downloading,
+// a slim bar of the download (the details are on the title page and in Downloads).
 function updateUnifiedCard(card, entry) {
   const old = card._entry;
   card._entry = entry;
   const fresh = newBadgeCount(entry);
   const paint = JSON.stringify([fresh, entry.key, entry.type, entry.transfers.map(d => [d.hash, d.done]), entry.name, entry.poster, entry.ready, entry.state, entry.progress, entry.attention, entry.files.map(f => [f.id, f.expiresAt, savedProgress(libraryFile(f))]), libraryAvailability(entry)]);
   if (card._paint === paint) return; card._paint = paint;
-  const button = $('.title-card', card), poster = $('.poster', card), panel = $('.library-transfer', card);
+  const button = $('.title-card', card), poster = $('.poster', card);
   button.setAttribute('data-library-focus', entry.key);
   if (!old || old.poster !== entry.poster || old.name !== entry.name) poster.replaceChildren(entry.poster ? h('img', { src: entry.poster, alt: '', loading: 'lazy', decoding: 'async', onerror: e => e.currentTarget.replaceWith(h('div', { class: 'poster-fallback' }, entry.name)) }) : h('div', { class: 'poster-fallback' }, entry.name));
   $('.name', card).textContent = entry.name;
-  $('.sub', card).textContent = libraryAvailability(entry);
+  const downloading = entry.active.length > 0 && !entry.attention;
+  $('.sub', card).textContent = downloading ? [entry.state, entry.progress != null && `${Math.floor(entry.progress * 100)}%`].filter(Boolean).join(' · ') : libraryAvailability(entry);
   const next = nextExpiry(entry.files), hours = (next-Date.now())/3600000;
   let expiry = $('.poster-expiry', card);
   if (Number.isFinite(next)) { if (!expiry) { expiry = h('span', { class: 'poster-expiry' }); poster.append(expiry); } expiry.textContent = hours < 1 ? T('Leaving soon') : hours < 48 ? T('{0}h left', Math.ceil(hours)) : T('{0}d left', Math.ceil(hours/24)); expiry.classList.toggle('is-soon', hours < 24); } else expiry?.remove();
-  let watched = $('.poster-progress', card);
+  let bar = $('.poster-progress', card);
   const progress = entry.files[0] && savedProgress(libraryFile(entry.files[0]));
-  if (partlyWatched(progress)) { if (!watched) { watched = h('span', { class: 'poster-progress' }, h('i')); poster.append(watched); } watched.setAttribute('aria-label', T('{0}% watched', Math.round(progress.time/progress.duration*100))); watched.firstChild.style.width = `${progress.time/progress.duration*100}%`; } else watched?.remove();
-  panel.hidden = !entry.active.length && !entry.preparing;
-  $('.library-more', card).hidden = !entry.transfers.length;
-  $('.library-more', card).setAttribute('aria-label', T('Download details for {0}', entry.name));
-  $('.transfer-state', card).textContent = entry.state;
-  $('.transfer-percent', card).textContent = entry.progress == null ? '' : `${Math.floor(entry.progress * 100)}%`;
-  panel.classList.toggle('is-paused', entry.state === T('Paused')); panel.classList.toggle('is-error', entry.attention);
-  const track = $('.transfer-track', card);
-  track.setAttribute('aria-label', T('{0} download progress', entry.name));
-  track.setAttribute('aria-valuetext', `${entry.state}${entry.progress == null ? '' : `, ${Math.floor(entry.progress*100)} percent`}`);
-  if (entry.progress == null) track.removeAttribute('aria-valuenow'); else track.setAttribute('aria-valuenow', String(Math.floor(entry.progress*100)));
-  track.firstChild.style.width = entry.progress == null ? '0%' : `${entry.progress*100}%`;
+  const share = downloading ? (entry.progress ?? 0) : partlyWatched(progress) ? progress.time / progress.duration : null;
+  if (share != null) {
+    if (!bar) { bar = h('span', { class: 'poster-progress' }, h('i')); poster.append(bar); }
+    bar.classList.toggle('is-transfer', downloading);
+    bar.setAttribute('aria-label', downloading ? T('{0} download progress', entry.name) : T('{0}% watched', Math.round(share * 100)));
+    bar.firstChild.style.width = `${share * 100}%`;
+  } else bar?.remove();
   let pill = $('.transfer-pill', poster);
   const pillText = entry.attention ? T('Needs attention') : entry.state === T('Paused') ? T('Paused') : [T('Preparing playback'), T('Checking files')].includes(entry.state) ? T('Preparing') : '';
   if (pillText) { if (!pill) { pill = h('span', { class: 'transfer-pill' }); poster.append(pill); } pill.textContent = pillText; } else pill?.remove();
@@ -1635,13 +1704,10 @@ function updateUnifiedCard(card, entry) {
   if (old && (old.ready !== entry.ready || old.attention !== entry.attention)) $('#library-live').textContent = `${entry.name}: ${entry.attention ? T('needs attention') : entry.ready ? T('ready to watch') : entry.state}`;
 }
 function openUnifiedTitle(entry, opener) {
-  if (entry.show) { showView.hashes = entry.transfers.map(d => d.hash); return openShow(entry.show.id, opener); }
+  const hashes = entry.transfers.map(d => d.hash);
+  if (entry.show) return openShow(entry.show.id, opener, hashes);
   if (entry.files.length) return openFilm(entry.files[0], opener);
-  filmView.hashes = entry.transfers.map(d => d.hash);
-  filmView.follow = null;
-  filmView.id = `entry:${entry.key}`;
-  renderFilm();
-  pushOverlay(showSheet($('#sheet'), $('#sheet-backdrop'), () => { filmView.id = null; opener?.focus({ preventScroll: true }); }));
+  openTitle({ fileId: `entry:${entry.key}`, hashes }, opener);
 }
 const LIB_FILTERS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')]];
 // ---------- Library: shows ----------
@@ -1797,33 +1863,55 @@ function libraryCard(entry, keep = false) {
     } }, T('Keep {0} more days', extendDays())));
 }
 
-// These controls appear above the seasons, so extending a show doesn't require finding an episode.
-function keepBar(files, onDone) {
-  const timed = files.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt);
-  if (!timed.length) return h('div', { class: 'library-keep-bar is-kept' }, h('p', {}, T('Kept in your library')),
-    h('p', { class: 'muted' }, T('No automatic deletion scheduled.')));
-  const next = timed[0];
-  const eligible = timed.filter(canExtend);
-  const text = files.length > 1 ? T('Next to go: {0} · {1}', episodeLabel(next) || next.title, timeLeft(next.expiresAt)) : timeLeft(next.expiresAt);
-  return h('div', { class: 'library-keep-bar' },
-    h('div', {}, h('p', { class: 'keep-countdown' }, text),
-      h('p', { class: 'muted' }, eligible.length ? T('Keep it longer if you’re not finished watching.') : T('The extension limit has been reached.'))),
-    eligible.length > 0 && h('button', { type: 'button', class: 'play-btn', onclick: async (e) => {
-      e.currentTarget.disabled = true;
-      await extendItems(eligible);
-      onDone();
-    } }, eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays())));
+// ---------- the title page: one page for every title, its buttons by state (title-model.js) ----------
+// Discover's title page, the library's film page and its show page were three pages; openTitle draws one for all.
+// ref: { t } a TMDB title (Discover, search, More like this, Coming up), { fileId } a library video, { showId } a
+// library show, { fileId: 'entry:KEY' } a download with nothing ready yet; hashes: the downloads it was opened on.
+// titleModel picks the page's one gold button; quiet chips sit beside it and a ⋯ menu holds the rest. The page is
+// redrawn when its state changes (a download finished, a file left), except while someone types in it; the buttons
+// update in place in between (commandViews).
+const titleView = { ref: null, key: '', hero: null, heroKey: '', showId: null, season: new Map(), release: new Map() };
+const stopTrailer = () => { $('#sheet-body .trailer-frame')?.remove(); document.body.classList.remove('trailer-live'); };
+function openTitle(ref, opener) {
+  peek.hide();
+  const sheet = $('#sheet');
+  // From inside an open title page (More like this): that title opens right here, and Back comes back.
+  if (titleView.ref && sheet.classList.contains('open') && opener && sheet.contains(opener)) {
+    const back = sheetState();
+    stopTrailer();
+    titleView.ref = ref; titleView.hero = null;
+    renderTitle();
+    sheet.scrollTo({ top: 0 });
+    pushOverlay(() => { stopTrailer(); back(); });
+    return;
+  }
+  titleView.ref = ref; titleView.hero = null;
+  renderTitle();
+  pushOverlay(showSheet(sheet, $('#sheet-backdrop'), () => {
+    stopTrailer(); // closing the sheet stops the trailer
+    titleView.ref = null; titleView.showId = null; titleView.hero = null;
+    opener?.focus({ preventScroll: true });
+  }));
 }
-
-const filmView = { id: null };
-let filmStructure = '';
-// When a conversion finishes the library lists the MP4 copy under a new id; follow the same video
-// (same mediaKey) so an open page doesn't claim it was removed.
-function followFilmId() {
-  if (!filmView.mediaKey || !filmView.id || filmView.id.startsWith('entry:')) return;
-  if (state.library.some((f) => f.id === filmView.id)) return;
-  const moved = state.library.find((f) => f.mediaKey === filmView.mediaKey);
-  if (moved) filmView.id = moved.id;
+// The old ways in stay, so cards, the billboard, peek, Coming soon and the Library open titles as before.
+function openDetails(t, opener) {
+  if (t.type === 'svt') return documentaries.openTitle(t, opener);
+  openTitle({ t }, opener);
+}
+function openFilm(f, opener) { openTitle({ fileId: f.id, mediaKey: f.mediaKey || null }, opener); }
+function openShow(id, opener, hashes = null) {
+  const tmdbId = unifiedLibrary().find((e) => e.show?.id === id)?.show?.tmdbId;
+  if (tmdbId) markShowSeen(tmdbId);
+  openTitle({ showId: id, hashes }, opener);
+}
+// What the title page shows now, as a function that puts it back (after going deeper with More like this).
+function sheetState() {
+  const ref = titleView.ref, top = $('#sheet').scrollTop;
+  return () => {
+    titleView.ref = ref; titleView.hero = null;
+    renderTitle();
+    requestAnimationFrame(() => { $('#sheet').scrollTop = top; });
+  };
 }
 // An open title page is redrawn when what it shows changes (a download finished, a file left), except
 // while someone is typing in it. A focused button doesn't count: holding the redraw for that left a
@@ -1832,100 +1920,435 @@ function sheetBusy() {
   const el = document.activeElement;
   return Boolean(el && $('#sheet-body').contains(el) && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable));
 }
-// A page opened on a download follows it to the film it became: same file (media key) or same TMDB
-// film. Until the server links the two, they can sit in separate entries, and the page then stayed on
-// the finished download ("Almost ready 100%") until a reload.
-function followFinishedDownload() {
-  if (!filmView.hashes?.length) return;
-  const transfers = state.downloads.filter((d) => filmView.hashes.includes(d.hash));
+// When a conversion finishes the library lists the MP4 copy under a new id: follow the same video (same mediaKey),
+// so an open page doesn't claim it was removed. A page opened on a download follows it to the film it became: same
+// file (media key) or same TMDB film. Until the server links the two they can sit in separate entries, and the page
+// then stayed on the finished download ("Almost ready 100%") until a reload.
+function followTitle(ref) {
+  if (ref.fileId && ref.mediaKey && !String(ref.fileId).startsWith('entry:') && !state.library.some((f) => f.id === ref.fileId)) {
+    const moved = state.library.find((f) => f.mediaKey === ref.mediaKey);
+    if (moved) ref.fileId = moved.id;
+  }
+  if (!ref.hashes?.length || ref.showId) return;
+  const transfers = state.downloads.filter((d) => ref.hashes.includes(d.hash));
   // Remembered while the download is listed: it leaves the list once finished.
-  if (transfers.length) filmView.follow = {
+  if (transfers.length) ref.follow = {
     keys: new Set(transfers.flatMap((d) => (d.files || []).map((f) => f.mediaKey)).filter(Boolean)),
     ids: new Set(transfers.flatMap((d) => d.libraryIds || [])),
     tmdb: transfers.map((d) => d.mediaType !== 'tv' && d.tmdbId).find(Boolean) || null,
   };
   const done = !transfers.length || transfers.every((d) => d.done || Number(d.progress) >= 1);
-  if (!done || !filmView.follow) return;
-  const { keys, ids, tmdb } = filmView.follow;
+  if (!done || !ref.follow) return;
+  const { keys, ids, tmdb } = ref.follow;
   const f = state.library.find((x) => ids.has(x.id) || (x.mediaKey && keys.has(x.mediaKey)))
     || (tmdb && state.library.find((x) => x.season == null && Number(x.tmdbId) === Number(tmdb)));
   if (!f) return;
-  filmView.hashes = null; filmView.follow = null; filmView.id = f.id; filmView.mediaKey = f.mediaKey || null;
+  ref.hashes = null; ref.follow = null; ref.fileId = f.id; ref.mediaKey = f.mediaKey || null;
 }
-function updateOpenFilm() {
-  followFilmId();
-  followFinishedDownload();
-  const entry = unifiedLibrary().find(e => filmView.id === `entry:${e.key}` || e.files.some(f => f.id === filmView.id) || filmView.hashes?.some(hash => e.transfers.some(d => d.hash === hash)));
-  const signature = JSON.stringify([filmView.id, entry?.files, entry?.transfers.map(d => d.hash)]);
-  if (filmStructure !== signature && !sheetBusy()) { const top = $('#sheet').scrollTop; renderFilm(); $('#sheet').scrollTop = top; }
-}
-function openFilm(f, opener) {
-  filmView.hashes = null;
-  filmView.id = f.id;
-  filmView.mediaKey = f.mediaKey || null;
-  renderFilm();
-  pushOverlay(showSheet($('#sheet'), $('#sheet-backdrop'), () => {
-    filmView.id = null;
-    opener?.focus({ preventScroll: true });
-  }));
-}
-function renderFilm() {
-  followFilmId();
-  followFinishedDownload();
-  const entry = unifiedLibrary().find(e => filmView.id === `entry:${e.key}` || e.files.some(f => f.id === filmView.id) || filmView.hashes?.some(hash => e.transfers.some(d => d.hash === hash)));
-  filmStructure = JSON.stringify([filmView.id, entry?.files, entry?.transfers.map(d => d.hash)]);
-  const f = entry?.files[0] || state.library.find((f) => f.id === filmView.id);
-  if (!f && entry) {
+// What a ref points at now: the TMDB title (made from the library's when it came from there), its Library entry
+// and, for a library video, the file itself.
+function titleSource(ref) {
+  followTitle(ref);
+  const lib = unifiedLibrary();
+  const byHash = (e) => ref.hashes?.some((hash) => e.transfers.some((d) => d.hash === hash));
+  let entry = null;
+  if (ref.showId) entry = lib.find((e) => e.show && (e.show.id === ref.showId || byHash(e)));
+  else if (ref.fileId) entry = lib.find((e) => ref.fileId === `entry:${e.key}` || e.files.some((f) => f.id === ref.fileId) || byHash(e));
+  else if (ref.t?.id != null) entry = lib.find(ref.t.type === 'tv' ? (e) => e.show?.tmdbId != null && Number(e.show.tmdbId) === Number(ref.t.id)
+    : (e) => e.type === 'movie' && e.files.some((f) => f.season == null && f.tmdbId != null && Number(f.tmdbId) === Number(ref.t.id)));
+  const film = ref.fileId && !String(ref.fileId).startsWith('entry:')
+    ? entry?.files.find((f) => f.id === ref.fileId) || entry?.files[0] || state.library.find((f) => f.id === ref.fileId) : null;
+  let t = ref.t || null;
+  if (!t && entry?.show) {
+    const s = entry.show;
+    t = { type: 'tv', id: s.tmdbId ?? null, title: s.title, year: s.year, backdrop: s.backdrop, overview: s.overview, poster: s.poster };
+  } else if (!t && film) {
+    t = { type: 'movie', id: film.season == null && !film.movieAmbiguous ? film.tmdbId ?? null : null, title: film.filmTitle || film.title,
+      year: film.year, backdrop: film.backdrop, overview: film.overview, rating: film.rating, poster: film.poster };
+  } else if (!t && entry) {
     const d = entry.transfers[0];
-    $('#sheet-body').replaceChildren(pageHero(d?.backdrop), h('div', { class: 'sheet-content' }, pageTitle(entry.name, 'movie', d?.tmdbId),  h('ul', { class: 'facts' }, h('li', {}, libraryAvailability(entry))), h('div', { class: 'sheet-transfer' }, transferPanel(entry)))); return;
+    t = { type: entry.type === 'tv' ? 'tv' : 'movie', id: d?.tmdbId ?? null, title: entry.name, year: d?.year, backdrop: d?.backdrop, poster: entry.poster };
   }
-  if (!f) {
-    // The film went (deleted here, elsewhere or by the clean-up): a calm card instead of a bare heading,
-    // without the old backdrop's colour wash.
-    washPage(null);
-    const gone = emptyState(T('Removed from your library'), T('This film isn’t in your library anymore. Find it again in Discover if you change your mind.'),
-      { label: T('Back to your library'), icon: 'back', run: () => closeTopOverlay() });
-    gone.querySelector('h3').id = 'sheet-title';
-    $('#sheet-body').replaceChildren(h('div', { class: 'sheet-content sheet-gone' }, gone));
-    gone.querySelector('button')?.focus({ preventScroll: true });
-    return;
+  return { t, entry, film };
+}
+// Everything the page needs about its title, and the model's verdict on it.
+function titleContext(ref) {
+  const { t, entry, film } = titleSource(ref);
+  if (!t) return { gone: true, key: 'gone' };
+  const tv = t.type === 'tv';
+  // Films with a TMDB id go by the title (every version, your downloads, others' copies); shows in your library
+  // and videos without one go by their Library entry.
+  const byTitle = tv ? !entry : t.id != null;
+  const entryNow = () => titleSource(ref).entry;
+  const stateOf = byTitle ? () => titleState(t) : () => {
+    const e = entryNow(), files = (e?.files || []).map(libraryFile);
+    return { files, ready: files, onServer: serverMatchesFor(t), transfers: e?.transfers || [], active: e?.active || [] };
+  };
+  const s = stateOf();
+  const mine = s.ready.filter((f) => (tv ? f.season != null : true));
+  const libFiles = mine.filter((f) => f.kind === 'lib');
+  const file = () => { const r = stateOf().ready; return r.find((f) => f.kind === 'lib' && !f.converting) || r.find((f) => f.kind === 'lib') || null; };
+  const showId = tv ? entry?.show?.id ?? null : null;
+  const up = showId ? nextUp(showId) : null;
+  const next = nextExpiry(libFiles);
+  const f0 = file();
+  const facts = {
+    type: tv ? 'tv' : 'movie', mine: mine.length, preparing: mine.length > 0 && mine.every((f) => f.converting),
+    play: tv ? (up && !up.f.converting ? up.kind : null) : partlyWatched(f0 && savedProgress(f0)) ? 'resume' : 'play',
+    onServer: tv ? serverOnlyEpisodes(s).length : s.onServer.length,
+    transfers: s.active.length, playNow: s.active.length === 1 && Boolean(playNowFile(s.active[0])),
+    canGet: canGet(), tmdb: t.id != null, search: Boolean(state.status.search),
+    unreleased: tv ? cardUnreleased(t) : titleView.release.get(t.id) ?? cardUnreleased(t),
+    leaving: next - Date.now() < 3 * 86400000, expires: Number.isFinite(next), keep: libFiles.some(canExtend),
+    owner: Boolean(state.me?.isOwner), ambiguous: Boolean(film?.movieAmbiguous), anime: true, // Dubbed shows once the server says it's anime
+    versions: tv ? 0 : (f0?.versions?.length || 0),
+  };
+  const model = titleModel(facts);
+  const key = JSON.stringify([ref.t ? `${t.type}:${t.id}` : ref.fileId || ref.showId, model.state, model.primary, model.secondary, model.more,
+    libFiles.map((f) => [f.id, f.converting, f.expiresAt, f.mediaKey]), s.transfers.map((d) => [d.hash, d.done, d.season,
+      (d.episodes || []).map((ep) => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])]), facts.onServer]);
+  return { ref, t, tv, entry, film, entryNow, stateOf, file, up, showId, next, facts, model, key };
+}
+// A title page follows along from any tab (renderLibrary and patchUnifiedLibrary call this).
+function updateOpenTitle() {
+  if (!titleView.ref || !$('#sheet').classList.contains('open')) return;
+  const { key } = titleContext(titleView.ref);
+  if (key !== titleView.key && !sheetBusy()) { const top = $('#sheet').scrollTop; renderTitle(); $('#sheet').scrollTop = top; }
+}
+// The film left (deleted here, elsewhere or by the clean-up): a calm card instead of a bare heading,
+// without the old backdrop's colour wash.
+function titleGone(ref) {
+  washPage(null);
+  const gone = emptyState(T('Removed from your library'), ref.showId ? T('This show is no longer in your library.')
+    : T('This film isn’t in your library anymore. Find it again in Discover if you change your mind.'),
+  { label: T('Back to your library'), icon: 'back', run: () => closeTopOverlay() });
+  gone.querySelector('h3').id = 'sheet-title';
+  $('#sheet-body').replaceChildren(h('div', { class: 'sheet-content sheet-gone' }, gone));
+  gone.querySelector('button')?.focus({ preventScroll: true });
+}
+
+// Every button the model can name. Bar buttons get lead (they're the gold one) and return a node; menu ones
+// return a ⋯ item ([icon, text, run, class]). Films keep their own Play / Add pair (filmActions).
+const titleChip = (act, lead, ic, text, run, cls = '') => h('button', { type: 'button', class: `${lead ? 'play-btn action-btn' : 'chip'} ${cls}`.trim(), 'data-act': act, onclick: run },
+  ic && icon(ic), h('span', {}, text));
+const TITLE_ACTIONS = {
+  play: (c, lead) => (c.fa ? c.fa.play : showPlayButton(c, lead)),
+  resume: (c, lead) => TITLE_ACTIONS.play(c, lead),
+  addPlay: (c) => c.fa?.play,
+  playNow: () => null, // the gold Play now sits in the download card (transferSummary)
+  download: (c) => c.fa?.get || c.tvd?.toggle,
+  add: (c) => c.fa?.get,
+  moreEpisodes: (c) => c.tvd?.toggle,
+  addAll: (c, lead) => c.tvd?.toggle || titleChip('addAll', lead, 'plus', T('Add to library'), async (e) => {
+    const b = e.currentTarget;
+    if (b.getAttribute('aria-disabled') === 'true') return;
+    b.setAttribute('aria-disabled', 'true'); b.lastChild.textContent = T('Adding…');
+    try { await addFromServer(serverOnlyEpisodes(c.stateOf())); } catch (err) { toast(err.message); }
+    if (b.isConnected) { b.removeAttribute('aria-disabled'); b.lastChild.textContent = T('Add to library'); }
+  }, 'stroke-icon title-add'),
+  save: (c) => c.watch?.save,
+  follow: (c) => c.watch?.follow,
+  playOnTv: (c) => c.file() && titleChip('playOnTv', false, 'tv', T('Play on TV'), (e) => openPicker(c.file(), e.currentTarget)),
+  toPhone: (c) => c.file() && [icon('phone'), T('To phone'), (o) => openTravel(c.file(), o)],
+  keep: (c) => {
+    const eligible = c.stateOf().ready.filter((f) => f.kind === 'lib' && canExtend(f));
+    return [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
+      async () => { await extendItems(eligible); updateOpenTitle(); }];
+  },
+  getVersion: (c) => [icon('plus'), T('Get another version'), () => c.fa?.revealAdvanced()],
+  advanced: (c) => [icon('search'), T('Advanced options'), () => c.fa?.revealAdvanced()],
+  dubbed: (c) => [icon('plus'), T('Dubbed'), () => (c.fa ? c.fa.chooseDub() : c.tvd?.dubBtn.click()), 'title-dubbed'],
+  identify: (c) => c.file() && [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
+  delete: (c) => {
+    if (!c.tv) return c.file() && [icon('trash'), T('Delete'), (o) => openDelete(c.file(), o), 'is-danger'];
+    const files = c.stateOf().ready.filter((f) => f.kind === 'lib');
+    // Downloads you're on, finished or not: with nothing ready yet the show is still in your library.
+    const leaving = c.stateOf().transfers.filter((d) => d.mine !== false && !d.done && d.others !== undefined);
+    if (!files.length && !leaving.length) return null;
+    return [icon('trash'), files.length ? T('Delete show') : T('Remove from my library'),
+      (o) => openDeleteMany({ files, transfers: leaving, what: T('this show'), label: c.t.title, onDone: closeTopOverlay }, o), 'is-danger'];
+  },
+  details: (c) => [icon('download'), T('Download details'), (o) => openTransferDetails(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title, transfers: c.stateOf().transfers }, o)],
+};
+// The show's main button: carry on where you left off (or start at the beginning).
+function showPlayButton(c, lead) {
+  const up = c.up;
+  if (!up || up.f.converting) return null;
+  const ep = episodeLabel(up.f);
+  const label = up.kind === 'resume' ? T('Resume {0} · {1} min left', ep, Math.max(1, Math.ceil((up.progress.duration - up.progress.time) / 60)))
+    : up.kind === 'next' ? T('Play next: {0}', ep) : T('Play {0}', ep);
+  return titleChip('play', lead, 'play', label, () => openPlayer(libraryFile(up.f)));
+}
+// One line under the facts: where the title is for you (in your library, on its way, someone else's here, not here)
+// and, when its automatic delete is close, a quiet Keep.
+function titleStateLine(c) {
+  const { model, tv, t } = c, s = c.stateOf();
+  const libFiles = s.ready.filter((f) => f.kind === 'lib' && (!tv || f.season != null));
+  const eligible = libFiles.filter(canExtend);
+  const keep = model.inline.includes('keep') && h('button', { type: 'button', class: 'keep-btn', 'data-act': 'keep', onclick: async (e) => {
+    e.currentTarget.disabled = true;
+    await extendItems(eligible);
+    updateOpenTitle();
+  } }, eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()));
+  const soonest = libFiles.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
+  const expiry = soonest && h('span', { class: `expiry${model.state === 'leavingSoon' ? ' is-soon' : ''}` },
+    tv && libFiles.length > 1 ? T('Next to go: {0} · {1}', episodeLabel(soonest) || soonest.title, timeLeft(soonest.expiresAt)) : timeLeft(soonest.expiresAt));
+  const f = c.file();
+  let parts = [];
+  if (model.state === 'preparing') parts = [T('Preparing playback. It plays here as soon as the MP4 copy is ready.')];
+  else if (model.state === 'ready' || model.state === 'leavingSoon') {
+    parts = tv ? [c.entry ? libraryAvailability(c.entry) : T('In your library'),
+      !c.up && (s.active.length ? T('You’re all caught up. More is on its way.') : T('You’re all caught up.'))]
+      : [T('In your library'), f?.season != null && episodeLabel(f), !(f?.versions?.length > 1) && f?.format?.toUpperCase(), !(f?.versions?.length > 1) && f && fmtBytes(f.size)];
+    parts.push(expiry, keep);
+  } else if (model.state === 'onServer') {
+    const kinds = [...new Set(s.onServer.map((x) => String(x.versionLabel || '').split(' · ')[0] || x.format?.toUpperCase()).filter(Boolean))];
+    parts = tv ? [T('On Lilin'), T('{0} ready to add', plural(c.facts.onServer, 'episode'))] : [T('On Lilin'), kinds.join(', ')];
+  } else if (model.state === 'notOnLilin' && state.status.library && t.id != null) parts = [T('Not on Lilin')];
+  else if (model.state === 'unreleased' && tv) parts = [airsLabel(t.date) || T('Not out yet · no release date')];
+  parts = parts.filter(Boolean);
+  return parts.length ? h('p', { class: `title-state is-${model.state}` }, parts.map((p) => (p instanceof Node ? p : h('span', {}, p)))) : null;
+}
+
+function renderTitle() {
+  const ref = titleView.ref;
+  if (!ref) return;
+  const c = titleContext(ref);
+  titleView.key = c.key;
+  if (c.gone) { titleView.showId = null; titleGone(ref); return; }
+  const { t, tv, model } = c;
+  const lead = (id) => model.primary === id;
+  const focused = $('#sheet-body').contains(document.activeElement) ? document.activeElement.dataset?.act : null;
+  titleView.showId = c.showId;
+  // The parts with buttons of their own: films' Play / Add pair, shows' download panel, Save / Follow.
+  if (!tv) c.fa = filmActions(t, { stateOf: c.stateOf });
+  if (tv && canGet() && t.id != null) {
+    c.tvd = showDownload(t, { season: titleView.season.get(`tv:${t.id}`) ?? null, onAdded: () => updateOpenTitle(),
+      lead: ['download', 'moreEpisodes', 'addAll'].includes(model.primary) });
   }
-  const file = libraryFile(f);
-  const progress = savedProgress(file);
-  const tmdbFilm = f.season == null && f.tmdbId ? f.tmdbId : null;
-  $('#sheet-body').replaceChildren(
-    pageHero(f.backdrop),
+  if (state.status.search && t.id != null) c.watch = watchBox(t, { lead: ['save', 'follow'].find(lead) || null });
+  const bar = h('div', { class: 'title-bar' });
+  if (c.fa) bar.append(...(lead('download') ? [c.fa.get, c.fa.play] : c.fa.buttons));
+  const seen = new Set(c.fa?.buttons);
+  for (const id of [model.primary, ...model.secondary]) {
+    const node = id && TITLE_ACTIONS[id](c, lead(id));
+    if (node && !seen.has(node)) { seen.add(node); bar.append(node); }
+  }
+  const items = model.more.map((id) => TITLE_ACTIONS[id](c)).filter(Boolean);
+  if (items.length) bar.append(rowMenu(T('More for {0}', t.title), items));
+  const dubbed = bar.querySelector('.title-dubbed');
+  if (dubbed) dubbed.hidden = !(c.fa?.dub.anime || c.tvd?.dub.anime);
+  // The hero stays while the same title is redrawn, so a playing trailer (and the picture's fade) carries on.
+  const heroKey = `${t.type}:${t.id}:${t.backdrop}`;
+  if (!titleView.hero || titleView.heroKey !== heroKey) {
+    titleView.hero = t.id != null && state.status.search ? detailsHero(t) : pageHero(t.backdrop);
+    if (tv && c.showId) themeMusic.hero(titleView.hero); // theme
+    titleView.heroKey = heroKey;
+  }
+  const rateKey = titleKeyOf(t) || titleKeyOf(c.film) || (c.showId && titleKeyOf({ show: c.showId }));
+  const versions = !tv && (c.film && !ref.t ? c.film.versions?.length > 1 && versionSelect({
+    id: `ver-${c.film.versionKey}`, options: c.film.versions.map((v) => ({ value: v.mediaKey, label: v.versionLabel })), value: c.film.mediaKey,
+    onPick: (key) => {
+      const v = c.film.versions.find((x) => x.mediaKey === key);
+      setVersionPick(c.film, v);
+      ref.fileId = v.id; ref.mediaKey = v.mediaKey;
+      patchUnifiedLibrary(); renderTitle();
+    },
+  }) : filmVersionPick(t, () => renderTitle()));
+  $('#sheet-body').replaceChildren(titleView.hero,
     h('div', { class: 'sheet-content' },
-      pageTitle(f.filmTitle || f.title, 'movie', tmdbFilm),
-      pageFacts([f.year, f.season != null ? episodeLabel(f) : T('Film'), f.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(f.rating)}`), f.format?.toUpperCase(), fmtBytes(f.size)], 'movie', tmdbFilm),
-      transferPanel(unifiedLibrary().find(e => e.files.some(file => file.id === f.id))),
-      f.movieAmbiguous && h('p', { class: 'identity-note' }, state.me?.isOwner
+      pageTitle(t.title, t.type, t.id),
+      pageFacts([t.year, tv ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(t.rating)}`)], t.type, t.id),
+      titleStateLine(c),
+      bar,
+      c.watch,
+      c.fa, versions || null,
+      c.tvd?.panel, tv && transferSummary(() => c.stateOf().transfers, t.title, { lead: () => lead('playNow') }),
+      model.inline.includes('identityNote') && h('p', { class: 'identity-note' }, state.me?.isOwner
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
         : T('Several films match this filename. The server’s owner can identify this file.')),
-      h('div', { class: 'library-film-actions' },
-        h('button', { class: 'play-btn', disabled: f.converting, onclick: () => openPlayer(file) }, icon('play'),
-          f.converting ? T('Preparing playback…') : partlyWatched(progress) ? T('Resume at {0}', fmtTime(progress.time)) : T('Play')),
-        h('button', { class: 'chip', onclick: (e) => openPicker(file, e.currentTarget) }, icon('tv'), T('Play on TV')),
-        h('button', { class: 'chip', onclick: (e) => openTravel(file, e.currentTarget) }, icon('phone'), T('To phone')),
-        h('button', { class: 'chip', onclick: (e) => openDelete(file, e.currentTarget) }, icon('trash'), T('Delete')),
-        state.me?.isOwner && h('button', { class: 'chip', onclick: (e) => openFilmIdentity(f, e.currentTarget) }, T('Identify film'))),
-      // A film with versions (4K + 1080p): which one Play starts, the same picker as on Discover's title page.
-      f.versions?.length > 1 && versionSelect({
-        id: `ver-${f.versionKey}`, options: f.versions.map((v) => ({ value: v.mediaKey, label: v.versionLabel })), value: f.mediaKey,
-        onPick: (key) => {
-          const v = f.versions.find((x) => x.mediaKey === key);
-          setVersionPick(f, v);
-          if (!String(filmView.id).startsWith('entry:')) { filmView.id = v.id; filmView.mediaKey = v.mediaKey; }
-          patchUnifiedLibrary(); renderFilm();
-        },
-      }),
-      h('div', { class: 'page-extras' }, social.rateRow(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title)),
-      f.overview && h('p', { class: 'overview' }, f.overview),
-      keepBar([f], renderFilm),
-      f.season == null && (castRail('movie', f.tmdbId) || castLine('movie', f.tmdbId)),
-      reviews.section(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title), // reviews
-      moreLike('movie', tmdbFilm),
-      titleDetails.section('movie', tmdbFilm))); // details
+      t.overview && h('p', { class: 'overview' }, t.overview),
+      tv && episodeList(c),
+      rateKey && h('div', { class: 'title-reactions' }, social.rateRow(rateKey, t.title)),
+      reviews.section(rateKey, t.title), // reviews
+      castRail(t.type, t.id) || castLine(t.type, t.id),
+      moreLike(t.type, t.id),
+      titleDetails.section(t.type, t.id))); // details
+  if (tv && c.showId) themeMusic.enter(c.showId, themeUrl(c.stateOf().ready)); // theme: keeps going between seasons
+  // A redraw keeps the keyboard where it was.
+  if (focused) ($(`#sheet-body [data-act="${focused}"]:not([hidden])`) || $('#sheet-body .title-bar button:not([hidden])'))?.focus({ preventScroll: true });
+}
+
+// Episodes: season chips (a picker above 8 seasons), then only that season's episodes. The still plays one you have
+// and shows how far you got; ⋯ holds Play on TV, To phone, Keep and Delete. A missing one has a quiet Add, one on
+// its way says how far it got. The season's own ⋯ adds or downloads it, upgrades it, keeps it, takes it to your
+// phone or deletes it. TMDB fills in names, stills, running times and stories when it answers.
+const SEASON_CHIPS_MAX = 8; // seasons before the chips become a picker
+function episodeList(c) {
+  const { t } = c;
+  const skey = `tv:${t.id ?? c.showId}`;
+  const section = h('section', { class: 'page-section episodes' });
+  const tvT = { id: t.id ?? null, title: t.title, type: 'tv' }; // episodeDownload decides Add / Download / nothing
+  const asks = new Map(); // season -> TMDB episodes (or [] when TMDB had none)
+  let tmdbSeasons = null;
+  const draw = () => {
+    if (section._drawn && !section.isConnected) return;
+    section._drawn = true;
+    const s = c.stateOf(), show = c.entryNow()?.show;
+    const files = s.ready.filter((f) => f.kind === 'lib' && f.season != null);
+    const seasons = new Map();
+    const add = (n, o = {}) => {
+      if (n == null) return;
+      const se = seasons.get(n) || { number: n };
+      for (const [k, v] of Object.entries(o)) if (v != null && se[k] == null) se[k] = v;
+      seasons.set(n, se);
+    };
+    for (const se of show?.seasons || []) add(se.number, { name: se.name, total: se.total, first: se.first, lib: se.episodes });
+    for (const se of tmdbSeasons || []) add(se.number, { name: se.name, total: se.episodes, first: se.first, upcoming: se.upcoming });
+    for (const f of files) add(f.season);
+    for (const d of s.transfers) { add(d.season); for (const ep of d.episodes || []) add(ep.season); }
+    const list = [...seasons.values()].sort((a, b) => a.number - b.number);
+    if (!list.length) { section.replaceChildren(); section.hidden = true; return; }
+    section.hidden = false;
+    const owned = files.map((f) => f.season);
+    let n = titleView.season.get(skey);
+    if (!seasons.has(n)) {
+      n = c.up?.f.season ?? (owned.some((x) => x > 0) ? Math.min(...owned.filter((x) => x > 0)) : owned.length ? Math.min(...owned) : null)
+        ?? list.find((se) => se.number > 0 && !se.upcoming)?.number ?? list[0].number;
+    }
+    const se = seasons.get(n);
+    const pick = (x) => {
+      titleView.season.set(skey, x);
+      const ps = showPanels.get(t.id);
+      if (ps && !ps.touched) ps.season = x; // the download panel opens on the season you're looking at
+      draw();
+    };
+    const label = (x) => localSeasonName(x.name, x.number);
+    let picker = null;
+    if (list.length > 1 && list.length <= SEASON_CHIPS_MAX) {
+      picker = h('div', { class: 'season-chips', role: 'group', 'aria-label': T('Seasons') }, list.map((x) => h('button', {
+        type: 'button', class: 'chip', 'aria-pressed': String(x.number === n), onclick: () => pick(x.number) }, label(x))));
+    } else if (list.length > SEASON_CHIPS_MAX) {
+      const sel = h('select', { class: 'sub-select season-select', 'aria-label': T('Season') }, list.map((x) => h('option', { value: String(x.number) }, label(x))));
+      sel.value = String(n);
+      sel.addEventListener('change', () => pick(Number(sel.value)));
+      picker = sel;
+    }
+    // TMDB's episodes for the season, once (cachedFor keeps them for an hour across redraws).
+    if (t.id != null && state.status.search && !asks.has(n)) {
+      asks.set(n, null);
+      cachedFor(`/api/tv/${t.id}/season/${n}`, 60 * 60 * 1000).then((d) => { asks.set(n, d.episodes || []); }, () => { asks.set(n, []); })
+        .then(() => { if (titleView.season.get(skey) === n || !titleView.season.has(skey)) draw(); });
+    }
+    const info = new Map((asks.get(n) || []).map((ep) => [ep.number, ep]));
+    const seasonFiles = files.filter((f) => f.season === n);
+    const mine = new Map();
+    for (const f of [...seasonFiles].sort((a, b) => a.episode - b.episode || String(a.id).localeCompare(String(b.id)))) if (!mine.has(f.episode)) mine.set(f.episode, f);
+    const forSeason = s.transfers.filter((d) => d.season === n || (d.episodes || []).some((ep) => ep.season === n));
+    const pending = new Map();
+    for (const d of forSeason) for (const ep of d.episodes || []) if (ep.season === n && !mine.has(ep.episode) && !pending.has(ep.episode)) pending.set(ep.episode, { d, ep });
+    const serverOnly = serverOnlyEpisodes(s, n);
+    const numbers = new Set([...info.keys(), ...mine.keys(), ...pending.keys(), ...serverOnly.map((f) => f.episode)].filter((x) => x != null));
+    if (!info.size && Number.isInteger(se.total) && se.total > 0 && se.total <= 1000) for (let k = se.first || 1; k < (se.first || 1) + se.total; k++) numbers.add(k);
+    const rows = [...numbers].sort((a, b) => a - b).map((k) => episodeRow(c, { k, ep: info.get(k) || se.lib?.[k] || {}, f: mine.get(k), p: pending.get(k), season: n, tvT }));
+    for (const f of seasonFiles.filter((x) => x.episode == null)) rows.push(episodeRow(c, { k: null, ep: { name: f.episodeName || f.file }, f, season: n, tvT }));
+    const loading = !rows.length && asks.get(n) === null;
+    // The season's own line and ⋯ menu.
+    const ready = [...mine.values()];
+    const readyCount = episodeCount(ready);
+    const leaving = s.transfers.filter((d) => d.mine !== false && !d.done && d.others !== undefined
+      && forSeason.includes(d) && (d.episodes || []).every((ep) => ep.season == null || ep.season === n));
+    const eligible = seasonFiles.filter(canExtend);
+    const upgrade = t.id != null ? upgradeState(tvT, n) : null;
+    const packs = forSeason.filter((d) => !(d.episodes || []).some((ep) => ep.season === n));
+    const complete = se.total && readyCount >= se.total;
+    const menu = rowMenu(T('More for {0}', `${t.title} · ${label(se)}`), [
+      serverOnly.length > 0 && [icon('plus'), T('Add season'), async () => { try { await addFromServer(serverOnly); } catch (err) { toast(err.message); } }],
+      !serverOnly.length && !complete && !se.upcoming && c.tvd && [icon('download'), T('Add Season {0}', n), () => {
+        const ps = showPanels.get(t.id);
+        Object.assign(ps, { season: n, touched: true, open: true });
+        renderTitle();
+        $('#sheet-body .dl-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }],
+      upgrade?.offered && !upgrade.started && [icon('upgrade'), upgradeLabel(upgrade), async () => {
+        await upgradeState(tvT, n).run();
+        const u = upgradeState(tvT, n);
+        if (u.failed || (u.text && !u.started)) toast(u.text);
+      }],
+      eligible.length > 0 && [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
+        async () => { await extendItems(eligible); updateOpenTitle(); }],
+      ready.length > 0 && [icon('phone'), T('Season to phone'), (o) => openTravelSeason(ready, `${t.title} · ${label(se)}`, o)],
+      ...packs.map((d) => [icon('download'), T('Season pack details'), (o) => openTransferDetails({ ...(c.entryNow() || { key: `title:${t.title}`, name: t.title }), transfers: [d] }, o)]),
+      list.length > 1 && (seasonFiles.length > 0 || leaving.length > 0) && [icon('trash'), T('Delete season'),
+        (o) => openDeleteMany({ files: seasonFiles, transfers: leaving, what: T('this season'), label: `${t.title} · ${label(se)}`, onDone: () => updateOpenTitle() }, o), 'is-danger'],
+    ]);
+    const summary = readyCount ? T('{0} episodes ready', se.total ? T('{0} of {1}', readyCount, se.total) : readyCount)
+      : se.total ? plural(se.total, 'episode') : '';
+    section.replaceChildren(
+      h('h3', {}, T('Episodes')),
+      picker,
+      h('div', { class: 'season-head' }, h('p', { class: 'muted' }, summary), menu.querySelector('.row-menu-item') && menu),
+      seasonVersionPick(ready, () => draw()),
+      packs.length > 0 && h('p', { class: 'muted season-pack' }, T('{0} pack', label(se)), ' · ', T('Episode availability is shown when individual files are verified.')),
+      h('ul', { class: 'episode-list', 'aria-live': 'polite' }, loading
+        ? Array.from({ length: 3 }, () => h('li', { class: 'ep skeleton', 'aria-hidden': 'true' }, h('div', { class: 'wide-art' }), h('div', { class: 'ep-body' }, h('div', { class: 'bar' }), h('div', { class: 'bar' }))))
+        : rows.length ? rows : [h('li', { class: 'muted' }, T('No episode details for this season yet.'))]));
+  };
+  if (t.id != null && state.status.search) {
+    tvSeasons(t.id).then((list) => { tmdbSeasons = list || []; }, () => { tmdbSeasons = []; }).then(() => draw());
+  }
+  draw();
+  return section;
+}
+// One episode: yours (the still plays it; ⋯ for the rest), on its way (how far, Play now when it can), or missing
+// (a quiet Add, or the date it airs).
+function episodeRow(c, { k, ep, f, p, season, tvT }) {
+  const name = k == null ? ep.name : `${k}. ${ep.name || f?.episodeName || T('Episode {0}', k)}`;
+  const art = wideArt([ep.still || f?.still, c.t.backdrop]);
+  const date = ep.airDate && new Date(`${ep.airDate}T12:00:00`);
+  const airs = airsLabel(ep.airDate);
+  const day = date && !airs && date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+  const body = (meta) => h('div', { class: 'ep-body' },
+    h('p', { class: 'ep-title', title: f?.file || null }, name),
+    h('p', { class: 'ep-meta' }, meta.filter(Boolean).map((x) => (x instanceof Node ? x : h('span', {}, x)))),
+    ep.overview && h('p', { class: 'ep-overview' }, ep.overview),
+    titleDetails.episodeCredits(ep)); // details: the episode's director, writers and guests, folded
+  if (f) {
+    const file = libraryFile(f), saved = savedProgress(file);
+    const pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
+    if (pct > 1) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${pct}%` })));
+    art.append(h('span', { class: 'play-glyph', 'aria-hidden': 'true' }, icon('play')));
+    return h('li', { class: 'ep is-mine', 'data-episode': k ?? '' },
+      h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': f.converting ? T('{0}: getting ready to play', name) : T('Play {0}', name),
+        'aria-disabled': f.converting ? 'true' : null, onclick: () => (f.converting ? toast(T('Almost ready. It can be played in a moment.')) : openPlayer(file)) }, art),
+      body([ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
+        f.versions?.length > 1 && f.versionLabel, f.expiresAt != null && h('span', { class: `expiry${f.expiresAt - Date.now() < 86400000 ? ' is-soon' : ''}` }, timeLeft(f.expiresAt))]),
+      rowMenu(T('More for {0}', name), [
+        [icon('tv'), T('Play on TV'), (o) => openPicker(file, o)],
+        [icon('phone'), T('Download to phone'), (o) => openTravel(file, o)],
+        canExtend(f) && [icon('clock'), T('Keep {0} more days', extendDays()), async () => { await extendItems([f]); updateOpenTitle(); }],
+        [icon('trash'), T('Delete'), (o) => openDelete(file, o), 'is-danger'],
+      ]));
+  }
+  if (p) {
+    const { d, ep: part } = p;
+    return h('li', { class: 'ep is-missing pending-episode', 'data-episode': k, 'data-transfer-hash': d.hash, 'data-episode-number': part.episode, 'data-episode-season': part.season },
+      h('div', { class: 'ep-art' }, art),
+      body([h('span', { class: 'episode-transfer-state' }, part.available ? T('Ready · watch it from Details') : `${transferState(d)}${Number.isFinite(part.progress) ? ` · ${Math.floor(part.progress * 100)}%` : ''}`)]),
+      h('div', { class: 'ep-actions' },
+        d.canPlayNow && !part.available && part.started && part.fileIndex != null && h('button', { type: 'button', class: 'chip', onclick: () => openPlayer(playNowItem(d, part, part)) }, icon('play'), T('Play now')),
+        h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails({ ...(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title }), transfers: [d] }, e.currentTarget) }, T('Details'))));
+  }
+  return h('li', { class: 'ep is-missing', 'data-episode': k },
+    h('div', { class: 'ep-art' }, art),
+    body([ep.runtime && fmtRuntime(ep.runtime), airs || day, !airs && T('Not added yet')]),
+    !airs && episodeDownload(tvT, season, k));
+}
+// "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
+function airsLabel(airDate) {
+  const date = airDate && new Date(`${airDate}T12:00:00`);
+  if (!date || !(date > new Date())) return null;
+  return T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }));
 }
 
 function openFilmIdentity(f, opener) {
@@ -1968,145 +2391,7 @@ function openFilmIdentity(f, opener) {
   if (f.filmCandidates?.length) draw(f.filmCandidates); else search();
 }
 
-// The show sheet: seasons as poster cards (TMDB's poster for each season), then a season's episodes.
-// A show with one season on the server opens straight on its episodes.
-const showView = { id: null, season: null };
-function openShow(id, opener) {
-  const tmdbId = unifiedLibrary().find((e) => e.show?.id === id)?.show?.tmdbId;
-  if (tmdbId) markShowSeen(tmdbId);
-  showView.id = id;
-  showView.season = null;
-  renderShow();
-  pushOverlay(showSheet($('#sheet'), $('#sheet-backdrop'), () => {
-    showView.id = null;
-    opener?.focus({ preventScroll: true });
-  }));
-}
-
-let showStructure = '';
-function showEntry() { return unifiedLibrary().find(e => e.show && (e.show.id === showView.id || showView.hashes?.some(hash => e.transfers.some(d => d.hash === hash)))); }
-function updateOpenShow() {
-  const entry = showEntry();
-  const signature = JSON.stringify([showView.id, showView.season, entry?.files, entry?.transfers.map(d => [d.hash, d.season, (d.episodes || []).map(ep => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])])]);
-  if (signature !== showStructure && !sheetBusy()) { const top = $('#sheet').scrollTop; renderShow(); $('#sheet').scrollTop = top; }
-}
-// A title's downloads in its sheet: state, percentage, Pause/Resume and Details (speed, files, peers).
-function transferPanel(entry) {
-  if (!entry?.active.length) return entry?.preparing ? h('p', { class: 'pack-transfer' }, T('Preparing playback. It plays here as soon as the MP4 copy is ready.')) : null;
-  const { key, aliases } = entry;
-  return transferSummary(() => unifiedLibrary().find((e) => e.key === key || e.aliases.some((a) => aliases.includes(a)))?.transfers || [], entry.name);
-}
-// "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
-function airsLabel(airDate) {
-  const date = airDate && new Date(`${airDate}T12:00:00`);
-  if (!date || !(date > new Date())) return null;
-  return T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }));
-}
-// Episode rows on a show page get TMDB's running time and a line of the story once the season's details arrive.
-// A missing episode that hasn't aired yet shows its date instead of offering to add it.
-function fillEpisodeDetails(tmdbId, season) {
-  cachedFor(`/api/tv/${tmdbId}/season/${season}`, 60 * 60 * 1000).then(({ episodes }) => {
-    const byNumber = new Map((episodes || []).map((ep) => [ep.number, ep]));
-    for (const row of document.querySelectorAll('#sheet-body .episode-row[data-episode]')) {
-      const ep = byNumber.get(Number(row.dataset.episode));
-      const text = row.querySelector('.row-text');
-      const airs = ep && row.classList.contains('missing-episode') && airsLabel(ep.airDate);
-      if (airs && !row.classList.contains('is-upcoming')) {
-        row.classList.add('is-upcoming');
-        text?.querySelector('.row-meta')?.replaceChildren(airs);
-        row.querySelector('.episode-get')?.remove();
-      }
-      if (!ep || !text || text.querySelector('.ep-overview')) continue;
-      if (ep.runtime) text.querySelector('.row-meta')?.prepend(h('span', { class: 'ep-runtime' }, fmtRuntime(ep.runtime)));
-      if (ep.overview) text.querySelector('.row-title')?.after(h('p', { class: 'ep-overview' }, ep.overview));
-    }
-  }).catch(() => {});
-}
-// The show page's main button: carry on where you left off (or start at the beginning).
-function showPlayButton(showId, entry) {
-  const up = nextUp(showId);
-  if (up?.f.converting) return null;
-  if (!up) {
-    // Nothing here to watch yet (the first episodes are still downloading): the transfer card says how it's going.
-    if (!entry?.files?.some((f) => f.season != null && f.episode != null)) return null;
-    return h('p', { class: 'muted show-caught-up' }, entry.transfers?.length ? T('You’re all caught up. More is on its way.') : T('You’re all caught up.'));
-  }
-  const ep = episodeLabel(up.f);
-  const label = up.kind === 'resume' ? T('Resume {0} · {1} min left', ep, Math.max(1, Math.ceil((up.progress.duration - up.progress.time) / 60)))
-    : up.kind === 'next' ? T('Play next: {0}', ep) : T('Play {0}', ep);
-  return h('button', { type: 'button', class: 'play-btn show-play', onclick: () => openPlayer(libraryFile(up.f)) }, icon('play'), h('span', {}, label));
-}
-function renderShow() {
-  const entry = showEntry(), show = entry?.show;
-  const files = entry?.files || [];
-  if (!show) { $('#sheet-body').replaceChildren(h('div', { class: 'sheet-content' }, h('h2', { id: 'sheet-title' }, T('Series')), h('p', {}, T('This show is no longer in your library.')))); return; }
-  const numbers = new Set(files.map(f => f.season));
-  for (const d of entry.transfers) { if (d.season != null) numbers.add(d.season); for (const ep of d.episodes || []) if (ep.season != null) numbers.add(ep.season); }
-  const seasons = [...numbers].sort((a,b) => a-b).map(number => ({ ...(show.seasons || []).find(se => se.number === number), number, name: localSeasonName((show.seasons || []).find(se => se.number === number)?.name, number) }));
-  const single = seasons.length === 1;
-  const open = single ? seasons[0] : seasons.find(se => se.number === showView.season);
-  const pick = n => { showView.season = n; renderShow(); $('#sheet').scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
-  const pendingFor = n => entry.transfers.filter(d => d.season === n || (d.episodes || []).some(ep => ep.season === n));
-  // One click (plus a confirmation) for a whole season or the whole show.
-  const seasonFiles = open ? files.filter(f => f.season === open.number) : [];
-  // Downloads you're on, finished or not: with nothing ready yet the show is still in your library.
-  const leaving = entry.transfers.filter(d => d.mine !== false && !d.done && d.others !== undefined);
-  const deleteShow = (files.length > 0 || leaving.length > 0) && h('button', { type: 'button', class: 'chip delete-many', onclick: e => openDeleteMany({ files, transfers: leaving, what: T('this show'), label: show.title, onDone: closeTopOverlay }, e.currentTarget) }, icon('trash'), files.length ? T('Delete show') : T('Remove from my library'));
-  // Downloads of only this season go with it: cancelled, not left to finish and come back.
-  const seasonLeaving = open ? leaving.filter(d => pendingFor(open.number).includes(d) && (d.episodes || []).every(ep => ep.season == null || ep.season === open.number)) : [];
-  const deleteSeason = !single && (seasonFiles.length > 0 || seasonLeaving.length > 0) && h('button', { type: 'button', class: 'chip delete-many', onclick: e => openDeleteMany({ files: seasonFiles, transfers: seasonLeaving, what: T('this season'), label: `${show.title} · ${open.name}`, onDone: () => { showView.season = null; renderShow(); } }, e.currentTarget) }, icon('trash'), T('Delete season'));
-  let content;
-  if (!open) content = [h('h3', {}, T('Seasons')), h('ul', { class: 'grid season-grid' }, seasons.map(se => {
-    const ready = episodeCount(files.filter(f => f.season === se.number)), transfers = pendingFor(se.number).filter(d => !d.done);
-    const pending = new Set(transfers.flatMap(d => (d.episodes || []).filter(ep => ep.season === se.number && !ep.available).map(ep => ep.episode))).size;
-    return h('li', {}, h('button', { class: 'title-card', onclick: () => pick(se.number) }, h('div', { class: 'poster' }, se.poster ? h('img', { src: se.poster, alt: '', loading: 'lazy' }) : h('div', { class: 'poster-fallback' }, se.name)), h('div', { class: 'name' }, se.name), h('div', { class: 'sub' }, T('{0} ready{1}', se.total ? T('{0} of {1}', ready, se.total) : ready, pending ? T(' · {0} downloading', pending) : transfers.length ? T(' · Season pack downloading') : ''))));
-  }))];
-  else {
-    const versions = files.filter(f => f.season === open.number).sort((a,b) => a.episode-b.episode || String(a.id).localeCompare(String(b.id)));
-    const ready = [...new Map(versions.map(f => [f.episode, f])).values()];
-    const byEpisode = new Map();
-    for (const d of pendingFor(open.number)) for (const ep of d.episodes || []) if (ep.season === open.number && !ready.some(f => f.episode === ep.episode) && !byEpisode.has(ep.episode)) byEpisode.set(ep.episode, { d, ep });
-    const tmdbEp = n => open.episodes?.[n] || {};
-    const epTitle = (n, name) => `${n}. ${name || tmdbEp(n).name || T('Episode {0}', n)}`;
-    const thumb = (n, still) => episodeArt(still || tmdbEp(n).still, show, 'episode-thumb');
-    // A ready episode plays from its still too, which shows how far you got.
-    const playThumb = (f) => {
-      const file = libraryFile(f), saved = savedProgress(file), pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
-      const art = thumb(f.episode, f.still);
-      art.append(h('span', { class: 'play-glyph', 'aria-hidden': 'true' }, icon('play')));
-      if (pct > 1) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${pct}%` })));
-      return h('button', { type: 'button', class: 'ep-art title-card', tabindex: '-1', 'aria-hidden': 'true', onclick: () => !f.converting && openPlayer(file) }, art);
-    };
-    const rows = ready.map(f => ({ number: f.episode, node: (() => { const row = fileRow(libraryFile(f)); row.classList.add('episode-row'); row.dataset.episode = f.episode; row.prepend(playThumb(f)); $('.row-title', row).textContent = epTitle(f.episode, f.episodeName); $('.row-title', row).title = f.file; return row; })() }));
-    const tvId = { id: show.tmdbId ?? null, title: show.title, type: 'tv' }; // episodeDownload decides Add / Download / nothing
-    const upgrade = seasonUpgrade(tvId, open.number);
-    for (const {d,ep} of byEpisode.values()) rows.push({ number: ep.episode, node: h('li', { class: 'row episode-row pending-episode', 'data-episode': ep.episode, 'data-transfer-hash': d.hash, 'data-episode-number': ep.episode, 'data-episode-season': ep.season }, thumb(ep.episode), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(ep.episode)), h('div', { class: 'row-meta episode-transfer-state' }, ep.available ? T('Ready · watch it from Details') : `${transferState(d)}${Number.isFinite(ep.progress) ? ` · ${Math.floor(ep.progress*100)}%` : ''}`)), d.canPlayNow && !ep.available && ep.started && ep.fileIndex != null && h('button', { class: 'play-btn', onclick: () => openPlayer(playNowItem(d, ep, ep)) }, icon('play'), T('Play now')), h('button', { class: 'chip', onclick: e => openTransferDetails({ ...entry, transfers: [d] }, e.currentTarget) }, T('Details'))) });
-    if (Number.isInteger(open.total) && open.total > 0 && open.total <= 1000) for (let number = open.first || 1; number < (open.first || 1) + open.total; number++) if (!rows.some(row => row.number === number)) { const airs = airsLabel(tmdbEp(number).airDate); rows.push({ number, node: h('li', { class: `row episode-row missing-episode${airs ? ' is-upcoming' : ''}`, 'data-episode': number }, thumb(number), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(number)), h('div', { class: 'row-meta' }, airs || T('Not added yet'))), !airs && tvId && episodeDownload(tvId, open.number, number)) }); }
-    content = [!single && h('button', { class: 'chip season-back', onclick: () => pick(null) }, icon('back'), T('All seasons')), h('h3', {}, open.name),
-      seasonVersionPick(ready, () => renderShow()),
-      h('div', { class: 'season-summary' }, h('p', { class: 'muted' }, T('{0} episodes ready', open.total ? T('{0} of {1}', episodeCount(ready), open.total) : episodeCount(ready))),
-        h('div', { class: 'season-actions' }, upgrade.btn,
-          ready.length > 0 && h('button', { type: 'button', class: 'chip delete-many travel-season', onclick: e => openTravelSeason(ready, `${show.title} · ${open.name}`, e.currentTarget) }, icon('phone'), T('Season to phone')), deleteSeason)),
-      upgrade.about,
-      ...pendingFor(open.number).filter(d => !(d.episodes || []).some(ep => ep.season === open.number)).map(d => h('div', { class: 'pack-transfer' }, h('strong', {}, T('{0} pack', open.name)), h('p', {}, T('Episode availability is shown when individual files are verified.')), h('button', { class: 'chip', onclick: e => openTransferDetails({ ...entry, transfers: [d] }, e.currentTarget) }, T('Season pack details')))),
-      h('ul', { class: 'rows' }, rows.sort((a,b) => a.number-b.number).map(r => r.node))];
-  }
-  // The same Download panel as in Discover, opened on the season you're looking at.
-  const tv = canGet() && show.tmdbId ? showDownload({ id: show.tmdbId, title: show.title, type: 'tv' }, { season: open?.number ?? null, onAdded: renderShow }) : null;
-  $('#sheet-body').replaceChildren(themeMusic.hero(pageHero(show.backdrop)), // theme
-    h('div', { class: 'sheet-content' }, pageTitle(show.title, 'tv', show.tmdbId), pageFacts([show.year, T('Series'), libraryAvailability(entry)], 'tv', show.tmdbId),
-      h('div', { class: 'title-actions' }, showPlayButton(show.id, entry), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
-      h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
-      show.overview && h('p', { class: 'overview' }, show.overview), files.length > 0 && keepBar(files, renderShow),
-      h('section', { class: 'page-section show-episodes' }, ...content),
-      castRail('tv', show.tmdbId) || castLine('tv', show.tmdbId),
-      show.tmdbId && reviews.section(`tv:${show.tmdbId}`, show.title), // reviews
-      moreLike('tv', show.tmdbId),
-      titleDetails.section('tv', show.tmdbId))); // details
-  if (open && show.tmdbId && state.status.search) fillEpisodeDetails(show.tmdbId, open.number);
-  themeMusic.enter(show.id, themeUrl(files)); // theme: keeps going between seasons
-  showStructure = JSON.stringify([showView.id, showView.season, entry.files, entry.transfers.map(d => [d.hash, d.season, (d.episodes || []).map(ep => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])])]);
-}
+// ---------- end of the title page ----------
 
 // ---------- Downloads ----------
 // Cards are updated in place so progress animates and focus is preserved.
@@ -2339,7 +2624,7 @@ function pickerManagerSubview(opener) {
     (opener?.isConnected ? opener : $('#picker-body').querySelector('button') || $('#picker').querySelector('.sheet-close'))?.focus({ preventScroll: true });
   };
 }
-function renderDownloads() { if (state.view === 'downloads') { state.libAvailability = 'downloading'; setView('library'); } patchTransferNodes(); }
+function renderDownloads() { patchTransferNodes(); }
 function openTransferDetails(entry, opener) {
   const list = h('ul', { class: 'rows transfer-detail-list' });
   const scope = h('div');
@@ -2377,7 +2662,8 @@ function patchTransferNodes() {
 // An open title page follows along from any tab (renderLibrary does it too when the Library is shown).
 function patchUnifiedLibrary() {
   if (state.view === 'library') renderLibrary();
-  else { if (filmView.id) updateOpenFilm(); if (showView.id) updateOpenShow(); }
+  else { updateOpenTitle(); rightNow.update(); }
+  updateHouseDot();
   patchTransferNodes();
 }
 
@@ -2404,13 +2690,13 @@ function schedulePoll() {
   const clipsBusy = state.view === 'clips' && state.clips?.clips?.some((c) => (c.share && !c.share.ready && !c.share.error) || c.editing);
   const powerBusy = state.view === 'house' && state.house?.power?.some((pw) => pw.pending);
   const downloading = state.downloads.some((d) => d.mine !== false && !d.done);
-  const delay = state.view === 'downloads' ? 2000 : state.view === 'notes' ? 5000 : state.view === 'library' || downloading || current || clipsBusy || powerBusy ? 3000 : ['activity', 'house'].includes(state.view) ? 10000 : 15000;
+  const delay = state.view === 'library' && state.sub === 'downloads' ? 2000 : state.view === 'notes' ? 5000 : state.view === 'library' || downloading || current || clipsBusy || powerBusy ? 3000 : ['activity', 'house'].includes(state.view) ? 10000 : 15000;
   pollTimer = setTimeout(async () => {
     try {
       if (!document.hidden) {
         await Promise.all([refreshMediaLibrary(), loadSessions(), state.view === 'library' ? loadConvert() : null]);
         if (state.view === 'activity' && !$('#activity-body .person-name .clip-rename-form')) { await loadActivity(); if (state.view === 'activity') renderActivity(); }
-        if (state.view === 'house') { await loadHouse(); if (state.view === 'house') renderHouse(); }
+        if (houseLive()) { await loadHouse(); if (houseLive()) renderHouse(); }
         if (state.view === 'notes') await notesView.poll();
         if (state.view === 'clips' && clipsBusy && !$('#clips-body .clip-rename-form')) { await loadClips(); if (state.view === 'clips') renderClips(); }
         if (state.view === 'library') renderConvertBanner();
@@ -2476,35 +2762,41 @@ async function applyLive() {
   if (has('sessions')) jobs.push(loadSessions());
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
-  if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('push')) { pushView.loaded = false; if (settingsOpen() && !editingSettings()) jobs.push(loadPush().then(renderSettings)); }
   if (has('match')) pickUi.onLive(); // pick: Pick together
-  if (has('moments')) { momentsUI.invalidate(); if (view === 'settings') jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
-  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(view === 'settings' ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
-  if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
+  // friends, Moments and answers to your ideas: You's For you and its tab dot (+ the friend request popup elsewhere)
+  if (has('moments')) { momentsUI.invalidate(); jobs.push(momentsUI.load().then(() => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); })); }
+  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(() => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); else maybeAskFriends(); })); }
+  if (has('ideas')) { ideasView.loaded = false; if (settingsOpen() || !state.me?.isOwner) jobs.push(loadIdeas().then(() => { updateYouDot(); if (settingsOpen() && !editingSettings()) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
-  if (has('avatars') && view === 'library') jobs.push(loadParties());
-  if (has('parties') && view === 'library') jobs.push(loadParties());
+  if ((has('parties') || has('avatars') || has('match')) && view === 'live') jobs.push(loadParties().then(() => { if (state.view === 'live') renderLive(); }));
+  if (has('parties')) jobs.push(loadRightNow(true)); // Right now: a party row
   if (has('me') || has('people') || has('avatars')) {
     jobs.push((async () => {
       try {
         state.status = await api('/api/status');
         state.me = state.status.me; state.rules = state.status.rules;
         applyTheme(prefs().theme);
-        if (state.me?.canSeeActivity) { enableActivityTab(); updateTabOverflow(); } // the owner just let them see it
+        renderTabs(); // e.g. the owner just let them see Activity
       } catch { return; }
       maybeShowWhatsNew(); // e.g. the server came back from an update
-      if (state.view === 'settings' && state.me?.isOwner) await loadPeople();
-      if (state.view === 'settings') renderSettingsWhenStill();
+      if (state.view === 'house' && state.sub === 'people') await loadPeople();
+      if (settingsOpen()) renderSettingsWhenStill();
     })());
   }
   if (has('notes') && view === 'notes') jobs.push(notesView.poll());
   if (has('clips') && view === 'clips' && !$('#clips-body .clip-rename-form')) jobs.push(loadClips().then(() => { if (state.view === 'clips') renderClips(); }));
-  if (has('house') && view === 'house') jobs.push(loadHouse().then(() => { if (state.view === 'house') renderHouse(); }));
+  if (has('house') && houseLive()) jobs.push(loadHouse().then(() => { if (state.view === 'house') renderHouse(); }));
   // Every change shows up in the Activity log.
-  if (topics.size && view === 'activity' && !$('#activity-body .person-name .clip-rename-form')) jobs.push(loadActivity().then(() => { if (state.view === 'activity') renderActivity(); }));
+  if (topics.size && view === 'activity') jobs.push(loadActivity().then(() => { if (state.view === 'activity') renderActivity(); }));
   await Promise.allSettled(jobs);
 }
+
+// Back closes the top overlay (below) or, with none open, moves between pages (the shell, near the end). This runs
+// first, so the shell can tell which.
+let popHadOverlay = false;
+window.addEventListener('popstate', () => { popHadOverlay = overlayStack.length > 0; });
 
 // ---------- overlays ----------
 // Each overlay pushes a history entry so the browser/phone back gesture closes it.
@@ -2581,37 +2873,6 @@ for (const [sheetSel, backdropSel] of [['#sheet', '#sheet-backdrop'], ['#picker'
     if (startY != null && e.changedTouches[0].clientY - startY > 90) closeTopOverlay();
     startY = null;
   });
-}
-
-function openDetails(t, opener) {
-  if (t.type === 'svt') return documentaries.openTitle(t, opener);
-  peek.hide();
-  const sheet = $('#sheet');
-  // From inside an open title page (More like this): that title opens right here, and Back comes back.
-  if (sheet.classList.contains('open') && opener && sheet.contains(opener)) {
-    const back = sheetState();
-    filmView.id = null; showView.id = null;
-    $('#sheet-body .trailer-frame')?.remove(); document.body.classList.remove('trailer-live');
-    renderDetails(t);
-    sheet.scrollTo({ top: 0 });
-    pushOverlay(() => { $('#sheet-body .trailer-frame')?.remove(); document.body.classList.remove('trailer-live'); back(); });
-    return;
-  }
-  renderDetails(t);
-  pushOverlay(showSheet($('#sheet'), $('#sheet-backdrop'), () => {
-    $('#sheet-body .trailer-frame')?.remove(); document.body.classList.remove('trailer-live'); // closing the sheet stops the trailer
-    opener?.focus({ preventScroll: true });
-  }));
-}
-
-// What the title page shows now, as a function that puts it back (after going deeper with More like this).
-function sheetState() {
-  const film = { ...filmView }, show = { ...showView }, t = detailsView.t, top = $('#sheet').scrollTop;
-  return () => {
-    Object.assign(filmView, film); Object.assign(showView, show);
-    if (film.id) renderFilm(); else if (show.id) renderShow(); else if (t) renderDetails(t);
-    requestAnimationFrame(() => { $('#sheet').scrollTop = top; });
-  };
 }
 
 // The backdrop at the top of a title sheet. When TMDB has a trailer, a Trailer button sits on it and
@@ -2791,55 +3052,6 @@ function moreLike(type, id) {
   }).catch(() => {});
   return section;
 }
-// Episodes of a show from TMDB: season tabs, then each episode's still, title, running time and story.
-// Episodes you have play from their still; the rest are added with the page's Add button.
-const episodeSeasonOpen = new Map(); // tmdb id -> season shown
-function episodeBrowser(t) {
-  if (!t.id || t.type !== 'tv' || !state.status.search) return null;
-  const tabs = h('div', { class: 'episode-tabs', role: 'group', 'aria-label': T('Seasons') });
-  const list = h('ul', { class: 'episode-list', 'aria-live': 'polite' });
-  const section = h('section', { class: 'page-section episodes', hidden: true }, h('h3', {}, T('Episodes')), tabs, list);
-  const draw = async (n) => {
-    episodeSeasonOpen.set(t.id, n);
-    tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.season) === n)));
-    list.replaceChildren(...Array.from({ length: 3 }, () => h('li', { class: 'ep skeleton', 'aria-hidden': 'true' }, h('div', { class: 'wide-art' }), h('div', { class: 'ep-body' }, h('div', { class: 'bar' }), h('div', { class: 'bar' })))));
-    let eps = [];
-    try { eps = (await cachedFor(`/api/tv/${t.id}/season/${n}`, 60 * 60 * 1000)).episodes || []; } catch { /* below */ }
-    if (episodeSeasonOpen.get(t.id) !== n || !list.isConnected) return;
-    const mine = new Map(matchesFor(t).filter((f) => f.done && f.season === n).map((f) => [f.episode, f]));
-    list.replaceChildren(...(eps.length ? eps.map((ep) => episodeItem(ep, mine.get(ep.number), t)) : [h('li', { class: 'muted' }, T('No episode details for this season yet.'))]));
-  };
-  tvSeasons(t.id).then((seasons) => {
-    if (!seasons?.length || !section.isConnected) return;
-    tabs.replaceChildren(...seasons.map((se) => h('button', { type: 'button', class: 'chip', 'data-season': se.number, onclick: () => draw(se.number) }, localSeasonName(se.name, se.number))));
-    if (seasons.length < 2) tabs.hidden = true;
-    section.hidden = false;
-    const owned = matchesFor(t).filter((f) => f.done && f.season != null).map((f) => f.season);
-    const first = episodeSeasonOpen.get(t.id) ?? (owned.length ? Math.min(...owned) : seasons.find((se) => !se.upcoming)?.number ?? seasons[0].number);
-    draw(first);
-  }).catch(() => {});
-  return section;
-}
-function episodeItem(ep, file, show) {
-  const lib = file && (file.kind === 'lib' ? file : libraryFile(file));
-  const saved = lib && savedProgress(lib);
-  const pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
-  const art = wideArt([ep.still, show.backdrop]);
-  if (pct > 1) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${pct}%` })));
-  const name = `${ep.number}. ${ep.name || T('Episode {0}', ep.number)}`;
-  if (lib) art.append(h('span', { class: 'play-glyph', 'aria-hidden': 'true' }, icon('play')));
-  const date = ep.airDate && new Date(`${ep.airDate}T12:00:00`);
-  const upcoming = date && date > new Date();
-  return h('li', { class: `ep${lib ? ' is-mine' : ' is-missing'}` },
-    lib ? h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': T('Play {0}', name), onclick: () => openPlayer(lib) }, art) : h('div', { class: 'ep-art' }, art),
-    h('div', { class: 'ep-body' },
-      h('p', { class: 'ep-title' }, name),
-      h('p', { class: 'ep-meta' }, [ep.runtime && fmtRuntime(ep.runtime), date && (upcoming ? T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })) : date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })),
-        lib && (pct > 1 ? T('{0}% watched', Math.round(pct)) : T('In your library'))].filter(Boolean).map((x) => h('span', {}, x))),
-      ep.overview && h('p', { class: 'ep-overview' }, ep.overview),
-      titleDetails.episodeCredits(ep))); // details: the episode's director, writers and guests, folded
-}
-
 // "Cast: …" under a title's description. Sheets re-render while they're open, so names already fetched
 // go straight in instead of blinking; nothing shows when TMDB has no cast.
 const knownCasts = new Map();
@@ -2861,107 +3073,6 @@ function castLine(type, id) {
     }).catch(() => {});
   }
   return line;
-}
-
-const detailsView = { t: null }; // the Discover title on the page, for going back to it
-function renderDetails(t) {
-  const files = matchesFor(t);
-  const onServer = serverMatchesFor(t);
-  const isTv = t.type === 'tv';
-  // Shows: one Download button opens the season panel; films: Play and/or Download right here.
-  const tv = isTv && canGet() && t.id ? showDownload(t, { onAdded: () => renderDetails(t) }) : null;
-  const actions = isTv
-    ? h('div', { class: 'title-actions' }, tv && h('div', { class: 'action-row' }, tv.toggle, tv.dubBtn), tv?.panel,
-      transferSummary(() => titleState(t).transfers, t.title))
-    : filmActions(t);
-  const versionFiles = isTv ? [] : allVersions(files.filter((f) => f.kind === 'lib'));
-  const versions = versionFiles.length > 1;
-  $('#sheet-body').replaceChildren(
-    detailsHero(t),
-    h('div', { class: 'sheet-content' },
-      pageTitle(t.title, t.type, t.id),
-      pageFacts([t.year, t.type === 'tv' ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(t.rating)}`),
-        files.some((f) => f.done) && h('li', { class: 'fact-owned' }, T('In your library'))], t.type, t.id),
-      actions,
-      !isTv && filmVersionPick(t, () => renderDetails(t)),
-      h('div', { class: 'page-extras' }, social.rateRow(titleKeyOf(t), t.title), state.status.search && t.id && watchBox(t)),
-      t.overview && h('p', { class: 'overview' }, t.overview),
-      castRail(t.type, t.id) || castLine(t.type, t.id),
-      isTv && episodeBrowser(t),
-      // Without download rights, episodes someone else has here can still be added (no copy is made).
-      isTv && !canGet() && onServer.length > 0 && serverOffer(t, onServer),
-      versions && h('h3', {}, T('Your versions')),
-      versions && h('ul', { class: 'rows' }, versionFiles.map((v) => fileRow(libraryFile({ ...v, versionOf: true })))),
-      reviews.section(titleKeyOf(t), t.title), // reviews
-      moreLike(t.type, t.id),
-      titleDetails.section(t.type, t.id))); // details
-  detailsView.t = t;
-}
-
-// "Already on the server": a row per version of a film, or per season of a show, each with an Add
-// button (and Add & play for films). Adding makes no copy; the video just joins your library.
-function serverOffer(t, list) {
-  const status = h('p', { class: 'device-status', role: 'status' });
-  const isTv = t.type === 'tv';
-  const add = async (files, btn, play = false) => {
-    btn.disabled = true;
-    status.textContent = '';
-    try {
-      await addIds(files);
-      await loadLibrary();
-      toast(files.length === 1 ? T('Added to your library') : T('Added {0} to your library', plural(files.length, 'episode')));
-      if (state.view === 'library') renderLibrary();
-      renderDetails(t);
-      if (play) {
-        const mine = state.library.find((x) => x.mediaKey === files[0].mediaKey);
-        if (mine) openPlayer({ ...mine, kind: 'lib', key: mine.id, done: true });
-      }
-    } catch (err) {
-      btn.disabled = false;
-      status.className = 'device-status is-error';
-      status.textContent = err.message;
-    }
-  };
-  const button = (text, cls, files, play) => {
-    const b = h('button', { type: 'button', class: cls }, text);
-    b.addEventListener('click', () => add(files, b, play));
-    return b;
-  };
-  let rows;
-  if (!isTv) {
-    rows = list.map((f) => h('li', { class: 'row' },
-      h('div', { class: 'row-text' },
-        h('div', { class: 'row-title' }, f.title + (f.year ? ` (${f.year})` : '')),
-        h('div', { class: 'row-meta' }, h('span', {}, f.format?.toUpperCase()), h('span', {}, fmtBytes(f.size)))),
-      h('div', { class: 'row-actions' },
-        button(T('Add'), 'chip', [f]),
-        button(T('Add & play'), 'play-btn', [f], true))));
-  } else {
-    const bySeason = new Map();
-    for (const f of list) {
-      const n = f.season ?? -1;
-      if (!bySeason.has(n)) bySeason.set(n, []);
-      bySeason.get(n).push(f);
-    }
-    rows = [...bySeason].sort((a, b) => a[0] - b[0]).map(([n, eps]) => {
-      const nums = [...new Set(eps.map((f) => f.episode).filter((x) => x != null))].sort((a, b) => a - b);
-      const span = nums.length > 1 ? `E${pad2(nums[0])}–E${pad2(nums.at(-1))}` : nums.length ? `E${pad2(nums[0])}` : null;
-      return h('li', { class: 'row' },
-        h('div', { class: 'row-text' },
-          h('div', { class: 'row-title' }, n < 0 ? T('Other videos') : seasonName(n)),
-          h('div', { class: 'row-meta' }, h('span', {}, plural(episodeCount(eps), 'episode')), span && h('span', {}, span))),
-        h('div', { class: 'row-actions' }, button(n < 0 ? T('Add') : T('Add season'), 'chip', eps)));
-    });
-  }
-  return h('div', { class: 'server-offer' },
-    h('div', { class: 'server-offer-head' },
-      h('h3', {}, T('Ready to watch now')),
-      isTv && rows.length > 1 && button(T('Add all {0}', plural(episodeCount(list), 'episode')), 'play-btn', list)),
-    h('p', { class: 'muted' }, isTv
-      ? T('These are already here. Add them to your library and watch right away.')
-      : T('This is already here. Add it to your library and watch right away.')),
-    h('ul', { class: 'rows' }, rows),
-    status);
 }
 
 // Requests worth repeating within a few minutes (re-rendering a sheet shouldn't search again).
@@ -3073,7 +3184,8 @@ function titleState(t) {
 }
 
 // State, percentage and a slim bar for one title's downloads, with Pause/Resume, Retry and Details.
-function transferSummary(getTransfers, name) {
+// lead(): Play now is the page's gold button (nothing else to play yet); otherwise it's a quiet chip.
+function transferSummary(getTransfers, name, { lead = () => true } = {}) {
   const stateEl = h('span', { class: 'transfer-state' }), pct = h('span', { class: 'transfer-percent' });
   const track = h('div', { class: 'transfer-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': T('{0} download progress', name) }, h('i'));
   const pause = h('button', { type: 'button', class: 'chip transfer-ctl' });
@@ -3116,6 +3228,8 @@ function transferSummary(getTransfers, name) {
     pause.setAttribute('aria-label', `${resume ? T('Resume') : T('Pause')} ${name}`);
     retry.hidden = !attention;
     play.hidden = !playable();
+    const lit = Boolean(lead());
+    play.classList.toggle('play-btn', lit); play.classList.toggle('chip', !lit);
   };
   commandViews.add(el);
   el._update();
@@ -3173,35 +3287,47 @@ function audioChoice(t, id, onChange) {
 }
 
 // Films: Play when it's here (or on the server), else one Download press. Then state and progress.
+// The title page puts root.play and root.get in its button bar; one gold button at a time: Play when there's
+// something to play (not while it's being prepared), else Add, else Play now in the download card.
+// stateOf: where the page reads the film's files and downloads (titleState, or the Library entry for a video
+// without a TMDB id).
 const filmExact = new Map(); // tmdb id -> exact resolution for this session
-function filmActions(t) {
+function filmActions(t, { stateOf = () => titleState(t) } = {}) {
   const dub = audioChoice({ ...t, type: 'movie' }, `film-audio-${t.id}`, () => root._update?.());
   dub.field.append(dub.hint);
   const body = () => ({ type: 'movie', tmdbId: t.id, ...(filmExact.get(t.id) ? { quality: filmExact.get(t.id) } : {}), ...(dub.anime ? { dub: dub.dubbing() } : {}) });
-  const play = h('button', { type: 'button', class: 'play-btn action-btn' });
-  const get = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon' }, icon('plus'), h('span', {}, T('Add to library')));
-  const row = h('div', { class: 'action-row' }, play, get);
+  const play = h('button', { type: 'button', class: 'play-btn action-btn', 'data-act': 'play' });
+  const get = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon', 'data-act': 'download' }, icon('plus'), h('span', {}, T('Add to library')));
   const status = h('p', { class: 'action-status', role: 'status' });
   const retry = h('button', { type: 'button', class: 'chip action-retry' }, T('Try again'));
-  const progress = transferSummary(() => titleState(t).transfers, t.title);
-  const root = h('div', { class: 'title-actions' }, dub.field, row, progress, h('div', { class: 'action-result' }, status, retry));
+  const progress = transferSummary(() => stateOf().transfers, t.title, { lead: () => play.hidden && get.hidden });
+  const root = h('div', { class: 'title-film' }, dub.field, progress, h('div', { class: 'action-result' }, status, retry));
+  root.play = play; root.get = get; root.buttons = [play, get]; root.dub = dub;
   const advanced = canGet() && t.id ? advancedOptions(`movie-${t.id}`, {
     exact: filmExact.get(t.id) || '', onExact: (v) => filmExact.set(t.id, v),
     browse: () => ({ query: [t.title, t.year].filter(Boolean).join(' '), type: 'movie', movieId: t.id, canonicalTitle: t.title, strict: true }),
   }) : null;
   if (advanced) root.append(advanced);
-  // Not out to stream or buy yet: a grey Coming soon instead of Add (only cinema recordings exist).
+  // Advanced options and Dubbed wait behind the page's ⋯ until asked for (or opened before).
+  let showAdvanced = false, showDub = false;
+  root.revealAdvanced = () => { if (!advanced) return; showAdvanced = true; advanced.open = true; advancedOpen.set(`movie-${t.id}`, true); root._update(); advanced.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  root.chooseDub = () => { showDub = true; dub.choose('dub'); root._update(); dub.focus(); };
+  // Not out to stream or buy yet: no Add (only cinema recordings exist); Save is the page's button then.
   // The card's date guesses first; the page's release info (digital/disc dates) settles it.
-  let soon = filmUnreleased(t) ? { kind: 'cinema', date: (t.date || t.releaseDate).slice(0, 10), cinema: (t.date || t.releaseDate).slice(0, 10), expect: null, out: false } : null;
+  const day = String(t.date || t.releaseDate || '').slice(0, 10) || null;
+  let soon = titleView.release.get(t.id) ?? cardUnreleased(t) ? { kind: 'cinema', date: day, cinema: day, expect: null, out: false } : null;
   if (t.id && state.status.search) pageInfo('movie', t.id).then((page) => {
     if (!page || !('release' in page)) return;
     soon = page.release && !page.release.out ? page.release : null;
+    const was = titleView.release.get(t.id);
+    titleView.release.set(t.id, Boolean(soon));
     root._update();
+    if (was !== Boolean(soon)) updateOpenTitle(); // the page's gold button may change (Save instead of Add)
   }).catch(() => {});
   let playing = false;
   play.addEventListener('click', async () => {
     if (play.getAttribute('aria-disabled') === 'true') return;
-    const s = titleState(t), mine = s.ready.find((f) => !f.converting);
+    const s = stateOf(), mine = s.ready.find((f) => !f.converting);
     if (mine) return openPlayer(mine);
     if (!s.onServer.length || playing) return;
     playing = true; play.setAttribute('aria-disabled', 'true');
@@ -3217,7 +3343,7 @@ function filmActions(t) {
   const start = () => { if (get.getAttribute('aria-disabled') !== 'true') runDownloadCommand(body()); };
   get.addEventListener('click', async () => {
     if (get.getAttribute('aria-disabled') === 'true') return;
-    const s = titleState(t);
+    const s = stateOf();
     const theirs = dub.dubbing() ? s.onServer.find(isDubbedCopy) : s.onServer[0];
     if ((s.ready.length && !dub.dubbing()) || !theirs) return start();
     // Someone else already has it here: add their copy instead of downloading another.
@@ -3226,14 +3352,15 @@ function filmActions(t) {
   });
   retry.addEventListener('click', start);
   root._update = () => {
-    const s = titleState(t), cmd = downloadCommands.get(commandKey(body()));
+    const s = stateOf(), cmd = downloadCommands.get(commandKey(body()));
     const file = s.ready.find((f) => !f.converting) || s.ready[0];
     const playable = Boolean(file || s.onServer.length);
+    const converting = Boolean(file && !s.ready.some((f) => !f.converting));
     play.hidden = !playable;
     if (playable) {
       const saved = file && savedProgress(file);
-      const converting = file && !s.ready.some((f) => !f.converting);
-      play.replaceChildren(icon('play'), h('span', {}, converting ? T('Preparing playback…') : partlyWatched(saved) ? T('Resume at {0}', fmtTime(saved.time)) : T('Play')));
+      play.replaceChildren(icon('play'), h('span', {}, converting ? T('Preparing playback…') : !file ? T('Add & play')
+        : partlyWatched(saved) ? T('Resume at {0}', fmtTime(saved.time)) : T('Play')));
       play.setAttribute('aria-disabled', String(Boolean(converting || playing)));
     }
     // "Add to library" either way: someone else's copy here is added at once, otherwise Lilin fetches one.
@@ -3245,11 +3372,14 @@ function filmActions(t) {
       : playable || !canGet() || !t.id || (s.active.length > 0 && !cmd?.busy);
     get.lastChild.textContent = adding ? T('Adding…') : cmd?.busy ? commandStep(cmd) : wantDub && file ? T('Add dubbed version') : T('Add to library');
     const waiting = Boolean(soon && !addable && !playable && !s.active.length && !cmd?.busy && !adding && t.id);
-    if (waiting) { get.hidden = false; get.lastChild.textContent = T('Coming soon'); }
-    get.firstChild.replaceWith(icon(waiting ? 'clock' : 'plus'));
-    get.classList.toggle('is-soon', waiting);
-    if (advanced) advanced.hidden = waiting;
-    dub.field.hidden = !dub.anime || !canGet();
+    if (waiting) get.hidden = true;
+    // The one gold button: Play (not while it's being prepared), else Add.
+    const lit = !play.hidden && !converting;
+    play.classList.toggle('play-btn', lit); play.classList.toggle('chip', !lit);
+    get.classList.toggle('play-btn', play.hidden); get.classList.toggle('chip', !play.hidden);
+    if (advanced) advanced.hidden = waiting || !(showAdvanced || advanced.open);
+    dub.field.hidden = !dub.anime || !canGet() || (Boolean(file) && !showDub); // yours already: Dubbed is in ⋯
+    $('#sheet-body .title-dubbed')?.toggleAttribute('hidden', !dub.anime);
     dub.lock(Boolean(cmd?.busy || adding));
     get.setAttribute('aria-disabled', String(Boolean(cmd?.busy || adding || waiting)));
     root.setAttribute('aria-busy', String(Boolean(cmd?.busy)));
@@ -3258,7 +3388,6 @@ function filmActions(t) {
     if (!addable && status.textContent !== line) status.textContent = line;
     status.classList.toggle('is-error', Boolean(result?.retry));
     retry.hidden = !result?.retry || s.active.length > 0;
-    row.hidden = play.hidden && get.hidden;
     progress._update();
   };
   commandViews.add(root);
@@ -3272,12 +3401,14 @@ function filmActions(t) {
 // Long seasons (Black Clover's 170, One Piece's 197) can download a range of episodes instead.
 const showPanels = new Map(); // tmdb id -> { open, season, profile, exact, last: { [season]: command key }, ranges: { [season]: { on, from, to } } }
 const RANGE_FROM = 40; // episodes in a season before the panel offers a range
-function showDownload(t, { season = null, onAdded = null } = {}) {
+// lead: the toggle is the title page's gold button (it turns quiet while its panel is open: Add Season is then).
+function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   let ps = showPanels.get(t.id);
   if (!ps) { ps = { open: false, season, profile: savedProfile(), exact: '', last: {}, ranges: {} }; showPanels.set(t.id, ps); }
   else if (season != null && !ps.touched) ps.season = season;
   const panelId = `dl-panel-${t.id}`;
-  const toggle = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon', 'aria-expanded': String(ps.open), 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add to library')));
+  const toggle = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon title-add', 'data-act': 'download', 'aria-expanded': String(ps.open), 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add to library')));
+  const paintToggle = () => { const lit = lead && !ps.open; toggle.classList.toggle('play-btn', lit); toggle.classList.toggle('action-btn', lit); toggle.classList.toggle('chip', !lit); };
   const dub = audioChoice({ ...t, type: 'tv' }, `${panelId}-audio`, () => { addError = ''; panel._update?.(); });
   const seasonSel = h('select', { class: 'sub-select', id: `${panelId}-season`, disabled: true }, h('option', {}, T('Loading seasons…')));
   const profileSel = h('select', { class: 'sub-select', id: `${panelId}-quality` }, PROFILE_OPTIONS.map(([v, text]) => h('option', { value: v }, text)));
@@ -3292,7 +3423,7 @@ function showDownload(t, { season = null, onAdded = null } = {}) {
   const rangeRow = h('div', { class: 'dl-field dl-range' }, h('label', { for: fromIn.id }, T('From – to')),
     h('div', { class: 'dl-range-boxes' }, fromIn, h('span', { class: 'dl-range-dash', 'aria-hidden': 'true' }, '–'), toIn));
   const scopeField = h('div', { class: 'dl-field dl-scope' }, h('label', { for: scopeSel.id }, T('Episodes')), scopeSel);
-  const submit = h('button', { type: 'button', class: 'play-btn dl-submit' }, h('span', {}, T('Add Season')));
+  const submit = h('button', { type: 'button', class: `${lead ? 'play-btn' : 'chip'} dl-submit` }, h('span', {}, T('Add Season')));
   const quiet = h('p', { class: 'dl-quiet' });
   const status = h('p', { class: 'dl-status', role: 'status' });
   const retry = h('button', { type: 'button', class: 'chip dl-retry' });
@@ -3341,6 +3472,7 @@ function showDownload(t, { season = null, onAdded = null } = {}) {
     const extra = dub.dubbing() ? [] : serverOnlyEpisodes(titleState(t));
     if (extra.length) return addEverything(extra);
     ps.open = !ps.open;
+    paintToggle();
     toggle.setAttribute('aria-expanded', String(ps.open));
     panel.hidden = !ps.open;
     if (ps.open) { load(); if (e.detail === 0) seasonSel.focus(); } // keyboard: straight to Season
@@ -3451,6 +3583,8 @@ function showDownload(t, { season = null, onAdded = null } = {}) {
     toggle.setAttribute('aria-disabled', String(addingAll));
     if (addsAll) toggle.removeAttribute('aria-expanded'); // it adds right away, so there's no panel to expand
     else toggle.setAttribute('aria-expanded', String(ps.open));
+    paintToggle();
+    $('#sheet-body .title-dubbed')?.toggleAttribute('hidden', !dub.anime);
     seasonSel.disabled = locked || !seasons?.length;
     profileSel.disabled = locked;
     scopeSel.disabled = fromIn.disabled = toIn.disabled = locked;
@@ -3467,7 +3601,7 @@ function showDownload(t, { season = null, onAdded = null } = {}) {
   commandViews.add(panel);
   panel._update();
   if (ps.open) load();
-  return { toggle, dubBtn, panel };
+  return { toggle, dubBtn, panel, dub };
 }
 
 // Upgrade quality: the season is here but looks soft. A clearly better pack replaces it episode by episode.
@@ -3492,24 +3626,6 @@ function upgradeState(t, season) {
   };
 }
 const upgradeLabel = (u) => (u.busy ? T('Looking for better quality…') : T('Upgrade quality'));
-function seasonUpgrade(t, season) {
-  const btn = h('button', { type: 'button', class: 'chip dl-upgrade stroke-icon' }, icon('upgrade'), h('span', {}));
-  const note = h('p', { class: 'muted season-upgrade-note' }, T('Looks soft? Finds a clearly better release of this season and swaps each episode as the new one finishes. Watch progress carries over.'));
-  const status = h('p', { class: 'dl-status dl-upgrade-status', role: 'status' });
-  btn.addEventListener('click', () => { if (btn.getAttribute('aria-disabled') !== 'true') upgradeState(t, season).run(); });
-  btn._update = () => {
-    const u = upgradeState(t, season);
-    btn.hidden = !u.offered || u.started;
-    btn.setAttribute('aria-disabled', String(u.disabled));
-    btn.lastChild.textContent = upgradeLabel(u);
-    note.hidden = !u.offered || u.used;
-    if (status.textContent !== u.text) status.textContent = u.text;
-    status.classList.toggle('is-error', u.failed);
-  };
-  commandViews.add(btn);
-  btn._update();
-  return { btn, about: h('div', { class: 'season-upgrade' }, note, status) };
-}
 
 // One missing episode in the show sheet: a quiet Download that runs the same command for it alone.
 function episodeDownload(t, seasonNo, episode) {
@@ -3541,17 +3657,25 @@ function episodeDownload(t, seasonNo, episode) {
 
 // ---------- casting: device picker ----------
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
+const people = createPeople({ h, api, toast, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener) }); // faces and profile pictures (people.js); a face with an id opens its profile
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
-// friends: Settings → Friends (friends.js)
-const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+// friends: You → Friends (friends.js); requests are also For you cards and light the You tab's dot
+const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), invite: friendsInvite,
+  addFriend: (opener) => invite.open({ kind: 'friend' }, opener),
+  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); invite.refresh('friend'); } });
+// One Invite sheet (invite.js): Lilin and Friend open in the picker; Room, Pick and Moment draw where they're used.
+const invite = createInvite({ h, api, jsonPost, toast, icon, people, me: () => state.me, admin: () => Boolean(state.status?.admin), copyWithToast, friendsUI,
+  sheet: { open: (nodes, opener, onClosed) => {
+    $('#picker-body').replaceChildren(...nodes);
+    pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { onClosed?.(); opener?.isConnected && opener.focus({ preventScroll: true }); }));
+  } } });
 // friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
 // while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
-// stays away from Settings, where the requests are already on screen.
+// stays away from the You tab, where the requests are already on screen.
 const friendAsks = { open: false, retry: null };
 function maybeAskFriends() {
   clearTimeout(friendAsks.retry);
-  if (friendAsks.open || state.view === 'settings' || !friendsUI.waitingAsks().length) return;
+  if (friendAsks.open || state.view === 'you' || !friendsUI.waitingAsks().length) return;
   if (overlayStack.length || !$('#player').hidden || document.hidden) { friendAsks.retry = setTimeout(maybeAskFriends, 4000); return; }
   const opener = document.activeElement;
   const sheet = friendsUI.askSheet({ close: () => closeTopOverlay() });
@@ -3564,7 +3688,7 @@ function maybeAskFriends() {
   }));
 }
 // comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
-const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
+const comingSoon = createComingSoonView({ h, icon, toast, savedToast: (text) => watchlistToast(text), watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
   openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 // reviews: stars + written reviews (reviews.js); its sheets open in the picker
@@ -3596,11 +3720,12 @@ const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () 
     },
     close: () => closeTopOverlay(),
   },
-  friendsChanged: () => { friendsUI.invalidate(); if (state.view === 'settings') renderSettingsWhenStill(); },
+  friendsChanged: () => { friendsUI.invalidate(); if (settingsOpen()) renderSettingsWhenStill(); },
   // your name and picture live on your profile (Settings no longer edits them)
   changePicture: ({ opener, over, done }) => editPicture({ person: state.me, opener, over, done }),
   removePicture: () => removePicture({ person: state.me }),
-  saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); } });
+  saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); },
+  mineChanged: () => { if (settingsOpen()) renderSettingsWhenStill(); } }); // You's card and lines show the saved profile
 // A poster on a profile. Profiles opened over a title page close first, and the title opens in that page (Back
 // returns to the title it was on).
 async function openTitleFromProfile(card, opener, nested) {
@@ -3611,24 +3736,25 @@ async function openTitleFromProfile(card, opener, nested) {
   } catch { return; }
   openDetails(card, $('#sheet').classList.contains('open') ? $('#sheet-body') : null);
 }
-// The header's face: your own profile.
+// Your face on the You tab, and on wide screens at the far right of the header (both open You). The home network's
+// shared account has no face of its own: it keeps the person glyph.
 function renderMeButton() {
-  const btn = $('#me-btn');
   const m = state.me;
-  btn.hidden = !m?.email;
-  if (!m?.email) return;
-  btn.replaceChildren(people.face(m, { size: 32 }));
-  btn.setAttribute('aria-label', T('Your profile'));
-  btn.title = T('Your profile');
+  const glyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>';
+  const tabFace = $('.tab[data-view="you"] .tab-face');
+  if (m?.email) tabFace.replaceChildren(people.face(m, { size: 24 })); else tabFace.innerHTML = glyph;
+  const btn = $('#me-btn');
+  const dot = btn.querySelector('.tab-dot');
+  if (m?.email) btn.replaceChildren(people.face(m, { size: 32 }), dot); else { btn.innerHTML = glyph; btn.append(dot); }
+  btn.title = T('You');
 }
-$('#me-btn').addEventListener('click', (e) => profiles.openMine(e.currentTarget));
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
 // theme: a show's theme song, softly, while its page is open (theme-music.js)
-const themeMusic = createThemeMusic({ h, icon, page: () => showView.id,
+const themeMusic = createThemeMusic({ h, icon, page: () => titleView.showId,
   quiet: () => Boolean(party) || state.sessions.length > 0 || ['in-player', 'trailer-live'].some((c) => document.body.classList.contains(c)),
   watch: [[$('#sheet'), { attributes: true, attributeFilter: ['class', 'hidden'] }], [$('#sheet-body'), { childList: true }], [document.body, { attributes: true, attributeFilter: ['class'] }]] });
-const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
+const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => docsBillboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
   sheet: () => $('#sheet'), sheetBody: () => $('#sheet-body'),
@@ -3638,7 +3764,15 @@ const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notic
   play: (f) => openPlayer(libraryFile(f)),
 }); // Discover -> Documentaries and SVT Play titles (documentaries.js)
 // vibes: Discover -> Moods (vibes.js)
-const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => ownedTitle(t) });
+const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => ownedTitle(t),
+  // A genre mood's tile opens that genre's page, sorted the mood's way.
+  openGenre: (m) => {
+    const genre = (disc.genres || []).find((g) => (m.movie && g.movie === m.movie) || (m.tv && g.tv === m.tv));
+    if (!genre) return;
+    Object.assign(disc, { genre, sort: m.sort || 'popular', list: null });
+    window.scrollTo({ top: 0 });
+    renderDiscover();
+  } });
 
 // The subtitles the phone player would turn on by itself (see its subtitle setup), so a TV starts with
 // them too: the last used language when it's already saved for this video, else the one from Settings.
@@ -4633,7 +4767,7 @@ function leaveWatchRoom(notify = true) {
   partyUnread = 0;
   $('#chat-log').replaceChildren();
   $('#chat-layer').replaceChildren();
-  closeInviteList();
+  inviteList.replaceChildren(); delete inviteList.dataset.token;
   old.close({ notify });
   for (const t of video.querySelectorAll('track')) offsetCues(t.track, 0);
   video.disableRemotePlayback = false;
@@ -4687,16 +4821,12 @@ function followRoom(session) {
 // Each channel plays in a Watch Together room that nobody hosts (src/live-tv.js): tuning in joins it at the
 // live moment, the room's clock keeps everyone on the same frame, and a new programme reaches every player at once.
 const liveView = createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me: () => state.me, tune: (id) => tuneIn(id),
-  overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState });
+  overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState, together: liveTogether });
 liveView.onChanged(() => { if (state.view === 'live') liveView.load(true).then(renderLive); });
 // livechat: the chat panel on a channel (live-chat.js)
 const liveChat = createLiveChat({ h, api, jsonPost, toast, people, social, reactions: REACTIONS, me: () => state.me, client: watchClient,
   player: $('#player'), floats: $('#chat-layer'), bursts: $('#reaction-layer'), channelName: (ch) => channelName(ch, state.me),
   say: (text) => party.say(text), react: (emoji) => party?.react(emoji), layout: () => requestAnimationFrame(layoutSubs) });
-function enableLiveTab() {
-  addAdminTab('live', T('Live'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>');
-  $('.tabs').insertBefore($('.tab[data-view="live"]'), $('.tab[data-view="library"]'));
-}
 function renderLive() { const body = $('#live-body'); if (body) liveView.render(body); }
 
 const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, live: room.live,
@@ -4893,8 +5023,7 @@ async function offerWatchRoom(token) {
 
 function setWatchPanel(open) {
   watchPanelOpen = Boolean(open && party);
-  if (!watchPanelOpen) closeInviteList();
-  $('#watch-invite').hidden = Boolean(state.me?.restricted); // friends: restricted people share the room link only
+  if (watchPanelOpen) mountRoomInvite();
   if (watchPanelOpen) { partyUnread = 0; requestAnimationFrame(() => { const log = $('#chat-log'); log.scrollTop = log.scrollHeight; }); }
   renderParty(); showPlayerUi();
 }
@@ -5030,14 +5159,34 @@ async function openWrapped(year, opener) {
 // ---- planned watch parties ----
 const partyLink = (token) => `${location.origin}/c/w/${token}`;
 const partyTitle = (m) => [m.filmTitle || m.title, episodeLabel(m)].filter(Boolean).join(' · ');
-// Rooms are opened and started on the spot (Watch together in the player); parties planned earlier still show in the Library.
+// Live's top block, Watch with someone: Pick together (start one, or get back to one going on) and the parties you
+// planned or joined, with a countdown. Parties are planned from a Pick together match (match.js) or started on the
+// spot in the player; this block lists them: Join, Copy link, Cancel.
+const together = { el: null, timer: 0 };
+function liveTogether() { together.el ||= h('section', { class: 'together', 'aria-labelledby': 'together-head' }); return together.el; }
+// The Pick together tile: the same three states as Discover's card.
+function pickTile(p) {
+  let title = T('Can’t agree on what to watch?'), sub = T('Pick together: everyone swipes, the first shared yes wins.'), who = null;
+  if (p?.invited) {
+    title = p.type === 'tv' ? T('{0} wants to pick a show with you', p.host?.name || '') : T('{0} wants to pick a film with you', p.host?.name || '');
+    sub = T('Join and start swiping'); who = people.faces([p.host], { size: 40 });
+  } else if (p) {
+    title = p.mine ? T('Your pick is still going') : T('{0}’s pick is still going', p.host?.name || '');
+    sub = p.matches ? (p.matches === 1 ? T('1 match so far') : T('{0} matches so far', p.matches)) : T('Carry on swiping');
+    who = people.faces(p.members, { size: 40, max: 3 });
+  }
+  return h('button', { type: 'button', class: `party-card together-pick${p ? ' is-going' : ''}`, onclick: () => (p ? pickUi.openPick(p.id) : pickUi.open()) },
+    who || h('span', { class: 'together-art', 'aria-hidden': 'true' }, icon('party')),
+    h('span', { class: 'party-text' }, h('strong', {}, title), h('span', { class: 'muted' }, sub)),
+    h('span', { class: 'together-go', 'aria-hidden': 'true' }, '›'));
+}
 let partiesRequest = null;
 async function loadParties() {
-  if (!libraryUI?.parties) return;
-  partiesRequest ||= api('/api/watch/parties').finally(() => { partiesRequest = null; });
-  let parties = [];
-  try { parties = (await partiesRequest).parties; } catch { return; }
-  const shelf = social.partiesShelf(parties, {
+  const el = liveTogether();
+  partiesRequest ||= Promise.all([api('/api/watch/parties'), api('/api/match').catch(() => ({ picks: [] }))]).finally(() => { partiesRequest = null; });
+  let parties, picks;
+  try { const [a, b] = await partiesRequest; parties = a.parties || []; picks = b.picks || []; } catch { if (!el.childElementCount) el.replaceChildren(); return; }
+  const cards = social.partyCards(parties, {
     label: partyTitle,
     join: (p) => offerWatchRoom(p.token),
     copy: (p) => copyWithToast(partyLink(p.token), T('Invite copied. Everyone uses their usual Lilin sign-in.')),
@@ -5048,51 +5197,24 @@ async function loadParties() {
       catch (err) { btn.disabled = false; toast(err.message); }
     },
   });
-  libraryUI.parties.replaceChildren(...(shelf ? [shelf] : []));
+  el.replaceChildren(h('h3', { class: 'live-sub', id: 'together-head' }, T('Watch with someone')),
+    h('ul', { class: 'party-list' }, h('li', {}, pickTile(picks[0])), ...cards.items));
+  clearInterval(together.timer);
+  if (parties.length) together.timer = setInterval(() => { if (el.isConnected && !el.closest('[hidden]')) cards.tick(); }, 1000);
 }
 $('#watch-btn').addEventListener('click', () => { if (party) setWatchPanel(!watchPanelOpen); else hostWatchRoom(); });
 $('#watch-hide').addEventListener('click', () => { setWatchPanel(false); $('#watch-btn').focus(); });
-$('#watch-copy').addEventListener('click', () => {
-  // /c/w/ shows a preview in Discord and other chats, then forwards to /?watch=
-  if (party) copyWithToast(`${location.origin}/c/w/${party.state.token}`, T('Room link copied. Everyone uses their usual Lilin sign-in.'));
-});
 $('#watch-leave').addEventListener('click', () => { leaveWatchRoom(); video.pause(); toast(T('You left the room')); });
-// Invite: people with Watch Together invites on get a notification that opens the room.
+// Ask people (invite.js, Room): people with Watch Together invites on get a notification that opens the room; the
+// link (/c/w/ shows a preview in Discord and other chats, then forwards to /?watch=) works for anyone signed in.
+// Drawn once per room, when its panel first opens.
 const inviteList = $('#watch-invite-list');
-function closeInviteList() { inviteList.hidden = true; $('#watch-invite').setAttribute('aria-expanded', 'false'); }
-$('#watch-invite').addEventListener('click', async () => {
-  if (!inviteList.hidden) { closeInviteList(); return; }
-  if (!party) return;
-  const token = party.state.token;
-  inviteList.hidden = false; $('#watch-invite').setAttribute('aria-expanded', 'true');
-  inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Finding people…')));
-  try {
-    const { people: invitees } = await api(`/api/watch/${token}/invitees?clientId=${encodeURIComponent(watchClient)}`);
-    if (party?.state.token !== token) return;
-    if (!invitees.length) {
-      inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Nobody else has notifications on yet. Copy the link and send it instead.')));
-      return;
-    }
-    inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Tap someone to send them a notification.')),
-      h('ul', { class: 'room-invitee-grid' }, invitees.map((u) => {
-        const state = h('span', { class: 'room-invitee-state' }, T('Invite'));
-        const tile = h('button', { class: 'room-invitee', type: 'button', 'aria-label': T('Invite {0}', u.name) },
-          people.face(u, { size: 44 }), h('span', { class: 'room-invitee-name' }, u.name), state);
-        tile.addEventListener('click', async () => {
-          if (tile.dataset.state === 'sent' || tile.disabled) return;
-          tile.disabled = true; tile.dataset.state = 'sending'; state.textContent = T('Sending…');
-          try {
-            const r = await api(`/api/watch/${token}/invite`, jsonPost({ clientId: watchClient, userIds: [u.id] }));
-            tile.dataset.state = r.sent ? 'sent' : 'failed';
-            state.replaceChildren(...(r.sent ? [icon('check'), T('Invited')] : [T('Not reached')]));
-            tile.setAttribute('aria-label', r.sent ? T('{0} invited', u.name) : T('{0} wasn’t reached', u.name));
-            if (!r.sent) { tile.disabled = false; toast(T('{0}’s devices didn’t accept the notification. Copy the link instead.', u.name)); }
-          } catch (err) { tile.disabled = false; tile.dataset.state = ''; state.textContent = T('Invite'); toast(err.message); }
-        });
-        return h('li', {}, tile);
-      })));
-  } catch (err) { inviteList.replaceChildren(h('p', { class: 'room-hint' }, err.message)); }
-});
+function mountRoomInvite() {
+  const token = party?.state.token;
+  if (!token || inviteList.dataset.token === token) return;
+  inviteList.dataset.token = token;
+  invite.mount(inviteList, { kind: 'room', title: false, token, clientId: watchClient, live: Boolean(party.state.live) });
+}
 document.addEventListener('visibilitychange', () => { if (!document.hidden && party) { party.clock().then(() => party?.pulse()).catch(() => {}); } });
 
 function saveProgress(force = false) {
@@ -5127,7 +5249,7 @@ function saveProgress(force = false) {
   // server doesn't count it as finished (Up next stays on it).
   const auto = autoChain > 0;
   if (done) delete state.progress[ref];
-  if (done && !auto) noteFinished(current, now);
+  if (done && !auto) { noteFinished(current, now); rightNow.played(current); } // Right now: no longer "ready"
   else state.progress[ref] = { time: video.currentTime, duration: video.duration, at: now };
   invalidateLibraryProgress();
   const watched = Math.round(playedSince * 10) / 10;
@@ -6512,10 +6634,10 @@ let seekTipX = null;
 const seekPreview = createSeekPreview(seekTip, () => { if (!seekTip.hidden && seekTipX != null) showSeekTip(seekTipX); });
 // pick: Pick together (match.js): everyone swipes the same posters; the first shared yes is a match.
 const pickUi = createMatch({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyWithToast, pushOverlay, closeTopOverlay,
-  openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(),
+  openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(), invite,
   enterRoom: async (room) => { await openPlayer({ ...room.media, key: room.media.id, done: true }, { watchRoom: room }); setWatchPanel(true); } });
 // friends: Moments (moments.js): player ⋯ → Clip a moment, and Settings → Moments.
-const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, copyWithToast, fmtAgo, video, playerEl: $('#player'),
+const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl: $('#player'),
   current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
   describe: (f) => {
     const show = f.show != null ? state.libraryShows.find((s) => s.id === f.show) : null;
@@ -6525,7 +6647,7 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
   },
   closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
-  rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
 const muteBtn = $('#pc-mute');
 const volInput = $('#pc-vol');
@@ -7592,7 +7714,7 @@ video.addEventListener('error', () => {
     ? T('This video can’t play in this browser. Its format isn’t supported here; open the file link under the video to download it, or try another browser.')
     : current.kind === 'clip'
     ? T('This clip can’t play in this browser. Its video format (often AV1) isn’t supported here; try another browser, or share it to get a copy that plays everywhere.')
-    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.'),
+    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in Library › Downloads.'),
   { title: T('Can’t play here') });
   // When the note below the video says a version is being made, that note is the explanation.
   err.hidden = !$('#player-note').hidden;
@@ -7605,22 +7727,21 @@ window.addEventListener('pageshow', (event) => {
 
 // ---------- search box + tabs ----------
 const input = $('#q');
-const PLACEHOLDERS = { live: T('Search films and shows'), discover: T('Search films and shows'), library: T('Filter your library'), downloads: T('Filter downloads'), activity: T('Filter by person or title'), house: T('Filter machines'), clips: T('Filter by game or name'), settings: T('Search films and shows'), notes: T('Search notes by keyword') };
-const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, query: () => state.query,
+const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, query: () => pageFilters.notes,
   playVideo: (a) => openPlayer({ kind: 'note', id: a.fileId, key: `note:${a.fileId}`, title: a.name }),
   overlay: { push: pushOverlay, close: closeTopOverlay },
-  clearQuery: () => { input.value = state.query = ''; $('#q-clear').hidden = true; } });
+  clearQuery: () => clearFilter('notes') });
 
 function renderView() {
   if (state.view === 'discover') renderDiscover();
   if (state.view === 'live') renderLive();
   if (state.view === 'library') renderLibrary();
-  if (state.view === 'downloads') renderDownloads();
   if (state.view === 'activity') renderActivity();
   if (state.view === 'house') renderHouse();
   if (state.view === 'clips') renderClips();
-  if (state.view === 'settings') renderSettings();
-  if (state.view === 'notes') notesView.render();
+  if (state.view === 'you') renderSettings();
+  if (state.view === 'notes') { filterField('notes', T('Search notes by keyword'), () => notesView.load()); notesView.render(); }
+  renderBackLink();
 }
 
 // ---------- settings ----------
@@ -7645,7 +7766,7 @@ function editPicture({ person, opener, over = false, done = null }) {
     for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.toggle('over-pf', Boolean(over));
     pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), async () => {
       if (!mine && state.me?.isOwner) await loadPeople();
-      if (state.view === 'settings') renderSettings();
+      if (settingsOpen()) renderSettings();
       done?.();
       if (over) setTimeout(() => { for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.remove('over-pf'); }, 320);
       opener?.isConnected && opener.focus({ preventScroll: true });
@@ -7659,7 +7780,7 @@ async function removePicture({ person }) {
     else { await people.saveFor(person.id, null); await loadPeople(); }
     toast(T('Picture removed'));
     if (mine) renderMeButton();
-    if (state.view === 'settings') renderSettings();
+    if (settingsOpen()) renderSettings();
   } catch (err) { toast(err.message); }
 }
 
@@ -7678,7 +7799,9 @@ async function saveRules(patch) {
   renderSettings();
 }
 async function loadPeople() {
-  try { state.people = (await api('/api/admin/users')).users; state.peopleError = null; } catch (err) { state.peopleError = err.message; }
+  const [u, a] = await Promise.allSettled([api('/api/admin/users'), api('/api/access')]);
+  if (u.status === 'fulfilled') { state.people = u.value.users; state.peopleError = null; } else state.peopleError = u.reason.message;
+  state.access = a.status === 'fulfilled' ? a.value : { configured: true, error: a.reason.message, invites: [] };
 }
 
 // ---------- what's new ----------
@@ -7919,86 +8042,289 @@ const MAX_SIZE_OPTIONS = [[0, T('No limit')], [1, T('1 GB')], [2, T('2 GB')], [4
 const AUDIO_LANGUAGES = [['', T('Original language')], ['en', T('English')], ['sv', T('Swedish')], ['da', T('Danish')], ['no', T('Norwegian')], ['fi', T('Finnish')],
   ['de', T('German')], ['fr', T('French')], ['es', T('Spanish')], ['it', T('Italian')], ['pt', T('Portuguese')], ['nl', T('Dutch')], ['pl', T('Polish')],
   ['ru', T('Russian')], ['tr', T('Turkish')], ['hi', T('Hindi')], ['ja', T('Japanese')], ['ko', T('Korean')], ['zh', T('Chinese')]];
+// ---------- you (was Settings) ----------
+// The You tab: your own pages. The root list is the phone's index: each row opens one page (#you/<page>) and says on
+// a quiet line what's in it, so most questions are answered without opening anything. Wide screens show the list
+// beside the open page; there the root's page is Overview (who you are, For you, your numbers, what you watched
+// last). Pages are routes in routes.js ('you/…'); YOU_PAGES draws each one. Above the list: #you-id (who you are)
+// and #you-foryou (what's waiting for you: friend requests, moments sent to you, answers to your ideas), which
+// also lights the tab's dot (updateYouDot). renderSettings() redraws whichever settings page is open: a You page,
+// or an owner page in House (People, Ideas, Server rules).
 function renderSettings() {
-  const body = $('#settings-body');
+  if (state.view === 'house') { renderHouse(); return; }
+  if (!state.me) { $('#you-rows').replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
+  renderMeButton();
+  loadYouData();
+  renderYouIdentity();
+  renderForYou();
+  renderYouRows();
+  renderYouPage();
+  updateYouDot();
+}
+function settingsOpen() { return state.view === 'you' || (state.view === 'house' && ['people', 'ideas', 'rules'].includes(state.sub)); }
+function editingSettings() { return editingIn(state.view === 'house' ? '#house-body' : '#you-body'); }
+
+const YOU_PAGES = {
+  history: () => profiles.privateList('history', redrawYouPage),
+  ratings: () => profiles.privateList('ratings', redrawYouPage),
+  liked: () => profiles.privateList('liked', redrawYouPage),
+  friends: () => friendsUI.page(), // friends
+  moments: () => momentsUI.page(), // friends: Moments
+  invite: () => invitePage(),
+  account: () => accountPage(),
+  look: () => appearanceSection(),
+  watching: () => watchingPage(),
+  devices: () => devicesPage(),
+  'download-settings': () => downloadPrefsPage(),
+  ideas: () => { markIdeaAnswersSeen(); return [ideaBox()]; },
+};
+const YOU_GROUPS = () => [['watching', T('Your watching')], ['people', T('People')], ['settings', T('Settings')], ['ideas', null]];
+const sharesSocial = (me = state.me) => Boolean(me?.email && !me.restricted); // friends, a public page
+// Friends → Invite someone to Lilin, for people who may invite (the You → Invite page's rule): the Invite sheet's
+// Lilin part (invite.js). null: no button.
+function friendsInvite() {
+  return allowedRoute('you/invite', state.me, state.status) ? (opener) => invite.open({ kind: 'lilin' }, opener) : null;
+}
+
+// What the list's lines and For you need: your profile's numbers, friends, moments, your ideas. Fetched when You
+// opens (again after half a minute); live updates refresh them on their own.
+const youView = { asked: 0 };
+function loadYouData() {
+  if (Date.now() - youView.asked < 30000) return;
+  youView.asked = Date.now();
+  const jobs = [profiles.mine().catch(() => null)];
+  if (sharesSocial() && !friendsUI.summary().loaded) jobs.push(friendsUI.load());
+  if (!momentsUI.summary().loaded) jobs.push(momentsUI.load());
+  if (!state.me.isOwner && !ideasView.loaded) jobs.push(loadIdeas());
+  Promise.allSettled(jobs).then(() => { updateYouDot(); if (state.view === 'you') renderSettingsWhenStill(); });
+}
+// The tab's dot, from anywhere: Lilin opening, a live update, an answer in the friend popup.
+async function loadForYou() {
+  if (!state.me) return;
+  await Promise.allSettled([sharesSocial() && friendsUI.load(), momentsUI.load(), !state.me.isOwner && loadIdeas()].filter(Boolean));
+  updateYouDot();
+}
+
+// Answers to your ideas you haven't looked at: answered after you last opened Ideas and bugs on this device (two
+// weeks back at most, so a new device doesn't dig up old ones).
+const ideaSeenKey = () => `lilin:idea-answers-seen:${state.me?.id}`;
+function newIdeaAnswers() {
+  if (!state.me || state.me.isOwner) return [];
+  let seen = 0;
+  try { seen = Number(localStorage.getItem(ideaSeenKey())) || 0; } catch { /* storage blocked: two weeks back */ }
+  const since = Math.max(seen, Date.now() - 14 * 86400000);
+  return ideasView.mine.filter((i) => i.answered && i.answered > since);
+}
+function markIdeaAnswersSeen() {
+  const last = Math.max(0, ...ideasView.mine.map((i) => i.answered || 0));
+  if (!last || !newIdeaAnswers().length) return;
+  try { localStorage.setItem(ideaSeenKey(), String(last)); } catch { /* storage blocked */ }
+  requestAnimationFrame(() => { updateYouDot(); if (state.view === 'you') { renderForYou(); renderYouRows(); } });
+}
+const IDEA_ANSWER_TITLE = () => ({ planned: T('Your idea is planned'), added: T('Your idea is in Lilin now') });
+const forYouCount = () => (sharesSocial() ? friendsUI.incomingCount() : 0) + momentsUI.unseenCount() + newIdeaAnswers().length;
+function updateYouDot() { if (state.me) setYouDot(forYouCount()); }
+
+// Who you are: picture, name, @username and who sees your page; Edit profile and your public page (Overview: your
+// numbers too). The home network's shared account has no page: it's everyone at home.
+function youIdentity({ numbers = false } = {}) {
   const me = state.me;
-  if (!me) { body.replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
+  const d = profiles.mineNow();
+  const stats = numbers && d?.stats && h('div', { class: 'you-id-actions you-own' }, profiles.numbers(d));
+  if (!me.email) {
+    return h('div', { class: 'you-id' }, people.face(me, { size: 56 }),
+      h('div', { class: 'you-id-text' }, h('strong', { class: 'you-id-name' }, T('Home network')),
+        h('span', { class: 'set-hint' }, T('Shared by everyone at home who opens the server’s local address.'))), stats);
+  }
+  const vis = { public: T('Everyone'), friends: T('Friends'), private: T('Only me') }[d?.visibility];
+  return h('div', { class: 'you-id' },
+    people.face(me, { size: 56 }),
+    h('div', { class: 'you-id-text' },
+      h('strong', { class: 'you-id-name' }, me.name),
+      h('span', { class: 'you-id-text set-hint' }, d?.person?.handle && h('span', {}, `@${d.person.handle}`),
+        sharesSocial() && vis && h('span', { class: 'pf-vis' }, icon(d.visibility === 'public' ? 'globe' : 'lock'), T('Visible to: {0}', vis)),
+        me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download')))),
+    h('div', { class: 'you-id-text you-id-actions' },
+      h('button', { type: 'button', class: 'chip', onclick: (e) => profiles.openMine(e.currentTarget, { edit: true }) }, icon('pencil'), T('Edit profile')),
+      h('button', { type: 'button', class: 'chip', onclick: (e) => profiles.openMine(e.currentTarget) }, T('View public page'), icon('chevron'))),
+    stats);
+}
+function renderYouIdentity() { $('#you-id').replaceChildren(h('div', { class: 'set-stack' }, youIdentity())); }
+
+// Waiting for you (For you in the code): 0-3 cards for what's waiting (requests first: they need an answer), each handled right there. Empty: gone.
+function forYouCards() {
+  const answers = newIdeaAnswers().map((i) => h('li', { class: 'friend' },
+    h('button', { type: 'button', class: 'friend-open', onclick: () => setView('you/ideas') },
+      h('span', { class: 'idea-bulb', 'aria-hidden': 'true' }, icon('bulb')),
+      h('span', { class: 'lrow-text' },
+        h('span', { class: 'set-label' }, IDEA_ANSWER_TITLE()[i.status] || T('An answer to your idea')),
+        h('span', { class: 'set-hint' }, i.reply || i.text)),
+      ideaStatusPill(i.status))));
+  const cards = [...friendsUI.forYou(3), ...momentsUI.forYou(3), ...answers].slice(0, 3);
+  return cards.length ? h('section', { class: 'set-group' },
+    h('h3', { class: 'set-head' }, T('Waiting for you')), h('ul', { class: 'set-stack friend-list foryou-list' }, cards)) : null;
+}
+function renderForYou() {
+  const box = $('#you-foryou');
+  const cards = forYouCards();
+  box.replaceChildren(...[cards].filter(Boolean));
+  box.hidden = !cards;
+}
+function setYouDot(n) {
+  for (const dot of document.querySelectorAll('.tab[data-view="you"] .tab-dot, #me-btn .tab-dot')) { dot.hidden = !n; dot.textContent = n > 9 ? '9+' : n ? String(n) : ''; }
+  const label = n ? T('You: {0} new for you', n) : T('You');
+  $('.tab[data-view="you"]').setAttribute('aria-label', label); $('#me-btn').setAttribute('aria-label', label);
+}
+
+// One row of a list that opens something: a label, a quiet line under it, an optional count, and a chevron.
+function navRow({ label, meta, count, current, run, route, lead }) {
+  return h('button', { type: 'button', class: 'lrow', 'aria-current': current ? 'page' : null, 'data-route': route, onclick: run },
+    lead || null,
+    h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, label), meta && h('span', { class: 'set-hint' }, meta)),
+    count ? h('b', { class: 'tag' }, String(count)) : null,
+    h('i', { class: 'lrow-chev', 'aria-hidden': 'true' }));
+}
+// The line under each row: what's in the page, or its current setting. null while it's still loading.
+function youRowMeta(sub) {
+  const me = state.me;
+  const p = prefs();
+  const d = profiles.mineNow();
+  const st = d?.stats;
+  const n1 = (n, one, many) => (n === 1 ? one : many);
+  switch (sub) {
+    case 'history': return st && ([st.films && plural(st.films, 'film'), st.episodes && plural(st.episodes, 'episode')].filter(Boolean).join(' · ') || T('Nothing yet'));
+    case 'ratings': {
+      if (!st) return null;
+      const rated = d.ratings?.total || 0;
+      return rated || st.reviews ? `${n1(rated, T('1 rating'), T('{0} ratings', rated))} · ${n1(st.reviews, T('1 review'), T('{0} reviews', st.reviews))}` : T('Nothing yet');
+    }
+    case 'liked': return st && (st.likes ? n1(st.likes, T('1 title'), T('{0} titles', st.likes)) : T('Nothing yet'));
+    case 'friends': {
+      const f = friendsUI.summary();
+      if (!f.loaded) return null;
+      return [n1(f.friends, T('1 friend'), T('{0} friends', f.friends)), f.requests && n1(f.requests, T('1 request'), T('{0} requests', f.requests))].filter(Boolean).join(' · ');
+    }
+    case 'moments': {
+      const m = momentsUI.summary();
+      if (!m.loaded) return null;
+      if (m.unseen) return n1(m.unseen, T('1 new from a friend'), T('{0} new from friends', m.unseen));
+      const all = m.mine + m.shared;
+      return all ? n1(all, T('1 moment'), T('{0} moments', all)) : T('Clip one from the player’s ⋯ menu');
+    }
+    case 'activity': return T('Who watched what, and when');
+    case 'invite': return T('A one-time link for someone new');
+    case 'account': return me.email || T('Home network');
+    case 'look': {
+      const key = p.theme?.preset || state.rules?.defaultTheme || 'lilin';
+      return [LANGUAGES.find((l) => l.code === lang)?.name, key === 'custom' ? T('Your own') : THEMES[key]?.name].filter(Boolean).join(' · ');
+    }
+    case 'watching': {
+      const subs = (state.status.subLangs || []).find((l) => l.code === p.subLang);
+      return [subs ? T('Subtitles: {0}', subs.name) : T('No subtitles'), p.skipIntro === 'auto' ? T('Skip intros automatically') : T('Skip intro button')].join(' · ');
+    }
+    case 'devices': return pushView.loaded ? (pushView.deviceId ? T('Notifications on here') : T('Notifications off here')) : T('Notifications, TVs, Jellyfin');
+    case 'download-settings': return [PROFILE_OPTIONS.find(([k]) => k === savedProfile())?.[1], p.maxSize ? T('Up to {0} GB', p.maxSize) : null].filter(Boolean).join(' · ');
+    case 'ideas': {
+      const fresh = newIdeaAnswers().length, sent = ideasView.mine.length;
+      return fresh ? n1(fresh, T('1 new answer'), T('{0} new answers', fresh)) : sent ? n1(sent, T('1 idea sent'), T('{0} ideas sent', sent)) : T('Tell the owner what you wish Lilin did');
+    }
+    default: return null;
+  }
+}
+function renderYouRows() {
+  const pages = pagesOf('you', state.me, state.status);
+  const restricted = state.me.restricted;
+  const label = (id) => (id === 'you/ratings' && restricted ? T('Ratings') : T(ROUTES[id].label));
+  const season = state.status?.wrapped?.year;
+  const year = season || new Date().getFullYear();
+  const wrapped = navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'), run: (e) => openWrapped(year, e.currentTarget) });
+  // Wide screens: the list starts with you, which opens Overview (phones have the full card above the list).
+  const me = navRow({ label: state.me.email ? state.me.name : T('Home network'), meta: T('Overview'), current: state.route === 'you', run: () => setView('you'),
+    lead: people.face(state.me, { size: 36 }) });
+  const groups = YOU_GROUPS().map(([key, title]) => {
+    const rows = pages.filter((id) => ROUTES[id].group === key).map((id) => {
+      const sub = ROUTES[id].sub;
+      return navRow({ label: label(id), meta: youRowMeta(sub), route: id, current: state.route === id, run: () => setView(id),
+        count: sub === 'friends' && sharesSocial() ? friendsUI.incomingCount() : sub === 'moments' ? momentsUI.unseenCount() : sub === 'ideas' ? newIdeaAnswers().length : 0 });
+    });
+    if (key === 'watching') rows.push(wrapped);
+    return rows.length && h('section', { class: 'set-group' }, title && h('h3', { class: 'set-head' }, title), h('div', { class: 'set-stack' }, rows));
+  });
+  $('#you-rows').replaceChildren(h('div', { class: 'set-stack you-me' }, me), ...groups.filter(Boolean));
+}
+// The open page: its rows in cards, one per group, as Settings had them. The root's page is Overview (wide screens).
+function renderYouPage() {
+  const page = $('#you-page');
+  const sub = state.view === 'you' ? state.sub : null;
+  $('#view-you').classList.toggle('on-page', Boolean(sub));
+  if (!sub || !YOU_PAGES[sub]) { page.replaceChildren(...youOverview()); return; }
+  const title = sub === 'ratings' && state.me.restricted ? T('Ratings') : T(ROUTES[`you/${sub}`].label);
+  const nodes = YOU_PAGES[sub]().filter(Boolean);
+  page.replaceChildren(h('button', { type: 'button', class: 'back-link you-back', onclick: goUp }, `‹ ${T('You')}`),
+    h('h3', { class: 'you-page-title' }, title),
+    ...(nodes.length ? settingsGroups(nodes, title) : [h('p', { class: 'muted' }, T('Nothing here yet.'))]));
+  if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('#idea-box')?.scrollIntoView({ block: 'start' })); }
+}
+// Only the open page (its own lists loading more): the list beside it stays as it is.
+function redrawYouPage() { if (state.view === 'you' && YOU_PAGES[state.sub] && !editingSettings()) renderYouPage(); }
+// Overview: the private view of you (wide screens; on phones its card and For you sit on top of the list).
+function youOverview() {
+  const d = profiles.mineNow();
+  const recent = profiles.recentLines(d, 5);
+  return [
+    h('h3', { class: 'you-page-title' }, T('Overview')),
+    h('div', { class: 'set-stack' }, youIdentity({ numbers: true })),
+    forYouCards(),
+    recent && h('div', { class: 'set-stack' }, h('div', { class: 'you-own' }, recent), navRow({ label: T('See all'), route: 'you/history', run: () => setView('you/history') })),
+  ].filter(Boolean);
+}
+
+function accountPage() {
+  const me = state.me;
+  return [
+    h('div', { class: 'set-card' }, h('p', {}, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
+      : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email))),
+    ...(me.via === 'session' || me.hasPassword ? accountSection() : []),
+  ];
+}
+function watchingPage() {
   const p = prefs();
   const out = [];
-
-  // ---- you ---- (name and picture are edited on your profile)
-  out.push(h('div', { class: 'profile' },
-    h('div', { class: 'profile-text' },
-      h('div', { class: 'profile-who' }, people.face(me, { size: 40 }), h('strong', {}, me.name)),
-      h('div', { class: 'set-hint' }, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
-        : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email)),
-      h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))),
-      me.email && h('button', { type: 'button', class: 'chip profile-open', onclick: (e) => profiles.openMine(e.currentTarget) }, icon('pencil'), T('Your profile')))));
-  renderMeButton();
-
-  {
-    const season = state.status?.wrapped?.year;
-    const year = season || new Date().getFullYear();
-    const open = h('button', { class: 'wrapped-open', type: 'button', onclick: (e) => openWrapped(year, e.currentTarget) },
-      h('span', { class: 'wrapped-open-kicker' }, T('Lilin Wrapped {0}', year)), h('span', {}, season ? T('Your year on Lilin is here') : T('Your year in watching so far')));
-    out.push(open);
-  }
-
-  if (!me.isOwner) out.push(ideaBox());
-
-  if (me.via === 'session' || me.hasPassword) out.push(accountSection());
-  out.push(...friendsUI.settings()); // friends
-  out.push(...momentsUI.settings()); // friends: Moments
-
-  out.push(...appearanceSection());
-
-  // ---- watching ----
-  out.push(h('h3', { class: 'set-head' }, T('Watching')));
   out.push(settingsRow(T('Subtitles'), T('Turned on automatically when a video has them in this language.'),
     select([['', T('Off')], ...(state.status.subLangs || []).map((l) => [l.code, l.name])], p.subLang || '', (v) => saveMe({ subLang: v }), T('Default subtitles'))));
   out.push(settingsRow(T('Intros'), p.skipIntro === 'auto' ? T('Opening titles are skipped as they start (not in Watch Together).') : T('A Skip intro button shows during opening titles.'),
     segmented([['button', T('Show a button')], ['auto', T('Skip automatically')]], p.skipIntro || 'button', (v) => saveMe({ skipIntro: v }).then(renderSettings), T('Intros'))));
   out.push(themeMusic.settings(settingsRow, segmented, renderSettings)); // theme
+  const start = p.startView === 'downloads' ? 'library' : p.startView || 'discover';
   out.push(settingsRow(T('Open Lilin on'), null,
-    segmented([['discover', T('Discover')], ['library', T('Library')]], p.startView === 'downloads' ? 'library' : p.startView || 'discover', (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
-  out.push(tvSignInRow());
-  // The Android TV app's install steps (/android, android-tv.js on the server): opened on a phone at home.
-  out.push(settingsRow(T('Android TV'), T('Put Lilin on an Android TV or Google TV. It takes a few minutes.'),
-    h('a', { class: 'chip', href: '/android', target: '_blank', rel: 'noopener' }, T('Show the steps'))));
-  out.push(jellyfinRow());
-  out.push(settingsRow(T('Library order'), null,
-    segmented([['newest', T('Newest')], ['expiring', T('Leaving soonest')], ['title', 'A–Z']], p.librarySort || 'newest', (v) => saveMe({ librarySort: v }).then(renderSettings), T('Library order'))));
-  out.push(...memberInviteSettings());
-  out.push(...notificationSettings());
-  // ---- downloads: set once, used by every Download ----
-  if (canDownload()) {
-    const profile = savedProfile();
-    out.push(h('h3', { class: 'set-head' }, T('Downloads')));
-    out.push(settingsRow(T('Quality'), PROFILE_HINTS[profile],
-      select(PROFILE_OPTIONS, profile, (v) => saveMe({ downloadProfile: v }).then(renderSettings), T('Download quality'))));
-    out.push(settingsRow(T('Largest download'), T('Per film or episode. Bigger releases are skipped.'),
-      select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest download'))));
-    out.push(settingsRow(T('Audio language'), T('Releases in this language come first. Releases dubbed into another language are skipped when there’s a choice.'),
-      select(AUDIO_LANGUAGES, p.audioLang || '', (v) => saveMe({ audioLang: v }), T('Audio language'))));
-  }
-
-  // ---- your library ----
-  const r = state.rules || {};
-  const mine = state.library;
-  const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
-  out.push(h('h3', { class: 'set-head' }, T('Your library')));
-  out.push(h('div', { class: 'set-card' },
-    h('p', {}, `${plural(mine.length, 'video')}, ${fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0))}.`,
-      next ? T(' Next to go: {0}{1}, {2} left.', next.title, episodeLabel(next) ? ` ${episodeLabel(next)}` : '', timeLeft(next.expiresAt).replace(' left', '')) : ''),
-    libraryMates().length > 0 && h('p', {}, T('Shared with {0}: you all see the same library and can add, keep or remove titles in it. Watch progress stays your own.', nameList(libraryMates()))),
-    h('p', { class: 'set-hint' }, me.keep ? T('The owner has set your videos to stay until you delete them.')
-      : r.retentionDays
-        ? T('Downloads are deleted {0} after they finish, to keep space free on the server. Use “Keep {1} more days” in the Library to hold on to something{2}.', plural(r.retentionDays, 'day'), r.extendDays, r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
-        : T('Nothing is deleted automatically.'))));
-
-  if (me.isOwner) out.push(...ownerSettings());
-  body.replaceChildren(...settingsLayout(out.filter(Boolean)));
-  if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $(me.isOwner ? '[data-anchor="idea-inbox"]' : '#idea-box')?.scrollIntoView({ block: 'start' })); }
+    segmented([['discover', T('Discover')], ['live', T('Live')], ['library', T('Library')], ['you', T('You')]], start, (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
+  // Library order and Your library moved to Library › Titles (Sort, and the line under the grids).
+  return out;
+}
+function devicesPage() {
+  return [
+    ...notificationSettings(),
+    h('h3', { class: 'set-head' }, T('TVs and apps')),
+    tvSignInRow(),
+    // The Android TV app's install steps (/android, android-tv.js on the server): opened on a phone at home.
+    settingsRow(T('Android TV'), T('Put Lilin on an Android TV or Google TV. It takes a few minutes.'),
+      h('a', { class: 'chip', href: '/android', target: '_blank', rel: 'noopener' }, T('Show the steps'))),
+    jellyfinRow(),
+  ];
+}
+// Downloads: set once, used by every Download.
+function downloadPrefsPage() {
+  if (!canDownload()) return [];
+  const p = prefs();
+  const profile = savedProfile();
+  return [
+    settingsRow(T('Quality'), PROFILE_HINTS[profile],
+      select(PROFILE_OPTIONS, profile, (v) => saveMe({ downloadProfile: v }).then(renderSettings), T('Download quality'))),
+    settingsRow(T('Largest download'), T('Per film or episode. Bigger releases are skipped.'),
+      select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest download'))),
+    settingsRow(T('Audio language'), T('Releases in this language come first. Releases dubbed into another language are skipped when there’s a choice.'),
+      select(AUDIO_LANGUAGES, p.audioLang || '', (v) => saveMe({ audioLang: v }), T('Audio language'))),
+  ];
 }
 // Live updates redraw Settings; not in the middle of a scroll (on a phone that stops the scroll dead), but once it settles.
 let lastPageScroll = 0, settingsRedraw = null;
@@ -8008,31 +8334,24 @@ function renderSettingsWhenStill() {
   clearTimeout(settingsRedraw);
   const wait = 900 - (Date.now() - lastPageScroll);
   if (wait > 0) { settingsRedraw = setTimeout(renderSettingsWhenStill, wait); return; }
-  if (state.view === 'settings' && !editingIn('#settings-body')) renderSettings();
+  if (settingsOpen() && !editingSettings()) renderSettings();
 }
 
-// Settings in groups: each heading starts a card of rows, and wide screens get an index of the groups beside them.
-function settingsLayout(nodes) {
+// A page's rows in cards: each heading starts a card of rows. A heading that repeats the page's title is dropped
+// (its anchor moves to the page).
+function settingsGroups(nodes, title) {
   const groups = [];
-  let current = { title: T('You'), items: [] };
+  let current = { items: [] };
   for (const node of nodes) {
     if (node.matches?.('h3.set-head')) {
       if (current.items.length || current.head) groups.push(current);
       // the heading's own words only: not a tag inside it ("Server" + "Owner" read "ServerOwner")
       const own = [...node.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
-      current = { title: own || node.textContent.trim(), head: node, items: [] };
+      current = { head: own === title && !groups.length && !current.items.length ? null : node, anchor: node.dataset.anchor, items: [] };
     } else current.items.push(node);
   }
   if (current.items.length || current.head) groups.push(current);
-  const sections = groups.map((g, i) => {
-    const head = g.head || h('h3', { class: 'set-head' }, g.title);
-    head.id = `set-group-${i}`;
-    return h('section', { class: 'set-group', 'aria-labelledby': head.id }, head, h('div', { class: 'set-stack' }, g.items));
-  });
-  const jump = (i) => (e) => { e.preventDefault(); $(`#set-group-${i}`)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); };
-  const index = h('nav', { class: 'set-index', 'aria-label': T('Settings sections') },
-    h('ul', {}, groups.map((g, i) => h('li', {}, h('a', { href: `#set-group-${i}`, onclick: jump(i) }, g.title)))));
-  return [index, h('div', { class: 'set-groups' }, sections)];
+  return groups.map((g) => h('section', { class: 'set-group', 'data-anchor': g.head ? null : g.anchor }, g.head, h('div', { class: 'set-stack' }, g.items)));
 }
 
 // The Lilin app on a TV (tv/tizen) shows a code; entering it here signs that TV in as you.
@@ -8062,7 +8381,7 @@ function loadJellyfin() {
   jellyfinView.loading ??= api('/api/jellyfin')
     .then((d) => { jellyfinView.links = d.links; })
     .catch(() => { jellyfinView.links = jellyfinView.links || []; })
-    .finally(() => { jellyfinView.loading = null; if (state.view === 'settings') renderSettingsWhenStill(); });
+    .finally(() => { jellyfinView.loading = null; if (settingsOpen()) renderSettingsWhenStill(); });
   return jellyfinView.loading;
 }
 function jellyfinRow() {
@@ -8130,7 +8449,7 @@ function loadIdeas() {
 }
 function ideasNeeded() {
   if (ideasView.loaded) return false;
-  loadIdeas().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); });
+  loadIdeas().then(() => { if (settingsOpen()) renderSettingsWhenStill(); });
   return true;
 }
 // scout: the idea scout's ideas sit at the top of the owner's inbox (public/scout.js)
@@ -8284,7 +8603,7 @@ function notificationSettings() {
   const p = prefs();
   const out = [h('h3', { class: 'set-head' }, T('Notifications'))];
   if (!pushView.loaded) {
-    if (support === 'ok') { loadPush().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); }); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
+    if (support === 'ok') { loadPush().then(() => { if (settingsOpen()) renderSettingsWhenStill(); }); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
     pushView.loaded = true;
   }
   const on = Boolean(pushView.deviceId);
@@ -8325,8 +8644,10 @@ function notificationSettings() {
       toggle(p.pushEpisode !== false, (v) => saveMe({ pushEpisode: v }), T('Notify about new episodes'))));
     out.push(settingsRow(T('Watch Together invites'), T('When someone asks you to join their room. Off: nobody can invite you this way.'),
       toggle(p.pushWatch !== false, (v) => saveMe({ pushWatch: v }), T('Notify about Watch Together invites'))));
-    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new, or the owner answers an idea you sent.'),
+    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new.'),
       toggle(p.pushUpdate !== false, (v) => saveMe({ pushUpdate: v }), T('Notify about Lilin updates'))));
+    if (!state.me?.isOwner) out.push(settingsRow(T('Answers to your ideas'), T('When the owner answers an idea or bug you sent.'),
+      toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about answers to your ideas'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Friends'), T('When someone asks to be your friend, or says yes.'), // friends
       toggle(p.pushFriend !== false, (v) => saveMe({ pushFriend: v }), T('Notify about friend requests'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Moments'), T('When a friend sends you a moment from a film or episode.'), // friends
@@ -8443,9 +8764,10 @@ function accountSection() {
       form));
 }
 
+// House → Server rules: how long downloads stay, and what new people get.
 function ownerSettings() {
   const r = state.rules || {};
-  const out = [h('h3', { class: 'set-head' }, T('Server'), h('span', { class: 'tag' }, T('Owner')))];
+  const out = [h('h3', { class: 'set-head' }, T('Server rules'))];
   out.push(settingsRow(T('Delete downloads after'), T('Counted from when each download finishes, per person. A video someone else still has stays.'),
     select([0, 1, 3, 7, 14, 30].map((n) => [n, days(n)]), r.retentionDays ?? 7, (v) => saveRules({ retentionDays: Number(v) }), T('Delete downloads after'))));
   out.push(settingsRow(T('“Keep longer” adds'), null,
@@ -8468,10 +8790,17 @@ function ownerSettings() {
       h('li', {}, T('Set Session Duration to 1 month and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
     h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
-
-  out.push(...ideaInbox());
-
-  out.push(h('h3', { class: 'set-head' }, T('People')));
+  return out;
+}
+// House → People: everyone who uses Lilin, their picture and what they may do; inviting someone new, and who may
+// sign in (password links, removing access, people on the list who haven't signed in yet).
+function peopleSettings() {
+  const out = [h('h3', { class: 'set-head' }, T('People'))];
+  const a = state.access;
+  const waiting = (a?.invites || []).filter((i) => i.state === 'open').length;
+  out.push(settingsRow(T('Invite someone to Lilin'), waiting ? T('{0} waiting', waiting) : null,
+    h('button', { type: 'button', class: 'chip', onclick: (e) => invite.open({ kind: 'lilin', onChange: (data) => { state.access = data; if (settingsOpen()) renderSettingsWhenStill(); } }, e.currentTarget) },
+      icon('plus'), T('Invite someone'))));
   out.push(h('p', { class: 'set-hint' }, T('Restrict: no friends, reviews or notification invites. They keep Watch Together and share by links only.'))); // friends
   if (state.peopleError) out.push(h('p', { class: 'muted' }, state.peopleError));
   else if (!state.people) out.push(h('p', { class: 'muted' }, T('Loading…')));
@@ -8483,11 +8812,13 @@ function ownerSettings() {
         oncontextmenu: (e) => { if (!u.avatar) return; e.preventDefault(); if (confirm(T('Remove {0}’s picture?', u.name))) removePicture({ person: u }); } },
         people.face(u, { size: 40 }), h('span', { class: 'profile-face-edit', 'aria-hidden': 'true' }, icon('camera'))),
       h('div', { class: 'row-text' },
-        h('div', { class: 'row-title' }, u.name, u.isOwner && h('span', { class: 'tag' }, T('Owner'))),
+        h('div', { class: 'row-title' }, onAccessList(u.email) ? accessName(u.email, u.name) : u.name, u.isOwner && h('span', { class: 'tag' }, T('Owner'))),
         h('div', { class: 'row-meta' },
           u.email && h('span', {}, u.email),
           h('span', {}, `${plural(u.items, 'video')}, ${fmtBytes(u.size)}`),
-          u.lastSeen && h('span', {}, lastSeenText(u.lastSeen)))),
+          u.lastSeen && h('span', {}, lastSeenText(u.lastSeen)),
+          onAccessList(u.email) && a.passwords && !a.passwords.includes(String(u.email).toLowerCase()) && h('span', {}, T('No password yet'))),
+        u.email && accessActions(u.email, u.name).length > 0 && h('div', { class: 'person-access' }, accessActions(u.email, u.name))),
       h('div', { class: 'person-controls' },
         h('label', { class: 'person-toggle' }, T('Can download'),
           toggle(u.canDownload, async (on, input) => {
@@ -8510,9 +8841,23 @@ function ownerSettings() {
         h('label', { class: 'person-toggle' }, T('Never auto-delete'),
           toggle(u.keep, (on) => personUpdate(u, { keep: on }), T('Never auto-delete {0}’s videos', u.name))),
         h('label', { class: 'person-toggle person-library' }, T('Library'), libraryShareSelect(u)))))));
+    // On the access list, but no account yet: they haven't signed in.
+    const known = new Set(state.people.map((u) => String(u.email || '').toLowerCase()));
+    const pending = (a?.members || []).filter((m) => !known.has(String(m).toLowerCase()));
+    if (pending.length) {
+      out.push(h('h3', { class: 'set-head' }, T('Hasn’t signed in yet')));
+      out.push(h('ul', { class: 'rows people' }, pending.map((email) => {
+        const name = a.names?.[email] || personName(email);
+        return h('li', { class: 'row person is-new' }, people.face({ name }, { size: 40 }),
+          h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, accessName(email, name)), h('div', { class: 'row-meta' }, h('span', {}, email)),
+            h('div', { class: 'person-access' }, accessActions(email, name))));
+      })));
+    }
   }
+  if (a?.error) out.push(h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
   return out;
 }
+const onAccessList = (email) => Boolean(email && (state.access?.members || []).some((m) => String(m).toLowerCase() === String(email).toLowerCase()));
 // Own library, or one shared with someone else (joining them joins everyone they already share with).
 function libraryShareSelect(u) {
   const mates = u.sharedWith || [];
@@ -8532,7 +8877,7 @@ async function personUpdate(u, patch) {
   } catch (err) { toast(err.message); }
   await loadPeople();
   if (u.id === state.me.id) { state.me = (await api('/api/me')).me; await loadLibrary(); }
-  if (state.view === 'settings') renderSettings();
+  if (settingsOpen()) renderSettings();
 }
 
 // ---------- activity (server owner, plus people the owner lets see it) ----------
@@ -8596,64 +8941,15 @@ function lastSeenText(ms) {
 
 async function loadActivity() {
   try { state.activity = await api('/api/activity'); state.activityError = null; } catch (err) { state.activityError = err.message; }
-  if (!state.status?.admin) return; // people allowed to see Activity get it read-only, without the access list
-  try { state.access = await api('/api/access'); } catch (err) { state.access = { configured: true, error: err.message, invites: [] }; }
 }
 
 // ---------- access: who may sign in (Zero Trust email list) + invite links ----------
-// Settings → Invite people: for members the owner lets invite (the owner invites from People).
-// state.myInvites: undefined = not asked yet, null = loading, else { invites, max, passwords } or { error }.
-function memberInviteSettings() {
-  const me = state.me;
-  if (!me?.canInvite || me.isOwner) return [];
-  if (state.myInvites === undefined) {
-    state.myInvites = null;
-    api('/api/invites').then((r) => { state.myInvites = r; }, (err) => { state.myInvites = { error: err.message }; }).finally(renderSettingsWhenStill);
-  }
-  const r = state.myInvites;
-  const out = [h('h3', { class: 'set-head' }, T('Invite people'))];
-  if (!r) return [...out, h('p', { class: 'muted' }, T('Loading…'))];
-  if (r.error) return [...out, h('p', { class: 'muted' }, r.error)];
-  const reload = () => { state.myInvites = undefined; renderSettings(); };
-  const noteInput = h('input', { class: 'invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), 'aria-label': T('Who’s it for?') });
-  const make = async (btn) => {
-    btn.disabled = true;
-    try {
-      const inv = await api('/api/invites', jsonPost({ note: noteInput.value.trim() }));
-      await copyWithToast(inv.url, T('Invite link copied: send it to them'));
-    } catch (err) { toast(err.message); }
-    reload();
-  };
-  const cancel = async (i) => {
-    try { await api(`/api/invites/${i.id}/revoke`, jsonPost({})); toast(T('Invite cancelled')); } catch (err) { toast(err.message); }
-    reload();
-  };
-  out.push(h('div', { class: 'invite-new' }, noteInput,
-    h('button', { class: 'retry', disabled: r.invites.length >= r.max, onclick: (e) => make(e.currentTarget) }, T('Invite someone'))));
-  out.push(h('p', { class: 'muted invite-hint' }, `${r.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.')
-    : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.')} ${T('Up to {0} open at a time.', r.max)}`));
-  if (r.invites.length) {
-    out.push(h('ul', { class: 'rows invite-rows' }, r.invites.map((i) => h('li', { class: 'row' },
-      h('span', { class: 'row-text' },
-        h('span', { class: 'row-title' }, i.note || T('Invite')),
-        h('span', { class: 'row-meta' }, h('span', {}, T('open · expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' }))))),
-      h('span', { class: 'row-actions' },
-        h('button', { class: 'retry', onclick: () => copyWithToast(`${location.origin}/c/i/${i.token}`, T('Invite link copied')) }, T('Copy link')),
-        h('button', { class: 'retry', onclick: () => cancel(i) }, T('Cancel')))))));
-  }
-  return out;
-}
-async function makeInvite(btn) {
-  const note = $('#invite-note')?.value.trim() || '';
-  btn.disabled = true;
-  try {
-    const inv = await api('/api/access/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
-    state.newInvite = inv.url;
-    state.inviteNote = '';
-    await copyWithToast(inv.url, T('Invite link copied: send it to them'));
-  } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+// Owners manage who may sign in from House → People. Invite links are the Invite sheet's Lilin part (invite.js):
+// People → Invite someone to Lilin, and You → Invite someone to Lilin (owners, and members the owner lets invite).
+function invitePage() {
+  const box = h('div', { class: 'set-card' });
+  invite.mount(box, { kind: 'lilin', title: false });
+  return [box];
 }
 // For someone already on the list who has no Lilin password yet (they used Cloudflare's email codes).
 async function makePasswordLink(email, btn) {
@@ -8662,8 +8958,8 @@ async function makePasswordLink(email, btn) {
     const inv = await api('/api/access/password-link', jsonPost({ email }));
     await copyWithToast(inv.url, T('Password link copied: send it to them'));
   } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+  await loadPeople();
+  if (settingsOpen()) renderSettings();
 }
 // copyText() (above) has the iOS fallback; this adds the toast, or shows the link if copying failed
 async function copyWithToast(text, msg) {
@@ -8674,8 +8970,8 @@ async function accessAction(path, body, msg) {
     await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
     toast(msg);
   } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+  await loadPeople();
+  if (settingsOpen()) renderSettings();
 }
 
 function accessName(email, name) {
@@ -8697,64 +8993,24 @@ function accessName(email, name) {
   });
 }
 
-// Owner only. The Invite tile at the start of the people strip opens this: one box for a note, one button,
-// and the links still waiting to be used.
-function activityInvite() {
+// House → People, sign-in: what can be done about someone on the access list. A password link for someone who has
+// none yet; Remove access (tap twice) for anyone but an owner.
+function accessActions(email, name) {
   const a = state.access || {};
-  if (!a.configured) return h('div', { class: 'act-panel' },
-    h('p', { class: 'muted' }, T('Set CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_LIST_ID in .env to invite people from here (see docs/remote-access.md in the Lilin folder).')));
-  const noteInput = h('input', { id: 'invite-note', class: 'act-invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), value: state.inviteNote || '',
-    oninput: (e) => { state.inviteNote = e.currentTarget.value; },
-    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); makeInvite(e.currentTarget.nextSibling); } } });
-  const open = (a.invites || []).filter((i) => i.state === 'open');
-  return h('div', { class: 'act-panel act-invite' },
-    h('div', { class: 'act-panel-head' },
-      h('span', { class: 'act-panel-icon', 'aria-hidden': 'true' }, icon('send')),
-      h('div', { class: 'act-panel-title' },
-        h('strong', {}, T('Invite someone')),
-        h('span', {}, a.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.') : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.'))),
-      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Close'), onclick: () => { state.activityInviteOpen = false; renderActivity(); } }, icon('close'))),
-    h('div', { class: 'act-invite-row' }, noteInput,
-      h('button', { type: 'button', class: 'btn-primary act-invite-go', onclick: (e) => makeInvite(e.currentTarget) }, icon('copy'), T('Make link'))),
-    open.length > 0 && h('div', { class: 'act-invite-open' },
-      h('span', { class: 'act-invite-open-head' }, T('Waiting to be used')),
-      h('ul', {}, open.map((i) => h('li', {},
-        h('span', { class: 'act-invite-what' }, h('span', { class: 'act-invite-name' }, i.note || T('Invite')),
-          h('span', { class: 'act-invite-meta' }, [T('expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' })), i.byName && T('by {0}', i.byName)].filter(Boolean).join(' · '))),
-        h('button', { type: 'button', class: 'chip', onclick: () => copyWithToast(`${location.origin}/c/i/${i.token}`, T('Invite link copied')) }, T('Copy link')),
-        h('button', { type: 'button', class: 'chip', onclick: () => accessAction(`/api/access/invite/${i.id}/revoke`, null, T('Invite cancelled')) }, T('Cancel')))))),
-    a.error && h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
-}
-
-// Owner only: the person picked in the strip, with what can be done about them (rename, password link, remove).
-function activityPersonPanel(email) {
-  const a = state.access || {};
-  const key = (u) => String(u).toLowerCase();
-  const p = (state.activity?.people || []).find((x) => key(x.user) === key(email));
-  const member = (a.members || []).some((m) => key(m) === key(email));
-  const owner = (a.owners || []).some((m) => key(m) === key(email));
-  const name = a.names?.[email] || p?.name || personName(email);
-  const isEmail = String(email).includes('@');
-  const noPassword = member && a.passwords && !a.passwords.includes(key(email));
-  return h('div', { class: 'act-panel act-person-panel' },
-    h('div', { class: 'act-panel-head' },
-      people.face({ name, avatar: p?.avatar }, { size: 40 }),
-      h('div', { class: 'act-panel-title' },
-        member ? accessName(email, name) : h('strong', { title: email }, name),
-        h('span', {}, [isEmail && email, owner && T('owner'), noPassword && T('No password yet'), p ? lastSeenText(p.at) : T('Hasn’t signed in yet'), p && activityDevice(p)].filter(Boolean).join(' · '))),
-      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Show everyone'), title: T('Show everyone'), onclick: () => { state.activityPerson = null; renderActivity(); } }, icon('close'))),
-    (noPassword || (member && !owner)) && h('div', { class: 'act-person-actions' },
-      noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
-      member && !owner && h('button', {
-        type: 'button', class: 'chip act-remove',
-        onclick: (e) => {
-          const b = e.currentTarget;
-          if (b.dataset.sure) return accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)).then(() => { state.activityPerson = null; renderActivity(); });
-          b.dataset.sure = '1';
-          b.textContent = T('Sure?');
-          setTimeout(() => { b.textContent = T('Remove access'); delete b.dataset.sure; }, 4000);
-        },
-      }, T('Remove access'))));
+  const key = String(email).toLowerCase();
+  const member = (a.members || []).some((m) => String(m).toLowerCase() === key);
+  if (!member) return [];
+  const owner = (a.owners || []).some((m) => String(m).toLowerCase() === key);
+  const noPassword = a.passwords && !a.passwords.includes(key);
+  return [
+    noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
+    !owner && h('button', { type: 'button', class: 'chip person-remove', onclick: (e) => {
+      const b = e.currentTarget;
+      if (b.dataset.sure) { accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)); return; }
+      b.dataset.sure = '1'; b.textContent = T('Sure?');
+      setTimeout(() => { b.textContent = T('Remove access'); delete b.dataset.sure; }, 4000);
+    } }, T('Remove access')),
+  ].filter(Boolean);
 }
 
 // Activity sections and days fold open/closed; the folded ones are remembered per browser.
@@ -8910,25 +9166,14 @@ function activitySummary(events) {
   const who = new Set(todays.map((e) => e.user)).size;
   const tile = (n, label, cls = '') => h('div', { class: `act-stat${cls}` }, h('strong', {}, String(n)), h('span', {}, label));
   const pick = state.activityPerson;
-  const admin = Boolean(state.status?.admin);
-  const canInvite = admin && Boolean(state.access);
-  const openInvites = (state.access?.invites || []).filter((i) => i.state === 'open').length;
-  const seenKeys = new Set(peopleList.map((p) => String(p.user).toLowerCase()));
-  const neverSeen = admin ? (state.access?.members || []).filter((m) => !seenKeys.has(String(m).toLowerCase())) : [];
+  // Inviting people and who may sign in live in House → People now (the owner's); the strip only filters the feed.
   return [
     h('div', { class: 'act-stats' },
       tile(on, T('on right now'), on ? ' is-live' : ''),
       tile(who, who === 1 ? T('person today') : T('people today')),
       tile(watched, watched === 1 ? T('video watched today') : T('videos watched today')),
       tile(downloads, downloads === 1 ? T('download today') : T('downloads today'))),
-    (peopleList.length > 0 || canInvite) && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
-      canInvite && h('button', {
-        type: 'button', class: 'act-person act-invite-tile', 'aria-expanded': String(Boolean(state.activityInviteOpen)),
-        onclick: () => { state.activityInviteOpen = !state.activityInviteOpen; renderActivity(); if (state.activityInviteOpen) $('#invite-note')?.focus(); },
-      },
-      h('span', { class: 'act-invite-plus', 'aria-hidden': 'true' }, icon('plus'), openInvites > 0 && h('span', { class: 'act-invite-count' }, String(openInvites))),
-      h('span', { class: 'act-person-name' }, T('Invite')),
-      h('span', { class: 'act-person-seen' }, openInvites ? T('{0} waiting', openInvites) : T('new link'))),
+    peopleList.length > 0 && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
       peopleList.map((p) => h('button', {
         type: 'button', class: 'act-person', 'aria-pressed': String(pick === p.user), title: `${personName(p)} · ${lastSeenText(p.at)} · ${activityDevice(p)}`,
         onclick: () => { state.activityPerson = pick === p.user ? null : p.user; renderActivity(); },
@@ -8936,26 +9181,18 @@ function activitySummary(events) {
       h('span', { class: 'activity-face' }, people.face(p, { size: 44 }),
         h('span', { class: `activity-dot${Date.now() - p.at < 3 * 60000 ? ' is-on' : ''}`, 'aria-hidden': 'true' })),
       h('span', { class: 'act-person-name' }, personName(p)),
-      h('span', { class: 'act-person-seen' }, lastSeenText(p.at)))),
-      neverSeen.map((email) => h('button', {
-        type: 'button', class: 'act-person is-new', 'aria-pressed': String(pick === email), title: email,
-        onclick: () => { state.activityPerson = pick === email ? null : email; renderActivity(); },
-      },
-      h('span', { class: 'activity-face' }, people.face({ name: state.access?.names?.[email] || personName(email) }, { size: 44 })),
-      h('span', { class: 'act-person-name' }, state.access?.names?.[email] || personName(email)),
-      h('span', { class: 'act-person-seen' }, T('Hasn’t signed in yet'))))),
-    canInvite && state.activityInviteOpen && activityInvite(),
-    admin && pick && activityPersonPanel(pick),
+      h('span', { class: 'act-person-seen' }, lastSeenText(p.at))))),
   ];
 }
 
 function renderActivity() {
-  // Rebuilding mid-typing would throw away the box being typed in (invite note, rename).
-  if ($('#activity-body .person-name .clip-rename-form') || editingIn('#activity-body')) return;
+  // Rebuilding mid-typing would throw away the box being typed in (the filter).
+  if (editingIn('#activity-body')) return;
   const body = $('#activity-body');
   if (state.activityError) { body.replaceChildren(notice(T('Couldn’t get activity'), state.activityError)); return; }
   if (!state.activity) return;
-  const q = norm(state.query);
+  filterField('activity', T('Filter by person or title'), renderActivity);
+  const q = norm(pageFilters.activity);
   const filter = state.activityFilter || 'all';
   const all = state.activity.events;
   const events = all.filter((e) => (filter === 'all' || kindOf(e.action)[0] === filter)
@@ -8988,7 +9225,11 @@ function activityDevice(entry) {
 // ---------- house (server owner only) ----------
 // The home server's own health plus the machines that report in (laptop, desktop): house.js.
 async function loadHouse() {
-  if (state.houseTab === 'screentime') { await loadScreenTime(); return; }
+  const sub = state.view === 'house' ? state.sub : null;
+  if (sub === 'screen-time') { await loadScreenTime(); return; }
+  if (sub === 'people') { await loadPeople(); return; }
+  if (sub === 'ideas') { await loadIdeas(); return; }
+  if (sub === 'rules') return;
   const [r, l] = await Promise.allSettled([api('/api/house'), api(`/api/house/load?hours=${state.houseHours || 1}`)]);
   if (r.status === 'fulfilled') { state.house = r.value; state.houseError = null; } else state.houseError = r.reason.message;
   state.houseLoad = l.status === 'fulfilled' ? l.value : null;
@@ -9190,14 +9431,90 @@ function diskRows(disks, label = (d) => (d.label ? T(d.label) : d.mount)) {
     h('span', { class: 'house-disk-free' }, T('{0} free', fmtBytes(d.size - d.used)))));
 }
 
+// ---------- house (owners) ----------
+// The House tab: the owner's tools as tiles, each opening its own page (#house/<tool>). Machines is what the House
+// tab used to show (server, VPN, sharing, power, machines); Notes and Game clips keep their own views; People, Ideas
+// and Server rules came out of Settings. setHouseDot(n) lights the tab.
+function houseLive() { return state.view === 'house' && (!state.sub || state.sub === 'machines' || state.sub === 'screen-time'); }
+function setHouseDot(n) { const dot = $('.tab[data-view="house"] .tab-dot'); dot.hidden = !n; dot.textContent = n > 9 ? '9+' : n ? String(n) : ''; }
 function renderHouse() {
   const body = $('#house-body');
-  if (state.houseTab === 'screentime') { body.replaceChildren(houseTabs(), ...screenTimeView()); return; }
-  if (state.houseError) { body.replaceChildren(houseTabs(), notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))); return; }
+  const sub = state.view === 'house' ? state.sub : null;
+  $('#house-heading').textContent = sub ? T(ROUTES[`house/${sub}`].label) : T('House');
+  const filter = filterField('house', T('Filter machines'), renderHouse);
+  filter.hidden = sub !== 'machines';
+  if (!sub) { renderHouseHub(body); return; }
+  if (sub === 'screen-time') { body.replaceChildren(...screenTimeView()); return; }
+  if (sub === 'people') { body.replaceChildren(...settingsGroups(peopleSettings(), T('People'))); return; }
+  if (sub === 'rules') { body.replaceChildren(...settingsGroups(ownerSettings(), T('Server rules'))); return; }
+  if (sub === 'ideas') {
+    body.replaceChildren(...settingsGroups(ideaInbox(), T('Ideas')));
+    if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('[data-anchor="idea-inbox"]')?.scrollIntoView({ block: 'start' })); }
+    return;
+  }
+  renderMachines(body);
+}
+// House → Needs you: what's waiting for the owner, at most three rows (the machines' alerts, new ideas, downloads
+// that need a look). The House tab's dot lights while any is there; the rows hide when nothing waits.
+function houseNeeds() {
+  if (!state.status?.admin) return [];
+  const out = [];
+  for (const issue of (state.house?.issues || []).slice(0, 2)) out.push({ route: 'house/machines', label: issue, meta: T('Machines'), run: () => setView('house/machines') });
+  const ideas = (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout);
+  if (ideas) out.push({ route: 'house/ideas', label: T('New ideas'), meta: T('Ideas and bugs people sent you'), count: ideas, run: () => setView('house/ideas') });
+  const stuck = state.downloads.filter(transferAttention);
+  if (stuck.length) out.push({ label: T('Downloads need attention'), meta: stuck.slice(0, 2).map((d) => d.canonicalTitle || d.title || d.name).join(', '),
+    count: stuck.length, run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) });
+  return out.slice(0, 3);
+}
+function updateHouseDot() { if (state.status?.admin) setHouseDot(houseNeeds().length); }
+// The landing: a status card for the machines (the worst line and a line of numbers; it opens Machines), Needs you,
+// then a tile per tool with one live line. A count on a tile means something there wants doing.
+function renderHouseHub(body) {
+  const r = state.house, needs = houseNeeds();
+  setHouseDot(needs.length);
+  const sv = r?.server;
+  const online = (r?.machines || []).filter((m) => !m.away).length;
+  const status = h('div', { class: `set-stack house-card-link${r?.issues.length ? ' has-alert' : ''}` }, navRow({ route: 'house/machines', run: () => setView('house/machines'),
+    label: r ? (r.issues.length ? (r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)) : T('Everything’s fine'))
+      : state.houseError ? T('Couldn’t check the house') : T('Checking…'),
+    meta: [T('Machines'), sv && upFor(sv.uptime), sv?.cpu != null && T('CPU {0} %', sv.cpu), r?.agents && r.machines.length && T('{0} of {1} machines online', online, r.machines.length)].filter(Boolean).join(' · ') }));
+  const stuck = state.downloads.filter(transferAttention).length;
+  const active = state.downloads.filter((d) => !d.done).length;
+  const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
+  const tools = [
+    ...['house/notes', 'house/clips', 'house/people', 'house/ideas'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+    { label: T('Downloads'), line: stuck ? T('Needs attention') : active ? T('Downloading · {0}', plural(active, 'download')) : T('Everything the server is downloading'),
+      count: stuck, run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) },
+    { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
+    ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+  ];
+  const lines = {
+    'house/notes': T('Notes to yourself, with files and reminders'),
+    'house/clips': state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
+    'house/people': T('Who uses Lilin and what they may do'),
+    'house/ideas': newIdeas ? T('{0} new', newIdeas) : T('Ideas and bugs people sent you'),
+    'house/rules': T('Auto-delete, keeping longer, new people'),
+    'house/screen-time': T('Time on your devices'),
+  };
+  const counts = { 'house/ideas': newIdeas };
+  const tile = ({ label, line, run, route, count }) => h('button', { type: 'button', class: 'tool', 'data-route': route, onclick: run },
+    h('span', { class: 'set-label' }, label || T(ROUTES[route].label)), h('span', { class: 'set-hint' }, line || lines[route]),
+    (count ?? counts[route]) ? h('b', { class: 'tab-badge' }, String(count ?? counts[route])) : null);
+  body.replaceChildren(status,
+    needs.length > 0 && h('section', { class: 'house-needs', 'aria-labelledby': 'house-needs-head' }, h('h3', { class: 'set-head', id: 'house-needs-head' }, T('Needs you')),
+      h('div', { class: 'set-stack' }, needs.map((n) => navRow(n)))),
+    h('div', { class: 'tool-grid' }, tools.map(tile)));
+  // New ideas count here and in the dot: the inbox is read once the hub is open.
+  if (!ideasView.loaded && !ideasView.loading) loadIdeas().then(() => { if (state.view === 'house' && !state.sub) renderHouse(); else updateHouseDot(); });
+}
+// House → Machines: the server, VPN, sharing, power and every machine.
+function renderMachines(body) {
+  if (state.houseError) { body.replaceChildren(notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))); return; }
   const r = state.house;
   if (!r) return;
-  const q = norm(state.query);
-  const out = [houseTabs()];
+  const q = norm(pageFilters.house);
+  const out = [];
   out.push(r.issues.length
     ? h('div', { class: 'house-status has-issues' },
       h('strong', {}, r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)),
@@ -9386,14 +9703,6 @@ async function stPick(changes) {
   Object.assign(state.st, changes);
   await loadScreenTime();
   if (state.view === 'house') renderHouse();
-}
-
-function houseTabs() {
-  return h('div', { class: 'house-tabs' }, segmented([['overview', T('Overview')], ['screentime', T('Screen Time')]], state.houseTab || 'overview', async (tab) => {
-    state.houseTab = tab;
-    await loadHouse();
-    if (state.view === 'house') renderHouse();
-  }, T('House page')));
 }
 
 // Top three categories get their colour; everything else is "Other", like iOS.
@@ -10183,11 +10492,12 @@ function clipCard(c) {
 }
 
 function renderClips() {
+  filterField('clips', T('Filter by game or name'), renderClips);
   const body = $('#clips-body');
   if (state.clipsError) { body.replaceChildren(notice(T('Couldn’t load clips'), state.clipsError, () => loadClips().then(renderClips))); return; }
   if (!state.clips) return;
   if (!state.clips.configured) { body.replaceChildren(notice(T('No clips folder'), T('Set CLIPS_DIR in .env to the folder your desktop syncs clips to.'))); return; }
-  const q = norm(state.query);
+  const q = norm(pageFilters.clips);
   const all = state.clips.clips;
   const list = all.filter((c) => !q || norm(`${c.title} ${c.game}`).includes(q));
   if (!list.length) {
@@ -10212,84 +10522,115 @@ function renderClips() {
   body.replaceChildren(...out);
 }
 
-function addAdminTab(view, label, iconSvg) {
-  if ($(`#view-${view}`)) return;
-  $('#main').append(h('section', { id: `view-${view}`, class: 'view', 'aria-labelledby': `${view}-heading`, hidden: true },
-    h('h2', { class: 'view-heading', id: `${view}-heading` }, label),
-    h('div', { id: `${view}-body` })));
-  const tab = h('button', { class: 'tab', 'data-view': view });
-  tab.innerHTML = `${iconSvg}<span>${label}</span>`;
-  tab.addEventListener('click', () => setView(view));
-  $('.tabs').insertBefore(tab, $('.tab[data-view="settings"]')); // Settings stays last
+// ---------- page filters ----------
+// Library, Activity, Machines, Game clips and Notes narrow their own lists with a small field beside the page's
+// heading (pageFilters), separate from search. The field is made once and kept, so redraws never steal its focus.
+function filterField(view, label, onChange) {
+  const head = $(`#view-${view} .view-head`);
+  let field = head.querySelector('.filter-field');
+  if (field) return field;
+  const box = h('input', { type: 'search', placeholder: label, 'aria-label': label, autocomplete: 'off', spellcheck: 'false', enterkeyhint: 'search' });
+  let timer = 0;
+  box.addEventListener('input', () => { pageFilters[view] = box.value; clearTimeout(timer); timer = setTimeout(onChange, 200); });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && box.value) { e.stopPropagation(); clearFilter(view); onChange(); } });
+  field = h('label', { class: 'filter-field' }, icon('filter'), box);
+  head.append(field);
+  return field;
 }
-const enableHouseTab = () => addAdminTab('house', T('House'), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>');
-const enableClipsTab = () => addAdminTab('clips', T('Clips'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg>');
-
-const enableNotesTab = () => {
-  addAdminTab('notes', T('Notes'), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>');
-  $('.tabs').insertBefore($('.tab[data-view="notes"]'), $('.tab[data-view="library"]'));
-};
-
-// Adds the Activity tab for the server's owner (ADMIN_EMAILS in .env) and anyone the owner lets see it (read-only).
-function enableActivityTab() {
-  if ($('#view-activity')) return;
-  $('#main').append(h('section', { id: 'view-activity', class: 'view', 'aria-labelledby': 'activity-heading', hidden: true },
-    h('h2', { class: 'view-heading', id: 'activity-heading' }, T('Activity')),
-    h('div', { id: 'activity-body' })));
-  const tab = h('button', { class: 'tab', 'data-view': 'activity' });
-  tab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 13.8c1.8.7 3 2.6 3 5.2"/></svg><span>' + T('Activity') + '</span>';
-  tab.addEventListener('click', () => setView('activity'));
-  $('.tabs').insertBefore(tab, $('.tab[data-view="settings"]'));
+function clearFilter(view, value = '') {
+  pageFilters[view] = value;
+  const box = $(`#view-${view} .filter-field input`);
+  if (box) box.value = value;
 }
 
-input.addEventListener('input', () => {
-  if (state.view === 'settings' || state.view === 'live') { const q = input.value; setView('discover').then(() => { input.value = state.query = q; renderDiscover(); }); return; }
-  state.query = input.value;
-  $('#q-clear').hidden = !input.value;
-  if (state.view === 'notes') {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => notesView.load(), 250);
-    return;
-  }
-  if (state.view === 'discover') {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(renderDiscover, 300);
-  } else {
-    renderView();
-  }
-});
-$('#search-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  clearTimeout(searchTimer);
-  if (state.view === 'discover') renderDiscover();
-  if (state.view === 'notes') notesView.load();
-  input.blur(); // hides the phone keyboard
-});
-$('#q-clear').addEventListener('click', () => {
-  input.value = '';
-  input.dispatchEvent(new Event('input'));
-  input.focus();
-});
-
-// Phones and tablets: search sits behind an icon so Discover's billboard has the top of the screen;
-// it opens as a full-width field with Cancel. Wide screens always show the field (style.css).
+// ---------- search (search.js) ----------
+// The header's box (an icon on phones) finds titles and places; results show in a layer over the page.
 const searchToggle = $('#search-toggle');
 const wideHeader = matchMedia('(min-width: 900px)');
+const searchEntryRow = (e) => h('button', { type: 'button', class: 'sr-row', onclick: (ev) => { searchUi.remember(); openUnifiedTitle(e, ev.currentTarget); } },
+  e.poster ? h('img', { class: 'sr-thumb', src: e.poster, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'sr-thumb' }),
+  h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, e.name), h('span', { class: 'set-hint' }, libraryAvailability(e))));
+const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'), me: () => state.me, status: () => state.status,
+  onLilin: (q) => filterLibrary(unifiedLibrary(), { query: q, sort: 'title' }).slice(0, 4).map(searchEntryRow),
+  openPlace: (p) => openPlace(p), titleGrid, titleCard, carousel, skeletonGrid, emptyState, notice,
+  footer: (q) => [
+    state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => { searchUi.remember(); findTorrents(q, e.currentTarget); } },
+      icon('search'), T('Search torrents for “{0}”', q)),
+    state.status.notes && h('button', { type: 'button', class: 'chip', onclick: async () => { endSearch(); await setView('house/notes'); clearFilter('notes', q); await notesView.load(); } },
+      icon('search'), T('Search notes for “{0}”', q)),
+  ].filter(Boolean),
+  // People: anyone on Lilin by name (friends search; nobody for restricted people or the shared home account).
+  findPeople: async (q, signal) => {
+    if (!state.me?.email || state.me.restricted) return [];
+    const { people: found = [] } = await api(`/api/friends/search?q=${encodeURIComponent(q)}`, { signal });
+    const hint = { friend: T('Friends'), sent: T('Asked'), received: T('Asked to be your friend') };
+    return found.slice(0, 4).map((p) => ({ name: p.name, hint: hint[p.state] || '', face: people.face(p, { size: 32 }), open: (opener) => profiles.open(p, opener) }));
+  },
+  // Live: a channel by its name or what's on it now (the guide is fetched when search opens).
+  findChannels: (q) => {
+    const n = norm(q);
+    return liveView.channels().map((c) => ({ c, now: liveView.onNow(c)?.title || '' }))
+      .filter(({ c, now }) => norm(`${channelName(c, state.me)} ${now}`).includes(n)).slice(0, 4)
+      .map(({ c, now }) => ({ number: c.number, name: channelName(c, state.me), now, tune: () => tuneIn(c.id) }));
+  } });
 function setSearching(on) {
   document.body.classList.toggle('searching', on);
   searchToggle.setAttribute('aria-expanded', String(on));
-  if (on) input.focus();
+  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); liveView.load(); } else searchUi.close(); // the channels, for search's Live group
+}
+function endSearch() { input.value = ''; $('#q-clear').hidden = true; setSearching(false); }
+// Go to: a place opens its page, or runs its action (places.js ACTIONS).
+const PLACE_ACTIONS = {
+  'whats-new': () => showUpdateHistory(),
+  'wrapped': (opener) => openWrapped(state.status?.wrapped?.year || new Date().getFullYear(), opener),
+  'pick': () => pickUi.open(),
+  'profile': (opener) => profiles.openMine(opener),
+  'manage-downloads': (opener) => openTransferDetails(null, opener),
+  'channels': (opener) => liveView.openEditor(opener),
+  'torrents': (opener) => findTorrents('', opener),
+};
+function openPlace(p) {
+  endSearch();
+  if (p.route) setView(p.route); else PLACE_ACTIONS[p.action]?.(null);
 }
 searchToggle.addEventListener('click', () => setSearching(true));
-$('#search-cancel').addEventListener('click', () => {
-  if (input.value) { input.value = ''; input.dispatchEvent(new Event('input')); }
-  setSearching(false);
-  searchToggle.focus();
+input.addEventListener('focus', () => { if (!searchUi.isOpen()) setSearching(true); });
+input.addEventListener('input', () => {
+  $('#q-clear').hidden = !input.value;
+  if (searchUi.isOpen()) searchUi.render(); else setSearching(true);
 });
-input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !wideHeader.matches && !input.value) { e.stopPropagation(); setSearching(false); searchToggle.focus(); } });
+$('#search-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  searchUi.remember();
+  input.blur(); // hides the phone keyboard; the results stay
+});
+$('#q-clear').addEventListener('click', () => {
+  input.value = ''; $('#q-clear').hidden = true;
+  searchUi.render(); input.focus();
+});
+$('#search-cancel').addEventListener('click', () => { endSearch(); if (!wideHeader.matches) searchToggle.focus(); });
+input.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  e.stopPropagation();
+  endSearch(); input.blur();
+  if (!wideHeader.matches) searchToggle.focus();
+});
+// An empty box closes when you leave it (not while a press inside the results is still going on).
+let searchPress = false;
+$('#search-layer').addEventListener('pointerdown', () => { searchPress = true; });
+window.addEventListener('pointerup', () => setTimeout(() => { searchPress = false; }, 300), true);
 input.addEventListener('blur', () => setTimeout(() => {
-  if (!wideHeader.matches && !input.value && document.activeElement !== input) setSearching(false);
+  if (!input.value && !searchPress && document.activeElement !== input && !$('#search-layer').contains(document.activeElement) && !overlayStack.length) setSearching(false);
 }, 200));
+// "/" or Ctrl K (⌘K) jumps to the box.
+document.addEventListener('keydown', (e) => {
+  const typing = e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+  const slash = e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (!slash && !(e.key.toLowerCase?.() === 'k' && (e.ctrlKey || e.metaKey))) return;
+  if (!$('#player').hidden || overlayStack.length) return;
+  e.preventDefault();
+  setSearching(true);
+});
 
 // The header turns to glass once the page scrolls (style.css: html.scrolled).
 let scrollFrame = 0;
@@ -10304,86 +10645,123 @@ markScrolled();
 const smoothViews = () => 'startViewTransition' in document && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 if ('startViewTransition' in document) document.documentElement.classList.add('has-vt');
 
-// The open tab lives in the address (#library), so reloading the page comes back to it.
-function rememberView(view) {
-  if (!view || location.hash === `#${view}`) return;
-  history.replaceState(history.state, '', `${location.pathname}${location.search}#${view}`);
+// ---------- the shell: tabs, addresses and Back (routes.js) ----------
+// Every screen has an address (#library, #you/watching, #house/people) and lights its tab. A tab opens the page it
+// was last on (sessionStorage 'lilin:stack'); tapping the open tab goes up to its root, then to the top. A page
+// opened from its tab's root gets its own history entry, so Back returns to the list; anything else replaces it.
+const tabStack = (() => { try { return JSON.parse(sessionStorage.getItem('lilin:stack')) || {}; } catch { return {}; } })();
+// Which tabs this person has (House: owners only).
+function renderTabs() {
+  const tabs = tabsFor(state.me, state.status);
+  document.querySelectorAll('.tab').forEach((t) => { t.hidden = !tabs.includes(t.dataset.view); });
 }
-// Closing a sheet restores the address it opened on; keep what's shown now in it: the profile
-// still open on top (#@ebicat, so a reload comes back to it), else the tab.
+function openTab(tab) {
+  const r = ROUTES[state.route];
+  if (document.body.classList.contains('searching')) { endSearch(); if (r?.tab === tab) return; } // a tab closes search
+  if (r?.tab === tab) { if (state.route !== tab) goUp(); else window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const last = tabStack[tab];
+  setView(last && ROUTES[last]?.tab === tab && allowedRoute(last, state.me, state.status) ? last : tab);
+}
+// Up from a page to its tab's root: Back when the page was opened from there, else straight to the root.
+function goUp() {
+  const r = ROUTES[state.route];
+  if (!r || r.tab === state.route) return;
+  if (history.state?.page === state.route && !overlayStack.length) history.back();
+  else setView(r.tab);
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => openTab(t.dataset.view)));
+$('#me-btn').addEventListener('click', () => openTab('you'));
+// "‹ House" / "‹ You" over a page that has a view of its own (Activity, Notes, Game clips) or a House page.
+function renderBackLink() {
+  const r = ROUTES[state.route];
+  const back = $(`#view-${state.view} > .view-back`);
+  if (!back) return;
+  back.hidden = !r?.sub;
+  if (r?.sub) { back.textContent = `‹ ${T(ROUTES[r.tab].label)}`; back.onclick = goUp; }
+}
+// The address: #route. A replaced entry keeps its overlay mark, and its page mark if it had one.
+function rememberView(id, push = false) {
+  if (!id || location.hash === `#${id}`) return;
+  const url = `${location.pathname}${location.search}#${id}`;
+  if (push && !overlayStack.length) history.pushState({ page: id }, '', url);
+  else history.replaceState(history.state?.overlay ? history.state : { page: history.state?.page ? id : null }, '', url);
+}
+// Back and Forward: closing a sheet restores the address it opened on (the profile still open on top, #@ebicat, so
+// a reload comes back to it); with no sheet open they move between pages.
 window.addEventListener('popstate', () => {
   const handle = [...document.querySelectorAll('.pf.open')].pop()?.dataset.handle;
-  if (!handle) { rememberView(state.view); return; }
-  if (location.hash !== `#@${handle}`) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${handle}`);
+  if (handle) {
+    if (location.hash !== `#@${handle}`) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${handle}`);
+    return;
+  }
+  if (!popHadOverlay) {
+    const id = resolve(location.hash, state.me, state.status);
+    if (id && id !== state.route) { setView(id, { address: false }); return; }
+  }
+  rememberView(state.route);
 });
-function linkedView() {
-  const view = decodeURIComponent(location.hash.slice(1));
-  return view && [...document.querySelectorAll('.tab')].some((t) => t.dataset.view === view) ? view : null;
-}
-async function setView(view) {
-  if (view === 'library' || view === 'downloads') invalidateLibraryProgress();
-  if (view === 'downloads') { state.libAvailability = 'downloading'; view = 'library'; }
-  if (view === state.view) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  state.view = view;
-  rememberView(view);
-  document.querySelectorAll('.tab').forEach((t) => {
-    if (t.dataset.view === view) {
-      t.setAttribute('aria-current', 'page');
-    }
-    else t.removeAttribute('aria-current');
-  });
+// Opens a route (or an old address: 'settings', 'downloads'). Unknown or not allowed: nothing happens.
+async function setView(target, { address = true } = {}) {
+  const id = resolve(target, state.me, state.status);
+  if (!id) return;
+  const r = ROUTES[id];
+  if (document.body.classList.contains('searching')) endSearch();
+  if (r.view === 'library') invalidateLibraryProgress();
+  if (id === state.route) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const fromRoot = state.route === r.tab;
+  if (address) rememberView(id, Boolean(r.sub) && fromRoot);
+  const viewChanged = r.view !== state.view;
+  state.route = id; state.sub = r.sub || null; state.view = r.view;
+  tabStack[r.tab] = id;
+  try { sessionStorage.setItem('lilin:stack', JSON.stringify(tabStack)); } catch { /* private mode: no stacks */ }
+  document.querySelectorAll('.tab').forEach((t) => { if (t.dataset.view === r.tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
+  if (r.tab === 'you') $('#me-btn').setAttribute('aria-current', 'page'); else $('#me-btn').removeAttribute('aria-current');
   const show = () => {
-    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${view}`; });
-    document.body.classList.toggle('has-billboard', view === 'discover' && Boolean($('#discover-body .billboard')));
-    $('#browse-btn').hidden = view !== 'discover';
+    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${r.view}`; });
+    document.body.classList.toggle('has-billboard', r.view === 'discover' && Boolean($('#discover-body .billboard')));
     window.scrollTo(0, 0);
   };
-  if (smoothViews()) document.startViewTransition(show); else show();
-  input.value = state.query = '';
-  $('#q-clear').hidden = true;
-  document.body.classList.remove('searching');
-  input.placeholder = PLACEHOLDERS[view];
+  if (viewChanged && smoothViews()) document.startViewTransition(show); else show();
 
   renderView(); // render cached data, then refresh
-  revealSectionTab();
+  const view = r.view;
   if (view === 'library') { await loadDownloads(); await Promise.all([loadLibrary(), loadConvert()]); }
-  if (view === 'downloads') await loadDownloads();
   if (view === 'activity') await loadActivity();
   if (view === 'house') await loadHouse();
   if (view === 'clips') await loadClips();
-  if (view === 'live') await liveView.load(true);
+  if (view === 'live') await Promise.all([liveView.load(true), loadParties()]);
   if (view === 'notes') await notesView.load();
-  if (view === 'settings') await Promise.all([loadLibrary(), state.me?.isOwner ? loadPeople() : null]);
-  if (state.view === view) { if (view === 'settings') renderSettingsWhenStill(); else renderView(); revealSectionTab(); }
+  if (view === 'you') await loadLibrary();
+  if (state.route === id) { if (view === 'you') renderSettingsWhenStill(); else renderView(); }
   schedulePoll();
 }
-const sectionTabs = $('.tabs');
-function updateTabOverflow() {
-  sectionTabs.classList.toggle('can-scroll-left', sectionTabs.scrollLeft > 1);
-  sectionTabs.classList.toggle('can-scroll-right', sectionTabs.scrollLeft + sectionTabs.clientWidth < sectionTabs.scrollWidth - 1);
-}
-function revealSectionTab() {
-  const tab = sectionTabs.querySelector('[aria-current="page"]');
-  if (tab) {
-    const start = tab.offsetLeft, end = start + tab.offsetWidth;
-    if (start < sectionTabs.scrollLeft) sectionTabs.scrollLeft = start;
-    else if (end > sectionTabs.scrollLeft + sectionTabs.clientWidth) sectionTabs.scrollLeft = end - sectionTabs.clientWidth;
-  }
-  updateTabOverflow();
-}
-sectionTabs.addEventListener('scroll', updateTabOverflow, { passive: true });
-window.addEventListener('resize', revealSectionTab);
-document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
 $('#home-link').addEventListener('click', async (e) => {
   e.preventDefault();
   disc.list = null; disc.genre = null;
   vibesUi.reset(); // vibes
-  state.query = ''; input.value = ''; $('#q-clear').hidden = true;
-  if (state.view === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
+  if (document.body.classList.contains('searching')) endSearch();
+  if (state.route === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
   else await setView('discover');
 });
-$('#manage-downloads').addEventListener('click', e => openTransferDetails(null, e.currentTarget));
-$('#find-torrents').addEventListener('click', (e) => openTorrents({ query: state.query.trim(), opener: e.currentTarget }));
+// Find torrents: Library › Downloads, search's footer and Go to all open the same sheet.
+function findTorrents(query, opener) { return openTorrents({ query, opener }); }
+
+// A link into Lilin (a tapped notification, or how this page was opened): ?friends=1 → You › Friends, ?ideas=1 →
+// You › Ideas or House › Ideas, ?moment= plays it, ?travel=1 opens the phone list, ?note= focuses it. Returns true
+// when it opened something.
+async function openLink(url) {
+  const params = url.searchParams;
+  const id = linkRoute(params, state.me, state.status);
+  if (params.get('moment')) momentsUI.jumpTo(params.get('moment')); // friends: Moments
+  if (params.has('friends')) friendsUI.jumpNext(); // friends
+  if (params.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; await loadIdeas(); }
+  if (!id) return false;
+  if (id === state.route) renderView(); else await setView(id);
+  if (params.has('travel')) openTravelList();
+  const note = params.get('note');
+  if (note && /^\d+$/.test(note)) await notesView.focus(Number(note));
+  return true;
+}
 
 // ---------- start ----------
 // A tapped notification while Lilin is open (sw.js): open what it points at without a reload.
@@ -10394,14 +10772,11 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (url.origin !== location.origin) return;
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
-  if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
   if (url.searchParams.get('pick')) { pickUi.openPick(url.searchParams.get('pick')); return; } // pick: an invite or a match
-  if (url.searchParams.get('moment')) { momentsUI.jumpTo(url.searchParams.get('moment')); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends: Moments
-  if (url.searchParams.has('friends')) { friendsUI.jumpNext(); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends
-  if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
-  const view = url.hash.slice(1);
-  if (view && view !== state.view && $(`#view-${view}`)) await setView(view);
+  if (await openLink(url)) return;
+  const id = resolve(url.hash, state.me, state.status);
+  if (id && id !== state.route) await setView(id);
 });
 
 (async function init() {
@@ -10417,6 +10792,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     return;
   }
   state.me = state.status.me;
+  renderTabs();
   renderMeButton();
   // The preview of a redesign (PREVIEW_DIR on the server): a small way back to the live app.
   if (state.status.preview) document.body.append(h('a', { class: 'preview-pill', href: '/preview/off', title: T('Leave the preview and go back to the live app') },
@@ -10425,52 +10801,32 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (state.me?.needsPassword) { showPasswordGate(); return; }
   state.rules = state.status.rules;
   applyTheme(prefs().theme);
-  $('#find-torrents').hidden = !state.status.torrents || !canDownload();
-  $('#manage-downloads').hidden = !state.me?.isOwner;
-  if (state.status.admin) { enableActivityTab(); enableHouseTab(); if (state.status.notes) enableNotesTab(); } else if (state.me?.canSeeActivity) enableActivityTab();
-  if (state.status.clips) enableClipsTab();
-  enableLiveTab();
-  updateTabOverflow();
+  if (state.status.admin) loadIdeas().then(updateHouseDot); // House → Needs you lights the tab
   await Promise.all([loadLibrary(), loadDownloads(), loadSessions(), loadProgress(), loadWatchlist(), loadTravel()]);
-  // A reload stays on the tab it was on (#library); a fresh visit opens the chosen start tab.
-  const start = linkedView() || prefs().startView;
-  if (start && start !== 'discover') { state.view = null; await setView(start); } else { rememberView('discover'); renderDiscover(); }
+  // A reload stays on the page it was on (#library, #you/watching; old addresses like #settings land on their new
+  // homes); a fresh visit opens the chosen start view.
+  const start = resolve(linkHash, state.me, state.status) || startRoute(prefs().startView, state.me, state.status);
+  state.route = null;
+  if (start !== 'discover') await setView(start);
+  else { state.route = 'discover'; rememberView('discover'); $('.tab[data-view="discover"]').setAttribute('aria-current', 'page'); renderDiscover(); }
   profiles.fromHash(linkHash);
   const watchToken = new URL(location.href).searchParams.get('watch');
   if (watchToken) await offerWatchRoom(watchToken);
-  // A shared note link (/c/n/<token>) lands here as ?note=<id>.
-  const noteId = new URL(location.href).searchParams.get('note');
-  if (noteId) {
-    const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    if (state.status.notes && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
-  }
   // pick: a Pick together invite (or its link) opens Lilin as ?pick=<id>
   if (new URL(location.href).searchParams.get('pick')) {
     const url = new URL(location.href); const id = url.searchParams.get('pick'); url.searchParams.delete('pick'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     pickUi.openPick(id);
   }
-  // friends: a "sent you a moment" notification opens Lilin as ?moment=<id>: Settings → Moments, and it plays.
-  if (new URL(location.href).searchParams.get('moment')) {
-    const url = new URL(location.href); const id = url.searchParams.get('moment'); url.searchParams.delete('moment'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    momentsUI.jumpTo(id);
-    if (state.view === 'settings') renderSettings(); else await setView('settings');
-  }
-  // friends: a friend request notification opens Lilin as ?friends=1: Settings, scrolled to Friends.
-  if (new URL(location.href).searchParams.has('friends')) {
-    const url = new URL(location.href); url.searchParams.delete('friends'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    friendsUI.jumpNext();
-    if (state.view === 'settings') renderSettings(); else await setView('settings');
-  }
-  // An idea box notification opens Lilin as ?ideas=1: Settings, scrolled to the ideas.
-  if (new URL(location.href).searchParams.has('ideas')) {
-    const url = new URL(location.href); url.searchParams.delete('ideas'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    ideasView.jump = true;
-    if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings');
-  }
-  // A "Ready for your phone" notification opens Lilin as ?travel=1.
-  if (new URL(location.href).searchParams.has('travel')) {
-    const url = new URL(location.href); url.searchParams.delete('travel'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    await setView('library'); openTravelList();
+  // Notification links (?friends=1, ?ideas=1, ?moment=<id>, ?travel=1) and shared note links (/c/n/<token> lands as
+  // ?note=<id>): open where they point, then tidy the address.
+  {
+    const url = new URL(location.href);
+    if (['friends', 'ideas', 'moment', 'travel', 'note'].some((k) => url.searchParams.has(k))) {
+      const clean = new URL(location.href);
+      for (const k of ['friends', 'ideas', 'moment', 'travel', 'note']) clean.searchParams.delete(k);
+      history.replaceState(history.state, '', clean.pathname + clean.search + clean.hash);
+      await openLink(url);
+    }
   }
   // The iPhone Home Screen app hands a video to Safari for picture in picture as ?play=<library id>&t=<seconds>.
   const playId = new URL(location.href).searchParams.get('play');
@@ -10497,5 +10853,6 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   connectLive();
   pushDevice.registerWorker();
   setTimeout(maybeShowWhatsNew, 1200); // let the first screen settle before showing update notes
-  if (state.me?.email && !state.me?.restricted) setTimeout(() => friendsUI.load().then(maybeAskFriends), 1600); // friends: requests waiting for an answer
+  // For you (the You tab's dot) and friend requests waiting for an answer (their popup)
+  setTimeout(() => loadForYou().then(() => { if (sharesSocial()) maybeAskFriends(); }), 1600);
 })();

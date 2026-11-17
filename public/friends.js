@@ -1,12 +1,13 @@
-// Friends (Settings → Friends): find people by name, send a request, answer the ones you get, and see
+// Friends (You → Friends): find people by name, send a request, answer the ones you get, and see
 // your friends. Friends can send each other Moments (moments.js). Restricted people (People → Restrict)
-// have no friends, so they get no section at all. Server side: src/friends.js, /api/friends.
+// have no friends, so they get no page at all. Server side: src/friends.js, /api/friends.
+// Requests also show as For you cards at the top of You (forYou), and pop up once when Lilin opens (askSheet).
 //
-// app.js passes in its helpers; this file keeps its own little state and asks app.js to redraw Settings.
+// app.js passes in its helpers; this file keeps its own little state and asks app.js to redraw the You page.
 import { T } from './i18n.js';
 
-export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender, openProfile = null }) {
-  const view = { loaded: false, loading: null, data: { friends: [], incoming: [], outgoing: [] }, query: '', results: null, searching: 0, jump: false };
+export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender, openProfile = null, invite = () => null, addFriend = null }) {
+  const view = { loaded: false, loading: null, data: { friends: [], incoming: [], outgoing: [] }, query: '', results: null, searching: 0 };
 
   function load() {
     view.loading ||= api('/api/friends').then((r) => { view.data = r; view.loaded = true; })
@@ -33,7 +34,7 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
   }
 
   // The friend request popup (app.js: maybeAskFriends): unanswered requests pop up when Lilin opens and
-  // when one arrives while it's open, so nobody has to go looking in Settings. Later (or closing the
+  // when one arrives while it's open, so nobody has to go looking for them. Later (or closing the
   // sheet) hides those requests on this device until tomorrow; a new request pops up right away.
   const LATER = 'lilin:friend-asks-later';
   const askKey = (p) => `${p.id}:${p.at}`;
@@ -85,7 +86,7 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
     return { node, count: asks.length, unanswered: () => asks.filter((p) => !answered.has(p.id)) };
   }
 
-  // Search as you type (a short pause first); the results replace themselves without redrawing Settings.
+  // Search as you type (a short pause first); the results replace themselves without redrawing the page.
   let timer = null;
   function searchBox() {
     const input = h('input', { type: 'search', class: 'invite-note friends-search', placeholder: T('Find someone by name'), 'aria-label': T('Find someone by name'),
@@ -127,20 +128,31 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
       h('div', { class: 'friend-actions' }, ...actions));
   }
 
-  // The Settings group. Empty for restricted people (no friends at all).
-  function settings() {
+  // Accept / Decline for one request (the page's list, the For you cards and the Add a friend sheet).
+  const answerButtons = (p) => [
+    h('button', { type: 'button', class: 'chip friend-yes', onclick: () => act('accept', p, () => T('You and {0} are friends now', p.name)) }, T('Accept')),
+    h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Decline {0}', p.name), title: T('Decline'), onclick: () => act('remove', p) }, icon('close'))];
+
+  // The Add a friend sheet's people (invite.js): requests waiting for you, then find someone by name.
+  function addNodes() {
+    needed();
+    const asks = view.data.incoming || [];
+    return [asks.length > 0 && h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Asked to be your friend')),
+      h('ul', { class: 'friend-list' }, asks.map((p) => row(p, null, ...answerButtons(p))))),
+    searchBox()].filter(Boolean);
+  }
+
+  // You → Friends. Empty for restricted people and the shared home account (no friends at all).
+  function page() {
     if (me()?.restricted || !me()?.email) return [];
     needed();
     const d = view.data;
-    const out = [h('h3', { class: 'set-head', 'data-anchor': 'friends' }, T('Friends'))];
     const body = [];
     if (d.incoming?.length) {
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Asked to be your friend')),
-        h('ul', { class: 'friend-list' }, d.incoming.map((p) => row(p, null,
-          h('button', { type: 'button', class: 'chip friend-yes', onclick: () => act('accept', p, () => T('You and {0} are friends now', p.name)) }, T('Accept')),
-          h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Decline {0}', p.name), title: T('Decline'), onclick: () => act('remove', p) }, icon('close')))))));
+        h('ul', { class: 'friend-list' }, d.incoming.map((p) => row(p, null, ...answerButtons(p))))));
     }
-    body.push(searchBox());
+    body.push(addFriend ? h('button', { type: 'button', class: 'chip friends-add', onclick: (e) => addFriend(e.currentTarget) }, icon('plus'), T('Add a friend')) : searchBox());
     if (d.friends?.length) {
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, d.friends.length === 1 ? T('1 friend') : T('{0} friends', d.friends.length)),
         h('ul', { class: 'friend-list' }, d.friends.map((p) => row(p, null,
@@ -153,13 +165,18 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
         h('ul', { class: 'friend-list' }, d.outgoing.map((p) => row(p, null,
           h('button', { type: 'button', class: 'friend-link', onclick: () => act('remove', p, () => T('Request taken back')) }, T('Take back')))))));
     }
-    out.push(h('div', { class: 'friends' }, body));
-    if (view.jump) {
-      view.jump = false;
-      requestAnimationFrame(() => document.querySelector('[data-anchor="friends"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    }
-    return out;
+    // Someone who isn't on Lilin yet: invite() is app.js's way to invite them, or null when this person can't.
+    const inviting = invite();
+    if (inviting) body.push(h('div', {}, h('button', { type: 'button', class: 'chip', onclick: (e) => inviting(e.currentTarget) }, icon('plus'), T('Invite someone to Lilin'))));
+    return [h('div', { class: 'friends' }, body)];
   }
 
-  return { settings, load, invalidate, friendList, incomingCount, waitingAsks, askLater, askSheet, jumpNext: () => { view.jump = true; view.loaded = false; } };
+  // For you (the top of You): the newest requests as cards, Accept / Decline right there.
+  function forYou(limit = 3) {
+    if (me()?.restricted || !me()?.email) return [];
+    return (view.data.incoming || []).slice(0, limit).map((p) => row(p, T('Wants to be your friend'), ...answerButtons(p)));
+  }
+  const summary = () => ({ friends: friendList().length, requests: incomingCount(), loaded: view.loaded });
+
+  return { page, forYou, summary, addNodes, load, invalidate, friendList, incomingCount, waitingAsks, askLater, askSheet, jumpNext: () => { view.loaded = false; } };
 }

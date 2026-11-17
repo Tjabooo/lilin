@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal C: Library, shrunk to one job (phone, owner tab bar)</title>
+<link rel="stylesheet" href="../../../../../public/style.css">
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <h1 class="wordmark"><a href="#">Lilin</a></h1>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M10 9.5v5l4-2.5z"/></svg><span>Discover</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M5 10V7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5V10"/><path d="M3 18v-5.5a1.5 1.5 0 0 1 3 0V14h12v-1.5a1.5 1.5 0 0 1 3 0V18z"/><path d="M5 18v1.5M19 18v1.5"/></svg><span>Together</span></button>
+      <button class="tab" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 4v16M10 4v16M15 5l4 14.5"/></svg><span>Library</span><b class="tab-badge">2</b></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg><span>Owner</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span>Settings</span></button>
+    </nav>
+    <div class="top-actions">
+      <button class="icon-btn search-toggle"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+      <button class="news-btn"><span class="news-bulb"></span><span class="news-label">What’s new</span></button>
+      <span class="mk-face o mk-me">O</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="mk-head"><h2 class="view-heading">Library</h2></div>
+  <div class="segmented mk-seg" role="group">
+    <button aria-pressed="true">Yours</button>
+    <button>Saved</button>
+    <button>Downloads<span class="n">2</span></button>
+  </div>
+  <div class="mk-tools">
+    <button class="chip" aria-pressed="true">All</button><button class="chip">Films</button><button class="chip">Shows</button>
+    <button class="chip sp">Newest<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="icon-btn" style="width:36px;height:36px" aria-label="Filter"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+  </div>
+  <p class="mk-note"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19c.6-3 3-5 6-5s5.4 2 6 5"/><path d="M16 5.5a3 3 0 0 1 0 5.5M18 14c1.6.7 2.7 2.4 3 5"/></svg>Shared with Robin and Alex</p>
+
+  <div class="mk-h2" style="margin-top:var(--s5)"><h3>Leaving soon</h3></div>
+  <div class="mk-grid">
+    <div class="mk-card"><span class="p" style="background-image:url(img/p-evildead.jpg)"><span class="pr"><i style="width:30%"></i></span></span><b>Evil Dead Burn</b>Leaves tomorrow · Keep</div>
+  </div>
+
+  <div class="mk-h2"><h3>Films</h3><span class="muted" style="font-size:13px">14</span></div>
+  <div class="mk-grid">
+    <div class="mk-card"><span class="p" style="background-image:url(img/p-odyssey.jpg)"></span><b>The Odyssey</b>Ready</div>
+    <div class="mk-card"><span class="p" style="background-image:url(img/p-beast.jpg)"></span><b>Heart of the Beast</b>Ready</div>
+    <div class="mk-card"><span class="p" style="background-image:url(img/p-evil.jpg)"></span><b>Resident Evil</b>Ready</div>
+  </div>
+  <div class="mk-h2"><h3>Shows</h3><span class="muted" style="font-size:13px">6</span></div>
+  <div class="mk-grid">
+    <div class="mk-card"><span class="p" style="background-image:url(img/p-rings.jpg)"></span><b>The Rings of Power</b>4 ready</div>
+    <div class="mk-card"><span class="p mk-blank">Star Trek: DS9</span><b>Star Trek: Deep Space Nine</b>New episode</div>
+    <div class="mk-card"><span class="p mk-blank">NANA</span><b>NANA</b>47 ready</div>
+  </div>
+  <p class="mk-foot">20 titles · 312 GB · next to go: Evil Dead Burn in 6 days. Titles leave 7 days after everyone has watched them.</p>
+</main>
+</body>
+</html>

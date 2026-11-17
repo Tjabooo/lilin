@@ -1,5 +1,32 @@
 [
 {
+  "id": "2026-11-17-revamp-2",
+  "date": "2026-11-17",
+  "title": "Lilin got tidied up",
+  "items": [
+    {
+      "title": "Four tabs: Discover, Live, Library and You",
+      "text": "Lilin has gained a lot of features lately, so everything got a clearer home. The tabs are now Discover, Live, Library and You. Settings moved into You, together with your profile, friends, moments and what you've watched. Owners have all their tools in one tab, House."
+    },
+    {
+      "title": "Library in three parts",
+      "text": "Library now has Titles, Watchlist and Downloads. Watchlist is one list for what you saved for later, what's coming up and the shows you follow. Downloads has everything about what's on its way."
+    },
+    {
+      "title": "A shorter Discover with Right now",
+      "text": "Discover is shorter. Right under the big picture, Right now shows what needs you today: a watch party, something leaving soon or a download that's ready."
+    },
+    {
+      "title": "Watch with someone on Live",
+      "text": "Live has a new Watch with someone section at the top: start Pick together, or join the watch parties you planned."
+    },
+    {
+      "title": "One title page, one way to invite, smarter search",
+      "text": "Every film and show opens the same page, with one main button for what you'll most likely do next. Inviting people works the same everywhere. Search also finds places and settings, so typing \"subtitles\" takes you straight there."
+    }
+  ]
+},
+{
   "id": "2026-11-17-theme-music",
   "date": "2026-11-17",
   "title": "Theme music",

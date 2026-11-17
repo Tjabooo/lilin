@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · House (owner hub) · phone</title>
+<link rel="stylesheet" href="../../../../../public/style.css">
+<link rel="stylesheet" href="mock.css">
+<style>
+  .hs-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); margin-bottom: var(--s2); }
+  .hs-tile { padding: 12px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+  .hs-tile b { display: flex; align-items: center; gap: 6px; font: 700 15px/1.2 var(--display); }
+  .hs-tile b::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .hs-tile span { display: block; margin-top: 3px; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="top-inner">
+    <h1 class="wordmark"><a href="#">Lilin</a></h1>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M10 9.5v5l4-2.5z"/></svg><span>Discover</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg><span>Live</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Search</span></button>
+      <button class="tab"><span class="face" style="--tint:#F4C152">O</span><span>You</span><b class="tab-badge">2</b></button>
+      <button class="tab" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg><span>House</span></button>
+    </nav>
+  </div>
+</header>
+<span class="mock-tag">B · owner</span>
+
+<main>
+  <h2 class="view-heading">House</h2>
+  <div class="hs-strip">
+    <div class="hs-tile"><b>Server</b><span>2.9 TB free</span></div>
+    <div class="hs-tile"><b>VPN</b><span>Stockholm</span></div>
+    <div class="hs-tile"><b>Sharing</b><span>3 streams</span></div>
+  </div>
+
+  <p class="yh-label is-lit">Needs you</p>
+  <div class="set-stack">
+    <a class="lrow"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span class="lrow-text"><span class="lrow-label">3 new ideas</span><span class="lrow-meta">Sam: “Bigger subtitles on the TV”</span></span><span class="pillc">3</span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span class="lrow-text"><span class="lrow-label">1 download needs attention</span><span class="lrow-meta">No good release for The Bear S3 E5</span></span></a>
+  </div>
+
+  <p class="yh-label">Run the house</p>
+  <div class="set-stack">
+    <a class="lrow"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 13.8c1.8.7 3 2.6 3 5.2"/></svg><span class="lrow-text"><span class="lrow-label">People</span><span class="lrow-meta">35 people · invite, access, permissions</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span class="lrow-text"><span class="lrow-label">Everyone’s downloads</span><span class="lrow-meta">4 on the way · find torrents</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg><span class="lrow-text"><span class="lrow-label">Game clips</span><span class="lrow-meta">12 new this week</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/></svg><span class="lrow-text"><span class="lrow-label">Channels</span><span class="lrow-meta">SEELE TV picks · 9 channels</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span class="lrow-text"><span class="lrow-label">Ideas</span><span class="lrow-meta">Inbox and idea scout</span></span></a>
+  </div>
+  <div class="set-stack" style="margin-top:var(--s4)">
+    <a class="lrow"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span class="lrow-text"><span class="lrow-label">Machines and power</span><span class="lrow-meta">Server, desktop, laptop</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg><span class="lrow-text"><span class="lrow-label">Screen Time</span><span class="lrow-meta">Today 5 h 12 min</span></span></a>
+    <a class="lrow"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg><span class="lrow-text"><span class="lrow-label">Server rules</span><span class="lrow-meta">Keep 30 days · new people can download</span></span></a>
+  </div>
+</main>
+</body>
+</html>

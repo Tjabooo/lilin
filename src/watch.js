@@ -156,16 +156,17 @@ export class WatchRooms {
       .filter((r) => r.startsAt != null && (r.creator === user.id || r.people.has(user.id)) && this.now() < r.startsAt + 3 * 3600000)
       .sort((a, b) => a.startsAt - b.startsAt)
       .map((r) => ({ token: r.token, startsAt: r.startsAt, started: r.started, mine: r.creator === user.id,
-        host: r.members.get(r.host)?.name || r.creatorName || 'Family', hostAvatar: this.hostAvatar(r), viewers: r.members.size,
+        host: r.members.get(r.host)?.name || r.creatorName || 'Family', hostId: r.members.get(r.host)?.userId ?? r.creator ?? null, hostAvatar: this.hostAvatar(r), viewers: r.members.size,
         faces: this.faces(r),
         media: { kind: r.media.kind, id: r.media.id, title: r.media.title, season: r.media.season ?? null, episode: r.media.episode ?? null } }));
   }
 
   hostAvatar(room) { return room.members.get(room.host)?.avatar ?? this.avatarOf(room.creator) ?? null; }
-  // Who's in the room, one face per account (a person on two devices shows once).
-  faces(room) {
+  // Who's in the room, one face per account (a person on two devices shows once). Signed-in views get each face's
+  // account id, so a face can open that person's profile; the public share page (watch-page.js) doesn't.
+  faces(room, { ids = true } = {}) {
     const seen = new Map();
-    for (const m of room.members.values()) if (!seen.has(m.userId)) seen.set(m.userId, { name: m.name, avatar: m.avatar || null });
+    for (const m of room.members.values()) if (!seen.has(m.userId)) seen.set(m.userId, { ...(ids && { id: m.userId }), name: m.name, avatar: m.avatar || null });
     return [...seen.values()].slice(0, 8);
   }
 
@@ -268,11 +269,11 @@ export class WatchRooms {
         connected: m.streams.size > 0, buffering: m.buffering, blocked: m.blocked, ...(room.live && m.quiet ? { quiet: true } : {}) })) };
   }
 
-  preview(token) {
+  preview(token, { ids = true } = {}) {
     const room = this.room(token);
     if (room.live) throw fail(404, 'Tune in from the Live tab.');
     return { media: room.media, host: room.members.get(room.host)?.name || room.creatorName || 'Family', hostAvatar: this.hostAvatar(room),
-      viewers: room.members.size, faces: this.faces(room), startsAt: room.started ? null : room.startsAt };
+      viewers: room.members.size, faces: this.faces(room, { ids }), startsAt: room.started ? null : room.startsAt };
   }
 
   subscribe(token, user, client, send) {

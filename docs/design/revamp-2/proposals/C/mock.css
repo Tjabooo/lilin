@@ -1,0 +1,127 @@
+/* Proposal C mockups only. Loads after public/style.css and reuses its tokens and components
+   (.top, .tabs/.tab, .chip, .segmented, .btn-primary, .nownext, .see-all, .kicker, .view-heading).
+   .mk-* classes are stand-ins for the new blocks; the build would fold them into style.css. */
+@font-face {
+  font-family: "Bricolage Grotesque"; font-weight: 200 800; font-display: block;
+  src: url("../../../../../public/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+}
+html { background: var(--velvet); }
+body { overflow-x: hidden; }
+.top { background: var(--surface-glass); border-bottom: 1px solid var(--hairline); }
+
+/* faces (same look as the app's letter avatars) */
+.mk-face { --c: #dccb94; flex: none; width: var(--sz, 40px); height: var(--sz, 40px); display: grid; place-items: center; border-radius: 50%;
+  font: 800 calc(var(--sz, 40px) * .42)/1 var(--display); color: #1f1019; background: var(--c); position: relative; }
+.mk-face.o { --c: #dccb94; } .mk-face.m { --c: #86d6a8; } .mk-face.e { --c: #8fd8c0; } .mk-face.a { --c: #e9a9c4; } .mk-face.p { --c: #9fb8f0; }
+.mk-face.live::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 28%; height: 28%; border-radius: 50%;
+  background: var(--live, #ff5a4e); box-shadow: 0 0 0 2px var(--velvet); }
+.mk-faces { display: flex; } .mk-faces .mk-face { --sz: 22px; box-shadow: 0 0 0 2px var(--curtain); } .mk-faces .mk-face + .mk-face { margin-left: -6px; }
+.mk-me { --sz: 36px; border: 0; }
+
+/* page head */
+.mk-head { display: flex; align-items: center; gap: var(--s3); margin: var(--s3) 0 var(--s4); }
+.mk-head .view-heading { margin: 0 auto 0 0; }
+.mk-sub { margin: -10px 0 var(--s5); color: var(--text-2); font-size: var(--t-small); }
+.mk-h2 { display: flex; align-items: baseline; gap: var(--s3); margin: var(--s6) 0 var(--s3); }
+.mk-h2 h3 { margin: 0 auto 0 0; font: 700 var(--t-h2)/1.2 var(--display); }
+.mk-h2 .live-mark { width: 10px; height: 10px; align-self: center; }
+
+/* request card */
+.mk-ask { display: flex; align-items: center; gap: var(--s3); padding: 10px 10px 10px 12px; background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--bulb) 35%, var(--line)); border-radius: var(--r-md); }
+.mk-ask p { margin: 0 auto 0 0; font-size: 15px; line-height: 1.3; } .mk-ask p small { display: block; color: var(--text-2); font-size: 13px; }
+.mk-ask .btn-primary { height: 38px; padding: 0 16px; font-size: 14px; }
+.mk-x { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: var(--text-2); background: none; border: 0; }
+.mk-x svg { width: 18px; height: 18px; }
+
+/* friends strip */
+.mk-strip { display: flex; gap: 14px; margin: var(--s4) calc(-1 * var(--gutter)) 0; padding: 0 var(--gutter) 2px; overflow-x: auto; scrollbar-width: none; }
+.mk-pal { display: grid; justify-items: center; gap: 5px; width: 64px; flex: none; font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; }
+.mk-pal .mk-face { --sz: 54px; }
+.mk-pal small { display: block; margin-top: -4px; font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.mk-pal small.on { color: var(--live, #ff5a4e); }
+.mk-add { --sz: 54px; width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; color: var(--text-2);
+  border: 1.5px dashed var(--hairline-2); }
+
+/* On now: horizontal channel tiles on phones */
+.mk-rail { display: grid; grid-auto-flow: column; grid-auto-columns: 172px; gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter);
+  overflow-x: auto; scrollbar-width: none; }
+.mk-chan { display: grid; gap: 6px; padding: 0; text-align: left; color: var(--text); background: none; border: 0; }
+.mk-chan .art { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-sm); background: var(--seat) center / cover; overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--hairline); }
+.mk-chan .art .mk-faces { position: absolute; right: 6px; bottom: 6px; } .mk-chan .art .mk-faces .mk-face { box-shadow: 0 0 0 2px rgb(12 7 10); }
+.mk-chan .bar { height: 3px; border-radius: 2px; background: rgb(255 255 255 / .1); overflow: hidden; }
+.mk-chan .bar i { display: block; height: 100%; background: var(--bulb); }
+.mk-chan b { font: 700 15px/1.2 var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-chan small { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-chan .nownext-channel { font-size: 11px; }
+
+/* Watch with someone */
+.mk-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mk-tile { position: relative; display: grid; align-content: end; gap: 2px; min-height: 104px; padding: 12px; overflow: hidden; text-align: left; color: var(--text);
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.mk-tile b { font: 700 16px/1.2 var(--display); } .mk-tile small { font-size: 12.5px; line-height: 1.3; color: var(--text-2); }
+.mk-tile .ico { position: absolute; top: 12px; left: 12px; color: var(--bulb); } .mk-tile .ico svg { width: 24px; height: 24px; }
+.mk-tile .fan { position: absolute; top: 10px; right: 10px; display: flex; }
+.mk-tile .fan img { width: 30px; height: 45px; border-radius: 5px; object-fit: cover; box-shadow: 0 4px 10px rgb(0 0 0 / .4); }
+.mk-tile .fan img + img { margin-left: -14px; transform: rotate(8deg) translateY(2px); }
+.mk-tile .fan img:first-child { transform: rotate(-8deg); }
+.mk-party { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 10px 8px 8px; background: var(--surface-1);
+  border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.mk-party img { width: 64px; height: 36px; border-radius: 6px; object-fit: cover; }
+.mk-party p { margin: 0 auto 0 0; font-size: 14px; line-height: 1.3; min-width: 0; } .mk-party p small { display: block; color: var(--text-2); font-size: 12.5px; }
+.mk-party .chip { min-height: 34px; padding: 0 13px; }
+.mk-when { font-weight: 700; color: var(--bulb); }
+
+/* Moments */
+.mk-moments { display: grid; grid-auto-flow: column; grid-auto-columns: 200px; gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter); overflow-x: auto; scrollbar-width: none; }
+.mk-moment { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); }
+.mk-moment .art { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-sm); background: var(--seat) center / cover; box-shadow: inset 0 0 0 1px var(--hairline); }
+.mk-moment .art .dur { position: absolute; left: 6px; bottom: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11.5px; font-weight: 700; color: #fff; background: rgb(12 7 10 / .7); }
+.mk-moment .art .mk-face { position: absolute; right: 6px; bottom: 6px; --sz: 24px; box-shadow: 0 0 0 2px rgb(12 7 10); }
+.mk-moment b { color: var(--text); font-size: 14px; } .mk-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--bulb); vertical-align: 1px; }
+
+/* Activity preview (owner, Can see activity) */
+.mk-feed { margin: 0; padding: 0; list-style: none; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.mk-feed li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 14px; } .mk-feed li + li { border-top: 1px solid var(--hairline); }
+.mk-feed li .mk-face { --sz: 30px; } .mk-feed li > span:not(.mk-face) { margin-right: auto; } .mk-feed time { font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* Library (segments + toolbar) */
+.mk-seg { display: flex; width: 100%; } .mk-seg button { flex: 1; } .mk-seg .n { margin-left: 6px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 800; color: var(--on-bulb); background: var(--bulb); }
+.mk-tools { display: flex; align-items: center; gap: 8px; margin: var(--s4) 0 var(--s2); }
+.mk-tools .chip { min-height: 36px; padding: 0 13px; font-size: 13.5px; }
+.mk-tools .sp { margin-left: auto; }
+.mk-note { display: flex; align-items: center; gap: 8px; margin: var(--s3) 0 0; font-size: 13.5px; color: var(--text-2); }
+.mk-note svg { width: 16px; height: 16px; flex: none; }
+.mk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 10px; }
+.mk-card { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); min-width: 0; }
+.mk-card .p { position: relative; aspect-ratio: 2 / 3; border-radius: var(--r-sm); background: var(--seat) center / cover; overflow: hidden; box-shadow: inset 0 0 0 1px var(--hairline); }
+.mk-card .p .pr { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 3px; border-radius: 2px; background: rgb(255 255 255 / .2); }
+.mk-card .p .pr i { display: block; height: 100%; border-radius: inherit; background: var(--bulb); }
+.mk-card b { color: var(--text); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-blank { display: grid; place-items: center; font: 800 15px/1.1 var(--display); color: var(--dust); text-align: center; padding: 8px;
+  background: linear-gradient(160deg, var(--seat), var(--curtain)); }
+.mk-foot { margin: var(--s6) 0 0; padding-top: var(--s3); border-top: 1px solid var(--hairline); font-size: 13px; color: var(--text-2); }
+
+/* desktop two columns */
+@media (min-width: 900px) {
+  main { max-width: 1440px; margin: 0 auto; }
+  .mk-cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; align-items: start; }
+  .mk-panel { padding: 18px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); }
+  .mk-panel + .mk-panel { margin-top: 16px; }
+  .mk-panel h3 { margin: 0 0 12px; font: 700 var(--t-h3)/1.2 var(--display); display: flex; align-items: baseline; }
+  .mk-panel h3 .see-all { margin-left: auto; }
+  .mk-people { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .mk-people li { display: flex; align-items: center; gap: 12px; padding: 6px 4px; border-radius: 10px; font-weight: 600; }
+  .mk-people li small { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-2); } .mk-people li small.on { color: var(--live, #ff5a4e); }
+  .mk-people .mk-face { --sz: 38px; }
+  .mk-ask { background: color-mix(in srgb, var(--seat) 60%, var(--curtain)); }
+  .live-nownext { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nownext { grid-template-columns: 118px 1fr; }
+  .nownext-art { background-size: cover; }
+  .mk-two { grid-template-columns: 1fr 1fr 1.25fr; }
+  .mk-two .mk-party { margin-top: 0; }
+  .mk-moments { grid-auto-columns: 1fr; grid-auto-flow: column; margin: 0; padding: 0; }
+  .mk-tile { min-height: 116px; }
+  .search { display: flex; width: 320px; flex: none; }
+}

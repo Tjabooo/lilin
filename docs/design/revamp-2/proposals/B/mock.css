@@ -1,0 +1,98 @@
+/* Proposal B mockups: only the pieces the app's CSS doesn't have yet. Everything else is public/style.css
+   (tokens, .tab, .shelf, .title-card, .poster, .set-stack, .chip, .face) and public/vibes.css. */
+@font-face {
+  font-family: "Bricolage Grotesque"; font-weight: 200 800; font-stretch: 75% 100%;
+  src: url("../../../../../public/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+}
+.mock-tag { position: fixed; top: calc(var(--head-h) - 2px); right: 8px; z-index: 99; padding: 3px 7px; font: 700 10px/1 var(--body);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); border: 1px dashed var(--hairline-2); border-radius: 6px; }
+
+/* ---------- tab bar: You wears your face; a bulb dot for unseen things ---------- */
+.tab .face { --face: 24px; font-size: 11px; box-shadow: 0 0 0 1.5px var(--velvet), 0 0 0 2.5px var(--hairline-2); }
+.tab[aria-current="page"] .face { box-shadow: 0 0 0 1.5px var(--velvet), 0 0 0 3px var(--bulb); }
+.tab-dot { position: absolute; top: 7px; left: calc(50% + 9px); width: 8px; height: 8px; border-radius: 50%;
+  background: var(--bulb); box-shadow: 0 0 0 2px var(--velvet), 0 0 8px var(--bulb); }
+@media (min-width: 900px) {
+  .tab .face { --face: 26px; margin-right: 8px; }
+  .tab .tab-dot { position: static; margin-left: 6px; }
+  .tab:has(.face) { padding-left: 6px; }
+}
+
+/* ---------- You hub ---------- */
+.yh-id { display: flex; align-items: center; gap: 14px; margin: var(--s3) 0 var(--s5); }
+.yh-id > .face { --face: 60px; font-size: 26px; box-shadow: 0 0 0 3px var(--velvet), 0 0 0 4.5px var(--hairline-2); }
+.yh-who { flex: 1; min-width: 0; }
+.yh-name { margin: 0; font: 800 var(--t-h1)/1.05 var(--display); letter-spacing: -.025em; }
+.yh-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 5px; font-size: 14px; color: var(--text-2); }
+.yh-sub b { color: var(--text); font-weight: 650; }
+.yh-sub b::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 1px 6px; border-right: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); }
+.yh-label { margin: var(--s5) 0 var(--s2) 4px; font: 700 var(--t-kicker)/1.2 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+.yh-label.is-lit { color: var(--bulb); }
+.yh .shelf { margin-bottom: var(--s5); }
+.shelf-head .count { margin-left: 8px; font: 600 var(--t-small)/1 var(--body); color: var(--text-3); }
+.shelf-sub { margin: -6px 0 var(--s2); font-size: 13px; color: var(--text-2); }
+
+/* list rows inside a .set-stack: icon · label + meta · count · chevron */
+.lrow { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 9px 14px 9px 16px; color: var(--text); text-decoration: none; }
+.lrow > svg { width: 22px; height: 22px; flex: none; color: var(--text-2); }
+.lrow-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.lrow-label { font-weight: 650; }
+.lrow-meta { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow-meta.is-lit { color: var(--bulb); }
+.lrow::after { content: ""; flex: none; width: 7px; height: 7px; margin: 0 4px 0 2px; border-right: 2px solid var(--text-3); border-top: 2px solid var(--text-3); transform: rotate(45deg); }
+.lrow.no-chev::after { display: none; }
+.pillc { flex: none; min-width: 22px; height: 22px; padding: 0 7px; font: 800 12px/22px var(--body); text-align: center; color: var(--on-bulb); background: var(--bulb); border-radius: 11px; }
+.pillc.is-quiet { color: var(--text); background: var(--surface-2); }
+.lrow .bulb { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 8px var(--bulb); }
+.lrow .chip { min-height: 34px; height: 34px; padding: 0 13px; font-size: 13px; }
+.now-bar { height: 3px; margin-top: 6px; border-radius: 3px; background: var(--hairline-2); overflow: hidden; }
+.now-bar i { display: block; height: 100%; background: var(--bulb); }
+.lrow .face { --face: 26px; font-size: 12px; }
+
+.yh-wrapped { display: flex; align-items: center; gap: 14px; margin-top: var(--s4); padding: 16px; border-radius: var(--r-lg);
+  background: radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--bulb) 30%, transparent), transparent 60%), var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--bulb) 30%, var(--hairline)); }
+.yh-wrapped .kicker { margin: 0 0 2px; }
+.yh-wrapped strong { font: 700 var(--t-h3)/1.2 var(--display); }
+.yh-wrapped::after { content: ""; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid var(--text-2); border-top: 2px solid var(--text-2); transform: rotate(45deg); flex: none; }
+
+/* watchlist cards: the date sits under the title, lit when it's soon */
+.title-card .sub.is-when { color: var(--bulb); font-weight: 650; }
+
+/* ---------- Search tab (phones) / search page (desktop) ---------- */
+.s-field { position: relative; display: flex; align-items: center; height: 50px; margin: var(--s2) 0 var(--s4); padding: 0 16px 0 46px;
+  font-size: 16px; color: var(--text-3); background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: 999px; }
+.s-field svg { position: absolute; left: 15px; width: 21px; height: 21px; color: var(--text-2); }
+.s-pick { display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: var(--s4); border-radius: var(--r-lg);
+  background: radial-gradient(80% 160% at 100% 0%, color-mix(in srgb, #ff7ab6 26%, transparent), transparent 60%),
+              radial-gradient(70% 140% at 0% 100%, color-mix(in srgb, var(--bulb) 22%, transparent), transparent 60%), var(--surface-1);
+  border: 1px solid var(--hairline-2); }
+.s-pick .s-cards { position: relative; flex: none; width: 46px; height: 50px; }
+.s-pick .s-cards i { position: absolute; inset: 4px 10px 0 4px; border-radius: 6px; background: var(--surface-2) center/cover; box-shadow: var(--e1); }
+.s-pick .s-cards i + i { inset: 0 2px 4px 14px; transform: rotate(9deg); }
+.s-pick strong { display: block; font: 700 var(--t-h3)/1.2 var(--display); }
+.s-pick span { font-size: 13px; color: var(--text-2); }
+.s-pick::after { content: ""; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid var(--text-2); border-top: 2px solid var(--text-2); transform: rotate(45deg); flex: none; }
+.s-types { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s5); }
+.s-type { position: relative; display: flex; align-items: flex-end; min-height: 64px; padding: 10px 14px; overflow: hidden; isolation: isolate;
+  font: 700 17px/1.1 var(--display); color: var(--on-image); background: var(--surface-2) center/cover; border-radius: var(--r-md); box-shadow: inset 0 0 0 1px var(--hairline); }
+.s-type::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(100deg, rgb(var(--picture-dark) / .88) 30%, rgb(var(--picture-dark) / .25)); }
+.s-type small { display: block; margin-top: 3px; font: 600 12px/1.2 var(--body); color: rgb(255 255 255 / .72); }
+.s-moods { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin: 0 0 var(--s5); padding: 0; list-style: none; }
+.s-moods .vibe-tile { aspect-ratio: 16 / 9; }
+.s-genres { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.s-head { margin: 0 0 var(--s3); font: 700 var(--t-h2)/1.15 var(--display); letter-spacing: -.012em; display: flex; align-items: baseline; }
+.s-head .see-all { margin-left: auto; }
+
+/* ---------- desktop hub layout ---------- */
+@media (min-width: 900px) {
+  .yh-wide { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s6); align-items: start; }
+  .yh-id > .face { --face: 76px; font-size: 32px; }
+  .yh-now { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin-bottom: var(--s5); }
+  .yh-now .set-stack { border-radius: var(--r-md); }
+  .yh-side .yh-label:first-child { margin-top: 0; }
+  .yh-main { min-width: 0; }
+  .yh-main .shelf-items { margin-right: 0; padding-right: 0; scroll-padding-right: 0; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+  .yh-side { position: relative; z-index: 1; }
+  .yh-id .chip { min-height: 40px; }
+}

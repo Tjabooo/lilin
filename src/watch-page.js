@@ -17,7 +17,7 @@ export function handleWatchPage(req, res, url, { rooms, artwork }) {
   const link = `${base}/c/w/${token}`;
   const join = `/?watch=${token}`;
   let preview = null;
-  try { preview = rooms.preview(token); } catch { /* ended */ }
+  try { preview = rooms.preview(token, { ids: false }); } catch { /* ended */ } // a public page: no account ids
 
   const send = (status, html) => {
     res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer' });

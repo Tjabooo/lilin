@@ -21,7 +21,7 @@ export function programmeLine(p, episodeLabel) {
   return [episodeLabel(p), p.name].filter(Boolean).join(' · ');
 }
 
-export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me, tune, overlay, sheet, emptyState }) {
+export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me, tune, overlay, sheet, emptyState, together = () => null }) {
   const state = { guide: null, loading: null, error: '', at: 0, scrolled: false, nowTimer: null };
   const pxPerMin = () => (matchMedia('(max-width: 699px)').matches ? 4 : 6.5);
 
@@ -45,12 +45,14 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
     const heading = document.getElementById('live-heading');
     if (heading) heading.replaceChildren(h('span', { class: 'live-mark', 'aria-hidden': 'true' }), displayName());
     const list = channels();
-    if (!state.guide && state.error) { body.replaceChildren(emptyState(T('Live TV isn’t available right now.'), state.error)); return; }
-    if (!state.guide) { body.replaceChildren(h('p', { class: 'muted live-loading' }, T('Tuning in…'))); return; }
+    // Watch with someone (app.js): Pick together and planned parties, above the channels.
+    const top = together();
+    if (!state.guide && state.error) { body.replaceChildren(...[top, emptyState(T('Live TV isn’t available right now.'), state.error)].filter(Boolean)); return; }
+    if (!state.guide) { body.replaceChildren(...[top, h('p', { class: 'muted live-loading' }, T('Tuning in…'))].filter(Boolean)); return; }
     const tools = me()?.isOwner ? h('div', { class: 'live-tools' },
       h('button', { type: 'button', class: 'chip', onclick: (e) => openEditor(e.currentTarget) }, icon('plus'), T('Your channels'))) : null;
     if (!list.length) {
-      body.replaceChildren(...[tools, emptyState(T('No channels yet.'), T('Channels fill themselves from the library: add a few shows or films and they start broadcasting.'))].filter(Boolean));
+      body.replaceChildren(...[tools, top, emptyState(T('No channels yet.'), T('Channels fill themselves from the library: add a few shows or films and they start broadcasting.'))].filter(Boolean));
       return;
     }
     const { from, to } = state.guide;
@@ -64,11 +66,13 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
     const rows = list.map((c) => {
       const live = onNow(c);
       const watching = (c.faces || []).filter((f) => f.name !== me()?.name);
-      const head = h('button', { type: 'button', class: 'guide-channel', 'aria-label': T('Channel {0}: {1}. Now: {2}', c.number, channelName(c, me()), live?.title || T('nothing')),
-        onclick: () => tune(c.id) },
-        h('span', { class: 'guide-number' }, String(c.number)),
-        h('span', { class: 'guide-channel-text' }, h('b', {}, channelName(c, me())),
-          watching.length ? h('span', { class: 'guide-faces' }, people.faces(watching, { size: 18, max: 3 }))
+      // The cell tunes in (a button under it all); the faces on it open profiles.
+      const head = h('div', { class: 'guide-channel' },
+        h('button', { type: 'button', class: 'guide-tune', 'aria-label': T('Channel {0}: {1}. Now: {2}', c.number, channelName(c, me()), live?.title || T('nothing')),
+          onclick: () => tune(c.id) }),
+        h('span', { class: 'guide-number', 'aria-hidden': 'true' }, String(c.number)),
+        h('span', { class: 'guide-channel-text' }, h('b', { 'aria-hidden': 'true' }, channelName(c, me())),
+          watching.length ? h('span', { class: 'guide-faces' }, people.faces(watching, { size: 18, max: 3, open: true }))
             : c.watching > (c.faces || []).length ? h('span', { class: 'guide-faces guide-count' }, T('{0} watching', c.watching)) : null)); // friends: Restrict
       const lane = h('div', { class: 'guide-lane', style: `width:${width}px` });
       for (const p of c.programmes) {
@@ -107,7 +111,7 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
           p ? h('span', { class: 'nownext-bar', style: `--done:${Math.min(1, (Date.now() - p.s) / (p.e - p.s))}` }) : null,
           h('small', { class: 'muted' }, [left != null ? T('{0} min left', left) : null, n ? T('Next: {0} at {1}', n.title, clock(n.s)) : null].filter(Boolean).join(' · ')))));
     }));
-    body.replaceChildren(...[tools, h('h3', { class: 'live-sub' }, T('On now')), nowNext, h('h3', { class: 'live-sub' }, T('Guide')), scroller].filter(Boolean));
+    body.replaceChildren(...[tools, top, h('h3', { class: 'live-sub' }, T('On now')), nowNext, h('h3', { class: 'live-sub' }, T('Guide')), scroller].filter(Boolean));
     // Start with "now" a little in from the left.
     requestAnimationFrame(() => { scroller.scrollLeft = Math.max(0, x(Date.now()) - 60); });
     state.nowTimer = setInterval(() => { if (!body.isConnected || body.closest('[hidden]')) { clearInterval(state.nowTimer); return; } placeNow(); }, 30000);
@@ -209,6 +213,6 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
   let onChange = () => {};
   function changed() { state.at = 0; onChange(); }
 
-  return { load, render, channels, byNumber, byId, neighbour, onNow, nextUp, displayName, artUrl,
+  return { load, render, channels, byNumber, byId, neighbour, onNow, nextUp, displayName, artUrl, openEditor, // openEditor: House → Your channels
     get guide() { return state.guide; }, onChanged: (fn) => { onChange = fn; }, invalidate: () => { state.at = 0; } };
 }

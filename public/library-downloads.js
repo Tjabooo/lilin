@@ -77,11 +77,13 @@ export function libraryAvailability(e) {
   const pending = new Set(e.active.flatMap(d => (d.episodes || []).filter(ep => !ep.available && !readyEpisodes.has(`${ep.season}:${ep.episode}`)).map(ep => `${ep.season}:${ep.episode}`))).size;
   return [ready ? T('{0} ready', ready) : null, pending ? T('{0} downloading', pending) : e.active.length ? T('Season on its way') : null].filter(Boolean).join(' · ') || T('Series');
 }
-export function filterLibrary(entries, { type = 'all', availability = 'all', query = '', sort = 'newest' } = {}) {
+// sort: newest (added), watched (watchedAt(entry), newest first; never watched by when added), expiring, title.
+export function filterLibrary(entries, { type = 'all', availability = 'all', query = '', sort = 'newest', watchedAt = () => 0 } = {}) {
   const normalize = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
   const q = normalize(query);
   const expiry = e => Math.min(Infinity, ...e.files.map(f => f.expiresAt ?? Infinity));
   return entries.filter(e => (type === 'all' || e.type === type) && (availability === 'all' || availability === 'ready' && e.ready || availability === 'downloading' && (e.active.length || e.preparing) || availability === 'attention' && e.attention)
     && (!q || normalize([e.name, ...e.files.map(f => `${f.file} ${f.episodeName || ''}`), ...e.transfers.map(d => d.name)].join(' ')).includes(q)))
-    .sort((a, b) => (sort === 'title' ? a.name.localeCompare(b.name) : sort === 'expiring' ? expiry(a) - expiry(b) || b.added - a.added : b.added - a.added) || a.key.localeCompare(b.key));
+    .sort((a, b) => (sort === 'title' ? a.name.localeCompare(b.name) : sort === 'expiring' ? expiry(a) - expiry(b) || b.added - a.added
+      : sort === 'watched' ? watchedAt(b) - watchedAt(a) || b.added - a.added : b.added - a.added) || a.key.localeCompare(b.key));
 }

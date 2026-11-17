@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" class="scrolled">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · Owner tab, People (phone)</title>
+<link rel="stylesheet" href="../../../../../public/style.css">
+<link rel="stylesheet" href="../../../../../public/profiles.css">
+<link rel="stylesheet" href="mock.css">
+<style>
+  .mk-sticky { position: sticky; top: calc(var(--head-h) + 0px); z-index: 5; padding-top: 6px; padding-bottom: 10px; background: var(--velvet); }
+  .mk-filter { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; margin: 0 0 14px; color: var(--text-2); background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: 999px; font-size: 15px; }
+  .mk-filter svg { width: 18px; height: 18px; }
+  .mk-invite { display: flex; gap: 10px; align-items: center; margin: 0 0 16px; }
+  .mk-invite .play-btn { height: 44px; padding: 0 18px; font-size: 15px; }
+  .mk-invite .muted { font-size: 13px; line-height: 1.35; }
+  .tab .mk-dot { position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px; font-size: 11px; font-weight: 800; line-height: 18px; color: var(--on-bulb); background: var(--bulb); border-radius: 9px; box-shadow: 0 0 0 2px var(--velvet); }
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="top-inner">
+    <h1 class="wordmark"><a href="#">Lilin</a></h1>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M10 9.5v5l4-2.5z"/></svg><span>Discover</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg><span>Live</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M5 4v16M10 4v16M15 5l4 14.5"/></svg><span>Library</span></button>
+      <button class="tab" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="9.5" cy="17" r="2.3"/></svg><span>Owner</span><b class="mk-dot">4</b></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+    </nav>
+    <div class="top-actions">
+      <button class="icon-btn search-toggle" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+      <button class="news-btn"><span class="news-bulb"></span><span class="news-label">What’s new</span></button>
+      <button class="me-btn"><span class="face" style="--face:32px;--tint:#f4c152">O</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <h2 class="view-heading" style="margin-bottom:12px">Owner</h2>
+  <div class="mk-sticky">
+    <div class="mk-subnav" style="margin-bottom:0">
+      <button class="chip">Activity</button>
+      <button class="chip" aria-pressed="true">People</button>
+      <button class="chip">House</button>
+      <button class="chip">Game clips</button>
+      <button class="chip">Notes</button>
+      <button class="chip">Ideas <span class="mk-count lit">4</span></button>
+      <button class="chip">Server</button>
+    </div>
+  </div>
+
+  <p class="mk-note"><b>A</b> One Owner tab replaces Activity · House · Clips · Notes and Settings › Server / Ideas / People. It opens on the last segment you used.</p>
+
+  <div class="mk-invite">
+    <button class="play-btn stroke-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Invite</button>
+    <p class="muted">35 people · 2 invites waiting<br>Who may sign in, password links</p>
+  </div>
+
+  <div class="mk-filter"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Filter people</div>
+
+  <ul class="mk-list">
+    <li class="mk-row"><span class="face" style="--face:40px;--tint:#8fd6b0">E</span><div class="mk-t"><strong>co-owner</strong><span>Owner · active now</span><div class="mk-tags"><span class="on">Can download</span><span class="on">Can invite</span></div></div><span class="mk-more"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></li>
+    <li class="mk-row"><span class="face" style="--face:40px;--tint:#7fb2ff">P</span><div class="mk-t"><strong>Robin</strong><span>TV · seen 2 h ago</span><div class="mk-tags"><span class="on">Can download</span><span>Library shared</span></div></div><span class="mk-more"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></li>
+    <li class="mk-row"><span class="face" style="--face:40px;--tint:#ff9b85">A</span><div class="mk-t"><strong>Alex</strong><span>TV · seen yesterday</span><div class="mk-tags"><span>Library shared</span><span>Never auto-delete</span></div></div><span class="mk-more"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></li>
+    <li class="mk-row"><span class="face" style="--face:40px;--tint:#c9a7ff">M</span><div class="mk-t"><strong>Max</strong><span>Phone · seen 3 d ago</span><div class="mk-tags"><span>Restricted</span></div></div><span class="mk-more"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></li>
+    <li class="mk-row"><span class="face" style="--face:40px;--tint:#f4c152">E</span><div class="mk-t"><strong>Sam</strong><span>Invite sent · not signed in yet</span><div class="mk-tags"><span class="on">Can see activity</span></div></div><span class="mk-more"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></li>
+  </ul>
+  <p class="mk-note"><b>A</b> Tap a person → one panel: permissions (download, invite, restrict, activity, never auto-delete, library sharing), sign-in access + password link, their activity, Open profile.</p>
+</main>
+</body>
+</html>

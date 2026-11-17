@@ -1,7 +1,7 @@
 // Moments: cut a short piece of the film or episode you're watching and send it to friends, or copy a
 // link anyone can open. Player ⋯ → Clip a moment: drag the two handles on the zoomed strip (the picture
-// follows), preview, then Next → note, friends, Send / Copy link. Settings → Moments lists what friends
-// sent you and the moments you made. Server side: src/moments.js (/api/moments, /c/m/<token>).
+// follows), preview, then Next → note, friends, Send / Copy link. You → Moments lists what friends
+// sent you and the moments you made; unseen ones are For you cards at the top of You. Server side: src/moments.js (/api/moments, /c/m/<token>).
 // Not the owner's game Clips (clips tab); that's why these are called moments.
 //
 // app.js passes in its helpers and the player's pieces; this file owns its own DOM and state.
@@ -40,7 +40,7 @@ export function clampRange(start, end, edge, duration) {
   return { start: Math.round(start * 10) / 10, end: Math.round(end * 10) / 10 };
 }
 
-export function createMoments({ h, api, jsonPost, toast, icon, people, me, friendsUI, copyWithToast, fmtAgo, video, playerEl,
+export function createMoments({ h, api, jsonPost, toast, icon, people, me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl,
   current, describe, subCues, inRoom, closeOthers, openMoment, rerender }) {
   const moreBtn = document.getElementById('more-btn');
   const moreMenu = document.getElementById('more-menu');
@@ -114,7 +114,7 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
 
   let strip, range, startH, endH, playhead, fromLabel, toLabel, summary;
   function pick() {
-    clip.step = 'pick';
+    clip.step = 'pick'; clip.link = null; // a new range makes a new link
     strip = h('div', { class: 'moment-strip' });
     range = h('div', { class: 'moment-range' });
     playhead = h('div', { class: 'moment-playhead', 'aria-hidden': 'true' });
@@ -230,53 +230,50 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
     const note = h('textarea', { class: 'moment-note', rows: '2', maxlength: '200', placeholder: T('Add a note (optional)'), 'aria-label': T('Note') });
     note.value = clip.note;
     note.addEventListener('input', () => { clip.note = note.value; });
-    const sendBtn = h('button', { type: 'button', class: 'chip moment-next', disabled: !clip.to.size, onclick: () => submit(true) },
-      icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send'));
-    const linkBtn = h('button', { type: 'button', class: 'chip', onclick: () => submit(false) }, icon('copy'), T('Copy link'));
-    const pickFace = (p) => {
-      const b = h('button', { type: 'button', class: 'room-invitee moment-friend', 'aria-pressed': String(clip.to.has(p.id)) },
-        people.face(p, { size: 40 }), h('span', { class: 'room-invitee-name' }, p.name));
-      b.addEventListener('click', () => {
-        if (clip.to.has(p.id)) clip.to.delete(p.id); else clip.to.add(p.id);
-        b.setAttribute('aria-pressed', String(clip.to.has(p.id)));
-        sendBtn.disabled = !clip.to.size;
-        sendBtn.replaceChildren(icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send'));
-      });
-      return h('li', {}, b);
-    };
+    const sendLabel = () => [icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send')];
+    const sendBtn = h('button', { type: 'button', class: 'chip moment-next', disabled: !clip.to.size, onclick: send }, ...sendLabel());
+    // The Invite sheet's Moment part (invite.js): friends to choose, Copy link / Share… (the link is made then), Send.
+    const ask = invite.mount(h('div', { class: 'moment-ask' }), { kind: 'moment', title: false, friends, chosen: clip.to, link, done: stop,
+      actions: friends.length ? [sendBtn] : [], onChange: () => { sendBtn.disabled = !clip.to.size; sendBtn.replaceChildren(...sendLabel()); } });
     clip.panel.replaceChildren(
       h('div', { class: 'moment-head' },
         h('button', { type: 'button', class: 'moment-close', 'aria-label': T('Back'), onclick: pick }, icon('back')),
-        h('h2', { class: 'moment-title' }, T('Share this moment')),
+        h('h2', { class: 'moment-title' }, T('Send this moment')),
         h('button', { type: 'button', class: 'moment-close', 'aria-label': T('Cancel'), onclick: stop }, icon('close'))),
       h('p', { class: 'moment-summary' }, [d.title, d.label].filter(Boolean).join(' · '), ` · ${fmt(clip.start)} – ${fmt(clip.end)} (${lengthText(clip.end - clip.start)})`),
       note,
       cues.length > 0 && h('label', { class: 'moment-subs' },
         h('input', { type: 'checkbox', checked: clip.subs, onchange: (e) => { clip.subs = e.target.checked; } }), T('Include the subtitles')),
-      restricted ? h('p', { class: 'moment-hint' }, T('Copy the link and send it to whoever you like.'))
-        : friends.length ? h('ul', { class: 'room-invitee-grid moment-friends', 'aria-label': T('Send to') }, friends.map(pickFace))
-          : h('p', { class: 'moment-hint' }, T('Add friends in Settings to send moments straight to them. Or copy the link.')),
-      h('div', { class: 'moment-actions' }, h('span', { class: 'moment-spacer' }), linkBtn, !restricted && friends.length > 0 && sendBtn));
+      ask);
     requestAnimationFrame(() => note.focus({ preventScroll: true }));
-    async function submit(toFriends) {
-      if (clip.busy) return;
-      clip.busy = true; sendBtn.disabled = linkBtn.disabled = true;
+    const create = async (to) => {
       const f = clip.f;
+      const r = await api('/api/moments', jsonPost({ kind: f.kind, id: f.id, start: clip.start, end: clip.end, note: clip.note,
+        title: d.title, label: d.label, subtitles: clip.subs ? cues : null, to }));
+      invalidate();
+      return r;
+    };
+    // Copy link / Share…: the moment is made then, once (the panel closes after).
+    async function link() {
+      if (clip.busy) return null;
+      clip.busy = true;
+      try { clip.link ||= (await create([])).link; return clip.link; } finally { if (clip) clip.busy = false; }
+    }
+    async function send() {
+      if (clip.busy) return;
+      clip.busy = true; sendBtn.disabled = true;
       try {
-        const r = await api('/api/moments', jsonPost({ kind: f.kind, id: f.id, start: clip.start, end: clip.end, note: clip.note,
-          title: d.title, label: d.label, subtitles: clip.subs ? cues : null, to: toFriends ? [...clip.to] : [] }));
-        invalidate();
-        if (toFriends) toast(r.sent ? T('Sent. They’ll get it as soon as it’s ready.') : T('Saved, but it couldn’t be sent.'));
-        else await copyWithToast(r.link, T('Link copied. It works for anyone, and plays once it’s ready.'));
+        const r = await create([...clip.to]);
+        toast(r.sent ? T('Sent. They’ll get it as soon as it’s ready.') : T('Saved, but it couldn’t be sent.'));
         stop();
       } catch (err) {
         toast(err.message);
-        if (clip) { clip.busy = false; sendBtn.disabled = !clip.to.size; linkBtn.disabled = false; }
+        if (clip) { clip.busy = false; sendBtn.disabled = !clip.to.size; }
       }
     }
   }
 
-  // ---------- Settings → Moments ----------
+  // ---------- You → Moments ----------
   function load() {
     view.loading ||= api('/api/moments').then((r) => { view.data = r; view.loaded = true; })
       .catch(() => { view.loaded = true; }).finally(() => { view.loading = null; });
@@ -291,27 +288,43 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
     invalidate(); await load(); rerender();
   }
   function play(m) {
-    if (!m.seen && !m.mine) api(`/api/moments/${m.id}/seen`, jsonPost({})).then(() => { invalidate(); }).catch(() => {});
+    if (!m.seen && !m.mine) {
+      m.seen = true; // off the For you cards and the tab's dot right away
+      api(`/api/moments/${m.id}/seen`, jsonPost({})).then(() => { invalidate(); }).catch(() => {});
+      rerender();
+    }
     openMoment(m);
   }
   const thumb = (m) => h('span', { class: 'moment-thumb' }, m.thumb ? h('img', { src: m.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : icon('play'),
     h('span', { class: 'moment-len' }, lengthText(m.length)));
-  function settings() {
-    if (!me()?.email) return [];
+  // A moment someone sent you: tap to play (that marks it seen), × to remove it from your list.
+  const sharedRow = (m) => h('li', { class: `moment-row${m.seen ? '' : ' is-new'}` },
+    h('button', { type: 'button', class: 'moment-open', onclick: () => play(m), 'aria-label': T('Play {0}', m.title) }, thumb(m),
+      h('span', { class: 'moment-text' },
+        h('span', { class: 'moment-name' }, [m.title, m.label].filter(Boolean).join(' · ')),
+        h('span', { class: 'moment-meta' }, people.face(m.from, { size: 18 }), T('{0} · {1}', m.from.name, fmtAgo(m.sentAt) || '')),
+        m.note && h('span', { class: 'moment-note-text' }, m.note))),
+    h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Remove {0}', m.title), title: T('Remove'), onclick: () => removeMoment(m, false) }, icon('close')));
+  // For you (the top of You): moments sent to you that you haven't played yet.
+  function forYou(limit = 3) {
+    if (!me()) return [];
+    return (view.data.shared || []).filter((m) => !m.seen).slice(0, limit).map(sharedRow);
+  }
+  const unseenCount = () => (view.data.shared || []).filter((m) => !m.seen).length;
+  const counts = () => ({ mine: (view.data.mine || []).length, shared: (view.data.shared || []).length, unseen: unseenCount(), loaded: view.loaded });
+  // Everyone has the page; restricted people and the shared home account only make moments and copy links.
+  function page() {
+    if (!me()) return [];
     needed();
     const { mine = [], shared = [] } = view.data;
-    if (!mine.length && !shared.length) return []; // quiet until there's something to show
-    const out = [h('h3', { class: 'set-head', 'data-anchor': 'moments' }, T('Moments'))];
+    if (!mine.length && !shared.length) {
+      return [h('p', { class: 'set-hint moment-foot' }, view.loaded ? T('Nothing yet. Clip a moment from the ⋯ menu while a film or episode plays.') : T('Loading…'))];
+    }
+    const out = [];
     const body = [];
     if (shared.length) {
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Shared with you')),
-        h('ul', { class: 'moment-list' }, shared.map((m) => h('li', { class: `moment-row${m.seen ? '' : ' is-new'}` },
-          h('button', { type: 'button', class: 'moment-open', onclick: () => play(m), 'aria-label': T('Play {0}', m.title) }, thumb(m),
-            h('span', { class: 'moment-text' },
-              h('span', { class: 'moment-name' }, [m.title, m.label].filter(Boolean).join(' · ')),
-              h('span', { class: 'moment-meta' }, people.face(m.from, { size: 18 }), T('{0} · {1}', m.from.name, fmtAgo(m.sentAt) || '')),
-              m.note && h('span', { class: 'moment-note-text' }, m.note))),
-          h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Remove {0}', m.title), title: T('Remove'), onclick: () => removeMoment(m, false) }, icon('close')))))));
+        h('ul', { class: 'moment-list' }, shared.map(sharedRow))));
     }
     if (mine.length) {
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Your moments')),
@@ -329,16 +342,15 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
       body.push(h('p', { class: 'set-hint moment-foot' }, T('Links work for anyone who has them, until you delete the moment or it expires.')));
     }
     out.push(h('div', { class: 'friends' }, body));
-    if (view.jump) {
+    if (view.jump && view.loaded) {
       const id = view.jump; view.jump = null;
       const m = shared.find((x) => x.id === id) || mine.find((x) => x.id === id);
       if (m && m.state === 'ready') setTimeout(() => play(m), 0);
-      else requestAnimationFrame(() => document.querySelector('[data-anchor="moments"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     }
     return out;
   }
-  // A "sent you a moment" notification: open Settings → Moments and play it.
+  // A "sent you a moment" notification: open You → Moments and play it.
   function jumpTo(id) { view.jump = id; view.loaded = false; }
 
-  return { sync, closeMenu, start, stop, open, menuOpen: () => !moreMenu.hidden || Boolean(clip), settings, load, invalidate, jumpTo };
+  return { sync, closeMenu, start, stop, open, menuOpen: () => !moreMenu.hidden || Boolean(clip), page, forYou, unseenCount, summary: counts, load, invalidate, jumpTo };
 }

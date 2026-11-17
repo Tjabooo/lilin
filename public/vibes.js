@@ -76,6 +76,26 @@ export function rotateVibes(vibes, { type = 'all', day = dailySeed(), seasonal =
   return [...rotated.filter((v) => seasonal.has(v.id)), ...rotated.filter((v) => !seasonal.has(v.id))];
 }
 
+// Genre moods (they used to be rows of their own on Discover): one tile each, backed by a TMDB genre (movie and tv
+// ids) and opening that genre's page. Two of them lead the row each day, marked Today.
+export const GENRE_MOODS = [
+  { id: 'g-laugh', name: T('Laugh out loud'), movie: 35, tv: 35, glyph: 'smirk', colors: ['#6b3d00', '#ffc94a'] },
+  { id: 'g-edge', name: T('Edge of your seat'), movie: 53, tv: 9648, glyph: 'eye', colors: ['#3b0d0d', '#e5484d'] },
+  { id: 'g-space', name: T('Out of this world'), movie: 878, tv: 10765, glyph: 'planet', colors: ['#10163d', '#7c8cff'] },
+  { id: 'g-feel', name: T('Big feelings'), movie: 18, tv: 18, sort: 'rating', glyph: 'drop', colors: ['#2a1238', '#d17ad8'] },
+  { id: 'g-anim', name: T('Animated worlds'), movie: 16, tv: 16, glyph: 'star', colors: ['#0d3036', '#4fd1c5'] },
+  { id: 'g-dark', name: T('After dark'), movie: 27, tv: null, glyph: 'candle', colors: ['#120a12', '#9b2c4a'] },
+  { id: 'g-love', name: T('Love stories'), movie: 10749, tv: null, glyph: 'blossom', colors: ['#3d0f22', '#ff8fb1'] },
+  { id: 'g-unknown', name: T('Into the unknown'), movie: 12, tv: 10759, glyph: 'road', colors: ['#16301a', '#8ed47a'] },
+  { id: 'g-crime', name: T('Crime scenes'), movie: 80, tv: 80, sort: 'rating', glyph: 'magnifier', colors: ['#1d1d24', '#a3a3b8'] },
+  { id: 'g-real', name: T('Real lives'), movie: 99, tv: 99, glyph: 'mug', colors: ['#33200f', '#e0a96d'] },
+];
+// Today's genre moods for a type: a daily rotation, so the start of the row changes. Pure, for the tests.
+export function todaysMoods(type = 'all', n = 2, day = dailySeed()) {
+  const fits = GENRE_MOODS.filter((m) => (type === 'tv' ? m.tv : type === 'movie' ? m.movie : true));
+  return Array.from({ length: Math.min(n, fits.length) }, (_, i) => fits[(day * 3 + i * 4) % fits.length]).filter((m, i, all) => all.indexOf(m) === i);
+}
+
 const PAGE = 36;
 
 export function createVibes(ui) {
@@ -83,15 +103,23 @@ export function createVibes(ui) {
   const view = { vibe: null, type: 'all', seed: null };
 
   const tileStyle = (v) => `--v1:${v.colors[0]};--v2:${v.colors[1]}`;
-  // The Moods row on Discover: a tile per mood. null while TMDB is off or nothing fits this tab.
-  async function row(type, signal) {
+  // The Moods row on Discover: `lead` (Pick together's tile) first, today's two genre moods, the vibes, then the other
+  // genre moods. Duplicates by name are dropped. null when nothing fits this tab.
+  async function row(type, signal, { lead = null } = {}) {
     const data = await ui.cachedApi('/api/vibes', signal).catch(() => null);
+    if (signal.aborted) return null;
     const list = rotateVibes(data?.vibes || [], { type, seasonal: new Set((data?.vibes || []).filter((v) => v.seasonal).map((v) => v.id)) });
-    if (list.length < 3 || signal.aborted) return null;
-    const tiles = list.map((v) => h('li', { class: 'vibe-item' },
-      h('button', { type: 'button', class: 'vibe-tile', style: tileStyle(v), onclick: () => open(v, type) },
-        glyph(v.glyph),
-        h('span', { class: 'vibe-name' }, v.name))));
+    const names = new Set(list.map((v) => v.name.toLowerCase()));
+    const today = todaysMoods(type).filter((m) => !names.has(m.name.toLowerCase()));
+    const others = GENRE_MOODS.filter((m) => !today.includes(m) && !names.has(m.name.toLowerCase()) && (type === 'tv' ? m.tv : type === 'movie' ? m.movie : true));
+    const tile = (v, onclick, kicker) => h('li', { class: 'vibe-item' },
+      h('button', { type: 'button', class: 'vibe-tile', style: tileStyle(v), onclick },
+        glyph(v.glyph), kicker && h('span', { class: 'vibe-kicker' }, kicker), h('span', { class: 'vibe-name' }, v.name)));
+    const tiles = [lead,
+      ...today.map((m) => tile(m, () => ui.openGenre(m), T('Today'))),
+      ...list.map((v) => tile(v, () => open(v, type))),
+      ...others.map((m) => tile(m, () => ui.openGenre(m)))].filter(Boolean);
+    if (tiles.length < 3) return null;
     return ui.carousel(T('Moods'), h('ul', { class: 'shelf-items vibe-tiles', tabindex: '0', 'aria-label': T('Moods') }, tiles), null, 'vibes-shelf');
   }
 

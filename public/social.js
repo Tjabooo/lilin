@@ -173,13 +173,13 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
   function plannedBody({ room, link, copy, title }) {
     return [h('h2', { id: 'picker-title' }, T('Party planned')),
       h('p', { class: 'del-name' }, title),
-      h('p', {}, T('Starts {0}. Send the invite to whoever\'s watching; the party also waits for you in Library.', startLabel(room.startsAt))),
+      h('p', {}, T('Starts {0}. Send the invite to whoever\'s watching; the party also waits for you in Live.', startLabel(room.startsAt))),
       h('button', { type: 'button', class: 'play-btn', onclick: () => copy(link) }, icon('copy'), T('Copy invite'))];
   }
 
-  // Library shelf: planned parties you made or joined, with a live countdown.
-  function partiesShelf(parties, { join, copy, cancel, label }) {
-    if (!parties.length) return null;
+  // Planned parties you made or joined (Live's Watch with someone), with a live countdown: one card each.
+  // Faces open profiles. Returns the cards; tick() moves every countdown on.
+  function partyCards(parties, { join, copy, cancel, label }) {
     const items = parties.map((p) => {
       const when = h('span', { class: 'party-when-text' });
       const tick = () => { when.textContent = p.started ? T('Started') : `${countdownText(p.startsAt - Date.now())} · ${startLabel(p.startsAt)}`; };
@@ -187,21 +187,24 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
       when.tick = tick;
       const here = p.faces?.length ? T('{0} {1} in the room', namesText(p.faces.map((f) => f.name)), p.faces.length === 1 ? T('is') : T('are')) : '';
       return h('li', { class: 'party-card' },
-        face({ name: p.host, avatar: p.hostAvatar }, { size: 44, cls: 'party-host' }),
+        people?.faceButton({ id: p.hostId, name: p.host, avatar: p.hostAvatar }, { size: 44, cls: 'party-host' }) || null,
         h('div', { class: 'party-text' }, h('strong', {}, label(p.media)), when,
           h('span', { class: 'muted' }, p.mine ? T('You planned this') : T('Planned by {0}', p.host)),
-          here && h('span', { class: 'party-here' }, faces(p.faces, { size: 20, max: 5 }), h('span', {}, here))),
+          here && h('span', { class: 'party-here' }, faces(p.faces, { size: 20, max: 5, open: true }), h('span', {}, here))),
         h('div', { class: 'party-actions' },
           h('button', { type: 'button', class: 'chip primary', onclick: () => join(p) }, p.started ? T('Join') : T('Wait in room')),
-          h('button', { type: 'button', class: 'chip', onclick: () => copy(p) }, T('Invite')),
+          h('button', { type: 'button', class: 'chip', onclick: () => copy(p) }, T('Copy link')),
           p.mine && h('button', { type: 'button', class: 'chip', onclick: (e) => cancel(p, e.currentTarget) }, T('Cancel'))));
     });
+    return { items, tick: () => { for (const li of items) li.querySelector('.party-when-text').tick(); } };
+  }
+  // The same cards as a shelf of their own, ticking while it's on the page.
+  function partiesShelf(parties, handlers) {
+    if (!parties.length) return null;
+    const { items, tick } = partyCards(parties, handlers);
     const section = h('section', { class: 'shelf parties-shelf', 'aria-label': T('Watch parties') },
       h('div', { class: 'shelf-head' }, h('h3', {}, T('Watch parties'))), h('ul', { class: 'party-list' }, items));
-    const timer = setInterval(() => {
-      if (!section.isConnected) { clearInterval(timer); return; }
-      for (const li of items) li.querySelector('.party-when-text').tick();
-    }, 1000);
+    const timer = setInterval(() => { if (!section.isConnected) { clearInterval(timer); return; } tick(); }, 1000);
     return section;
   }
 
@@ -421,5 +424,5 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
     return 'saved';
   }
 
-  return { rateRow, refreshRates, popularShelf, planPartyBody, plannedBody, partiesShelf, burst, floatMessage, chatLine, wrappedSlides, shareWrapped };
+  return { rateRow, refreshRates, popularShelf, planPartyBody, plannedBody, partyCards, partiesShelf, burst, floatMessage, chatLine, wrappedSlides, shareWrapped };
 }

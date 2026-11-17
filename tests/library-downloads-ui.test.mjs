@@ -71,8 +71,8 @@ class Element {
 function harness() {
   const nodes = new Map(), opened=[]; const document={activeElement:{},createElement:t=>new Element(t),querySelectorAll:()=>[]};
   const $=(s,el)=>el?el.querySelector(s):(nodes.has(s)?nodes.get(s):(nodes.set(s,new Element()),nodes.get(s)));
-  const state={view:'library',status:{library:true},library:[],libraryShows:[],downloads:[dl('new',{poster:'/poster.svg'})],libFilter:'all',libAvailability:'all',progress:{},query:''};
-  const context=vm.createContext({ T: englishT, state,document,loadParties(){},newBadgeCount:()=>0,comingUpShelf:()=>null,travelSummary:()=>'',travelView:{items:[]},icon:()=>new Element('span'),openTravelList(){},watch:{revision:0},todayIso:()=>'2026-11-05',Node:Element,$,libraryUnion,libraryAvailability,filterLibrary,librarySignature:'start',libraryProgressRevision:0,libraryRenderPending:false,prefs:()=>({librarySort:'title'}),segmented:(options,value,onPick)=>{const el=new Element();options.forEach(([v,label])=>{const b=new Element('button');b.textContent=label;b.addEventListener('click',()=>onPick(v));el.append(b);});return el;},select:()=>new Element('select'),norm:s=>String(s||'').toLowerCase(),notice:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},nextExpiry:()=>Infinity,libraryFile:f=>({...f,kind:'lib',key:f.id}),savedProgress:()=>null,partlyWatched:()=>false,upNextItems:()=>[],continueItems:()=>[],libraryEntries:()=>[],showView:{id:null},filmView:{id:null},renderConvertBanner(){},openFilm:(f)=>opened.push(['film',f.id]),openShow:id=>opened.push(['show',id]),transferNodes:new Set(),queueMicrotask:fn=>fn(),LIB_FILTERS:[['all','All'],['movie','Films'],['tv','Shows']],plural:(n,w)=>`${n} ${w}`,showSheet:()=>()=>{},pushOverlay(){},renderFilm:()=>opened.push(['pending']),setTimeout,window:{},Date });
+  const state={view:'library',sub:null,status:{library:true},library:[],libraryShows:[],downloads:[dl('new',{poster:'/poster.svg'})],libFilter:'all',progress:{},query:'',me:{settings:{}}};
+  const context=vm.createContext({ T: englishT, state,document,filterField(){},pageFilters:{library:''},loadParties(){},newBadgeCount:()=>0,travelView:{items:[]},travelOrder:items=>items,travelRows:()=>[],matchMedia:()=>({matches:false}),canDownload:()=>true,emptyState:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},clearFilter(){},setView(){},rememberView(){},saveMe:async()=>{},rightNow:{mount:()=>new Element(),update(){}},loadRightNow(){},watchlistView:{render(){}},fmtBytes:n=>`${n} B`,timeLeft:()=>'1 day left',episodeLabel:()=>'',libraryShelf:()=>new Element(),libraryCard:()=>new Element(),findTorrents(){},openTransferDetails(){},icon:()=>new Element('span'),watch:{revision:0,items:[]},todayIso:()=>'2026-11-05',Node:Element,$,libraryUnion,libraryAvailability,filterLibrary,librarySignature:'start',libraryProgressRevision:0,libraryRenderPending:false,prefs:()=>({librarySort:'title'}),segmented:(options,value,onPick)=>{const el=new Element();options.forEach(([v,label])=>{const b=new Element('button');b.textContent=label;b.addEventListener('click',()=>onPick(v));el.append(b);});return el;},select:()=>new Element('select'),norm:s=>String(s||'').toLowerCase(),notice:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},nextExpiry:()=>Infinity,libraryFile:f=>({...f,kind:'lib',key:f.id}),savedProgress:()=>null,partlyWatched:()=>false,upNextItems:()=>[],continueItems:()=>[],libraryEntries:()=>[],updateOpenTitle(){},renderConvertBanner(){},openFilm:(f)=>opened.push(['film',f.id]),openShow:id=>opened.push(['show',id]),transferNodes:new Set(),queueMicrotask:fn=>fn(),LIB_FILTERS:[['all','All'],['movie','Films'],['tv','Shows']],plural:(n,w)=>`${n} ${w}`,showSheet:()=>()=>{},pushOverlay(){},openTitle:()=>opened.push(['pending']),setTimeout,window:{},Date });
   vm.runInContext(between('function h(', 'const ICONS ='),context);
   vm.runInContext(between('const libraryCards =', 'const LIB_FILTERS ='),context);
   return {state,nodes,opened,$,context,run:code=>vm.runInContext(code,context)};
@@ -80,13 +80,14 @@ function harness() {
 test('pending-only Library populates; progress polling retains exact card, poster, toolbar and focused button', () => {
   const h=harness();h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card'),button=card.querySelector('.title-card'),poster=card.querySelector('.poster'),toolbar=h.$('#library-body').querySelector('.library-toolbar');
   h.context.document.activeElement=button;h.state.downloads[0]={...h.state.downloads[0],progress:.82};h.run('renderLibrary()');
-  assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.poster'),poster);assert.equal(h.$('#library-body').querySelector('.library-toolbar'),toolbar);assert.equal(h.context.document.activeElement,button);assert.equal(card.querySelector('.transfer-percent').textContent,'82%');assert.equal(poster.replacements,1);
+  assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.poster'),poster);assert.equal(h.$('#library-body').querySelector('.library-toolbar'),toolbar);assert.equal(h.context.document.activeElement,button);assert.match(card.querySelector('.sub').textContent,/82%/);assert.equal(card.querySelector('.poster-progress').className,'poster-progress is-transfer');assert.equal(poster.replacements,1);
   button.click();assert.deepEqual(h.opened,[['pending']]);
 });
-test('focused completion survives Downloading filter until focus leaves and ready movies survive torrent outage', () => {
-  const h=harness();h.state.libAvailability='downloading';h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card'),button=card.querySelector('.title-card');h.context.document.activeElement=button;
-  h.state.library=[film];h.state.downloads=[dl('new',{done:true,ready:true,progress:1})];h.state.downloadsError='Torrent service down';h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.sub').textContent,'Ready to watch');assert.equal(card.querySelector('.library-transfer').hidden,true,'retained focused card must reflect completion rather than stale download progress');
-  h.context.document.activeElement={};h.state.libAvailability='all';h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,1);assert.match(h.$('#library-body').textContent,/Torrent service down/);button.click();assert.deepEqual(h.opened,[['film','film']]);
+test('a focused card shows completion in place and ready movies survive a torrent outage', () => {
+  const h=harness();h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card'),button=card.querySelector('.title-card');h.context.document.activeElement=button;
+  h.state.library=[film];h.state.downloads=[dl('new',{done:true,ready:true,progress:1})];h.state.downloadsError='Torrent service down';h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.sub').textContent,'Ready to watch');assert.equal(card.querySelector('.poster-progress'),null,'retained focused card must reflect completion rather than stale download progress');
+  h.context.document.activeElement={};h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,1);button.click();assert.deepEqual(h.opened,[['film','film']]);
+  h.state.sub='downloads';h.run('renderLibrary()');assert.match(h.$('#library-body').textContent,/Torrent service down/);assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,0,'only the open segment is drawn');
 });
 test('hash metadata promotion retains node and validated ready file playback identity', () => {
   const h=harness();h.state.downloads=[dl('new',{mediaType:null,tmdbId:null})];h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card');
@@ -158,12 +159,19 @@ test('finished non-video downloads are complete and manageable without an endles
   assert.equal(filterLibrary([entry],{availability:'downloading'}).length,0);assert.equal(filterLibrary([entry]).length,1);
 });
 
-test('a focused completed card keeps its grid position until the focusout removes it', () => {
-  const h=harness();h.state.libAvailability='downloading';h.state.downloads.push(dl('before',{tmdbId:11,canonicalTitle:'0 first'}),dl('after',{tmdbId:12,canonicalTitle:'Z last'}));h.run('renderLibrary()');
+test('a focused card whose download was cancelled keeps its grid position until the focusout removes it', () => {
+  const h=harness();h.state.downloads.push(dl('before',{tmdbId:11,canonicalTitle:'0 first'}),dl('after',{tmdbId:12,canonicalTitle:'Z last'}));h.run('renderLibrary()');
   const list=h.$('#library-body').querySelector('.library-grid'),card=list.children[1];h.context.document.activeElement=card.querySelector('.title-card');
-  h.state.library=[film];h.state.downloads[0]={...h.state.downloads[0],done:true,ready:true,progress:1};h.run('renderLibrary()');
-  assert.equal(list.children[1],card);assert.equal(card.querySelector('.sub').textContent,'Ready to watch');
-  h.context.document.activeElement={};h.run('renderLibrary()');assert.equal(list.children.includes(card),false);
+  h.state.downloads=h.state.downloads.filter(d=>d.hash!=='new');h.run('renderLibrary()');
+  assert.equal(list.children[1],card);assert.equal(list.children.length,3);
+  h.context.document.activeElement={};h.run('renderLibrary()');assert.equal(list.children.includes(card),false);assert.equal(list.children.length,2);
+});
+test('Downloads lists each title once as a row with its state and percent, updated in place', () => {
+  const h=harness();h.state.sub='downloads';h.run('renderLibrary()');const row=h.$('#library-body').querySelector('.rn-row');
+  assert.match(row.querySelector('.rn-sub').textContent,/50%/);
+  h.state.downloads[0]={...h.state.downloads[0],progress:.75};h.run('renderLibrary()');
+  assert.equal(h.$('#library-body').querySelector('.rn-row'),row);assert.match(row.querySelector('.rn-sub').textContent,/75%/);
+  assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,0);
 });
 
 test('a pack with episodes switched off says which ones it is getting', () => {
