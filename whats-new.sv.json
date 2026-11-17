@@ -1,4 +1,17 @@
 {
+  "2026-11-17-faster-first-watch": {
+    "title": "Det som inte finns här än startar snabbare",
+    "items": {
+      "Play now in seconds, not minutes": {
+        "title": "Spela nu på sekunder, inte minuter",
+        "text": "När du laddar ner en film eller ett avsnitt gör Lilin den redo att titta på direkt: början av videon kommer först, så Spela nu dyker upp tidigare och startar strax efter att du tryckt. Visar sig kopian Lilin valde vara långsam, död eller falsk byter den själv till en bättre, och sökningarna går snabbare också."
+      },
+      "The next episodes follow": {
+        "title": "Nästa avsnitt följer med",
+        "text": "Laddar du ner ett avsnitt kommer avsnitten efter det i säsongen också, när det väl spelas utan avbrott, så att du kan fortsätta titta."
+      }
+    }
+  },
   "2026-11-17-account-page": {
     "title": "En riktig Konto-sida",
     "items": {

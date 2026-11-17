@@ -1,4 +1,19 @@
 [
+  {
+    "id": "2026-11-17-faster-first-watch",
+    "date": "2026-11-17",
+    "title": "Things that aren't here yet start sooner",
+    "items": [
+      {
+        "title": "Play now in seconds, not minutes",
+        "text": "When you download a film or an episode, Lilin now gets it ready to watch straight away: the start of the video comes first, so Play now shows up sooner and starts right after you press it. If the copy Lilin picked turns out slow, dead or fake, it switches to a better one on its own, and searches are quicker too."
+      },
+      {
+        "title": "The next episodes follow",
+        "text": "Download one episode and, once it plays smoothly, the episodes after it in that season come too, so you can keep watching."
+      }
+    ]
+  },
 {
   "id": "2026-11-17-account-page",
   "date": "2026-11-17",
