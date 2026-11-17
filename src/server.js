@@ -2754,7 +2754,7 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
     const film = shows.filmDownload(c.hash), show = shows.showDownload(c.hash);
     if (film) shows.rememberFilmDownload(spare.hash, film);
     if (show) shows.rememberShowDownload(spare.hash, show, torrentIdentity(neu.name));
-    smart.raceSwapped(c.hash, spare.hash, { name: neu.name, link: spare.link, ref: spare.ref, uploader: spare.uploader });
+    smart.raceSwapped(c.hash, spare.hash, { name: neu.name, link: spare.link, ref: spare.ref, uploader: spare.uploader, slow: why !== 'fake' });
     const order = episodeOrder.get(c.hash);
     if (order) orderEpisodes(spare.hash, order.key, order.season);
     if (/^(paused|stopped)/.test(neu.state || '')) await setPaused(spare.hash, false);

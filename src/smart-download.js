@@ -160,9 +160,11 @@ export function fakeFound(hash, { notFilm = null, retry = true, ref = null, uplo
 
 // A first-time watch switched to a spare release (cold-start.js): the new download takes over the old one's place,
 // so a fake or slow verdict on it later runs the same Download again, and the job shows the release it now uses.
-export function raceSwapped(oldHash, newHash, { name, link = null, ref = null, uploader = null } = {}) {
+// slow: the old one couldn't deliver (no file list, or far too slow): the next Download skips it for a day too.
+export function raceSwapped(oldHash, newHash, { name, link = null, ref = null, uploader = null, slow: wasSlow = false } = {}) {
   oldHash = String(oldHash || '').toLowerCase();
   newHash = String(newHash || '').toLowerCase();
+  if (wasSlow) slow.set(oldHash, Date.now());
   const origin = origins.get(oldHash);
   origins.delete(oldHash);
   if (origin) {

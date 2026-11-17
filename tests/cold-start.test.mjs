@@ -333,10 +333,14 @@ test('a swap moves the Download’s record to the new release', async () => {
     addDownload: async ({ link }) => ({ existing: false, hash: /btih:(\w+)/.exec(link)[1] }), wantSubtitles: (link, list, name) => subs.push(name) });
   const job = await wait(id);
   const oldHash = job.added[0].hash;
-  assert.equal(raceSwapped(oldHash, 'f'.repeat(40), { name: 'Ronin.1998.1080p.WEB.x264', link: 'magnet:?xt=urn:btih:' + 'f'.repeat(40) }), true);
+  assert.equal(raceSwapped(oldHash, 'f'.repeat(40), { name: 'Ronin.1998.1080p.WEB.x264', link: 'magnet:?xt=urn:btih:' + 'f'.repeat(40), slow: true }), true);
   assert.equal(smartJob(id).added[0].name, 'Ronin.1998.1080p.WEB.x264');
   assert.deepEqual(subs, ['Ronin.1998.1080p.BluRay.x264', 'Ronin.1998.1080p.WEB.x264'], 'subtitles are fetched for the new one');
   assert.equal(fakeFound('f'.repeat(40), { retry: true }).retried != null, true, 'a fake verdict on it runs the Download again');
+  const names = [];
+  await wait(startSmartJob({ type: 'movie', title: 'Ronin', year: 1998, requester: 2, want: {} }, { parseName, searchTorrents: async () => ({ results: rows }),
+    addDownload: async ({ name }) => { names.push(name); return { existing: false }; } }));
+  assert.deepEqual(names, ['Ronin.1998.1080p.WEB.x264'], 'the one that couldn’t deliver is skipped for a day');
 });
 
 test('a quick search goes on without a slow site once another has found something', async () => {
