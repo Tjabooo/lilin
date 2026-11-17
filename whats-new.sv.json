@@ -1,4 +1,37 @@
 {
+  "2026-11-17-fleet-fixes": {
+    "title": "En omgång rättningar",
+    "items": {
+      "Watch Together fits the screen": {
+        "title": "Titta tillsammans får plats",
+        "text": "På telefoner och stående surfplattor ligger rummet nu under bilden i stället för över den, och på liggande skärmar dockar det till höger och lämnar kontrollerna fria. Ljudknappen är tillbaka i rummen, så alla kan välja sitt eget ljudspråk."
+      },
+      "A calmer player": {
+        "title": "En lugnare spelare",
+        "text": "Bara en meny i spelaren öppnas åt gången, och Escape eller ett tryck utanför stänger den. När en video inte kan spelas får du ett tydligt kort med Försök igen och Tillbaka, och om anslutningen bryts mitt i videon kopplar spelaren upp sig igen av sig själv."
+      },
+      "Easier to read": {
+        "title": "Lättare att läsa",
+        "text": "Knappar, statusfärger och den valda fliken är lättare att läsa i alla färgteman, även de ljusa. SVT Play-titlar går att läsa över sin bild, och betygen ser likadana ut överallt."
+      },
+      "Plain words when something's wrong": {
+        "title": "Raka ord när något är fel",
+        "text": "Om Lilin inte går att nå får du ett tydligt meddelande och en Försök igen-knapp i stället för tekniska ord. En länk som klippts av när den skickades visar nu en sida som säger det, och inbjudnings- och Titta tillsammans-länkar finns på svenska också."
+      },
+      "Your library tells the truth": {
+        "title": "Biblioteket säger som det är",
+        "text": "En serie som fortfarande laddas ner säger inte längre att du är ikapp, avsnitt som inte sänts än visar sitt sändningsdatum, filmer med flera versioner låter dig välja kvalitet på sin sida i biblioteket, och ett tomt filtrerat bibliotek har en Visa alla titlar-knapp."
+      },
+      "Restricted means restricted": {
+        "title": "Begränsad betyder begränsad",
+        "text": "Personer som är begränsade syns inte längre för någon annan i Live-tv, Titta tillsammans eller livechatten, på någon av sina enheter."
+      },
+      "Opens faster": {
+        "title": "Öppnas snabbare",
+        "text": "Efter första besöket återanvänder Lilin det som redan laddats ner, och det som laddas ner är mindre, så appen öppnas snabbare på en långsam anslutning."
+      }
+    }
+  },
   "2026-11-17-profiles": {
     "title": "Din egen profil",
     "items": {

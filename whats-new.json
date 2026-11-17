@@ -1,5 +1,40 @@
 [
 {
+  "id": "2026-11-17-fleet-fixes",
+  "date": "2026-11-17",
+  "title": "A round of fixes",
+  "items": [
+    {
+      "title": "Watch Together fits the screen",
+      "text": "On phones and upright tablets the room now sits under the picture instead of covering it, and turned sideways it docks on the right and leaves the controls free. The Audio button is back in rooms, so everyone can pick their own audio language."
+    },
+    {
+      "title": "A calmer player",
+      "text": "Only one player menu opens at a time, and Escape or a tap outside closes it. When a video can't play you get a clear card with Try again and Back, and if the connection drops mid-video the player reconnects by itself."
+    },
+    {
+      "title": "Easier to read",
+      "text": "Buttons, status colours and the current tab are easier to read on every colour theme, light ones included. SVT Play titles are readable over their picture, and ratings look the same everywhere."
+    },
+    {
+      "title": "Plain words when something's wrong",
+      "text": "If Lilin can't be reached you get a clear message and a Try again button instead of technical words. A link that got cut off when it was sent now shows a page saying so, and invite and Watch Together links are in Swedish too."
+    },
+    {
+      "title": "Your library tells the truth",
+      "text": "A show that's still downloading no longer says you're all caught up, episodes that haven't aired yet show their air date, films with several versions let you pick the quality on their library page, and an empty filtered library has a Show all titles button."
+    },
+    {
+      "title": "Restricted means restricted",
+      "text": "People who are restricted no longer show up for anyone else in Live TV, Watch Together or the live chat, on any of their devices."
+    },
+    {
+      "title": "Opens faster",
+      "text": "After the first visit Lilin reuses what it already downloaded, and what it does download is smaller, so it opens quicker on a slow connection."
+    }
+  ]
+},
+{
   "id": "2026-11-17-profiles",
   "date": "2026-11-17",
   "title": "Your own profile",
