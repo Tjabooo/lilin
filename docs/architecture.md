@@ -126,9 +126,14 @@ People turn it on per device in **Settings → Notifications** and switch each k
 | Downloads ready | `pushDownload` | Something you downloaded (or asked for) landed in your library; a season pack's episodes replace each other's notification |
 | New episodes | `pushEpisode` | A show you follow got an episode downloaded for you, or an episode of a show in your library was downloaded by someone else; once per episode. Nothing about shows or films that aren't in your library |
 | Watch Together invites | `pushWatch` | Someone in a room taps **Invite** and picks you; opens the room's join screen. Off: you aren't offered as an invitee |
+| Friends | `pushFriend` | Someone asks to be your friend, or says yes to your request; opens Settings → Friends (`/?friends=1`) |
 | Lilin updates | `pushUpdate` | A new update in `whats-new.json` that you haven't read yet: its title, a short summary and *Tap to read more*, which opens its notes (`/?update=<id>`). Sent once per update (`.lilin-update-pushes.json` in `DATA_DIR`), only for updates dated today or yesterday, after the file has sat unchanged for 90 s; several at once become one notification |
 
 Push endpoints must belong to a known push service (Google FCM, Mozilla, Apple, Windows), so a subscription can't make the server POST to an address on your network. A device the push service reports as gone (404/410) is removed. On iPhone and iPad, Apple allows web notifications only for Home Screen apps (iOS 16.4+), which Settings explains. A server reached only over plain `http://` (not localhost) can't use notifications: browsers require https.
+
+## Friends
+
+Settings → **Friends** (src/friends.js, public/friends.js; table `friend_links` in `.lilin.db`). People find each other by name (two letters or more), send a request, and become friends once the other person accepts; asking someone who already asked you accepts theirs. Declining, taking back a request and removing a friend are quiet (no notification). Restricted people (see Accounts) can't be found, can't ask or be asked, and their friendships are hidden while they're restricted (kept, so lifting it brings them back). The shared Home network account has no friends. Other code uses `areFriends(a, b)` and `friendIds(userId)`; Watch Together lists friends first among invitees.
 
 ## Watch Together
 
@@ -198,6 +203,9 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/watch/<token>/chat`, `/react` | Room chat (`{ text }`, last 50 kept for late joiners) and emoji reactions (`{ emoji }`); both arrive on the room's event stream |
 | `POST` | `/api/watch/<token>/schedule` | Host only: `{ startsAt }` (ms) starts playback by itself at that time, `null` clears it |
 | `POST` | `/api/watch/plan` | Plan a party for later (`{ id, startsAt }`, up to two weeks ahead); saved in `watch_parties` so it survives a restart |
+| `GET` | `/api/friends` | Your friends, requests you got (`incoming`) and sent (`outgoing`) |
+| `GET` | `/api/friends/search?q=` | People to add by name (not restricted people), with `state`: `friend`, `sent`, `received` or `null` |
+| `POST` | `/api/friends/request`, `/api/friends/accept`, `/api/friends/remove` | `{ id }`: ask, accept, or decline / take back / remove |
 | `GET` | `/api/watch/parties` | Planned parties you made or joined |
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |

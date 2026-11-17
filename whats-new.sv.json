@@ -1,4 +1,13 @@
 {
+  "2026-11-17-friends": {
+    "title": "Vänner",
+    "items": {
+      "Add your friends": {
+        "title": "Lägg till dina vänner",
+        "text": "Inställningar har en ny del som heter Vänner. Sök efter någon med namn och tryck på Lägg till: när de säger ja är ni vänner. Förfrågningar du får syns där också, med Godkänn. Med aviseringar på får du veta när någon frågar eller säger ja. Vänner kommer först när du bjuder in folk till Titta tillsammans."
+      }
+    }
+  },
   "2026-11-17-friends-restrict": {
     "title": "Begränsa personer",
     "items": {

@@ -24,6 +24,7 @@ import * as screenTime from './screentime.js';
 import * as clips from './clips.js';
 import * as invites from './invites.js';
 import * as ideas from './ideas.js';
+import * as friends from './friends.js'; // friends
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -316,6 +317,7 @@ const webBuildFor = (req) => (preview.inPreview(req, PREVIEW_DIR) ? preview.prev
 screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
 ideas.initIdeas({ dataDir: DATA_DIR });
+friends.initFriends(); // friends: friend_links in .lilin.db
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
@@ -3322,6 +3324,7 @@ async function handleApi(req, res, url) {
     const inRoom = new Set([...room.members.values()].map((v) => v.userId));
     const invitees = accounts.listUsers().filter((u) => !inRoom.has(u.id) && !u.restricted && push.hasDevice(u.id) && u.settings?.pushWatch !== false)
       .map((u) => ({ id: u.id, name: u.name, avatar: u.avatar }));
+    { const mine = new Set(friends.friendIds(user.id)); invitees.sort((a, b) => Number(mine.has(b.id)) - Number(mine.has(a.id))); } // friends first
     if (action === 'invitees') return sendJson(res, 200, { people: invitees });
     if (req.method !== 'POST') throw new HttpError(405, 'Unsupported watch-room action.');
     const allowedIds = new Set(invitees.map((u) => u.id));
@@ -3722,6 +3725,25 @@ async function handleApi(req, res, url) {
     if ((m = p.match(/^\/api\/ideas\/([a-f0-9]{8})\/delete$/)) && req.method === 'POST') {
       ideas.remove(m[1], user);
       return sendJson(res, 200, { ok: true, mine: ideas.mine(user.id) });
+    }
+    throw new HttpError(404, 'Not found.');
+  }
+  // friends: the friends list (friends.js). Requests need the other person's yes; restricted people have none.
+  if (p === '/api/friends' || p.startsWith('/api/friends/')) {
+    if (p === '/api/friends' && req.method === 'GET') return sendJson(res, 200, friends.view(user));
+    if (p === '/api/friends/search') return sendJson(res, 200, { people: friends.search(user, url.searchParams.get('q')) });
+    if ((m = p.match(/^\/api\/friends\/(request|accept|remove)$/)) && req.method === 'POST') {
+      const id = Number((await readJson(req)).id);
+      let r;
+      try { r = m[1] === 'request' ? friends.request(user, id) : m[1] === 'accept' ? friends.accept(user, id) : friends.remove(user, id); }
+      catch (e) { throw new HttpError(e.status || 500, e.message); }
+      if (r.notify && r.state === 'sent') {
+        notify([id], 'friend', { title: `${user.name || 'Someone'} wants to be friends on Lilin`, body: 'Tap to answer.', url: '/?friends=1#settings', tag: `friend-${user.id}` });
+      } else if (r.notify && r.state === 'friend') {
+        notify([id], 'friend', { title: `${user.name || 'Someone'} is your friend on Lilin now`, body: 'You can share moments with each other.', url: '/?friends=1#settings', tag: `friend-${user.id}` });
+      }
+      live.publish('friends', { audience: 'user', userId: id });
+      return sendJson(res, 200, { ...r, ...friends.view(user) });
     }
     throw new HttpError(404, 'Not found.');
   }
@@ -4747,7 +4769,7 @@ async function handleRequest(req, res) {
     const allowed = req.method === 'GET' || req.method === 'HEAD'
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

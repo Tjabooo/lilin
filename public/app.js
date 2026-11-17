@@ -17,6 +17,7 @@ import { libraryUnion, libraryAvailability, filterLibrary, transferState, transf
 import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText, fmtHours } from './social.js';
 import { createDocumentaries } from './documentaries.js';
 import { createPeople } from './people.js';
+import { createFriends } from './friends.js'; // friends
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
@@ -2374,6 +2375,7 @@ async function applyLive() {
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('friends') || has('people')) { friendsUI.invalidate(); if (view === 'settings') jobs.push(friendsUI.load().then(renderSettingsWhenStill)); } // friends
   if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('avatars') && view === 'library') jobs.push(loadParties());
@@ -3450,6 +3452,8 @@ function episodeDownload(t, seasonNo, episode) {
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
+// friends: Settings → Friends (friends.js)
+const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
@@ -7686,6 +7690,7 @@ function renderSettings() {
   out.push(me.isOwner ? ideaInboxRow() : ideaBox());
 
   if (me.via === 'session' || me.hasPassword) out.push(accountSection());
+  out.push(...friendsUI.settings()); // friends
 
   out.push(...appearanceSection());
 
@@ -8037,6 +8042,8 @@ function notificationSettings() {
       toggle(p.pushWatch !== false, (v) => saveMe({ pushWatch: v }), T('Notify about Watch Together invites'))));
     out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new, or the owner answers an idea you sent.'),
       toggle(p.pushUpdate !== false, (v) => saveMe({ pushUpdate: v }), T('Notify about Lilin updates'))));
+    if (!state.me?.restricted) out.push(settingsRow(T('Friends'), T('When someone asks to be your friend, or says yes.'), // friends
+      toggle(p.pushFriend !== false, (v) => saveMe({ pushFriend: v }), T('Notify about friend requests'))));
     if (state.me?.isOwner) out.push(settingsRow(T('New ideas'), T('When someone sends an idea through the idea box.'),
       toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about new ideas'))));
     if (state.me?.isOwner) out.push(settingsRow(T('Agents'), T('When a script or AI agent on your home machines asks for your attention.'),
@@ -9940,6 +9947,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
   if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
+  if (url.searchParams.has('friends')) { friendsUI.jumpNext(); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends
   if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
   const view = url.hash.slice(1);
@@ -9978,6 +9986,12 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (noteId) {
     const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     if (state.status.admin && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
+  }
+  // friends: a friend request notification opens Lilin as ?friends=1: Settings, scrolled to Friends.
+  if (new URL(location.href).searchParams.has('friends')) {
+    const url = new URL(location.href); url.searchParams.delete('friends'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    friendsUI.jumpNext();
+    if (state.view === 'settings') renderSettings(); else await setView('settings');
   }
   // An idea box notification opens Lilin as ?ideas=1: Settings, scrolled to the ideas.
   if (new URL(location.href).searchParams.has('ideas')) {

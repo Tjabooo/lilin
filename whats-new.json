@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-friends",
+  "date": "2026-11-17",
+  "title": "Friends",
+  "items": [
+    {
+      "title": "Add your friends",
+      "text": "Settings has a new Friends part. Search for someone by name and tap Add: once they say yes, you're friends. Requests you get show up there too, with Accept. With notifications on, you hear when someone asks or says yes. Friends come first when you invite people to Watch Together."
+    }
+  ]
+},
+{
   "id": "2026-11-17-friends-restrict",
   "date": "2026-11-17",
   "title": "Restrict people",

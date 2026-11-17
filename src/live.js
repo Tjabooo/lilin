@@ -22,6 +22,7 @@ const RULES = [
   [/^\/api\/(admin\/settings|admin\/users\/\d+|access\/)/, 'people', 'all'],
   [/^\/api\/clips\//, 'clips', 'admin'],
   [/^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/, 'ideas', 'all'], // the owner's inbox and each sender's list
+  [/^\/api\/friends\/(request|accept|remove)$/, 'friends', 'user'], // friends: the other person is told by the route
   [/^\/api\/house\/power$/, 'house', 'admin'],
   [/^\/api\/cast\/(play|[\w-]+\/(control|subtitles))$/, 'sessions', 'all'],
 ];
