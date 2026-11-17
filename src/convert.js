@@ -488,6 +488,15 @@ function runFirst(job) {
 export function requestBrowserVideo(file) {
   if (!status.enabled) return { fixable: false, error: status.reason };
   const target = needsConversion(file) ? twinPath(file) : file;
+  if (canFix(target) && !fs.existsSync(target) && target !== file) {
+    // Just downloaded: its MP4 copy (which the H.264 copy is made from) is still being made. Say so
+    // instead of "can't play"; the player keeps asking and the H.264 copy starts once the MP4 is there.
+    const failed = failures[failureKey(file)];
+    if (failed) return { fixable: false, error: failed.error };
+    const running = [...active.values()].find((a) => a.job.file === file && kindOf(a.job) === 'mp4');
+    if (running) return { fixable: true, state: 'converting', percent: running.slot.percent ?? 0 };
+    if (hasJob(file, 'mp4')) return { fixable: true, state: 'queued', percent: null };
+  }
   if (!canFix(target) || !fs.existsSync(target)) return { fixable: false };
   return runFirst({ file: target, fix: true, h264: true });
 }

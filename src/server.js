@@ -4826,7 +4826,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, {
       preferAudio, known: true, codec: main, tracks, browserSafe, aligned,
       audioSource: converter.audioSourceKey(served), defaultAudio: tracks[0]?.index ?? null,
-      videoSafe, videoCodec: vid ? (vid.codec === 'hevc' ? `HEVC (${vid.tag || 'hev1'})` : `${converter.VIDEO_NAMES[vid.codec] || vid.codec}${vid.tenBit ? ' 10-bit' : ''}`) : null,
+      videoSafe, videoCodec: vid ? (vid.codec === 'hevc' ? (/^(hvc1|hev1)$/.test(vid.tag || '') ? `HEVC (${vid.tag})` : 'HEVC (H.265)') : `${converter.VIDEO_NAMES[vid.codec] || vid.codec}${vid.tenBit ? ' 10-bit' : ''}`) : null,
       fixable: Boolean(fix.fixable), job: fix.state || sync.state || null,
       percent: fix.percent ?? (sync.state === 'converting' ? converter.converterStatus().current?.percent ?? 0 : null),
       error: fix.error || null,

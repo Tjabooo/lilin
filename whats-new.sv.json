@@ -1,4 +1,13 @@
 {
+  "2026-11-17-fresh-hevc": {
+    "title": "Nyss nedladdade filmer blir klara i fler webbläsare",
+    "items": {
+      "No more \"can't play\" right after a download": {
+        "title": "Inget mer \"kan inte spelas\" direkt efter en nedladdning",
+        "text": "Vissa nya filmer använder ett videoformat som några webbläsare (som Firefox) inte kan spela. Direkt efter nedladdningen sa Lilin bara att den inte kan spelas här. Nu visar den att en version görs för din webbläsare och startar av sig själv när den är klar."
+      }
+    }
+  },
   "2026-11-17-password-private": {
     "title": "Ditt lösenord är bara ditt",
     "items": {

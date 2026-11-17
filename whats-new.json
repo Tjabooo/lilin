@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-fresh-hevc",
+  "date": "2026-11-17",
+  "title": "Just-downloaded films get ready in more browsers",
+  "items": [
+    {
+      "title": "No more \"can't play\" right after a download",
+      "text": "Some new films use a video format a few browsers (like Firefox) can't play. Right after the download, Lilin used to just say it can't play here. Now it shows that it's making a version for your browser and starts by itself when that's ready."
+    }
+  ]
+},
+{
   "id": "2026-11-17-password-private",
   "date": "2026-11-17",
   "title": "Your password is yours alone",
