@@ -5,8 +5,8 @@
   "title": "A round of fixes",
   "items": [
     {
-      "title": "Arrows on profile rows",
-      "text": "On a computer, the Liked row on a profile now has arrows next to its title, so you can reach the rest of the posters without a touchpad."
+      "title": "Whole Liked row on computers",
+      "text": "On a computer, the Liked row on a profile now shows every poster in a tidy grid, so nothing is cut off at the edge and there's nothing to scroll."
     },
     {
       "title": "Name and picture on your profile",

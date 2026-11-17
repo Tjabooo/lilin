@@ -2,9 +2,9 @@
   "2026-11-17-fleet-fixes": {
     "title": "En omgång rättningar",
     "items": {
-      "Arrows on profile rows": {
-        "title": "Pilar på profilrader",
-        "text": "På en dator har raden Gillade på en profil nu pilar bredvid rubriken, så du når resten av affischerna utan touchpad."
+      "Whole Liked row on computers": {
+        "title": "Hela Gillade-raden på datorn",
+        "text": "På en dator visar raden Gillade på en profil nu alla affischer i ett prydligt rutnät, så inget klipps av i kanten och inget behöver skrollas."
       },
       "Name and picture on your profile": {
         "title": "Namn och bild på din profil",

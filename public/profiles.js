@@ -83,7 +83,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (ctx.closed) return;
     // The address shows whose profile this is (/#@ebicat), while it's the page on top.
     const top = [...document.querySelectorAll('.pf.open')].pop();
-    if (top === ctx.page && !ctx.nested) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
+    ctx.page.dataset.handle = ctx.data.person.handle;
+    if (top === ctx.page) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
     paint(ctx);
   }
 
@@ -215,27 +216,6 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   const sectionBox = (id, title, extra, ...kids) => h('section', { class: `pf-sec pf-sec-${id}`, 'aria-label': title },
     h('div', { class: 'pf-sec-head' }, h('h3', { class: 'pf-kicker' }, title), extra), ...kids);
 
-  // Desktop arrows for a sideways strip, like the Discover rows (style.css .carousel-arrow hides them on touch
-  // screens; both hide while everything fits). A mouse wheel can't scroll sideways, so without them the rest is unreachable.
-  function stripArrows(list, title) {
-    const move = (dir) => list.scrollBy({ left: dir * Math.max(160, list.clientWidth * 0.85),
-      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-    const prev = h('button', { type: 'button', class: 'carousel-arrow', disabled: true, hidden: true, 'aria-label': T('Previous in {0}', title), onclick: () => move(-1) }, icon('back'));
-    const next = h('button', { type: 'button', class: 'carousel-arrow next', hidden: true, 'aria-label': T('Next in {0}', title), onclick: () => move(1) }, icon('back'));
-    let seen = false;
-    const observer = new ResizeObserver(() => update());
-    const update = () => {
-      if (!list.isConnected) { if (seen) observer.disconnect(); return; }
-      seen = true;
-      prev.disabled = list.scrollLeft <= 2;
-      next.disabled = list.scrollLeft + list.clientWidth >= list.scrollWidth - 2;
-      prev.hidden = next.hidden = prev.disabled && next.disabled;
-    };
-    list.addEventListener('scroll', update, { passive: true });
-    observer.observe(list);
-    return h('div', { class: 'carousel-controls pf-strip-arrows' }, prev, next);
-  }
-
   function stars(n, cls = 'pf-stars') {
     if (!n) return null;
     return h('span', { class: cls, role: 'img', 'aria-label': n === 1 ? T('1 star') : T('{0} stars', n) }, '★'.repeat(n));
@@ -298,9 +278,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     liked(ctx, d) {
       const list = d.liked || [];
       if (!list.length) return null;
-      const strip = h('ul', { class: 'pf-strip', tabindex: '0', 'aria-label': T('Liked') }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' }))));
-      return sectionBox('liked', T('Liked'), h('div', { class: 'pf-sec-side' },
-        h('span', { class: 'pf-sec-note' }, d.stats?.likes > list.length ? T('{0} in all', d.stats.likes) : null), stripArrows(strip, T('Liked'))), strip);
+      return sectionBox('liked', T('Liked'), h('span', { class: 'pf-sec-note' }, d.stats?.likes > list.length ? T('{0} in all', d.stats.likes) : null),
+        h('ul', { class: 'pf-strip' }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))));
     },
     friends(ctx, d) {
       const list = d.friends || [];
@@ -413,6 +392,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         ctx.draft = null;
         ctx.diary = null; ctx.allReviews = null;
         paint(ctx);
+        ctx.page.dataset.handle = ctx.data.person.handle;
         history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
         toast(T('Profile saved'));
         picker.close();
