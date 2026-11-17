@@ -773,11 +773,11 @@ function openTravelList(opener) {
     const items = travelOrder(travelView.items);
     $('#picker-body').replaceChildren(
       h('h2', { id: 'picker-title' }, T('For your phone')),
-      h('p', { class: 'muted picker-sub' }, travelSummary(items).replace(' for your phone', items.length === 1 ? ' copy' : ' copies') || T('Nothing yet. Open a film or episode and choose Download to phone.')),
+      h('p', { class: 'muted picker-sub' }, travelSummary(items, items.length === 1 ? T('1 copy') : T('{0} copies', items.length)) || T('Nothing yet. Open a film or episode and choose Download to phone.')),
       h('ul', { class: 'rows travel-list' }, items.map((item) => h('li', { class: 'row travel-row' },
         h('div', { class: 'row-text' },
           h('div', { class: 'row-title' }, item.title),
-          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label, sizeWords(item, fmtBytes), stateWords(item),
+          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
             item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
           travelProgress(item)),
         h('div', { class: 'row-actions' },
@@ -789,7 +789,7 @@ function openTravelList(opener) {
             draw();
             if (state.view === 'library') renderLibrary();
           } }, icon('trash')))))),
-      items.length > 0 && h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.')));
+      ...(items.length ? [h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.'))] : []));
   }
   travelOverlay(opener, draw);
   loadTravel();
@@ -1526,10 +1526,19 @@ function renderLibrary() {
     card.remove(); libraryCards.delete(key);
   }
   for (const group of ui.groups.values()) group.section.hidden = !group.list.children.length;
-  const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? T('No titles match these filters.') : T('Nothing here yet. Find something in Discover and press Add to start watching.');
+  // Filtered down to nothing: say which filter did it, and offer the way back to everything.
+  const filteredText = () => state.query.trim() ? T('Nothing in your library matches “{0}”.', state.query.trim())
+    : ({ attention: T('Nothing needs attention right now.'), downloading: T('Nothing is on its way right now.'), ready: T('Nothing is ready to watch yet.') })[state.libAvailability]
+    || T('No titles match these filters.');
+  const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? filteredText() : T('Nothing here yet. Find something in Discover and press Add to start watching.');
+  const showAll = () => {
+    state.libFilter = 'all'; state.libAvailability = 'all';
+    if (state.query) { input.value = ''; input.dispatchEvent(new Event('input')); }
+    renderLibrary();
+  };
   if (ui.empty.dataset.text !== emptyText) {
     ui.empty.dataset.text = emptyText;
-    ui.empty.replaceChildren(!emptyText ? '' : all.length ? notice(T('No matching titles'), emptyText)
+    ui.empty.replaceChildren(!emptyText ? '' : all.length ? emptyState(T('No matching titles'), emptyText, { label: T('Show all titles'), run: showAll })
       : emptyState(T('Your library is empty'), emptyText, { label: T('Find something to watch'), icon: 'search', run: () => setView('discover') }));
   }
   // Shelves use ready files only; transfers never create fake playback progress.
@@ -1866,6 +1875,16 @@ function renderFilm() {
         h('button', { class: 'chip', onclick: (e) => openTravel(file, e.currentTarget) }, icon('phone'), T('To phone')),
         h('button', { class: 'chip', onclick: (e) => openDelete(file, e.currentTarget) }, icon('trash'), T('Delete')),
         state.me?.isOwner && h('button', { class: 'chip', onclick: (e) => openFilmIdentity(f, e.currentTarget) }, T('Identify film'))),
+      // A film with versions (4K + 1080p): which one Play starts, the same picker as on Discover's title page.
+      f.versions?.length > 1 && versionSelect({
+        id: `ver-${f.versionKey}`, options: f.versions.map((v) => ({ value: v.mediaKey, label: v.versionLabel })), value: f.mediaKey,
+        onPick: (key) => {
+          const v = f.versions.find((x) => x.mediaKey === key);
+          setVersionPick(f, v);
+          if (!String(filmView.id).startsWith('entry:')) { filmView.id = v.id; filmView.mediaKey = v.mediaKey; }
+          patchUnifiedLibrary(); renderFilm();
+        },
+      }),
       h('div', { class: 'page-extras' }, social.rateRow(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title)),
       f.overview && h('p', { class: 'overview' }, f.overview),
       keepBar([f], renderFilm),
@@ -1943,13 +1962,26 @@ function transferPanel(entry) {
   const { key, aliases } = entry;
   return transferSummary(() => unifiedLibrary().find((e) => e.key === key || e.aliases.some((a) => aliases.includes(a)))?.transfers || [], entry.name);
 }
+// "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
+function airsLabel(airDate) {
+  const date = airDate && new Date(`${airDate}T12:00:00`);
+  if (!date || !(date > new Date())) return null;
+  return T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }));
+}
 // Episode rows on a show page get TMDB's running time and a line of the story once the season's details arrive.
+// A missing episode that hasn't aired yet shows its date instead of offering to add it.
 function fillEpisodeDetails(tmdbId, season) {
   cachedFor(`/api/tv/${tmdbId}/season/${season}`, 60 * 60 * 1000).then(({ episodes }) => {
     const byNumber = new Map((episodes || []).map((ep) => [ep.number, ep]));
     for (const row of document.querySelectorAll('#sheet-body .episode-row[data-episode]')) {
       const ep = byNumber.get(Number(row.dataset.episode));
       const text = row.querySelector('.row-text');
+      const airs = ep && row.classList.contains('missing-episode') && airsLabel(ep.airDate);
+      if (airs && !row.classList.contains('is-upcoming')) {
+        row.classList.add('is-upcoming');
+        text?.querySelector('.row-meta')?.replaceChildren(airs);
+        row.querySelector('.episode-get')?.remove();
+      }
       if (!ep || !text || text.querySelector('.ep-overview')) continue;
       if (ep.runtime) text.querySelector('.row-meta')?.prepend(h('span', { class: 'ep-runtime' }, fmtRuntime(ep.runtime)));
       if (ep.overview) text.querySelector('.row-title')?.after(h('p', { class: 'ep-overview' }, ep.overview));
@@ -1957,9 +1989,14 @@ function fillEpisodeDetails(tmdbId, season) {
   }).catch(() => {});
 }
 // The show page's main button: carry on where you left off (or start at the beginning).
-function showPlayButton(showId) {
+function showPlayButton(showId, entry) {
   const up = nextUp(showId);
-  if (!up || up.f.converting) return up ? null : h('p', { class: 'muted show-caught-up' }, T('You’re all caught up.'));
+  if (up?.f.converting) return null;
+  if (!up) {
+    // Nothing here to watch yet (the first episodes are still downloading): the transfer card says how it's going.
+    if (!entry?.files?.some((f) => f.season != null && f.episode != null)) return null;
+    return h('p', { class: 'muted show-caught-up' }, entry.transfers?.length ? T('You’re all caught up. More is on its way.') : T('You’re all caught up.'));
+  }
   const ep = episodeLabel(up.f);
   const label = up.kind === 'resume' ? T('Resume {0} · {1} min left', ep, Math.max(1, Math.ceil((up.progress.duration - up.progress.time) / 60)))
     : up.kind === 'next' ? T('Play next: {0}', ep) : T('Play {0}', ep);
@@ -2010,7 +2047,7 @@ function renderShow() {
     const tvId = { id: show.tmdbId ?? null, title: show.title, type: 'tv' }; // episodeDownload decides Add / Download / nothing
     const upgrade = seasonUpgrade(tvId, open.number);
     for (const {d,ep} of byEpisode.values()) rows.push({ number: ep.episode, node: h('li', { class: 'row episode-row pending-episode', 'data-episode': ep.episode, 'data-transfer-hash': d.hash, 'data-episode-number': ep.episode, 'data-episode-season': ep.season }, thumb(ep.episode), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(ep.episode)), h('div', { class: 'row-meta episode-transfer-state' }, ep.available ? T('Ready · watch it from Details') : `${transferState(d)}${Number.isFinite(ep.progress) ? ` · ${Math.floor(ep.progress*100)}%` : ''}`)), d.canPlayNow && !ep.available && ep.started && ep.fileIndex != null && h('button', { class: 'play-btn', onclick: () => openPlayer(playNowItem(d, ep, ep)) }, icon('play'), T('Play now')), h('button', { class: 'chip', onclick: e => openTransferDetails({ ...entry, transfers: [d] }, e.currentTarget) }, T('Details'))) });
-    if (Number.isInteger(open.total) && open.total > 0 && open.total <= 1000) for (let number = open.first || 1; number < (open.first || 1) + open.total; number++) if (!rows.some(row => row.number === number)) rows.push({ number, node: h('li', { class: 'row episode-row missing-episode', 'data-episode': number }, thumb(number), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(number)), h('div', { class: 'row-meta' }, T('Not added yet'))), tvId && episodeDownload(tvId, open.number, number)) });
+    if (Number.isInteger(open.total) && open.total > 0 && open.total <= 1000) for (let number = open.first || 1; number < (open.first || 1) + open.total; number++) if (!rows.some(row => row.number === number)) { const airs = airsLabel(tmdbEp(number).airDate); rows.push({ number, node: h('li', { class: `row episode-row missing-episode${airs ? ' is-upcoming' : ''}`, 'data-episode': number }, thumb(number), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(number)), h('div', { class: 'row-meta' }, airs || T('Not added yet'))), !airs && tvId && episodeDownload(tvId, open.number, number)) }); }
     content = [!single && h('button', { class: 'chip season-back', onclick: () => pick(null) }, icon('back'), T('All seasons')), h('h3', {}, open.name),
       seasonVersionPick(ready, () => renderShow()),
       h('div', { class: 'season-summary' }, h('p', { class: 'muted' }, T('{0} episodes ready', open.total ? T('{0} of {1}', episodeCount(ready), open.total) : episodeCount(ready))),
@@ -2024,7 +2061,7 @@ function renderShow() {
   const tv = canGet() && show.tmdbId ? showDownload({ id: show.tmdbId, title: show.title, type: 'tv' }, { season: open?.number ?? null, onAdded: renderShow }) : null;
   $('#sheet-body').replaceChildren(pageHero(show.backdrop),
     h('div', { class: 'sheet-content' }, pageTitle(show.title, 'tv', show.tmdbId), pageFacts([show.year, T('Series'), libraryAvailability(entry)], 'tv', show.tmdbId),
-      h('div', { class: 'title-actions' }, showPlayButton(show.id), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
+      h('div', { class: 'title-actions' }, showPlayButton(show.id, entry), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
       h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
       show.overview && h('p', { class: 'overview' }, show.overview), files.length > 0 && keepBar(files, renderShow),
       h('section', { class: 'page-section show-episodes' }, ...content),

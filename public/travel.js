@@ -27,13 +27,13 @@ export function stateWords(item) {
   }
 }
 
-// "3 for your phone · 1 ready · 1 being made"
-export function travelSummary(items) {
+// "3 for your phone · 1 ready · 1 being made" (`count` replaces the first part, e.g. "3 copies" in the list itself)
+export function travelSummary(items, count) {
   if (!items?.length) return '';
   const ready = items.filter((i) => i.state === 'ready').length;
   const busy = items.filter((i) => i.state === 'making' || i.state === 'queued').length;
   const failed = items.filter((i) => i.state === 'failed').length;
-  return [T('{0} for your phone', items.length), ready && T('{0} ready', ready), busy && T('{0} being made', busy), failed && T('{0} failed', failed)]
+  return [count || T('{0} for your phone', items.length), ready && T('{0} ready', ready), busy && T('{0} being made', busy), failed && T('{0} failed', failed)]
     .filter(Boolean).join(' · ');
 }
 
