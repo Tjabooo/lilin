@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-smoother-scrolling",
+  "date": "2026-11-17",
+  "title": "Smoother scrolling",
+  "items": [
+    {
+      "title": "The big banner has depth",
+      "text": "When you scroll down Discover, the picture at the top now sinks away slower than the rows, so the rows slide over it. Scrolling also does less work: the small buttons on cards and the glowing dots no longer redraw the page on every frame."
+    }
+  ]
+},
+{
   "id": "2026-11-17-idea-box",
   "date": "2026-11-17",
   "title": "The idea box",

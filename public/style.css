@@ -286,7 +286,7 @@ body.has-billboard:not(.searching) .wordmark { text-shadow: 0 0 22px color-mix(i
 .news-btn:not(.has-new) .news-label { display: none; }
 /* an unlit lilin bulb that lights up while there's an update you haven't seen */
 .news-bulb {
-  width: 9px; height: 9px; border-radius: 50%;
+  position: relative; width: 9px; height: 9px; border-radius: 50%;
   border: 1.5px solid color-mix(in srgb, var(--bulb) 55%, var(--dust));
   transition: background-color var(--d-2), box-shadow var(--d-2);
 }
@@ -294,7 +294,12 @@ body.has-billboard:not(.searching) .wordmark { text-shadow: 0 0 22px color-mix(i
 .news-btn.has-new .news-bulb {
   border-color: var(--bulb); background: var(--bulb);
   box-shadow: 0 0 0 3px var(--bulb-dim), 0 0 12px var(--bulb-dim);
-  animation: news-glow 2.4s ease-in-out infinite;
+}
+/* The pulse fades a ready-made glow in and out (opacity runs on the compositor); animating box-shadow repainted every frame */
+.news-btn.has-new .news-bulb::after {
+  content: ""; position: absolute; inset: -1.5px; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 4px var(--bulb-dim), 0 0 18px var(--bulb);
+  opacity: 0; animation: news-glow 2.4s ease-in-out infinite;
 }
 .news-count {
   min-width: 18px; height: 18px; padding: 0 5px; margin-right: -5px;
@@ -302,7 +307,7 @@ body.has-billboard:not(.searching) .wordmark { text-shadow: 0 0 22px color-mix(i
   font-size: 11px; font-weight: 800; color: var(--on-bulb);
   background: var(--bulb); border-radius: 999px;
 }
-@keyframes news-glow { 50% { box-shadow: 0 0 0 4px var(--bulb-dim), 0 0 18px var(--bulb); } }
+@keyframes news-glow { 50% { opacity: 1; } }
 
 /* Search: an icon on phones that opens a full-width field; always a field on wide screens */
 .search-toggle { width: 40px; height: 40px; background: color-mix(in srgb, var(--velvet) 55%, transparent); border-color: var(--hairline-2); }
@@ -631,6 +636,10 @@ main {
 .bb-art { position: absolute; inset: 0; overflow: hidden; background: var(--surface-2); }
 .bb-img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; opacity: 0; transition: opacity var(--d-3) var(--ease-out); }
 .bb-img.is-loaded { opacity: 1; }
+/* Scrolling sinks the picture behind the rows (billboard.js sets `translate`, which stacks with drift's scale and the
+   trailer's fit transform). Only the visible slide gets its own layer, so the shift never repaints the picture. */
+.bb-slide.is-active .bb-img, .bb-trailer { will-change: translate; }
+@media (prefers-reduced-motion: reduce) { .bb-img, .bb-trailer { translate: none !important; } }
 /* scrims: dark where the words are, then a fade into the room */
 .bb-art::after {
   content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
@@ -2638,7 +2647,8 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .library-availability { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .library-availability select { min-height: 42px; max-width: 100%; border-radius: 999px; }
 .library-summary { display: inline-flex; align-items: center; gap: 8px; margin: 0 var(--s2) var(--s3) 0; padding: 0 14px; min-height: 36px; color: var(--text); background: color-mix(in srgb, var(--bulb) 12%, transparent); border: 1px solid color-mix(in srgb, var(--bulb) 30%, transparent); border-radius: 999px; font-size: 13px; font-weight: 600; text-align: left; }
-.library-summary::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 8px var(--bulb); animation: news-glow 2.4s ease-in-out infinite; }
+.library-summary::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 8px var(--bulb); animation: bulb-breathe 2.4s ease-in-out infinite; }
+@keyframes bulb-breathe { 50% { opacity: .45; } }
 .library-summary.travel-summary::before { display: none; }
 .library-summary svg { width: 16px; height: 16px; }
 .library-shared { margin: -8px 0 var(--s4); font-size: 13px; }
@@ -2653,7 +2663,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-track i { display: block; height: 100%; background: var(--bulb); border-radius: inherit; box-shadow: 0 0 8px var(--glow-color); transition: width .6s var(--ease-out); }
 .library-transfer.is-paused .transfer-track i { background: var(--dust); }
 .library-transfer.is-error .transfer-state, .transfer-action-error { color: var(--alert); }
-.library-more { position: absolute; top: 0; right: 0; z-index: 2; margin: 4px; min-width: 40px; min-height: 40px; color: #fff; background: rgb(var(--picture-dark) / .6); border: 1px solid rgb(255 255 255 / .2); border-radius: 50%; letter-spacing: 1px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.library-more { position: absolute; top: 0; right: 0; z-index: 2; margin: 4px; min-width: 40px; min-height: 40px; color: #fff; background: rgb(var(--picture-dark) / .74); border: 1px solid rgb(255 255 255 / .2); border-radius: 50%; letter-spacing: 1px; }
 .unified-card:has(.transfer-pill) .library-more { top: 38px; }
 .title-transfers { margin-bottom: 22px; }
 .title-transfers h3 { margin: 0 0 10px; font-size: 15px; }
@@ -2796,10 +2806,11 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .continue-card { position: relative; }
 .show-play { margin: 2px 0 12px; }
 .show-caught-up { margin: 0 0 10px; }
+/* solid tint, no backdrop blur: a blur per card re-rendered every picture under it on every scrolled frame */
 .continue-more {
   position: absolute; top: 7px; right: 7px; z-index: 3; display: grid; place-items: center;
   width: 32px; height: 32px; padding: 0; border: 1px solid rgb(255 255 255 / .18); border-radius: 50%;
-  color: #fff; background: rgb(var(--picture-dark) / .62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  color: #fff; background: rgb(var(--picture-dark) / .74);
 }
 .continue-more svg { width: 18px; height: 18px; }
 .continue-more:active { transform: scale(.92); }

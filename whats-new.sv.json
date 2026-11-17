@@ -1,4 +1,13 @@
 {
+  "2026-11-17-smoother-scrolling": {
+    "title": "Mjukare scrollning",
+    "items": {
+      "The big banner has depth": {
+        "title": "Den stora bannern har djup",
+        "text": "När du scrollar ner i Upptäck sjunker bilden högst upp nu undan långsammare än raderna, så att raderna glider över den. Scrollningen gör också mindre jobb: de små knapparna på korten och de lysande prickarna ritar inte längre om sidan i varje bildruta."
+      }
+    }
+  },
   "2026-11-17-idea-box": {
     "title": "Idélådan",
     "items": {

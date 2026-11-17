@@ -126,6 +126,7 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
           frame?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*');
         });
         const art = slideEls[index].querySelector('.bb-art');
+        if (shiftLast) frame.style.translate = `0 ${shiftLast}px`;
         art.append(frame);
         unfit = fitTrailer(frame, art, { cover: true, zoom: 1.32 }); // zoomed past the letterbox bars and YouTube's corners
       }, TRAILER_AFTER_MS);
@@ -156,9 +157,27 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
     io.observe(root);
     const mo = sheetEl && new MutationObserver(onSeen);
     mo?.observe(sheetEl, { attributes: true, attributeFilter: ['class'] });
+    // Depth while the page scrolls: the picture (and trailer) sinks at 30 % of the scroll speed, so the rows slide
+    // over the banner instead of the whole page moving as one sheet. One rAF per frame, written straight onto the
+    // pictures (a CSS variable on the banner restyled all of it every frame); style.css gives them their own layer.
+    let shiftFrame = 0, shiftLast = 0;
+    const pictures = slideEls.map((s) => s.querySelector('.bb-img'));
+    const shift = () => {
+      shiftFrame = 0;
+      const r = root.getBoundingClientRect();
+      const y = Math.round(Math.min(Math.max(0, -r.top), r.height) * 3) / 10;
+      if (y === shiftLast) return;
+      shiftLast = y;
+      const t = y ? `0 ${y}px` : '';
+      for (const p of pictures) p.style.translate = t;
+      if (frame) frame.style.translate = t;
+    };
+    const onPageScroll = () => { if (!shiftFrame && !reduced()) shiftFrame = requestAnimationFrame(shift); };
+    window.addEventListener('scroll', onPageScroll, { passive: true });
     function stop() {
       clearInterval(timer); stopTrailer();
       io.disconnect(); mo?.disconnect();
+      window.removeEventListener('scroll', onPageScroll); cancelAnimationFrame(shiftFrame);
       window.removeEventListener('message', onMessage);
       document.removeEventListener('visibilitychange', onVisibility);
     }

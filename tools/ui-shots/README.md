@@ -23,3 +23,16 @@ node tools/ui-shots/contact.mjs shots/before sheet.png --pair shots/after --cols
 Options: `--scenes a,b,prefix*`, `--sizes phone,tablet,desktop,tv`, `--langs en,sv`,
 `--theme paper` (any Appearance preset), `--reduced-motion`. Scenes, their steps and API mocks are in
 `scenes.mjs`. Each run writes PNGs, half-size JPEGs in `small/` and `report.json` with console errors.
+
+## Scroll benchmark
+
+`scrollperf.mjs` scrolls a page with real wheel input in headless Chromium and prints frame times plus the
+main-thread work (style, layout, script) the scroll caused. Same read-only rule and `--overlay` as `shoot.mjs`.
+
+```sh
+node tools/ui-shots/scrollperf.mjs --base http://SERVER:8080 --runs 3 --cpu 4                    # what's live
+node tools/ui-shots/scrollperf.mjs --base http://SERVER:8080 --overlay public --runs 3 --cpu 4   # this branch
+```
+
+`--cpu N` slows the CPU N times (phone-ish), `--size phone`, `--shot out.png --shot-y 450` saves the page
+scrolled to 450 px. Headless Chromium rasterises in software, so GPU work (blur, big layers) isn't measured.
