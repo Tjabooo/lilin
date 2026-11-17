@@ -32,6 +32,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `ADMIN_EMAILS` | | Owner accounts, as they sign in (Lilin's own sign-in or Cloudflare Access), comma-separated. The first is the owner: files added outside Lilin go to their library. Owners see Activity, House, Clips, Notes and the server settings. |
+| `NOTES_EMAILS` | | Owners who get the Notes tab, comma-separated. Blank = every owner. Owners not listed see no Notes tab, and the Notes API answers 404 for them. |
 | `HOME_NETWORK_ACCESS` | `shared` | `shared`: visitors directly on the home network (private, loopback and Tailscale addresses) use the shared Home network account without signing in. `signin`: everyone signs in. Visitors from the internet must sign in either way. |
 | `SESSION_DAYS` | `30` | How long a Lilin sign-in lasts unused. Renewed while in use, never longer than a year from signing in. |
 | `ALLOWED_HOSTS` | | Extra host names Lilin answers to, comma-separated (`*.example.com` allowed). IP addresses, `localhost`, single-label names, home-network suffixes (`.local`, `.lan`, `.home.arpa`, `.internal`, `.ts.net`) and `PUBLIC_URL`'s host always work; any other name is refused (DNS-rebinding protection). |
