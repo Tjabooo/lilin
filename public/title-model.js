@@ -1,7 +1,11 @@
 // The one title page (app.js renderTitle): which state a title is in for this person, its one gold button and
 // where every other action lives. Pure (no DOM, no T()): app.js turns the action ids into buttons, and
-// tests/title-state.test.mjs checks each state has at most one primary and that nothing the three old pages
-// offered (Discover's title page, the library film page, the library show page) got lost.
+// tests/title-state.test.mjs checks each state has at most one primary and that members never meet a download tool.
+//
+// Play first: Play is the only thing a member does with a title. Yours plays; someone else's copy here plays at once
+// (it joins your library behind the scenes); one that's still coming opens the player on "Getting it ready"; one that
+// isn't here starts that (cold-start.js on the server finds a copy, usually in well under a minute). Downloads,
+// keeping, deleting and release choices are the owner's tools (admin) and sit in the ⋯ menu.
 //
 // Input, plain facts about the title for this person:
 //   type        'movie' | 'tv'
@@ -9,12 +13,13 @@
 //   preparing   every one of them is still being made playable (nothing plays yet)
 //   play        what Play starts: 'play' | 'resume' (films: partly watched), shows: 'start' | 'next' | 'resume' | null (caught up)
 //   onServer    copies someone else has here that aren't theirs (episodes for shows)
-//   transfers   their downloads of it still running; playNow: one of them can play while it downloads
+//   transfers   their downloads of it still running (a Play that is getting it ready)
 //   canGet      may download (torrents on and Can download); tmdb: the title has a TMDB id; search: TMDB is on
 //   unreleased  not out yet (film) / not aired yet (show)
 //   leaving     the next automatic delete is less than three days away; keep: Keep longer is still allowed
 //   expires     an automatic delete is scheduled at all
-//   owner       the server's owner (Identify film); ambiguous: the file matched several films
+//   owner       the server's owner (Identify film); admin: owner rights (the download tools); ambiguous: the file
+//               matched several films
 //   anime       the server says it's anime (Dubbed); versions: versions of the film in the library
 //
 // Output: { state, primary, secondary, more, inline }
@@ -37,26 +42,19 @@ export function titleModel(x) {
   const state = pageState(x);
   const watchable = Boolean(x.search && x.tmdb); // Save / Follow need a TMDB title
   const owned = state === 'ready' || state === 'leavingSoon' || state === 'preparing';
-  const getMore = Boolean(x.canGet && x.tmdb); // the download command (films: one press; shows: the season panel)
+  const getMore = Boolean(x.canGet && x.tmdb); // Play can fetch it (a cold start)
+  const tools = Boolean(x.admin); // the owner's download tools
 
   let primary = null;
   if (state === 'ready' || state === 'leavingSoon') {
-    if (!tv) primary = x.play === 'resume' ? 'resume' : 'play';
-    else if (x.play) primary = x.play === 'resume' ? 'resume' : 'play';
-    else if (x.onServer > 0) primary = 'addAll'; // caught up, and someone else has more here
-    else if (getMore) primary = 'moreEpisodes';
-  } else if (state === 'onItsWay') primary = x.playNow ? 'playNow' : null;
-  else if (state === 'onServer') primary = tv ? 'addAll' : 'addPlay';
+    if (!tv || x.play) primary = x.play === 'resume' ? 'resume' : 'play';
+    else if (x.onServer > 0 || getMore) primary = 'play'; // caught up: the next episode, here or fetched
+  } else if (state === 'onItsWay' || state === 'onServer') primary = 'play';
   else if (state === 'unreleased') primary = watchable ? (tv ? 'follow' : 'save') : null;
-  else if (state === 'notOnLilin') primary = getMore ? 'download' : watchable ? 'save' : null;
+  else if (state === 'notOnLilin') primary = getMore ? 'play' : watchable ? 'save' : null;
 
   const secondary = [];
   const chip = (id, when = true) => { if (when && id !== primary && !secondary.includes(id) && secondary.length < 4) secondary.push(id); };
-  if (!tv) chip('add', state === 'onServer'); // add without playing
-  if (tv) {
-    chip('addAll', x.onServer > 0 && owned);
-    chip('moreEpisodes', getMore && state !== 'notOnLilin' && state !== 'unreleased' && x.onServer === 0);
-  }
   chip('save', watchable && !(tv && state === 'unreleased'));
   chip('follow', watchable && tv);
   chip('playOnTv', !tv && owned && state !== 'preparing');
@@ -65,32 +63,34 @@ export function titleModel(x) {
   const menu = (id, when = true) => { if (when && id !== primary && !secondary.includes(id) && !more.includes(id)) more.push(id); };
   if (!tv && owned) {
     menu('toPhone', state !== 'preparing');
-    menu('keep', x.expires && x.keep && state !== 'leavingSoon');
-    menu('getVersion', getMore);
     menu('dubbed', getMore && x.anime);
+    menu('keep', tools && x.expires && x.keep && state !== 'leavingSoon');
+    menu('getVersion', tools && getMore);
     menu('identify', x.owner);
-    menu('delete');
+    menu('delete', tools);
   }
   if (!tv && !owned) {
-    menu('advanced', getMore && state !== 'unreleased' && state !== 'onServer');
     menu('dubbed', getMore && x.anime && state === 'onServer'); // their copy may be subtitled: fetch the dub instead
+    menu('download', tools && getMore && state === 'notOnLilin'); // fetch it without playing
+    menu('advanced', tools && getMore && state !== 'unreleased' && state !== 'onServer');
   }
   if (tv) {
     menu('dubbed', getMore && x.anime);
-    menu('keep', x.expires && x.keep && state !== 'leavingSoon');
-    menu('delete', owned || x.transfers > 0);
+    menu('moreEpisodes', tools && getMore && state !== 'unreleased'); // the season panel: a whole season, a quality
+    menu('keep', tools && x.expires && x.keep && state !== 'leavingSoon');
+    menu('delete', tools && (owned || x.transfers > 0));
   }
-  menu('details', x.transfers > 0);
+  menu('details', tools && x.transfers > 0);
 
   const inline = [];
   if (x.tmdb && x.search) inline.push('trailer'); // on the hero, when TMDB has one
   inline.push('rate', 'review'); // the reactions block
-  if (state === 'leavingSoon' && x.keep) inline.push('keep'); // in the state line
+  if (tools && state === 'leavingSoon' && x.keep) inline.push('keep'); // in the state line
   if (!tv && x.versions > 1) inline.push('versions');
-  if (!tv && x.anime && getMore && !owned && state !== 'onServer') inline.push('audio'); // the Audio choice beside Add
+  if (!tv && x.anime && getMore && !owned && state !== 'onServer') inline.push('audio'); // Subtitled or Dubbed, beside Play
   if (!tv && x.ambiguous) inline.push('identityNote');
-  if (tv) inline.push('episodes'); // a season's and an episode's own buttons and ⋯ menus:
-  if (tv && (getMore || x.onServer > 0)) inline.push('addSeason');
+  if (tv) inline.push('episodes'); // each episode plays when pressed; a season's ⋯ holds the rest
+  if (tv && tools && (getMore || x.onServer > 0)) inline.push('addSeason');
   if (tv && owned) inline.push('toPhone', 'playOnTv');
 
   return { state, primary, secondary, more, inline };

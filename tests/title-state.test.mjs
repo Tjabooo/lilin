@@ -6,10 +6,10 @@ import { titleModel, pageState, TITLE_STATES } from '../public/title-model.js';
 
 // Who opens a title: someone who may download, someone who may not, the owner, a restricted member.
 const ROLES = {
-  dl: { canGet: true, search: true, owner: false },
-  noDl: { canGet: false, search: true, owner: false },
-  owner: { canGet: true, search: true, owner: true },
-  restricted: { canGet: false, search: true, owner: false },
+  dl: { canGet: true, search: true, owner: false, admin: false },
+  noDl: { canGet: false, search: true, owner: false, admin: false },
+  owner: { canGet: true, search: true, owner: true, admin: true },
+  restricted: { canGet: false, search: true, owner: false, admin: false },
 };
 const base = { mine: 0, preparing: false, play: null, onServer: 0, transfers: 0, playNow: false, tmdb: true, unreleased: false,
   leaving: false, keep: false, expires: false, ambiguous: false, anime: false, versions: 0 };
@@ -54,36 +54,43 @@ test('states follow the title: yours, preparing, leaving soon, on its way, on th
   assert.equal(pageState(base), 'notOnLilin');
 });
 
-test('the gold button is the one thing to do in each state', () => {
+test('Play is the gold button wherever something plays now or can start playing', () => {
   const m = (type, f, r = ROLES.dl) => titleModel({ ...base, ...r, ...f, type });
   assert.equal(m('movie', FIXTURES.ready).primary, 'resume');
   assert.equal(m('movie', FIXTURES.leavingSoon).primary, 'play');
   assert.equal(m('movie', FIXTURES.preparing).primary, null, 'Preparing playback… is not lit');
-  assert.equal(m('movie', FIXTURES.onItsWay).primary, 'playNow');
-  assert.equal(m('movie', FIXTURES.onItsWayNoStream).primary, null);
-  assert.equal(m('movie', FIXTURES.onServer).primary, 'addPlay');
-  assert.equal(m('movie', FIXTURES.onServer, ROLES.noDl).primary, 'addPlay', 'adding needs no download rights');
-  assert.equal(m('movie', FIXTURES.notOnLilin).primary, 'download');
+  assert.equal(m('movie', FIXTURES.onItsWay).primary, 'play', 'getting ready: Play opens it');
+  assert.equal(m('movie', FIXTURES.onItsWayNoStream).primary, 'play');
+  assert.equal(m('movie', FIXTURES.onServer).primary, 'play', 'someone else’s copy plays at once');
+  assert.equal(m('movie', FIXTURES.onServer, ROLES.noDl).primary, 'play', 'playing a copy that is here needs no download rights');
+  assert.equal(m('movie', FIXTURES.notOnLilin).primary, 'play', 'not here: Play gets it ready');
   assert.equal(m('movie', FIXTURES.notOnLilin, ROLES.noDl).primary, 'save');
   assert.equal(m('movie', FIXTURES.unreleased).primary, 'save', 'no grey Coming soon button: Save is the thing to do');
   assert.equal(m('tv', FIXTURES.unreleased).primary, 'follow');
   assert.equal(m('tv', FIXTURES.ready).primary, 'resume');
   assert.equal(m('tv', FIXTURES.readyStart).primary, 'play');
-  assert.equal(m('tv', FIXTURES.caughtUp).primary, 'moreEpisodes');
+  assert.equal(m('tv', FIXTURES.caughtUp).primary, 'play', 'caught up: the next episode is fetched');
   assert.equal(m('tv', FIXTURES.caughtUp, ROLES.noDl).primary, null);
-  assert.equal(m('tv', FIXTURES.caughtUpMore, ROLES.noDl).primary, 'addAll');
-  assert.equal(m('tv', FIXTURES.onServer, ROLES.noDl).primary, 'addAll');
-  assert.equal(m('tv', FIXTURES.notOnLilin).primary, 'download');
+  assert.equal(m('tv', FIXTURES.caughtUpMore, ROLES.noDl).primary, 'play');
+  assert.equal(m('tv', FIXTURES.onServer, ROLES.noDl).primary, 'play');
+  assert.equal(m('tv', FIXTURES.notOnLilin).primary, 'play');
   assert.equal(m('movie', FIXTURES.notOnLilin, { ...ROLES.noDl, search: false }).primary, null, 'nothing to offer without TMDB or downloads');
 });
 
-test('nothing lost: every action of the three old title pages is reachable in some state', () => {
-  const reach = new Set(all.flatMap(({ model }) => [model.primary, ...model.secondary, ...model.more, ...model.inline]).filter(Boolean));
-  // Play, Resume, Play now, Download (Add to library), Add, Add & play, Add season, Save, Follow, Trailer, Rate/Review,
-  // Play on TV, To phone, Delete, Keep longer, Identify, Advanced options, Dubbed, versions, Download details, More episodes
-  for (const id of ['play', 'resume', 'playNow', 'download', 'add', 'addPlay', 'addSeason', 'addAll', 'save', 'follow', 'trailer', 'rate', 'review',
-    'playOnTv', 'toPhone', 'delete', 'keep', 'identify', 'advanced', 'getVersion', 'dubbed', 'versions', 'details', 'moreEpisodes', 'episodes', 'audio', 'identityNote']) {
-    assert.ok(reach.has(id), `${id} is reachable`);
+test('nothing lost: every action is reachable in some state, the download tools for the owner', () => {
+  const reach = (list) => new Set(list.flatMap(({ model }) => [model.primary, ...model.secondary, ...model.more, ...model.inline]).filter(Boolean));
+  const everyone = reach(all), owner = reach(all.filter((x) => x.role === 'owner'));
+  for (const id of ['play', 'resume', 'save', 'follow', 'trailer', 'rate', 'review', 'playOnTv', 'toPhone', 'dubbed', 'versions', 'episodes', 'audio', 'identityNote']) {
+    assert.ok(everyone.has(id), `${id} is reachable`);
+  }
+  for (const id of ['download', 'moreEpisodes', 'addSeason', 'delete', 'keep', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
+});
+
+test('members never meet a download tool: no Add, Download, Keep, Delete or transfer details', () => {
+  const tools = ['download', 'add', 'addAll', 'addPlay', 'playNow', 'moreEpisodes', 'addSeason', 'advanced', 'getVersion', 'details', 'keep', 'delete', 'identify'];
+  for (const { role, type, name, model } of all) {
+    if (role === 'owner') continue;
+    for (const id of [model.primary, ...model.secondary, ...model.more, ...model.inline]) assert.ok(!tools.includes(id), `${role} ${type} ${name}: ${id}`);
   }
 });
 
