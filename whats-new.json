@@ -1,5 +1,20 @@
 [
 {
+  "id": "2026-11-17-comingsoon",
+  "date": "2026-11-17",
+  "title": "Coming soon",
+  "items": [
+    {
+      "title": "See what's coming out",
+      "text": "Discover has a Coming soon row with the films and shows that come out in the next few months: new films in cinemas, films coming to streaming, new series and new seasons. The closest and most talked-about are first, and each card shows the date. See all lists everything by week and month, with Films and Shows to filter."
+    },
+    {
+      "title": "Save or follow in one tap",
+      "text": "Each card has a small button to save a film or follow a show right from the row, the same as on the title page. Saved and followed titles show up under Coming up in your Library, and if you can download, Lilin adds them once they're out and sends you a notification."
+    }
+  ]
+},
+{
   "id": "2026-11-17-friends",
   "date": "2026-11-17",
   "title": "Friends",

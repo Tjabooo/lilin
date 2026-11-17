@@ -1,5 +1,17 @@
 {
-  "2026-11-17-friends": {
+  "2026-11-17-comingsoon": {
+    "title": "Kommer snart",
+    "items": {
+      "See what's coming out": {
+        "title": "Se vad som är på väg",
+        "text": "Upptäck har en rad som heter Kommer snart, med filmerna och serierna som kommer de närmaste månaderna: nya filmer på bio, filmer som kommer till streaming, nya serier och nya säsonger. Det som är närmast och mest omtalat kommer först, och varje kort visar datumet. Visa alla listar allt per vecka och månad, med Filmer och Serier att filtrera på."
+      },
+      "Save or follow in one tap": {
+        "title": "Spara eller följ med ett tryck",
+        "text": "Varje kort har en liten knapp för att spara en film eller följa en serie direkt från raden, precis som på titelsidan. Det du sparar och följer syns under På gång i ditt bibliotek, och om du kan ladda ner lägger Lilin till det när det är ute och skickar en notis."
+      }
+    }
+  },  "2026-11-17-friends": {
     "title": "Vänner",
     "items": {
       "Add your friends": {

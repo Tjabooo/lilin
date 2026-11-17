@@ -274,7 +274,15 @@
     } };
   }
   function badge() { return h('span', { class: 'tv-badge', text: T('In library') }); }
-  function titleSub(t) { return [t.year, t.type === 'tv' ? T('Series') : T('Film')].filter(Boolean).join(' · '); }
+  function titleSub(t) { return t.soon && t.soon.date ? soonSub(t.soon) : [t.year, t.type === 'tv' ? T('Series') : T('Film')].filter(Boolean).join(' · '); }
+  // comingsoon: Coming soon cards say what comes out when ("In cinemas · 21 Nov"), from the server's soon field.
+  function soonSub(s) {
+    var when = s.date;
+    try { when = new Date(s.date + 'T12:00:00Z').toLocaleDateString(window.LilinTvStrings ? 'sv-SE' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); } catch (e) { /* old browser: the ISO date */ }
+    var kind = s.kind === 'cinema' ? T('In cinemas') : s.kind === 'digital' ? T('Streaming') : s.kind === 'disc' ? T('On disc')
+      : s.kind === 'premiere' ? T('New series') : s.kind === 'season' ? T('Season {0}', s.season) : '';
+    return [kind, when].filter(Boolean).join(' · ');
+  }
 
   function onWayBar(p) { return p ? barFor(p.progress).el : null; }
   // A film or show from TMDB (Discover, search). OK opens its page.

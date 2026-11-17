@@ -77,6 +77,7 @@ import { ensurePlayhead } from './setup/playhead.js';
 
 import { APP_DIR, DATA_DIR, CACHE_DIR, PUBLIC_DIR, dataDirProblem, ensureDataDir } from './paths.js';
 import * as preview from './preview.js';
+import { createComingSoon } from './coming-soon.js'; // comingsoon: Discover's Coming soon row and page
 
 {
   const problem = dataDirProblem();
@@ -597,18 +598,22 @@ const LISTS = {
   'top-movie': ['/movie/top_rated', 'movie'],
   'top-tv': ['/tv/top_rated', 'tv'],
   'cinemas': ['/movie/now_playing', 'movie'],
-  'upcoming': ['/movie/upcoming', 'movie'],
   'on-air': ['/tv/on_the_air', 'tv'],
   'airing-today': ['/tv/airing_today', 'tv'],
 };
 const HOME_ROWS = {
   all: [['trending-all', 'Trending this week'], ['popular-movie', 'Popular films'], ['popular-tv', 'Popular shows'],
-    ['cinemas', 'In cinemas now'], ['on-air', 'New episodes this week'], ['top-movie', 'Top rated films'], ['top-tv', 'Top rated shows']],
+    ['cinemas', 'In cinemas now'], ['on-air', 'New episodes this week'], ['coming-soon', 'Coming soon'], ['top-movie', 'Top rated films'], ['top-tv', 'Top rated shows']],
   movie: [['trending-movie', 'Trending films'], ['popular-movie', 'Popular'], ['cinemas', 'In cinemas now'],
-    ['upcoming', 'Coming soon'], ['top-movie', 'Top rated']],
+    ['coming-soon-movie', 'Coming soon'], ['top-movie', 'Top rated']],
   tv: [['trending-tv', 'Trending shows'], ['popular-tv', 'Popular'], ['airing-today', 'Airing today'],
-    ['on-air', 'New episodes this week'], ['top-tv', 'Top rated']],
+    ['on-air', 'New episodes this week'], ['coming-soon-tv', 'Coming soon'], ['top-tv', 'Top rated']],
 };
+// comingsoon: films and shows about to come out, ranked by closeness and buzz (src/coming-soon.js)
+const TMDB_REGION = (process.env.TMDB_REGION || TMDB_LANG.split('-')[1] || 'US').trim().toUpperCase();
+const comingSoon = createComingSoon({ tmdb, listTmdb: (endpoint, params) => cachedTmdb(endpoint, params, 3 * 3600 * 1000), mapTitle,
+  region: TMDB_REGION, language: currentLanguage, log: (line) => console.warn(line) });
+if (TMDB_TOKEN || TMDB_KEY) setTimeout(() => comingSoon.warm(), 20_000).unref();
 
 // Trailers first, then teasers; official ones in your language, then English; the biggest and newest wins.
 function pickTrailer(videos, lang) {
@@ -681,6 +686,7 @@ export const seasonEpisodes = (d) => (d.episodes || []).map((e) => ({
 }));
 
 async function discoverList(key, page = 1) {
+  if (comingSoon.handles(key)) return comingSoon.list(key, page); // comingsoon
   const [endpoint, type] = LISTS[key] || [];
   if (!endpoint) throw new HttpError(400, 'Unknown list.');
   const data = await cachedTmdb(endpoint, { page: String(page) });
@@ -703,7 +709,8 @@ function withoutDisliked(user, data) {
 
 async function discoverHome(type) {
   const rows = HOME_ROWS[type] || HOME_ROWS.all;
-  const lists = await Promise.all(rows.map(([key]) => discoverList(key).catch(() => null)));
+  const lists = await Promise.all(rows.map(([key]) => (comingSoon.handles(key) ? comingSoon.list(key, 1, { wait: 2500 }) // comingsoon: skipped until built
+    : discoverList(key)).catch(() => null)));
   const featured = (lists[0]?.results || []).filter((t) => t.backdrop && t.overview).slice(0, 6);
   return {
     featured,
@@ -3906,6 +3913,11 @@ async function handleApi(req, res, url) {
   }
   if (p === '/api/discover/home') {
     return sendJson(res, 200, withoutDisliked(user, await discoverHome(url.searchParams.get('type') || 'all')));
+  }
+  // comingsoon: everything in Coming soon for the full page (grouped by week and month in public/coming-soon.js)
+  if (p === '/api/discover/coming-soon') {
+    const type = ['movie', 'tv'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
+    return sendJson(res, 200, withoutDisliked(user, { items: await comingSoon.items(type), region: TMDB_REGION }));
   }
   if (p === '/api/discover/list') {
     const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page')) || 1));

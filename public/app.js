@@ -22,6 +22,7 @@ import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
 import { createPeek } from './peek.js';
+import { createComingSoon as createComingSoonView } from './coming-soon.js'; // comingsoon
 
 translatePage();
 saveLanguage(lang);
@@ -476,6 +477,7 @@ function refreshWatchViews() {
   document.querySelectorAll('.watch-box').forEach((box) => box._update?.());
   if (state.view === 'library') renderLibrary();
   if (state.view === 'discover' && !state.query.trim() && !disc.list && !disc.genre) refreshSavedShelf();
+  document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: Save / Follow on its cards
 }
 async function setWatch(t, flags) {
   const { item } = await api('/api/watchlist', jsonPost({ type: t.type, tmdbId: t.id, ...flags }));
@@ -1235,6 +1237,7 @@ async function renderDiscover() {
 
   if (disc.type === 'docs') return documentaries.render(content, signal);
 
+  if (disc.list && comingSoon.handles(disc.list.key)) return comingSoon.page(content, signal); // comingsoon: its own page
   if (disc.list) {
     content.before(h('div', { class: 'discover-head' },
       h('button', { class: 'back-link', onclick: () => { disc.list = null; renderDiscover(); } }, T('‹ Discover')),
@@ -1259,7 +1262,7 @@ async function renderDiscover() {
     const seeds = watchedSeeds();
     const [because, ...others] = seeds;
     const moods = todaysMoods(2);
-    const [r1, r2, r3, r4, ...rest] = data.rows.map(row);
+    const [r1, r2, r3, r4, ...rest] = data.rows.map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
     content.replaceChildren(...[
       data.featured.length && billboard(data.featured, { signal, label: T('Trending this week') }),
       wrappedBanner(signal),
@@ -3454,6 +3457,10 @@ const people = createPeople({ h, api, toast, me: () => state.me }); // faces and
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: Settings → Friends (friends.js)
 const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+// comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
+const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
+  carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
+  openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed

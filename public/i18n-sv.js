@@ -1,6 +1,22 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
   "Coming soon": "Kommer snart",
+  // comingsoon: Discover's Coming soon row and page
+  "tomorrow": "imorgon",
+  "in {0} weeks": "om {0} veckor",
+  "in {0} months": "om {0} månader",
+  "Streaming": "Streaming",
+  "On disc": "På skiva",
+  "New series": "Ny serie",
+  "Later in {0}": "Senare i {0}",
+  "Following {0}": "Följer {0}",
+  "Follow {0}": "Följ {0}",
+  "Saved: {0}": "Sparad: {0}",
+  "Save {0} for later": "Spara {0} till senare",
+  "Saved. Lilin adds it once a good copy is out.": "Sparad. Lilin lägger till den när en bra kopia finns.",
+  "Nothing dated yet": "Inget datum än",
+  "Nothing with a release date in the next few months. Check back soon.": "Inget har premiärdatum de närmaste månaderna. Titta in snart igen.",
+  "The closest and most talked-about first. Save a film or follow a show to keep track of it.": "Det som är närmast och mest omtalat först. Spara en film eller följ en serie för att hålla koll på den.",
   "Out to stream {0}": "Kan streamas från {0}",
   "Out on disc {0}": "Kommer på skiva {0}",
   "In cinemas {0}": "På bio {0}",
