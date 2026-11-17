@@ -94,7 +94,7 @@
     {
       "audience": "owner",
       "title": "Let someone see Activity",
-      "text": "Settings → People has a new Can see activity switch. Whoever you turn it on for gets the Activity tab, read-only: they can't invite or remove anyone, and the other owner tabs stay yours. Inviting and removing people now sits under People and invites on the Activity page."
+      "text": "Settings → People has a new Can see activity switch. Whoever you turn it on for gets the Activity tab, read-only: they can't invite or remove anyone, and the other owner tabs stay yours. To invite someone, tap the Invite tile at the start of the people row; tap a person to rename them, send a password link or remove their access."
     }
   ]
 },

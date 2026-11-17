@@ -8473,79 +8473,64 @@ function accessName(email, name) {
   });
 }
 
-// One People list: everyone on the access list with their last visit (everyone seen, if the list can't be read).
-function peopleSection(q) {
+// Owner only. The Invite tile at the start of the people strip opens this: one box for a note, one button,
+// and the links still waiting to be used.
+function activityInvite() {
   const a = state.access || {};
-  const out = [];
-  if (state.access && !a.configured) {
-    out.push(h('p', { class: 'muted' }, T('Set CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_LIST_ID in .env to invite people from here (see docs/remote-access.md in the Lilin folder).')));
-  } else if (state.access) {
-    const noteInput = h('input', { id: 'invite-note', class: 'invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), value: state.inviteNote || '',
-      oninput: (e) => { state.inviteNote = e.currentTarget.value; } });
-    out.push(h('div', { class: 'invite-new' }, noteInput,
-      h('button', { class: 'retry', onclick: (e) => makeInvite(e.currentTarget) }, T('Invite someone'))));
-    out.push(h('p', { class: 'muted invite-hint' }, a.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.') : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.')));
-    const open = (a.invites || []).filter((i) => i.state === 'open');
-    if (open.length) {
-      out.push(h('ul', { class: 'rows invite-rows' }, open.map((i) => {
-        const url = `${location.origin}/c/i/${i.token}`;
-        return h('li', { class: 'row' },
-          h('span', { class: 'row-text' },
-            h('span', { class: 'row-title' }, i.note || T('Invite')),
-            h('span', { class: 'row-meta' }, h('span', {}, T('open · expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' }))),
-              i.byName && h('span', {}, T('by {0}', i.byName)))),
-          h('span', { class: 'row-actions' },
-            h('button', { class: 'retry', onclick: () => copyWithToast(url, T('Invite link copied')) }, T('Copy link')),
-            h('button', { class: 'retry', onclick: () => accessAction(`/api/access/invite/${i.id}/revoke`, null, T('Invite cancelled')) }, T('Cancel'))));
-      })));
-    }
-    if (a.error) out.push(h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
-  }
-  out.push(h('p', { class: 'muted activity-location-note' }, T('Locations are approximate. City names require Cloudflare’s “Add visitor location headers” Managed Transform.')));
+  if (!a.configured) return h('div', { class: 'act-panel' },
+    h('p', { class: 'muted' }, T('Set CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_LIST_ID in .env to invite people from here (see docs/remote-access.md in the Lilin folder).')));
+  const noteInput = h('input', { id: 'invite-note', class: 'act-invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), value: state.inviteNote || '',
+    oninput: (e) => { state.inviteNote = e.currentTarget.value; },
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); makeInvite(e.currentTarget.nextSibling); } } });
+  const open = (a.invites || []).filter((i) => i.state === 'open');
+  return h('div', { class: 'act-panel act-invite' },
+    h('div', { class: 'act-panel-head' },
+      h('span', { class: 'act-panel-icon', 'aria-hidden': 'true' }, icon('send')),
+      h('div', { class: 'act-panel-title' },
+        h('strong', {}, T('Invite someone')),
+        h('span', {}, a.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.') : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.'))),
+      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Close'), onclick: () => { state.activityInviteOpen = false; renderActivity(); } }, icon('close'))),
+    h('div', { class: 'act-invite-row' }, noteInput,
+      h('button', { type: 'button', class: 'btn-primary act-invite-go', onclick: (e) => makeInvite(e.currentTarget) }, icon('copy'), T('Make link'))),
+    open.length > 0 && h('div', { class: 'act-invite-open' },
+      h('span', { class: 'act-invite-open-head' }, T('Waiting to be used')),
+      h('ul', {}, open.map((i) => h('li', {},
+        h('span', { class: 'act-invite-what' }, h('span', { class: 'act-invite-name' }, i.note || T('Invite')),
+          h('span', { class: 'act-invite-meta' }, [T('expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' })), i.byName && T('by {0}', i.byName)].filter(Boolean).join(' · '))),
+        h('button', { type: 'button', class: 'chip', onclick: () => copyWithToast(`${location.origin}/c/i/${i.token}`, T('Invite link copied')) }, T('Copy link')),
+        h('button', { type: 'button', class: 'chip', onclick: () => accessAction(`/api/access/invite/${i.id}/revoke`, null, T('Invite cancelled')) }, T('Cancel')))))),
+    a.error && h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
+}
 
-  const members = a.members || null;
+// Owner only: the person picked in the strip, with what can be done about them (rename, password link, remove).
+function activityPersonPanel(email) {
+  const a = state.access || {};
   const key = (u) => String(u).toLowerCase();
-  const seen = new Map((state.activity?.people || []).map((p) => [key(p.user), p]));
-  const rows = [];
-  for (const email of members || []) {
-    const p = seen.get(key(email));
-    seen.delete(key(email));
-    rows.push({ email, member: true, owner: (a.owners || []).includes(email), name: a.names?.[email] || p?.name || personName(email), p });
-  }
-  // Once the access list is known, only people on it are listed: removing someone there drops them here too.
-  if (!members) for (const p of seen.values()) rows.push({ email: p.user, member: false, owner: false, name: personName(p), p });
-  rows.sort((x, y) => (y.p?.at || 0) - (x.p?.at || 0));
-  const list = rows.filter((r) => !q || norm(`${r.email} ${r.name} ${r.p ? activityDevice(r.p) : ''}`).includes(q));
-
-  out.push(list.length ? h('ul', { class: 'rows people-rows' }, list.map((r) => {
-    const { email, name, p, owner, member } = r;
-    const isEmail = String(email).includes('@');
-    const noPassword = member && a.passwords && !a.passwords.includes(key(email));
-    return h('li', { class: 'row' },
-      h('span', { class: 'activity-face' }, people.face({ name, avatar: p?.avatar }, { size: 34 }),
-        h('span', { class: `activity-dot${p && Date.now() - p.at < 3 * 60000 ? ' is-on' : ''}`, 'aria-hidden': 'true' })),
-      h('div', { class: 'row-text' },
-        member ? accessName(email, name) : h('span', { class: 'row-title', title: email }, name),
-        h('span', { class: 'row-meta' },
-          isEmail && h('span', {}, email),
-          owner && h('span', {}, T('owner')),
-          noPassword && h('span', {}, T('No password yet')),
-          h('span', {}, p ? lastSeenText(p.at) : T('Hasn’t signed in yet')),
-          p && h('span', {}, activityDevice(p)))),
-      (noPassword || (member && !owner)) && h('span', { class: 'row-actions' },
-        noPassword && h('button', { class: 'retry', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
-        member && !owner && h('button', {
-        class: 'retry',
+  const p = (state.activity?.people || []).find((x) => key(x.user) === key(email));
+  const member = (a.members || []).some((m) => key(m) === key(email));
+  const owner = (a.owners || []).some((m) => key(m) === key(email));
+  const name = a.names?.[email] || p?.name || personName(email);
+  const isEmail = String(email).includes('@');
+  const noPassword = member && a.passwords && !a.passwords.includes(key(email));
+  return h('div', { class: 'act-panel act-person-panel' },
+    h('div', { class: 'act-panel-head' },
+      people.face({ name, avatar: p?.avatar }, { size: 40 }),
+      h('div', { class: 'act-panel-title' },
+        member ? accessName(email, name) : h('strong', { title: email }, name),
+        h('span', {}, [isEmail && email, owner && T('owner'), noPassword && T('No password yet'), p ? lastSeenText(p.at) : T('Hasn’t signed in yet'), p && activityDevice(p)].filter(Boolean).join(' · '))),
+      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Show everyone'), title: T('Show everyone'), onclick: () => { state.activityPerson = null; renderActivity(); } }, icon('close'))),
+    (noPassword || (member && !owner)) && h('div', { class: 'act-person-actions' },
+      noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
+      member && !owner && h('button', {
+        type: 'button', class: 'chip act-remove',
         onclick: (e) => {
           const b = e.currentTarget;
-          if (b.dataset.sure) return accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name));
+          if (b.dataset.sure) return accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)).then(() => { state.activityPerson = null; renderActivity(); });
           b.dataset.sure = '1';
           b.textContent = T('Sure?');
-          setTimeout(() => { b.textContent = T('Remove'); delete b.dataset.sure; }, 4000);
+          setTimeout(() => { b.textContent = T('Remove access'); delete b.dataset.sure; }, 4000);
         },
-      }, T('Remove'))));
-  })) : h('p', { class: 'muted' }, q ? T('Nobody matches.') : T('Nobody yet.')));
-  return foldGroup('access', 'h3', 'activity-head', T('People and invites'), rows.length, out, Boolean(q), true);
+      }, T('Remove access'))));
 }
 
 // Activity sections and days fold open/closed; the folded ones are remembered per browser.
@@ -8701,13 +8686,25 @@ function activitySummary(events) {
   const who = new Set(todays.map((e) => e.user)).size;
   const tile = (n, label, cls = '') => h('div', { class: `act-stat${cls}` }, h('strong', {}, String(n)), h('span', {}, label));
   const pick = state.activityPerson;
+  const admin = Boolean(state.status?.admin);
+  const canInvite = admin && Boolean(state.access);
+  const openInvites = (state.access?.invites || []).filter((i) => i.state === 'open').length;
+  const seenKeys = new Set(peopleList.map((p) => String(p.user).toLowerCase()));
+  const neverSeen = admin ? (state.access?.members || []).filter((m) => !seenKeys.has(String(m).toLowerCase())) : [];
   return [
     h('div', { class: 'act-stats' },
       tile(on, T('on right now'), on ? ' is-live' : ''),
       tile(who, who === 1 ? T('person today') : T('people today')),
       tile(watched, watched === 1 ? T('video watched today') : T('videos watched today')),
       tile(downloads, downloads === 1 ? T('download today') : T('downloads today'))),
-    peopleList.length > 0 && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
+    (peopleList.length > 0 || canInvite) && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
+      canInvite && h('button', {
+        type: 'button', class: 'act-person act-invite-tile', 'aria-expanded': String(Boolean(state.activityInviteOpen)),
+        onclick: () => { state.activityInviteOpen = !state.activityInviteOpen; renderActivity(); if (state.activityInviteOpen) $('#invite-note')?.focus(); },
+      },
+      h('span', { class: 'act-invite-plus', 'aria-hidden': 'true' }, icon('plus'), openInvites > 0 && h('span', { class: 'act-invite-count' }, String(openInvites))),
+      h('span', { class: 'act-person-name' }, T('Invite')),
+      h('span', { class: 'act-person-seen' }, openInvites ? T('{0} waiting', openInvites) : T('new link'))),
       peopleList.map((p) => h('button', {
         type: 'button', class: 'act-person', 'aria-pressed': String(pick === p.user), title: `${personName(p)} · ${lastSeenText(p.at)} · ${activityDevice(p)}`,
         onclick: () => { state.activityPerson = pick === p.user ? null : p.user; renderActivity(); },
@@ -8715,7 +8712,16 @@ function activitySummary(events) {
       h('span', { class: 'activity-face' }, people.face(p, { size: 44 }),
         h('span', { class: `activity-dot${Date.now() - p.at < 3 * 60000 ? ' is-on' : ''}`, 'aria-hidden': 'true' })),
       h('span', { class: 'act-person-name' }, personName(p)),
-      h('span', { class: 'act-person-seen' }, lastSeenText(p.at))))),
+      h('span', { class: 'act-person-seen' }, lastSeenText(p.at)))),
+      neverSeen.map((email) => h('button', {
+        type: 'button', class: 'act-person is-new', 'aria-pressed': String(pick === email), title: email,
+        onclick: () => { state.activityPerson = pick === email ? null : email; renderActivity(); },
+      },
+      h('span', { class: 'activity-face' }, people.face({ name: state.access?.names?.[email] || personName(email) }, { size: 44 })),
+      h('span', { class: 'act-person-name' }, state.access?.names?.[email] || personName(email)),
+      h('span', { class: 'act-person-seen' }, T('Hasn’t signed in yet'))))),
+    canInvite && state.activityInviteOpen && activityInvite(),
+    admin && pick && activityPersonPanel(pick),
   ];
 }
 
@@ -8732,7 +8738,6 @@ function renderActivity() {
     && (!state.activityPerson || e.user === state.activityPerson)
     && (!q || norm(`${e.user} ${personName(e)} ${e.subjectName || ''} ${e.detail} ${e.action} ${activityDevice(e)}`).includes(q)));
   const out = [...activitySummary(all)];
-  if (state.status?.admin) out.push(...peopleSection(q));
   const days = [];
   for (const s of activitySessions(events)) {
     const label = dayLabel(s.at);

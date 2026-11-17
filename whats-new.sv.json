@@ -75,7 +75,7 @@
       },
       "Let someone see Activity": {
         "title": "Låt någon se Aktivitet",
-        "text": "Inställningar → Personer har en ny brytare, Kan se aktivitet. Den du slår på den för får fliken Aktivitet, bara för att läsa: de kan inte bjuda in eller ta bort någon, och de andra ägarflikarna är fortfarande dina. Att bjuda in och ta bort folk ligger nu under Personer och inbjudningar på Aktivitet-sidan."
+        "text": "Inställningar → Personer har en ny brytare, Kan se aktivitet. Den du slår på den för får fliken Aktivitet, bara för att läsa: de kan inte bjuda in eller ta bort någon, och de andra ägarflikarna är fortfarande dina. För att bjuda in någon trycker du på Bjud in först i raden med personer; tryck på en person för att byta namn, skicka en lösenordslänk eller ta bort deras åtkomst."
       }
     }
   },

@@ -2162,7 +2162,6 @@ export default {
   "Can see activity": "Kan se aktivitet",
   "The owner can always see activity": "Ägaren kan alltid se aktivitet",
   "{0} can see activity": "{0} kan se aktivitet",
-  "People and invites": "Personer och inbjudningar",
   // vibes: Discover's Moods (public/vibes.js)
   "Moods": "Stämningar",
   "Mood": "Stämning",
@@ -2170,4 +2169,10 @@ export default {
   "Try another type.": "Prova en annan typ.",
   "1 of these is in your library, so it comes first.": "1 av dem finns i ditt bibliotek, så den kommer först.",
   "{0} of these are in your library, so they come first.": "{0} av dem finns i ditt bibliotek, så de kommer först.",
+  "Make link": "Skapa länk",
+  "Remove access": "Ta bort åtkomst",
+  "expires {0}": "går ut {0}",
+  "Waiting to be used": "Väntar på att användas",
+  "Show everyone": "Visa alla",
+  "new link": "ny länk",
 };
