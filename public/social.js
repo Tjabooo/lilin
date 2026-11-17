@@ -102,7 +102,7 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
       current = r; cache.set(key, r);
       up.setAttribute('aria-pressed', String(r.mine === 1));
       down.setAttribute('aria-pressed', String(r.mine === -1));
-      whoText.textContent = likedText(r);
+      whoText.textContent = whoText.title = likedText(r); // title: full list when the line is clamped
       const list = [...(r.mine === 1 && people?.me?.() ? [people.me()] : []), ...(r.people || r.likedBy.map((name) => ({ name })))];
       whoFaces.replaceChildren(...[faces(list, { size: 26, max: 4 })].filter(Boolean));
       down.title = r.mine === -1 ? T('Only you see this') : T('Not for me (only you see this)');

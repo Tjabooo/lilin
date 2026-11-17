@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-likes-phone",
+  "date": "2026-11-17",
+  "title": "Likes on phones",
+  "items": [
+    {
+      "title": "Tidier Liked by line",
+      "text": "When lots of people like a title, the faces and names now sit on their own line under the thumbs instead of squeezing into a narrow column on your phone."
+    }
+  ]
+},
+{
   "id": "2026-11-17-moments",
   "date": "2026-11-17",
   "title": "Moments",

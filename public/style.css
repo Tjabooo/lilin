@@ -3100,7 +3100,7 @@ button.st-col:hover .st-stack { filter: brightness(1.12); }
 .push-devices .row .chip { flex: none; }
 .set-row.push-test { justify-content: flex-end; background: none; padding: 0 0 4px; }
 /* ---------- Social: thumbs, Popular on Lilin, watch parties, room chat, Wrapped ---------- */
-.rate-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; min-height: 40px; }
+.rate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 14px; min-height: 40px; }
 .thumb {
   width: 40px; height: 40px; display: grid; place-items: center; flex: none;
   color: var(--dust); background: none; border: 1px solid var(--line); border-radius: 999px;
@@ -3111,7 +3111,9 @@ button.st-col:hover .st-stack { filter: brightness(1.12); }
 .thumb:active { transform: scale(0.92); }
 .thumb[aria-pressed="true"] { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
 .thumb[aria-pressed="true"] svg { fill: currentColor; fill-opacity: 0.25; }
-.liked-by { font-size: 14px; color: var(--dust); margin-left: 4px; min-width: 0; overflow-wrap: anywhere; }
+/* Who liked it: beside the buttons while it fits, else its own line under them (phones, long lists) */
+.liked-by { font-size: 14px; color: var(--dust); min-width: 0; max-width: 100%; }
+.liked-text { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .popular-why { color: var(--bulb); font-weight: 600; }
 .chip.primary { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
 
