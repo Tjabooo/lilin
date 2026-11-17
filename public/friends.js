@@ -19,14 +19,70 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
   const incomingCount = () => (view.data.incoming || []).length;
 
   async function act(action, person, done) {
+    let ok = false;
     try {
       const r = await api(`/api/friends/${action}`, jsonPost({ id: person.id }));
       view.data = { friends: r.friends, incoming: r.incoming, outgoing: r.outgoing };
       view.loaded = true;
       if (view.results) view.results = view.results.map((p) => (p.id === person.id ? { ...p, state: r.state || null } : p));
       if (done) toast(done(r));
+      ok = true;
     } catch (err) { toast(err.message); }
     rerender();
+    return ok;
+  }
+
+  // The friend request popup (app.js: maybeAskFriends): unanswered requests pop up when Lilin opens and
+  // when one arrives while it's open, so nobody has to go looking in Settings. Later (or closing the
+  // sheet) hides those requests on this device until tomorrow; a new request pops up right away.
+  const LATER = 'lilin:friend-asks-later';
+  const askKey = (p) => `${p.id}:${p.at}`;
+  const laterList = () => { try { return JSON.parse(localStorage.getItem(LATER)) || {}; } catch { return {}; } };
+  function waitingAsks() {
+    if (me()?.restricted || !me()?.email) return [];
+    const later = laterList(), now = Date.now();
+    return (view.data.incoming || []).filter((p) => !(later[askKey(p)] > now));
+  }
+  function askLater(people) {
+    const now = Date.now();
+    const later = Object.fromEntries(Object.entries(laterList()).filter(([, until]) => until > now));
+    for (const p of people) later[askKey(p)] = now + 20 * 3600e3;
+    try { localStorage.setItem(LATER, JSON.stringify(later)); } catch { /* blocked: it asks again next visit */ }
+  }
+  // The sheet's content. close: closes the sheet. Returns { node, unanswered } (unanswered: for askLater).
+  function askSheet({ close }) {
+    const asks = waitingAsks();
+    const answered = new Map(); // id → 'yes' | 'no'
+    const list = h('ul', { class: 'friend-list friend-asks-list' });
+    const done = h('button', { class: 'play-btn whats-new-done', type: 'button', onclick: () => close() }, T('Later'));
+    const draw = () => {
+      list.replaceChildren(...asks.map((p) => {
+        const a = answered.get(p.id);
+        if (a) return row(p, null, h('span', { class: 'friend-state' }, a === 'yes' ? icon('check') : null, a === 'yes' ? T('Friends') : T('Declined')));
+        const busy = (btns) => btns.forEach((b) => { b.disabled = true; });
+        const yes = h('button', { type: 'button', class: 'chip friend-yes', onclick: async () => {
+          busy([yes, no]);
+          if (await act('accept', p)) answered.set(p.id, 'yes');
+          draw();
+        } }, T('Accept'));
+        const no = h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Decline {0}', p.name), title: T('Decline'), onclick: async () => {
+          busy([yes, no]);
+          if (await act('remove', p)) answered.set(p.id, 'no');
+          draw();
+        } }, icon('close'));
+        return row(p, null, yes, no);
+      }));
+      done.textContent = answered.size === asks.length ? T('Done') : T('Later');
+    };
+    draw();
+    const one = asks.length === 1;
+    const node = h('div', { class: 'whats-new friend-asks' },
+      h('p', { class: 'whats-new-eyebrow' }, T('Friend requests')),
+      h('h2', { id: 'picker-title' }, one ? T('{0} wants to be your friend', asks[0].name) : T('{0} people want to be your friend', asks.length)),
+      h('p', { class: 'picker-sub muted' }, T('Friends can send each other moments from films and episodes.')),
+      list,
+      h('div', { class: 'whats-new-actions' }, done));
+    return { node, count: asks.length, unanswered: () => asks.filter((p) => !answered.has(p.id)) };
   }
 
   // Search as you type (a short pause first); the results replace themselves without redrawing Settings.
@@ -102,5 +158,5 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
     return out;
   }
 
-  return { settings, load, invalidate, friendList, incomingCount, jumpNext: () => { view.jump = true; view.loaded = false; } };
+  return { settings, load, invalidate, friendList, incomingCount, waitingAsks, askLater, askSheet, jumpNext: () => { view.jump = true; view.loaded = false; } };
 }

@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-friend-request-popup",
+  "date": "2026-11-17",
+  "title": "Friend requests find you",
+  "items": [
+    {
+      "title": "No more digging in Settings",
+      "text": "When someone asks to be your friend, Lilin now shows it as soon as you open it (or right away if you're already in). Accept or decline right there, or press Later and it asks again tomorrow."
+    }
+  ]
+},
+{
   "id": "2026-11-17-idea-box-look",
   "date": "2026-11-17",
   "title": "A nicer idea box",

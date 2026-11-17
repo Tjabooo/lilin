@@ -2397,7 +2397,7 @@ async function applyLive() {
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
   if (has('moments')) { momentsUI.invalidate(); if (view === 'settings') jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
-  if (has('friends') || has('people')) { friendsUI.invalidate(); if (view === 'settings') jobs.push(friendsUI.load().then(renderSettingsWhenStill)); } // friends
+  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(view === 'settings' ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
   if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
@@ -3459,6 +3459,24 @@ const people = createPeople({ h, api, toast, me: () => state.me }); // faces and
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: Settings → Friends (friends.js)
 const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+// friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
+// while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
+// stays away from Settings, where the requests are already on screen.
+const friendAsks = { open: false, retry: null };
+function maybeAskFriends() {
+  clearTimeout(friendAsks.retry);
+  if (friendAsks.open || state.view === 'settings' || !friendsUI.waitingAsks().length) return;
+  if (overlayStack.length || !$('#player').hidden || document.hidden) { friendAsks.retry = setTimeout(maybeAskFriends, 4000); return; }
+  const opener = document.activeElement;
+  const sheet = friendsUI.askSheet({ close: () => closeTopOverlay() });
+  friendAsks.open = true;
+  $('#picker-body').replaceChildren(sheet.node);
+  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => {
+    friendAsks.open = false;
+    friendsUI.askLater(sheet.unanswered());
+    opener?.focus?.({ preventScroll: true });
+  }));
+}
 // comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
 const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
@@ -10285,4 +10303,5 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   connectLive();
   pushDevice.registerWorker();
   setTimeout(maybeShowWhatsNew, 1200); // let the first screen settle before showing update notes
+  if (state.me?.email && !state.me?.restricted) setTimeout(() => friendsUI.load().then(maybeAskFriends), 1600); // friends: requests waiting for an answer
 })();
