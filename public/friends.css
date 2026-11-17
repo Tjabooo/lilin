@@ -76,12 +76,12 @@
 .moment-handle:focus-visible::before, .moment-handle.is-dragging::before { box-shadow: 0 0 0 3px rgb(255 255 255 / .9), 0 2px 10px rgb(0 0 0 / .5); }
 .moment-playhead { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--paper); border-radius: 1px; pointer-events: none; }
 .moment-scale { display: flex; justify-content: space-between; margin-top: -6px; font-size: 12px; font-variant-numeric: tabular-nums; color: rgb(255 255 255 / .6); }
-.moment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.moment-actions .chip { color: var(--paper); background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .16); }
-.moment-actions .chip:hover:not(:disabled) { background: rgb(255 255 255 / .18); }
-.moment-actions .chip.moment-next { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); font-weight: 700; }
+.moment-actions, .moment-ask .invite-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+:is(.moment-actions, .moment-ask) .chip { color: var(--paper); background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .16); }
+:is(.moment-actions, .moment-ask) .chip:hover:not(:disabled) { background: rgb(255 255 255 / .18); }
+:is(.moment-actions, .moment-ask) .chip.moment-next { margin-left: auto; color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); font-weight: 700; }
 .moment-spacer { flex: 1; }
-.moment-hint { margin: 0; font-size: 13px; color: rgb(255 255 255 / .7); }
+.moment-hint, .moment-ask .invite-hint { margin: 0; font-size: 13px; color: rgb(255 255 255 / .7); }
 .moment-note {
   min-height: 48px; resize: vertical; padding: 10px 14px; font: inherit; color: var(--paper);
   background: rgb(255 255 255 / .08); border: 1px solid rgb(255 255 255 / .16); border-radius: var(--r-md);
@@ -93,8 +93,8 @@
 @media (max-width: 560px) {
   .moment-head .moment-summary { order: 3; flex-basis: 100%; text-align: left; }
   .moment-actions .moment-spacer { display: none; }
-  .moment-actions .chip { flex: 1 1 auto; justify-content: center; }
-  .moment-actions .chip.moment-next { flex-basis: 100%; }
+  :is(.moment-actions, .moment-ask) .chip { flex: 1 1 auto; justify-content: center; }
+  :is(.moment-actions, .moment-ask) .chip.moment-next { flex-basis: 100%; }
 }
 
 /* ---- Moments: Settings → Moments ---- */
