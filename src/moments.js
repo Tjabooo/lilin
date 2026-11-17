@@ -186,7 +186,8 @@ export function planCut({ input, output, video, audio, start, end, keyframes = [
     args.push('-vf', videoFilter(video, 1080));
     args.push(...(encoder === 'nvenc'
       ? ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '21', '-b:v', '0']
-      : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21']), '-profile:v', 'high');
+      : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21']), '-profile:v', 'high',
+    '-maxrate', '6M', '-bufsize', '12M'); // sent over phones' data: about 45 MB a minute at most
     if (isHdr(video)) args.push('-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709');
   }
   if (audio) args.push('-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-ar', '48000');
