@@ -35,7 +35,7 @@ import * as shows from './shows.js';
 import * as season from './season.js';
 import { matchesRelease, exactFirst } from './release-match.js';
 import { parseCatalogueSearch, needsExactCatalogueFallback, mergeCatalogueResults } from './title-search.js';
-import { parseName } from './release-name.js';
+import { parseName, folderShowTitle } from './release-name.js';
 import * as anime from './anime.js';
 import { downloadDestination, downloadFilePath } from './download-paths.js';
 import { fetchTorrentFile, TorrentFetchError } from './torrent-fetch.js';
@@ -503,8 +503,7 @@ function parseFile(full) {
     let d = path.dirname(full);
     for (let i = 0; i < 3 && (!MEDIA_DIR || d.length > MEDIA_DIR.length); i++, d = path.dirname(d)) {
       const t = parseName(path.basename(d), { file: false });
-      // A pack's folder ("NANA S01 1080p … -EMBER") names the show plus its season: the show is "NANA".
-      const title = t.title.replace(/\s+(?:S\d{1,2}|Seasons?\s?\d{1,2})(?:\s?[-–]\s?(?:S|Season\s?)?\d{1,2})?$/i, '').trim();
+      const title = folderShowTitle(t.title);
       if (title && !/^(season|series|s)\s*\d+$/i.test(title)) { parsed.title = title; parsed.year ??= t.year; break; }
     }
   }

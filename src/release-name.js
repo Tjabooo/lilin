@@ -48,3 +48,10 @@ export function parseName(raw, { file = true, allowEmpty = false } = {}) {
     episode: ep ? Number(ep[2]) : null,
   };
 }
+
+// A pack folder's parsed title without its season tags: "NANA S01" -> "NANA", and every tag when there
+// are several ("The Mindy Project Season 1 S01" -> "The Mindy Project"; one strip left "Season 1" in,
+// so TMDB found nothing and the show had no posters or episode names).
+export function folderShowTitle(title) {
+  return String(title || '').replace(/(?:\s+(?:S\d{1,2}|Seasons?\s?\d{1,2})(?:\s?[-–]\s?(?:S|Season\s?)?\d{1,2})?)+$/i, '').trim();
+}

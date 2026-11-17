@@ -1,4 +1,13 @@
 {
+  "2026-11-17-pack-folder-names": {
+    "title": "Affischer för fler serier",
+    "items": {
+      "Shows from season packs get their posters": {
+        "title": "Serier från säsongspaket får sina affischer",
+        "text": "Vissa säsongspaket har avsnitten i en mapp som heter ungefär The Mindy Project Season 1 S01. Lilin läste det som en serie som hette The Mindy Project Season 1, hittade den inte och visade grå rutor med namnen Episode 1, Episode 2 och så vidare. Nu får de serierna sin affisch, sina avsnittsnamn och bilder."
+      }
+    }
+  },
   "2026-11-17-pick-together": {
     "title": "Välj tillsammans",
     "items": {
