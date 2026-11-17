@@ -8,6 +8,15 @@
       }
     }
   },
+  "2026-11-17-continue-title-link": {
+    "title": "Titlar i Fortsätt titta öppnar sidan",
+    "items": {
+      "Tap the name to see the show or film": {
+        "title": "Tryck på namnet för att se serien eller filmen",
+        "text": "I Fortsätt titta fortsätter du fortfarande där du slutade när du trycker på bilden. Trycker du på namnet under den öppnas titelns sida i stället, med säsonger, detaljer och trailer. Menyn ⋯ har också en Detaljer-knapp."
+      }
+    }
+  },
   "2026-11-17-scan-to-sign-in": {
     "title": "Logga in genom att skanna en kod",
     "items": {
