@@ -27,6 +27,7 @@ import { trailerSrc, trailerControls } from './trailer-controls.js';
 import { createPeek } from './peek.js';
 import { createComingSoon as createComingSoonView } from './coming-soon.js'; // comingsoon
 import { createScout, scoutWaiting } from './scout.js'; // scout: the idea scout's cards in the owner's inbox
+import { createTitleDetails } from './details.js'; // details: More details at the bottom of title pages
 
 translatePage();
 saveLanguage(lang);
@@ -1853,7 +1854,8 @@ function renderFilm() {
       keepBar([f], renderFilm),
       f.season == null && (castRail('movie', f.tmdbId) || castLine('movie', f.tmdbId)),
       reviews.section(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title), // reviews
-      moreLike('movie', tmdbFilm)));
+      moreLike('movie', tmdbFilm),
+      titleDetails.section('movie', tmdbFilm))); // details
 }
 
 function openFilmIdentity(f, opener) {
@@ -2011,7 +2013,8 @@ function renderShow() {
       h('section', { class: 'page-section show-episodes' }, ...content),
       castRail('tv', show.tmdbId) || castLine('tv', show.tmdbId),
       show.tmdbId && reviews.section(`tv:${show.tmdbId}`, show.title), // reviews
-      moreLike('tv', show.tmdbId)));
+      moreLike('tv', show.tmdbId),
+      titleDetails.section('tv', show.tmdbId))); // details
   if (open && show.tmdbId && state.status.search) fillEpisodeDetails(show.tmdbId, open.number);
   showStructure = JSON.stringify([showView.id, showView.season, entry.files, entry.transfers.map(d => [d.hash, d.season, (d.episodes || []).map(ep => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])])]);
 }
@@ -2738,7 +2741,8 @@ function episodeItem(ep, file, show) {
       h('p', { class: 'ep-title' }, name),
       h('p', { class: 'ep-meta' }, [ep.runtime && fmtRuntime(ep.runtime), date && (upcoming ? T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })) : date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })),
         lib && (pct > 1 ? T('{0}% watched', Math.round(pct)) : T('In your library'))].filter(Boolean).map((x) => h('span', {}, x))),
-      ep.overview && h('p', { class: 'ep-overview' }, ep.overview)));
+      ep.overview && h('p', { class: 'ep-overview' }, ep.overview),
+      titleDetails.episodeCredits(ep))); // details: the episode's director, writers and guests, folded
 }
 
 // "Cast: …" under a title's description. Sheets re-render while they're open, so names already fetched
@@ -2796,7 +2800,8 @@ function renderDetails(t) {
       versions && h('h3', {}, T('Your versions')),
       versions && h('ul', { class: 'rows' }, versionFiles.map((v) => fileRow(libraryFile({ ...v, versionOf: true })))),
       reviews.section(titleKeyOf(t), t.title), // reviews
-      moreLike(t.type, t.id)));
+      moreLike(t.type, t.id),
+      titleDetails.section(t.type, t.id))); // details
   detailsView.t = t;
 }
 
@@ -3483,6 +3488,8 @@ const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state
   close: () => closeTopOverlay(),
 } });
 rateHooks.extra = (key, title, hooks) => reviews.rateButton(key, title, hooks);
+// details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
+const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed

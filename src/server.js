@@ -43,6 +43,7 @@ import * as smart from './smart-download.js';
 import * as svt from './svtplay.js';
 import { createSvtQueue, expectedSize } from './svt-queue.js';
 import { createDocumentaries } from './documentaries.js';
+import { createDetails, episodeCredits } from './details.js'; // details: More details on title pages
 import { scratchPlan, liveRoot, usesScratch } from './scratch.js';
 import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
@@ -693,6 +694,7 @@ export function titlePage(type, d) {
 export const seasonEpisodes = (d) => (d.episodes || []).map((e) => ({
   number: e.episode_number, name: e.name || null, overview: e.overview || '', runtime: e.runtime || null,
   airDate: e.air_date || null, still: e.still_path ? `${TMDB_IMG}w300${e.still_path}` : null,
+  ...(episodeCredits(e) ? { credits: episodeCredits(e) } : {}), // details: the episode's director, writers, guests
 }));
 
 async function discoverList(key, page = 1) {
@@ -789,6 +791,12 @@ async function discoverGenre({ type, movieGenre, tvGenre, sort, page }) {
 // ---------- documentaries ----------
 const docs = createDocumentaries({
   tmdb: (endpoint, params) => cachedTmdb(endpoint, params), mapTitle, svtCategory: svt.svtCategory, svtOn: svt.svtEnabled, translate, language: currentLanguage,
+});
+
+// details: More details on title pages (crew, facts, links, soundtrack from Wikidata + MusicBrainz)
+const titleDetails = createDetails({
+  tmdb: (endpoint, params) => cachedTmdb(endpoint, params, 12 * 3600 * 1000), country: () => (currentLanguage() === 'sv' ? 'SE' : 'US'),
+  cacheFile: path.join(CACHE_DIR, 'title-music.json'), enabled: process.env.TITLE_MUSIC !== 'off', log: (line) => console.log(line),
 });
 
 // ---------- SVT Play ----------
@@ -4020,6 +4028,11 @@ async function handleApi(req, res, url) {
       include_image_language: [...new Set(['en', lang, 'null'])].join(','),
     }, 12 * 3600 * 1000);
     return sendJson(res, 200, { page: titlePage(m[1], d) });
+  }
+  // details: the More details disclosure (src/details.js); the page asks only when someone opens it.
+  if ((m = p.match(/^\/api\/title\/(movie|tv)\/(\d+)\/details$/))) {
+    if (!tmdbOn()) return sendJson(res, 200, { details: null });
+    return sendJson(res, 200, { details: await titleDetails.titleDetails(m[1], m[2]) });
   }
   // One season's episodes with descriptions, running times and air dates, for a title page's episode list.
   if ((m = p.match(/^\/api\/tv\/(\d+)\/season\/(\d+)$/))) {

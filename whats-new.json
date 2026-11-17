@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-details",
+  "date": "2026-11-17",
+  "title": "More details",
+  "items": [
+    {
+      "title": "Who made it, and the music in it",
+      "text": "At the very bottom of every film and show page there's now a folded More details. Open it to see the director, writers, showrunners, composer and the rest of the crew, the studios, countries and release dates, budget and box office, and links to IMDb, Wikipedia and more. When a soundtrack album exists, its songs are listed too: tap one to find it on Spotify or YouTube Music. Episodes in the episode list get a small Credits fold with that episode's director, writers and guest stars. Nothing opens unless you ask for it."
+    }
+  ]
+},
+{
   "id": "2026-11-17-livechat",
   "date": "2026-11-17",
   "title": "Chat on live channels",

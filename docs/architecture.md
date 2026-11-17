@@ -226,6 +226,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET` | `/api/watch/parties` | Planned parties you made or joined |
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |
+| `GET` | `/api/title/<movie\|tv>/<id>/details` | A title page's **More details** (src/details.js), asked only when someone opens it: crew groups (`people: [{ key, people: [{ id, name, jobs?, episodes? }] }]`), `facts` (studios, countries, languages, dates, money), `keywords`, `links`, and `music.albums` (soundtrack albums with tracks from Wikidata + MusicBrainz, cached in `CACHE_DIR/title-music.json`; `musicPending: true` while still being looked up). Season answers (`/api/tv/<id>/season/<n>`) give episodes a `credits` field (director, writers, guest stars) when TMDB has them |
 | `GET` | `/api/library` | Your library (`items`, with `expiresAt`), and what else is on the server (`server`) |
 | `POST` | `/api/library/add` | Add videos already on the server to your library (`{ ids }`) |
 | `POST` | `/api/library/extend` | Keep videos longer (`{ ids }`) |

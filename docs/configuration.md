@@ -47,6 +47,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | `TMDB_API_KEY` 🔒 | | The short TMDB v3 key; used when `TMDB_TOKEN` is blank. |
 | `TMDB_LANG` | `en-US` | Language for titles, and for descriptions when the viewer's language has none. People who use Lilin in Swedish get TMDB's Swedish descriptions and genre names on top of this. |
 | `TMDB_REGION` | country in `TMDB_LANG` | Two-letter country whose cinema dates Discover's Coming soon shows first (`SE` = Swedish premieres). Streaming and disc dates come from anywhere. |
+| `TITLE_MUSIC` | `on` | A title page's **More details** lists its soundtrack albums and their songs, looked up on Wikidata and MusicBrainz (free open data, no key) the first time someone opens it, then kept for 30 days in `CACHE_DIR/title-music.json`. Also adds the Wikipedia link. `off` = no requests to those sites; crew, facts and links from TMDB still show. |
 
 ## Library
 

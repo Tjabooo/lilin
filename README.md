@@ -15,6 +15,7 @@ Docker, and installs as a web app on your phone's home screen.
 ## Features
 
 - **Discover and search** with posters and details from TMDB; titles already on the server are marked. **Coming soon** lists the next few months of films, new series and new seasons, closest and most talked-about first, with one-tap Save and Follow.
+- **More details** for the curious, folded away on every title page: crew, facts, links and the soundtrack's songs.
 - **Documentaries**: over 30 categories, from Swedish true crime to nature and history, and SVT Play's free catalogue
   saved to your library when you're in Sweden.
 - **One-press downloads** through qBittorrent: films pick a suitable release, shows download a season

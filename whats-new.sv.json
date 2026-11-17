@@ -1,4 +1,13 @@
 {
+  "2026-11-17-details": {
+    "title": "Mer information",
+    "items": {
+      "Who made it, and the music in it": {
+        "title": "Vem som gjorde den, och musiken i den",
+        "text": "Längst ner på varje film- och seriesida finns nu ett hopfällt Mer information. Öppna det för att se regissör, manusförfattare, showrunners, kompositör och resten av teamet, studior, länder och premiärdatum, budget och biointäkter, och länkar till IMDb, Wikipedia med mera. Finns det ett soundtrackalbum listas låtarna också: tryck på en för att hitta den på Spotify eller YouTube Music. Avsnitten i avsnittslistan får en liten Medverkande-flik med avsnittets regissör, manusförfattare och gästroller. Inget öppnas om du inte ber om det."
+      }
+    }
+  },
   "2026-11-17-livechat": {
     "title": "Chatt på kanalerna",
     "items": {

@@ -1,0 +1,125 @@
+/* More details at the bottom of a title page (public/details.js): one quiet fold, closed by default.
+   Uses only the theme's tokens from style.css, so every theme (light ones too) looks right. */
+
+.more-details-section { margin-top: var(--s6); padding-bottom: var(--s5); }
+.more-details { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.more-details > summary {
+  display: flex; align-items: center; gap: var(--s3); min-height: 56px; padding: var(--s3) 2px;
+  list-style: none; cursor: pointer; color: var(--text-2); border-radius: var(--r-xs);
+  transition: color var(--d-1);
+}
+.more-details > summary::-webkit-details-marker { display: none; }
+.more-details > summary:hover, .more-details[open] > summary { color: var(--text); }
+.more-details > summary:focus-visible { outline: 2px solid var(--bulb); outline-offset: 2px; }
+.md-summary-text { display: grid; gap: 2px; min-width: 0; }
+.md-summary-title { font: 700 var(--t-h3)/1.25 var(--display); }
+.md-summary-sub { font-size: var(--t-small); color: var(--text-3); }
+.md-chev {
+  flex: none; width: 9px; height: 9px; margin: 0 8px 0 auto;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-3px); transition: transform var(--d-1) var(--ease-out); opacity: .8;
+}
+details[open] > summary > .md-chev { transform: rotate(225deg) translate(-2px, -2px); }
+
+.md-body { display: grid; gap: var(--s5); padding: var(--s2) 0 var(--s5); }
+.md-block { min-width: 0; }
+.md-block > h4 {
+  margin: 0 0 var(--s2);
+  font: 700 var(--t-kicker)/1.2 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3);
+}
+.md-loading .bar { height: 12px; margin-top: 10px; width: 62%; border-radius: 6px; background: var(--surface-1); }
+.md-loading .bar:nth-child(2) { width: 44%; }
+.md-loading .bar:nth-child(3) { width: 53%; }
+.md-pending { margin: 0; font-size: var(--t-small); color: var(--text-3); }
+
+/* Label · names rows: two columns, labels stacked over names on narrow phones */
+.md-list {
+  display: grid; grid-template-columns: 10.5em minmax(0, 1fr); gap: 8px var(--s4);
+  margin: 0; font-size: var(--t-small); line-height: 1.45; max-width: 76ch;
+}
+.md-list dt { color: var(--text-2); }
+.md-list dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.md-list a { color: inherit; text-decoration: underline; text-decoration-color: var(--text-3); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.md-list a:hover { color: var(--bulb); text-decoration-color: currentColor; }
+.md-note { color: var(--text-2); }
+.md-person { display: block; }
+.md-person + .md-person { margin-top: 2px; }
+@media (max-width: 420px) { .md-list { grid-template-columns: 8.6em minmax(0, 1fr); gap: 8px var(--s3); } }
+@media (max-width: 340px) {
+  .md-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .md-list dd { margin-bottom: 8px; }
+}
+
+/* Music: the song-service switch, then one fold per album */
+.md-service { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 var(--s3); font-size: 13px; color: var(--text-2); }
+.md-service-label { margin-right: 2px; }
+.md-service-btn {
+  min-height: 30px; padding: 0 11px; font: 600 12.5px/1 var(--body); color: var(--text-2);
+  background: transparent; border: 1px solid var(--hairline-2); border-radius: 999px; cursor: pointer;
+  transition: background-color var(--d-1), color var(--d-1), border-color var(--d-1);
+}
+.md-service-btn:hover { color: var(--text); }
+.md-service-btn[aria-pressed="true"] { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
+.md-albums { display: grid; gap: var(--s2); max-width: 720px; }
+.md-album { border-radius: var(--r-md); background: var(--surface-1); border: 1px solid var(--hairline); overflow: hidden; }
+.md-album > summary {
+  display: flex; align-items: center; gap: var(--s3); padding: 10px 12px 10px 10px; list-style: none; cursor: pointer; color: var(--text);
+}
+.md-album > summary::-webkit-details-marker { display: none; }
+.md-album > summary:focus-visible { outline: 2px solid var(--bulb); outline-offset: -2px; border-radius: var(--r-md); }
+.md-album > summary .md-chev { color: var(--text-2); margin-right: 6px; }
+.md-cover {
+  position: relative; flex: none; width: 52px; height: 52px; border-radius: var(--r-xs); overflow: hidden;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--text-3);
+}
+.md-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.md-cover-note svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.md-cover.has-art .md-cover-note { visibility: hidden; }
+.md-album-text { display: grid; gap: 3px; min-width: 0; }
+.md-album-title { font-weight: 650; font-size: 14.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.md-album-meta { font-size: 12.5px; line-height: 1.35; color: var(--text-2); }
+.md-album-meta > span { white-space: nowrap; }
+
+.md-tracks { margin: 0; padding: 0 6px 4px; list-style: none; border-top: 1px solid var(--hairline); }
+.md-tracks a {
+  display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; align-items: center; gap: var(--s2);
+  min-height: 44px; padding: 6px; border-radius: var(--r-xs); color: var(--text); text-decoration: none;
+}
+.md-tracks a:hover { background: var(--surface-2); }
+.md-tracks a:focus-visible { outline: 2px solid var(--bulb); outline-offset: -2px; }
+.md-track-n { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; text-align: right; }
+.md-track-text { display: grid; min-width: 0; }
+.md-track-title { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.md-track-artist { font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.md-track-len { font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.md-album-links { margin: 0; padding: 4px 12px 12px calc(2.2em + 20px); font-size: 12.5px; color: var(--text-3); }
+.md-album-links a { color: var(--text-2); text-underline-offset: 3px; }
+.md-album-links a:hover { color: var(--bulb); }
+
+/* Keywords: quiet tags; links: small outlined pills */
+.md-tags, .md-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.md-tags li { padding: 4px 10px; font-size: 12.5px; color: var(--text-2); background: var(--surface-1); border-radius: 999px; }
+.md-links a {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 13px;
+  font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none;
+  border: 1px solid var(--hairline-2); border-radius: 999px; transition: border-color var(--d-1), color var(--d-1);
+}
+.md-links a:hover { color: var(--bulb); border-color: currentColor; }
+.md-out svg { display: block; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
+
+/* An episode's Credits fold in the episode list: a small text button, nothing more until opened */
+.ep-credits { margin-top: 4px; font-size: 13px; }
+.ep-credits > summary {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 2px; list-style: none; cursor: pointer;
+  color: var(--text-3); font-weight: 600; font-size: 12.5px;
+}
+.ep-credits > summary::-webkit-details-marker { display: none; }
+.ep-credits > summary::after { content: "›"; margin-left: 6px; transition: transform var(--d-1); }
+.ep-credits[open] > summary::after { transform: rotate(90deg); }
+.ep-credits > summary:hover { color: var(--text-2); }
+.ep-credits > summary:focus-visible { outline: 2px solid var(--bulb); outline-offset: 2px; border-radius: 4px; }
+.ep-credits .md-list { grid-template-columns: minmax(6.5em, max-content) minmax(0, 1fr); gap: 4px var(--s3); font-size: 12.5px; padding-bottom: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .md-chev, .ep-credits > summary::after { transition: none; }
+}
