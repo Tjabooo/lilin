@@ -9212,7 +9212,11 @@ function renderActivity() {
     segmented(ACTIVITY_FILTERS.map(([k, t]) => [k, T(t)]), filter, (k) => { state.activityFilter = k; renderActivity(); }, T('Show'))));
   if (!events.length) out.push(h('p', { class: 'muted act-empty' }, q || filter !== 'all' || picked ? T('Nothing matches.') : T('Nothing has happened yet.')));
   for (const d of days) out.push(...foldGroup(d.key, 'p', 'activity-day', d.label, d.n, [d.list], Boolean(q)));
+  // Keep the people strip where it was: tapping someone far along it used to snap it back to the start.
+  const stripX = body.querySelector('.act-people')?.scrollLeft || 0;
   body.replaceChildren(...out);
+  const strip = body.querySelector('.act-people');
+  if (strip) strip.scrollLeft = stripX;
 }
 
 function activityDevice(entry) {
