@@ -2087,49 +2087,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .act-person-name { max-width: 100%; font-size: 14px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-person-seen { max-width: 100%; font-size: 11.5px; color: var(--text-2); line-height: 1.25; }
 
-.act-invite-plus { position: relative; display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 2px; border-radius: 50%; border: 1.5px dashed color-mix(in srgb, var(--bulb) 70%, transparent); color: var(--bulb); background: color-mix(in srgb, var(--bulb) 8%, transparent); transition: background var(--d-1) var(--ease-out), transform var(--d-2) var(--ease-pop); }
-.act-invite-plus svg { width: 20px; height: 20px; }
-.act-invite-tile:hover .act-invite-plus, .act-invite-tile[aria-expanded="true"] .act-invite-plus { background: var(--bulb); color: var(--on-bulb); border-style: solid; }
-.act-invite-tile[aria-expanded="true"] .act-invite-plus { transform: rotate(45deg); }
-.act-invite-tile[aria-expanded="true"] .act-invite-count { transform: rotate(-45deg); }
-.act-invite-tile .act-person-name { color: var(--bulb); }
-.act-invite-count { position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--paper); color: var(--velvet); font: 700 11px/18px var(--body); }
-.act-person.is-new .face { opacity: .55; }
-.act-person.is-new .act-person-name { color: var(--text-2); }
-
-.act-panel { margin: calc(-1 * var(--s2)) 0 var(--s4); padding: 14px 16px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); box-shadow: var(--e1); }
-.act-panel-head { display: flex; align-items: center; gap: var(--s3); }
-.act-panel-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--on-bulb); background: var(--bulb); }
-.act-panel-icon svg { width: 19px; height: 19px; }
-.act-panel-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
-.act-panel-title > strong { font: 700 16px/1.25 var(--display); }
-.act-panel-title > span { font-size: 13px; color: var(--text-2); }
-.act-panel-close { flex: none; align-self: flex-start; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-2); }
-.act-panel-close:hover { background: var(--surface-2); color: var(--text); }
-.act-panel-close svg { width: 16px; height: 16px; }
-.act-invite-row { display: flex; gap: var(--s2); margin-top: var(--s3); }
-.act-invite-note { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--velvet); color: var(--text); }
-.act-invite-note:focus-visible { outline: none; border-color: var(--bulb); box-shadow: 0 0 0 3px var(--bulb-dim); }
-.act-invite-go { flex: none; height: 44px; }
-.act-invite-open { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--hairline); }
-.act-invite-open-head { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
-.act-invite-open ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-.act-invite-open li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
-.act-invite-what { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
-.act-invite-name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.act-invite-meta { font-size: 12.5px; color: var(--text-2); }
-.act-person-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0 0 calc(40px + var(--s3)); }
-.act-remove { color: var(--alert); }
-.act-remove[data-sure] { background: var(--alert); color: var(--on-bulb); border-color: var(--alert); }
-@media (max-width: 599px) {
-  .act-panel { padding: 12px; }
-  .act-invite-row { flex-direction: column; }
-  .act-invite-note { flex: none; }
-  .act-invite-go { justify-content: center; }
-  .act-person-actions { margin-left: 0; }
-}
-@media (prefers-reduced-motion: reduce) { .act-invite-plus { transition: none; } }
-
 .act-feed-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s3); margin: var(--s5) 0 var(--s2); }
 .act-feed-head .activity-head { margin: 0; }
 .act-feed-head .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
@@ -2322,15 +2279,12 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .clip-error { flex-basis: 100%; font-size: 14px; }
 .clip-shared { color: var(--bulb); font-weight: 600; }
 
-/* ---------- Access + invites (Activity tab, owner only) ---------- */
-.invite-new { display: flex; gap: 8px; }
-.invite-new .retry { margin: 0; flex: none; }
+/* ---------- Text fields in settings (a note, a password, a TV code) ---------- */
 .invite-note {
   flex: 1; min-width: 0; font: inherit; color: var(--text);
   background: var(--surface-2); border: 1px solid var(--hairline-2); border-radius: 999px; padding: 0 16px;
 }
 .invite-note:focus { outline: 2px solid var(--bulb); border-color: transparent; }
-.invite-hint { margin: 8px 0 12px; font-size: 13px; }
 
 .clip-delete.is-sure { width: auto; padding: 0 14px; white-space: nowrap; border-radius: 999px; font-weight: 700; color: var(--velvet); background: var(--alert); }
 
@@ -2646,6 +2600,11 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 }
 @media (max-width: 560px) { .person-controls { grid-column: 1 / -1; } }
 .person-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dust); }
+.person-access { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.person-name > .clip-title { max-width: calc(100% + 12px); } /* its -6px side margins */
+.person-remove { color: var(--alert); }
+.person-remove[data-sure] { background: var(--alert); color: var(--on-bulb); border-color: var(--alert); }
+.person.is-new > .face { opacity: .55; }
 .person-library .sub-select { max-width: 240px; }
 
 /* Light themes: the player and its menus stay dark over the video */
@@ -3253,7 +3212,12 @@ html.wrapped-on { overflow: hidden; }
 .face.inline { vertical-align: -5px; margin-right: 7px; }
 .faces { display: inline-flex; align-items: center; flex: none; }
 .faces > .face { box-shadow: 0 0 0 2px var(--ring, var(--velvet)); }
-.faces > .face + .face { margin-left: calc(var(--face, 24px) * -0.3); }
+.faces > .face + .face, .faces > .face-btn + :is(.face, .face-btn) { margin-left: calc(var(--face, 24px) * -0.3); }
+/* A face that opens a profile (people.js faceButton) */
+.face-btn { flex: none; display: inline-grid; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.faces > .face-btn > .face { box-shadow: 0 0 0 2px var(--ring, var(--velvet)); }
+.face-btn:hover > .face, .face-btn:focus-visible > .face { box-shadow: 0 0 0 2px var(--bulb); }
+.face-btn:focus-visible { outline: none; }
 #picker, .rate-row, .party-card, .row, .profile { --ring: var(--curtain); }
 .liked-by { display: inline-flex; align-items: center; gap: 8px; }
 .liked-faces:empty { display: none; }
@@ -3277,8 +3241,6 @@ html.wrapped-on { overflow: hidden; }
 .activity-face { position: relative; flex: none; display: inline-grid; align-self: center; }
 .activity-face .activity-dot { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border: 2px solid var(--curtain); }
 /* Invite rows: on narrow lists the buttons drop under the details instead of squeezing the name to one letter per line. */
-.invite-rows .row { flex-wrap: wrap; row-gap: 10px; }
-.invite-rows .row-text { flex: 1 1 14rem; }
 .wr-faces { display: flex; justify-content: center; margin: 4px 0 18px; }
 .wr-faces .face { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35); }
 .wr-faces .face + .face { margin-left: -16px; }
@@ -3439,7 +3401,6 @@ html.wrapped-on { overflow: hidden; }
 .room-member-state { font-size: 11px; line-height: 1.2; color: var(--dust); }
 .room-member.is-ready .room-member-state { color: var(--bulb); }
 
-.room-invite-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .room-pill {
   display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px;
   font-size: 13px; font-weight: 600; color: var(--paper);
@@ -3453,6 +3414,19 @@ html.wrapped-on { overflow: hidden; }
 .room-pill[aria-expanded="true"] { color: var(--bulb); border-color: var(--bulb); }
 
 .room-invitees { display: grid; gap: 8px; }
+/* The Invite sheet (invite.js): title, people, link row, one hint; the people grid is .room-invitee-grid */
+.invite { display: grid; gap: 12px; }
+.invite-title { margin: 0; }
+.invite-link, .invite-make { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.invite-make .invite-note { flex: 1 1 12rem; min-height: 44px; }
+.invite-hint { margin: 0; font-size: 13px; color: var(--text-2); }
+.invite-hint:empty { display: none; }
+.invite-open-head { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.invite-open-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.invite-open { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: column; align-items: center; gap: 6px; }
+.invite-open-what { min-width: 0; display: grid; line-height: 1.3; }
+.invite-open-what > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invite-open-what small { font-size: 12.5px; color: var(--text-2); }
 .room-invitee-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
 .room-invitee {
   width: 100%; display: grid; justify-items: center; gap: 4px; padding: 11px 6px 9px;
@@ -3466,6 +3440,7 @@ html.wrapped-on { overflow: hidden; }
 .room-invitee-state svg { width: 12px; height: 12px; stroke-width: 3; }
 .room-invitee[data-state="sending"] { opacity: 0.7; }
 .room-invitee[data-state="sent"] { background: var(--bulb-dim); border-color: var(--bulb); cursor: default; }
+.room-invitee[aria-pressed] { cursor: pointer; } /* choosing (invite.js): tap again to leave someone out */
 .room-invitee[data-state="sent"] .room-invitee-state { color: var(--bulb); font-weight: 700; }
 .room-invitee[data-state="failed"] .room-invitee-state { color: var(--alert); }
 
@@ -3717,9 +3692,12 @@ html.wrapped-on { overflow: hidden; }
 .guide-corner { display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--bulb); }
 .guide-ruler { position: relative; flex: none; height: 100%; }
 .guide-tick { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 6px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dust); border-left: 1px solid var(--hairline); white-space: nowrap; }
-.guide-channel { display: flex; align-items: center; gap: 10px; padding: 0 10px; text-align: left; color: var(--text); border: 0; border-right: 1px solid var(--hairline); }
-.guide-channel:hover { background: var(--seat); }
-.guide-channel:focus-visible { outline: none; box-shadow: inset var(--ring); }
+.guide-channel { display: flex; align-items: center; gap: 10px; padding: 0 10px; }
+.guide-channel > span { position: relative; pointer-events: none; }
+.guide-tune { position: absolute; inset: 0; padding: 0; border: 0; background: none; }
+.guide-tune:hover { background: var(--seat); }
+.guide-tune:focus-visible { outline: none; box-shadow: inset var(--ring); }
+.guide-faces .face-btn { pointer-events: auto; }
 .guide-number { flex: none; min-width: 2ch; font: 800 20px/1 var(--display); font-variant-numeric: tabular-nums; color: var(--bulb); text-align: right; }
 .guide-channel-text { display: grid; gap: 3px; min-width: 0; }
 .guide-channel-text b { font-size: 14px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3738,6 +3716,17 @@ html.wrapped-on { overflow: hidden; }
 .guide-now { position: absolute; z-index: 1; top: 0; bottom: 0; left: var(--chan-w); width: 2px; margin-left: -1px; pointer-events: none;
   background: var(--live); box-shadow: 0 0 12px var(--live); }
 .guide-now::before { content: ""; position: absolute; top: 0; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
+
+/* Watch with someone (app.js loadParties): Pick together + planned parties, in the parties' cards */
+.together .live-sub { margin-top: 0; }
+.together .party-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
+.together-pick { width: 100%; height: 100%; flex-wrap: nowrap; justify-content: flex-start; color: var(--text); text-align: left; }
+.together-pick:hover { border-color: var(--glow-color); }
+.together-pick:focus-visible { outline: none; box-shadow: var(--ring); }
+.together-pick .party-text { flex: 1; }
+.together-art { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--bulb); background: var(--bulb-dim); }
+.together-art svg { width: 22px; height: 22px; }
+.together-go { flex: none; font-size: 24px; line-height: 1; color: var(--text-3); }
 
 /* The owner's channel editor (a sheet) */
 .live-rename, .live-selects, .live-edit-actions { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s3) 0; }

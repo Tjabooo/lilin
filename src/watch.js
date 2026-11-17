@@ -156,7 +156,7 @@ export class WatchRooms {
       .filter((r) => r.startsAt != null && (r.creator === user.id || r.people.has(user.id)) && this.now() < r.startsAt + 3 * 3600000)
       .sort((a, b) => a.startsAt - b.startsAt)
       .map((r) => ({ token: r.token, startsAt: r.startsAt, started: r.started, mine: r.creator === user.id,
-        host: r.members.get(r.host)?.name || r.creatorName || 'Family', hostAvatar: this.hostAvatar(r), viewers: r.members.size,
+        host: r.members.get(r.host)?.name || r.creatorName || 'Family', hostId: r.members.get(r.host)?.userId ?? r.creator ?? null, hostAvatar: this.hostAvatar(r), viewers: r.members.size,
         faces: this.faces(r),
         media: { kind: r.media.kind, id: r.media.id, title: r.media.title, season: r.media.season ?? null, episode: r.media.episode ?? null } }));
   }

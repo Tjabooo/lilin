@@ -26,6 +26,7 @@ import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
 import { createMoments } from './moments.js'; // friends: Moments
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
+import { createInvite } from './invite.js'; // one Invite sheet: Lilin, Friend, Room, Pick, Moment
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
@@ -2582,8 +2583,7 @@ async function applyLive() {
   if (has('ideas')) { ideasView.loaded = false; if (settingsOpen() || !state.me?.isOwner) jobs.push(loadIdeas().then(() => { updateYouDot(); if (settingsOpen() && !editingSettings()) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
-  if (has('avatars') && view === 'library') jobs.push(loadParties());
-  if (has('parties') && view === 'library') jobs.push(loadParties());
+  if ((has('parties') || has('avatars') || has('match')) && view === 'live') jobs.push(loadParties().then(() => { if (state.view === 'live') renderLive(); }));
   if (has('parties')) jobs.push(loadRightNow(true)); // Right now: a party row
   if (has('me') || has('people') || has('avatars')) {
     jobs.push((async () => {
@@ -2602,7 +2602,7 @@ async function applyLive() {
   if (has('clips') && view === 'clips' && !$('#clips-body .clip-rename-form')) jobs.push(loadClips().then(() => { if (state.view === 'clips') renderClips(); }));
   if (has('house') && houseLive()) jobs.push(loadHouse().then(() => { if (state.view === 'house') renderHouse(); }));
   // Every change shows up in the Activity log.
-  if (topics.size && view === 'activity' && !$('#activity-body .person-name .clip-rename-form')) jobs.push(loadActivity().then(() => { if (state.view === 'activity') renderActivity(); }));
+  if (topics.size && view === 'activity') jobs.push(loadActivity().then(() => { if (state.view === 'activity') renderActivity(); }));
   await Promise.allSettled(jobs);
 }
 
@@ -3646,11 +3646,18 @@ function episodeDownload(t, seasonNo, episode) {
 
 // ---------- casting: device picker ----------
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
+const people = createPeople({ h, api, toast, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener) }); // faces and profile pictures (people.js); a face with an id opens its profile
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: You → Friends (friends.js); requests are also For you cards and light the You tab's dot
 const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), invite: friendsInvite,
-  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); } });
+  addFriend: (opener) => invite.open({ kind: 'friend' }, opener),
+  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); invite.refresh('friend'); } });
+// One Invite sheet (invite.js): Lilin and Friend open in the picker; Room, Pick and Moment draw where they're used.
+const invite = createInvite({ h, api, jsonPost, toast, icon, people, me: () => state.me, admin: () => Boolean(state.status?.admin), copyWithToast, friendsUI,
+  sheet: { open: (nodes, opener, onClosed) => {
+    $('#picker-body').replaceChildren(...nodes);
+    pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { onClosed?.(); opener?.isConnected && opener.focus({ preventScroll: true }); }));
+  } } });
 // friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
 // while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
 // stays away from the You tab, where the requests are already on screen.
@@ -4749,7 +4756,7 @@ function leaveWatchRoom(notify = true) {
   partyUnread = 0;
   $('#chat-log').replaceChildren();
   $('#chat-layer').replaceChildren();
-  closeInviteList();
+  inviteList.replaceChildren(); delete inviteList.dataset.token;
   old.close({ notify });
   for (const t of video.querySelectorAll('track')) offsetCues(t.track, 0);
   video.disableRemotePlayback = false;
@@ -4803,7 +4810,7 @@ function followRoom(session) {
 // Each channel plays in a Watch Together room that nobody hosts (src/live-tv.js): tuning in joins it at the
 // live moment, the room's clock keeps everyone on the same frame, and a new programme reaches every player at once.
 const liveView = createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me: () => state.me, tune: (id) => tuneIn(id),
-  overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState });
+  overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState, together: liveTogether });
 liveView.onChanged(() => { if (state.view === 'live') liveView.load(true).then(renderLive); });
 // livechat: the chat panel on a channel (live-chat.js)
 const liveChat = createLiveChat({ h, api, jsonPost, toast, people, social, reactions: REACTIONS, me: () => state.me, client: watchClient,
@@ -5005,8 +5012,7 @@ async function offerWatchRoom(token) {
 
 function setWatchPanel(open) {
   watchPanelOpen = Boolean(open && party);
-  if (!watchPanelOpen) closeInviteList();
-  $('#watch-invite').hidden = Boolean(state.me?.restricted); // friends: restricted people share the room link only
+  if (watchPanelOpen) mountRoomInvite();
   if (watchPanelOpen) { partyUnread = 0; requestAnimationFrame(() => { const log = $('#chat-log'); log.scrollTop = log.scrollHeight; }); }
   renderParty(); showPlayerUi();
 }
@@ -5142,14 +5148,34 @@ async function openWrapped(year, opener) {
 // ---- planned watch parties ----
 const partyLink = (token) => `${location.origin}/c/w/${token}`;
 const partyTitle = (m) => [m.filmTitle || m.title, episodeLabel(m)].filter(Boolean).join(' · ');
-// Rooms are opened and started on the spot (Watch together in the player); parties planned earlier still show in the Library.
+// Live's top block, Watch with someone: Pick together (start one, or get back to one going on) and the parties you
+// planned or joined, with a countdown. Parties are planned from a Pick together match (match.js) or started on the
+// spot in the player; this block lists them: Join, Copy link, Cancel.
+const together = { el: null, timer: 0 };
+function liveTogether() { together.el ||= h('section', { class: 'together', 'aria-labelledby': 'together-head' }); return together.el; }
+// The Pick together tile: the same three states as Discover's card.
+function pickTile(p) {
+  let title = T('Can’t agree on what to watch?'), sub = T('Pick together: everyone swipes, the first shared yes wins.'), who = null;
+  if (p?.invited) {
+    title = p.type === 'tv' ? T('{0} wants to pick a show with you', p.host?.name || '') : T('{0} wants to pick a film with you', p.host?.name || '');
+    sub = T('Join and start swiping'); who = people.faces([p.host], { size: 40 });
+  } else if (p) {
+    title = p.mine ? T('Your pick is still going') : T('{0}’s pick is still going', p.host?.name || '');
+    sub = p.matches ? (p.matches === 1 ? T('1 match so far') : T('{0} matches so far', p.matches)) : T('Carry on swiping');
+    who = people.faces(p.members, { size: 40, max: 3 });
+  }
+  return h('button', { type: 'button', class: `party-card together-pick${p ? ' is-going' : ''}`, onclick: () => (p ? pickUi.openPick(p.id) : pickUi.open()) },
+    who || h('span', { class: 'together-art', 'aria-hidden': 'true' }, icon('party')),
+    h('span', { class: 'party-text' }, h('strong', {}, title), h('span', { class: 'muted' }, sub)),
+    h('span', { class: 'together-go', 'aria-hidden': 'true' }, '›'));
+}
 let partiesRequest = null;
 async function loadParties() {
-  if (!libraryUI?.parties) return;
-  partiesRequest ||= api('/api/watch/parties').finally(() => { partiesRequest = null; });
-  let parties = [];
-  try { parties = (await partiesRequest).parties; } catch { return; }
-  const shelf = social.partiesShelf(parties, {
+  const el = liveTogether();
+  partiesRequest ||= Promise.all([api('/api/watch/parties'), api('/api/match').catch(() => ({ picks: [] }))]).finally(() => { partiesRequest = null; });
+  let parties, picks;
+  try { const [a, b] = await partiesRequest; parties = a.parties || []; picks = b.picks || []; } catch { if (!el.childElementCount) el.replaceChildren(); return; }
+  const cards = social.partyCards(parties, {
     label: partyTitle,
     join: (p) => offerWatchRoom(p.token),
     copy: (p) => copyWithToast(partyLink(p.token), T('Invite copied. Everyone uses their usual Lilin sign-in.')),
@@ -5160,51 +5186,24 @@ async function loadParties() {
       catch (err) { btn.disabled = false; toast(err.message); }
     },
   });
-  libraryUI.parties.replaceChildren(...(shelf ? [shelf] : []));
+  el.replaceChildren(h('h3', { class: 'live-sub', id: 'together-head' }, T('Watch with someone')),
+    h('ul', { class: 'party-list' }, h('li', {}, pickTile(picks[0])), ...cards.items));
+  clearInterval(together.timer);
+  if (parties.length) together.timer = setInterval(() => { if (el.isConnected && !el.closest('[hidden]')) cards.tick(); }, 1000);
 }
 $('#watch-btn').addEventListener('click', () => { if (party) setWatchPanel(!watchPanelOpen); else hostWatchRoom(); });
 $('#watch-hide').addEventListener('click', () => { setWatchPanel(false); $('#watch-btn').focus(); });
-$('#watch-copy').addEventListener('click', () => {
-  // /c/w/ shows a preview in Discord and other chats, then forwards to /?watch=
-  if (party) copyWithToast(`${location.origin}/c/w/${party.state.token}`, T('Room link copied. Everyone uses their usual Lilin sign-in.'));
-});
 $('#watch-leave').addEventListener('click', () => { leaveWatchRoom(); video.pause(); toast(T('You left the room')); });
-// Invite: people with Watch Together invites on get a notification that opens the room.
+// Ask people (invite.js, Room): people with Watch Together invites on get a notification that opens the room; the
+// link (/c/w/ shows a preview in Discord and other chats, then forwards to /?watch=) works for anyone signed in.
+// Drawn once per room, when its panel first opens.
 const inviteList = $('#watch-invite-list');
-function closeInviteList() { inviteList.hidden = true; $('#watch-invite').setAttribute('aria-expanded', 'false'); }
-$('#watch-invite').addEventListener('click', async () => {
-  if (!inviteList.hidden) { closeInviteList(); return; }
-  if (!party) return;
-  const token = party.state.token;
-  inviteList.hidden = false; $('#watch-invite').setAttribute('aria-expanded', 'true');
-  inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Finding people…')));
-  try {
-    const { people: invitees } = await api(`/api/watch/${token}/invitees?clientId=${encodeURIComponent(watchClient)}`);
-    if (party?.state.token !== token) return;
-    if (!invitees.length) {
-      inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Nobody else has notifications on yet. Copy the link and send it instead.')));
-      return;
-    }
-    inviteList.replaceChildren(h('p', { class: 'room-hint' }, T('Tap someone to send them a notification.')),
-      h('ul', { class: 'room-invitee-grid' }, invitees.map((u) => {
-        const state = h('span', { class: 'room-invitee-state' }, T('Invite'));
-        const tile = h('button', { class: 'room-invitee', type: 'button', 'aria-label': T('Invite {0}', u.name) },
-          people.face(u, { size: 44 }), h('span', { class: 'room-invitee-name' }, u.name), state);
-        tile.addEventListener('click', async () => {
-          if (tile.dataset.state === 'sent' || tile.disabled) return;
-          tile.disabled = true; tile.dataset.state = 'sending'; state.textContent = T('Sending…');
-          try {
-            const r = await api(`/api/watch/${token}/invite`, jsonPost({ clientId: watchClient, userIds: [u.id] }));
-            tile.dataset.state = r.sent ? 'sent' : 'failed';
-            state.replaceChildren(...(r.sent ? [icon('check'), T('Invited')] : [T('Not reached')]));
-            tile.setAttribute('aria-label', r.sent ? T('{0} invited', u.name) : T('{0} wasn’t reached', u.name));
-            if (!r.sent) { tile.disabled = false; toast(T('{0}’s devices didn’t accept the notification. Copy the link instead.', u.name)); }
-          } catch (err) { tile.disabled = false; tile.dataset.state = ''; state.textContent = T('Invite'); toast(err.message); }
-        });
-        return h('li', {}, tile);
-      })));
-  } catch (err) { inviteList.replaceChildren(h('p', { class: 'room-hint' }, err.message)); }
-});
+function mountRoomInvite() {
+  const token = party?.state.token;
+  if (!token || inviteList.dataset.token === token) return;
+  inviteList.dataset.token = token;
+  invite.mount(inviteList, { kind: 'room', title: false, token, clientId: watchClient, live: Boolean(party.state.live) });
+}
 document.addEventListener('visibilitychange', () => { if (!document.hidden && party) { party.clock().then(() => party?.pulse()).catch(() => {}); } });
 
 function saveProgress(force = false) {
@@ -6624,10 +6623,10 @@ let seekTipX = null;
 const seekPreview = createSeekPreview(seekTip, () => { if (!seekTip.hidden && seekTipX != null) showSeekTip(seekTipX); });
 // pick: Pick together (match.js): everyone swipes the same posters; the first shared yes is a match.
 const pickUi = createMatch({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyWithToast, pushOverlay, closeTopOverlay,
-  openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(),
+  openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(), invite,
   enterRoom: async (room) => { await openPlayer({ ...room.media, key: room.media.id, done: true }, { watchRoom: room }); setWatchPanel(true); } });
 // friends: Moments (moments.js): player ⋯ → Clip a moment, and Settings → Moments.
-const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, copyWithToast, fmtAgo, video, playerEl: $('#player'),
+const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl: $('#player'),
   current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
   describe: (f) => {
     const show = f.show != null ? state.libraryShows.find((s) => s.id === f.show) : null;
@@ -7789,7 +7788,9 @@ async function saveRules(patch) {
   renderSettings();
 }
 async function loadPeople() {
-  try { state.people = (await api('/api/admin/users')).users; state.peopleError = null; } catch (err) { state.peopleError = err.message; }
+  const [u, a] = await Promise.allSettled([api('/api/admin/users'), api('/api/access')]);
+  if (u.status === 'fulfilled') { state.people = u.value.users; state.peopleError = null; } else state.peopleError = u.reason.message;
+  state.access = a.status === 'fulfilled' ? a.value : { configured: true, error: a.reason.message, invites: [] };
 }
 
 // ---------- what's new ----------
@@ -8058,7 +8059,7 @@ const YOU_PAGES = {
   liked: () => profiles.privateList('liked', redrawYouPage),
   friends: () => friendsUI.page(), // friends
   moments: () => momentsUI.page(), // friends: Moments
-  invite: () => memberInviteSettings(),
+  invite: () => invitePage(),
   account: () => accountPage(),
   look: () => appearanceSection(),
   watching: () => watchingPage(),
@@ -8068,14 +8069,10 @@ const YOU_PAGES = {
 };
 const YOU_GROUPS = () => [['watching', T('Your watching')], ['people', T('People')], ['settings', T('Settings')], ['ideas', null]];
 const sharesSocial = (me = state.me) => Boolean(me?.email && !me.restricted); // friends, a public page
-// Friends → Invite someone to Lilin, for people who may invite: the one Invite sheet once it exists (openInvite),
-// else the page that invites today (members: You → Invite people; owners: House → People). null: no button.
+// Friends → Invite someone to Lilin, for people who may invite (the You → Invite page's rule): the Invite sheet's
+// Lilin part (invite.js). null: no button.
 function friendsInvite() {
-  const me = state.me;
-  if (!me?.canInvite && !me?.isOwner) return null;
-  if (typeof openInvite === 'function') return (opener) => openInvite('lilin', opener); // eslint-disable-line no-undef
-  const to = ['you/invite', 'house/people'].find((id) => allowedRoute(id, me, state.status));
-  return to ? () => setView(to) : null;
+  return allowedRoute('you/invite', state.me, state.status) ? (opener) => invite.open({ kind: 'lilin' }, opener) : null;
 }
 
 // What the list's lines and For you need: your profile's numbers, friends, moments, your ideas. Fetched when You
@@ -8783,9 +8780,15 @@ function ownerSettings() {
     h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
   return out;
 }
-// House → People: everyone who uses Lilin, their picture and what they may do.
+// House → People: everyone who uses Lilin, their picture and what they may do; inviting someone new, and who may
+// sign in (password links, removing access, people on the list who haven't signed in yet).
 function peopleSettings() {
   const out = [h('h3', { class: 'set-head' }, T('People'))];
+  const a = state.access;
+  const waiting = (a?.invites || []).filter((i) => i.state === 'open').length;
+  out.push(settingsRow(T('Invite someone to Lilin'), waiting ? T('{0} waiting', waiting) : null,
+    h('button', { type: 'button', class: 'chip', onclick: (e) => invite.open({ kind: 'lilin', onChange: (data) => { state.access = data; if (settingsOpen()) renderSettingsWhenStill(); } }, e.currentTarget) },
+      icon('plus'), T('Invite someone'))));
   out.push(h('p', { class: 'set-hint' }, T('Restrict: no friends, reviews or notification invites. They keep Watch Together and share by links only.'))); // friends
   if (state.peopleError) out.push(h('p', { class: 'muted' }, state.peopleError));
   else if (!state.people) out.push(h('p', { class: 'muted' }, T('Loading…')));
@@ -8797,11 +8800,13 @@ function peopleSettings() {
         oncontextmenu: (e) => { if (!u.avatar) return; e.preventDefault(); if (confirm(T('Remove {0}’s picture?', u.name))) removePicture({ person: u }); } },
         people.face(u, { size: 40 }), h('span', { class: 'profile-face-edit', 'aria-hidden': 'true' }, icon('camera'))),
       h('div', { class: 'row-text' },
-        h('div', { class: 'row-title' }, u.name, u.isOwner && h('span', { class: 'tag' }, T('Owner'))),
+        h('div', { class: 'row-title' }, onAccessList(u.email) ? accessName(u.email, u.name) : u.name, u.isOwner && h('span', { class: 'tag' }, T('Owner'))),
         h('div', { class: 'row-meta' },
           u.email && h('span', {}, u.email),
           h('span', {}, `${plural(u.items, 'video')}, ${fmtBytes(u.size)}`),
-          u.lastSeen && h('span', {}, lastSeenText(u.lastSeen)))),
+          u.lastSeen && h('span', {}, lastSeenText(u.lastSeen)),
+          onAccessList(u.email) && a.passwords && !a.passwords.includes(String(u.email).toLowerCase()) && h('span', {}, T('No password yet'))),
+        u.email && accessActions(u.email, u.name).length > 0 && h('div', { class: 'person-access' }, accessActions(u.email, u.name))),
       h('div', { class: 'person-controls' },
         h('label', { class: 'person-toggle' }, T('Can download'),
           toggle(u.canDownload, async (on, input) => {
@@ -8824,9 +8829,23 @@ function peopleSettings() {
         h('label', { class: 'person-toggle' }, T('Never auto-delete'),
           toggle(u.keep, (on) => personUpdate(u, { keep: on }), T('Never auto-delete {0}’s videos', u.name))),
         h('label', { class: 'person-toggle person-library' }, T('Library'), libraryShareSelect(u)))))));
+    // On the access list, but no account yet: they haven't signed in.
+    const known = new Set(state.people.map((u) => String(u.email || '').toLowerCase()));
+    const pending = (a?.members || []).filter((m) => !known.has(String(m).toLowerCase()));
+    if (pending.length) {
+      out.push(h('h3', { class: 'set-head' }, T('Hasn’t signed in yet')));
+      out.push(h('ul', { class: 'rows people' }, pending.map((email) => {
+        const name = a.names?.[email] || personName(email);
+        return h('li', { class: 'row person is-new' }, people.face({ name }, { size: 40 }),
+          h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, accessName(email, name)), h('div', { class: 'row-meta' }, h('span', {}, email)),
+            h('div', { class: 'person-access' }, accessActions(email, name))));
+      })));
+    }
   }
+  if (a?.error) out.push(h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
   return out;
 }
+const onAccessList = (email) => Boolean(email && (state.access?.members || []).some((m) => String(m).toLowerCase() === String(email).toLowerCase()));
 // Own library, or one shared with someone else (joining them joins everyone they already share with).
 function libraryShareSelect(u) {
   const mates = u.sharedWith || [];
@@ -8910,64 +8929,15 @@ function lastSeenText(ms) {
 
 async function loadActivity() {
   try { state.activity = await api('/api/activity'); state.activityError = null; } catch (err) { state.activityError = err.message; }
-  if (!state.status?.admin) return; // people allowed to see Activity get it read-only, without the access list
-  try { state.access = await api('/api/access'); } catch (err) { state.access = { configured: true, error: err.message, invites: [] }; }
 }
 
 // ---------- access: who may sign in (Zero Trust email list) + invite links ----------
-// Settings → Invite people: for members the owner lets invite (the owner invites from People).
-// state.myInvites: undefined = not asked yet, null = loading, else { invites, max, passwords } or { error }.
-function memberInviteSettings() {
-  const me = state.me;
-  if (!me?.canInvite || me.isOwner) return [];
-  if (state.myInvites === undefined) {
-    state.myInvites = null;
-    api('/api/invites').then((r) => { state.myInvites = r; }, (err) => { state.myInvites = { error: err.message }; }).finally(renderSettingsWhenStill);
-  }
-  const r = state.myInvites;
-  const out = [h('h3', { class: 'set-head' }, T('Invite people'))];
-  if (!r) return [...out, h('p', { class: 'muted' }, T('Loading…'))];
-  if (r.error) return [...out, h('p', { class: 'muted' }, r.error)];
-  const reload = () => { state.myInvites = undefined; renderSettings(); };
-  const noteInput = h('input', { class: 'invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), 'aria-label': T('Who’s it for?') });
-  const make = async (btn) => {
-    btn.disabled = true;
-    try {
-      const inv = await api('/api/invites', jsonPost({ note: noteInput.value.trim() }));
-      await copyWithToast(inv.url, T('Invite link copied: send it to them'));
-    } catch (err) { toast(err.message); }
-    reload();
-  };
-  const cancel = async (i) => {
-    try { await api(`/api/invites/${i.id}/revoke`, jsonPost({})); toast(T('Invite cancelled')); } catch (err) { toast(err.message); }
-    reload();
-  };
-  out.push(h('div', { class: 'invite-new' }, noteInput,
-    h('button', { class: 'retry', disabled: r.invites.length >= r.max, onclick: (e) => make(e.currentTarget) }, T('Invite someone'))));
-  out.push(h('p', { class: 'muted invite-hint' }, `${r.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.')
-    : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.')} ${T('Up to {0} open at a time.', r.max)}`));
-  if (r.invites.length) {
-    out.push(h('ul', { class: 'rows invite-rows' }, r.invites.map((i) => h('li', { class: 'row' },
-      h('span', { class: 'row-text' },
-        h('span', { class: 'row-title' }, i.note || T('Invite')),
-        h('span', { class: 'row-meta' }, h('span', {}, T('open · expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' }))))),
-      h('span', { class: 'row-actions' },
-        h('button', { class: 'retry', onclick: () => copyWithToast(`${location.origin}/c/i/${i.token}`, T('Invite link copied')) }, T('Copy link')),
-        h('button', { class: 'retry', onclick: () => cancel(i) }, T('Cancel')))))));
-  }
-  return out;
-}
-async function makeInvite(btn) {
-  const note = $('#invite-note')?.value.trim() || '';
-  btn.disabled = true;
-  try {
-    const inv = await api('/api/access/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note }) });
-    state.newInvite = inv.url;
-    state.inviteNote = '';
-    await copyWithToast(inv.url, T('Invite link copied: send it to them'));
-  } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+// Owners manage who may sign in from House → People. Invite links are the Invite sheet's Lilin part (invite.js):
+// People → Invite someone to Lilin, and You → Invite someone to Lilin (owners, and members the owner lets invite).
+function invitePage() {
+  const box = h('div', { class: 'set-card' });
+  invite.mount(box, { kind: 'lilin', title: false });
+  return [box];
 }
 // For someone already on the list who has no Lilin password yet (they used Cloudflare's email codes).
 async function makePasswordLink(email, btn) {
@@ -8976,8 +8946,8 @@ async function makePasswordLink(email, btn) {
     const inv = await api('/api/access/password-link', jsonPost({ email }));
     await copyWithToast(inv.url, T('Password link copied: send it to them'));
   } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+  await loadPeople();
+  if (settingsOpen()) renderSettings();
 }
 // copyText() (above) has the iOS fallback; this adds the toast, or shows the link if copying failed
 async function copyWithToast(text, msg) {
@@ -8988,8 +8958,8 @@ async function accessAction(path, body, msg) {
     await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
     toast(msg);
   } catch (err) { toast(err.message); }
-  await loadActivity();
-  renderActivity();
+  await loadPeople();
+  if (settingsOpen()) renderSettings();
 }
 
 function accessName(email, name) {
@@ -9011,64 +8981,24 @@ function accessName(email, name) {
   });
 }
 
-// Owner only. The Invite tile at the start of the people strip opens this: one box for a note, one button,
-// and the links still waiting to be used.
-function activityInvite() {
+// House → People, sign-in: what can be done about someone on the access list. A password link for someone who has
+// none yet; Remove access (tap twice) for anyone but an owner.
+function accessActions(email, name) {
   const a = state.access || {};
-  if (!a.configured) return h('div', { class: 'act-panel' },
-    h('p', { class: 'muted' }, T('Set CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_LIST_ID in .env to invite people from here (see docs/remote-access.md in the Lilin folder).')));
-  const noteInput = h('input', { id: 'invite-note', class: 'act-invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), value: state.inviteNote || '',
-    oninput: (e) => { state.inviteNote = e.currentTarget.value; },
-    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); makeInvite(e.currentTarget.nextSibling); } } });
-  const open = (a.invites || []).filter((i) => i.state === 'open');
-  return h('div', { class: 'act-panel act-invite' },
-    h('div', { class: 'act-panel-head' },
-      h('span', { class: 'act-panel-icon', 'aria-hidden': 'true' }, icon('send')),
-      h('div', { class: 'act-panel-title' },
-        h('strong', {}, T('Invite someone')),
-        h('span', {}, a.passwords ? T('Makes a one-time link (valid 7 days). They pick a password and are signed straight in.') : T('Makes a one-time link (valid 7 days). They enter their email and can sign in from then on.'))),
-      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Close'), onclick: () => { state.activityInviteOpen = false; renderActivity(); } }, icon('close'))),
-    h('div', { class: 'act-invite-row' }, noteInput,
-      h('button', { type: 'button', class: 'btn-primary act-invite-go', onclick: (e) => makeInvite(e.currentTarget) }, icon('copy'), T('Make link'))),
-    open.length > 0 && h('div', { class: 'act-invite-open' },
-      h('span', { class: 'act-invite-open-head' }, T('Waiting to be used')),
-      h('ul', {}, open.map((i) => h('li', {},
-        h('span', { class: 'act-invite-what' }, h('span', { class: 'act-invite-name' }, i.note || T('Invite')),
-          h('span', { class: 'act-invite-meta' }, [T('expires {0}', new Date(i.expires).toLocaleDateString(locale, { day: 'numeric', month: 'short' })), i.byName && T('by {0}', i.byName)].filter(Boolean).join(' · '))),
-        h('button', { type: 'button', class: 'chip', onclick: () => copyWithToast(`${location.origin}/c/i/${i.token}`, T('Invite link copied')) }, T('Copy link')),
-        h('button', { type: 'button', class: 'chip', onclick: () => accessAction(`/api/access/invite/${i.id}/revoke`, null, T('Invite cancelled')) }, T('Cancel')))))),
-    a.error && h('p', { class: 'muted' }, T('Couldn’t read the access list: {0}', a.error)));
-}
-
-// Owner only: the person picked in the strip, with what can be done about them (rename, password link, remove).
-function activityPersonPanel(email) {
-  const a = state.access || {};
-  const key = (u) => String(u).toLowerCase();
-  const p = (state.activity?.people || []).find((x) => key(x.user) === key(email));
-  const member = (a.members || []).some((m) => key(m) === key(email));
-  const owner = (a.owners || []).some((m) => key(m) === key(email));
-  const name = a.names?.[email] || p?.name || personName(email);
-  const isEmail = String(email).includes('@');
-  const noPassword = member && a.passwords && !a.passwords.includes(key(email));
-  return h('div', { class: 'act-panel act-person-panel' },
-    h('div', { class: 'act-panel-head' },
-      people.face({ name, avatar: p?.avatar }, { size: 40 }),
-      h('div', { class: 'act-panel-title' },
-        member ? accessName(email, name) : h('strong', { title: email }, name),
-        h('span', {}, [isEmail && email, owner && T('owner'), noPassword && T('No password yet'), p ? lastSeenText(p.at) : T('Hasn’t signed in yet'), p && activityDevice(p)].filter(Boolean).join(' · '))),
-      h('button', { type: 'button', class: 'act-panel-close', 'aria-label': T('Show everyone'), title: T('Show everyone'), onclick: () => { state.activityPerson = null; renderActivity(); } }, icon('close'))),
-    (noPassword || (member && !owner)) && h('div', { class: 'act-person-actions' },
-      noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
-      member && !owner && h('button', {
-        type: 'button', class: 'chip act-remove',
-        onclick: (e) => {
-          const b = e.currentTarget;
-          if (b.dataset.sure) return accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)).then(() => { state.activityPerson = null; renderActivity(); });
-          b.dataset.sure = '1';
-          b.textContent = T('Sure?');
-          setTimeout(() => { b.textContent = T('Remove access'); delete b.dataset.sure; }, 4000);
-        },
-      }, T('Remove access'))));
+  const key = String(email).toLowerCase();
+  const member = (a.members || []).some((m) => String(m).toLowerCase() === key);
+  if (!member) return [];
+  const owner = (a.owners || []).some((m) => String(m).toLowerCase() === key);
+  const noPassword = a.passwords && !a.passwords.includes(key);
+  return [
+    noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
+    !owner && h('button', { type: 'button', class: 'chip person-remove', onclick: (e) => {
+      const b = e.currentTarget;
+      if (b.dataset.sure) { accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)); return; }
+      b.dataset.sure = '1'; b.textContent = T('Sure?');
+      setTimeout(() => { b.textContent = T('Remove access'); delete b.dataset.sure; }, 4000);
+    } }, T('Remove access')),
+  ].filter(Boolean);
 }
 
 // Activity sections and days fold open/closed; the folded ones are remembered per browser.
@@ -9224,25 +9154,14 @@ function activitySummary(events) {
   const who = new Set(todays.map((e) => e.user)).size;
   const tile = (n, label, cls = '') => h('div', { class: `act-stat${cls}` }, h('strong', {}, String(n)), h('span', {}, label));
   const pick = state.activityPerson;
-  const admin = Boolean(state.status?.admin);
-  const canInvite = admin && Boolean(state.access);
-  const openInvites = (state.access?.invites || []).filter((i) => i.state === 'open').length;
-  const seenKeys = new Set(peopleList.map((p) => String(p.user).toLowerCase()));
-  const neverSeen = admin ? (state.access?.members || []).filter((m) => !seenKeys.has(String(m).toLowerCase())) : [];
+  // Inviting people and who may sign in live in House → People now (the owner's); the strip only filters the feed.
   return [
     h('div', { class: 'act-stats' },
       tile(on, T('on right now'), on ? ' is-live' : ''),
       tile(who, who === 1 ? T('person today') : T('people today')),
       tile(watched, watched === 1 ? T('video watched today') : T('videos watched today')),
       tile(downloads, downloads === 1 ? T('download today') : T('downloads today'))),
-    (peopleList.length > 0 || canInvite) && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
-      canInvite && h('button', {
-        type: 'button', class: 'act-person act-invite-tile', 'aria-expanded': String(Boolean(state.activityInviteOpen)),
-        onclick: () => { state.activityInviteOpen = !state.activityInviteOpen; renderActivity(); if (state.activityInviteOpen) $('#invite-note')?.focus(); },
-      },
-      h('span', { class: 'act-invite-plus', 'aria-hidden': 'true' }, icon('plus'), openInvites > 0 && h('span', { class: 'act-invite-count' }, String(openInvites))),
-      h('span', { class: 'act-person-name' }, T('Invite')),
-      h('span', { class: 'act-person-seen' }, openInvites ? T('{0} waiting', openInvites) : T('new link'))),
+    peopleList.length > 0 && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
       peopleList.map((p) => h('button', {
         type: 'button', class: 'act-person', 'aria-pressed': String(pick === p.user), title: `${personName(p)} · ${lastSeenText(p.at)} · ${activityDevice(p)}`,
         onclick: () => { state.activityPerson = pick === p.user ? null : p.user; renderActivity(); },
@@ -9250,22 +9169,13 @@ function activitySummary(events) {
       h('span', { class: 'activity-face' }, people.face(p, { size: 44 }),
         h('span', { class: `activity-dot${Date.now() - p.at < 3 * 60000 ? ' is-on' : ''}`, 'aria-hidden': 'true' })),
       h('span', { class: 'act-person-name' }, personName(p)),
-      h('span', { class: 'act-person-seen' }, lastSeenText(p.at)))),
-      neverSeen.map((email) => h('button', {
-        type: 'button', class: 'act-person is-new', 'aria-pressed': String(pick === email), title: email,
-        onclick: () => { state.activityPerson = pick === email ? null : email; renderActivity(); },
-      },
-      h('span', { class: 'activity-face' }, people.face({ name: state.access?.names?.[email] || personName(email) }, { size: 44 })),
-      h('span', { class: 'act-person-name' }, state.access?.names?.[email] || personName(email)),
-      h('span', { class: 'act-person-seen' }, T('Hasn’t signed in yet'))))),
-    canInvite && state.activityInviteOpen && activityInvite(),
-    admin && pick && activityPersonPanel(pick),
+      h('span', { class: 'act-person-seen' }, lastSeenText(p.at))))),
   ];
 }
 
 function renderActivity() {
-  // Rebuilding mid-typing would throw away the box being typed in (invite note, rename).
-  if ($('#activity-body .person-name .clip-rename-form') || editingIn('#activity-body')) return;
+  // Rebuilding mid-typing would throw away the box being typed in (the filter).
+  if (editingIn('#activity-body')) return;
   const body = $('#activity-body');
   if (state.activityError) { body.replaceChildren(notice(T('Couldn’t get activity'), state.activityError)); return; }
   if (!state.activity) return;
@@ -10603,11 +10513,25 @@ const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'
       icon('search'), T('Search torrents for “{0}”', q)),
     state.status.notes && h('button', { type: 'button', class: 'chip', onclick: async () => { endSearch(); await setView('house/notes'); clearFilter('notes', q); await notesView.load(); } },
       icon('search'), T('Search notes for “{0}”', q)),
-  ].filter(Boolean) });
+  ].filter(Boolean),
+  // People: anyone on Lilin by name (friends search; nobody for restricted people or the shared home account).
+  findPeople: async (q, signal) => {
+    if (!state.me?.email || state.me.restricted) return [];
+    const { people: found = [] } = await api(`/api/friends/search?q=${encodeURIComponent(q)}`, { signal });
+    const hint = { friend: T('Friends'), sent: T('Asked'), received: T('Asked to be your friend') };
+    return found.slice(0, 4).map((p) => ({ name: p.name, hint: hint[p.state] || '', face: people.face(p, { size: 32 }), open: (opener) => profiles.open(p, opener) }));
+  },
+  // Live: a channel by its name or what's on it now (the guide is fetched when search opens).
+  findChannels: (q) => {
+    const n = norm(q);
+    return liveView.channels().map((c) => ({ c, now: liveView.onNow(c)?.title || '' }))
+      .filter(({ c, now }) => norm(`${channelName(c, state.me)} ${now}`).includes(n)).slice(0, 4)
+      .map(({ c, now }) => ({ number: c.number, name: channelName(c, state.me), now, tune: () => tuneIn(c.id) }));
+  } });
 function setSearching(on) {
   document.body.classList.toggle('searching', on);
   searchToggle.setAttribute('aria-expanded', String(on));
-  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); } else searchUi.close();
+  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); liveView.load(); } else searchUi.close(); // the channels, for search's Live group
 }
 function endSearch() { input.value = ''; $('#q-clear').hidden = true; setSearching(false); }
 // Go to: a place opens its page, or runs its action (places.js ACTIONS).
@@ -10760,7 +10684,7 @@ async function setView(target, { address = true } = {}) {
   if (view === 'activity') await loadActivity();
   if (view === 'house') await loadHouse();
   if (view === 'clips') await loadClips();
-  if (view === 'live') await liveView.load(true);
+  if (view === 'live') await Promise.all([liveView.load(true), loadParties()]);
   if (view === 'notes') await notesView.load();
   if (view === 'you') await loadLibrary();
   if (state.route === id) { if (view === 'you') renderSettingsWhenStill(); else renderView(); }

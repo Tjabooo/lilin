@@ -18,7 +18,7 @@ export function tintOf(name) {
 const OUT = 256; // stored picture size
 const ZOOM_MAX = 4;
 
-export function createPeople({ h, api, toast, me = () => null }) {
+export function createPeople({ h, api, toast, me = () => null, openProfile = null }) {
   // One face. person: { name, avatar } or a plain name. Decorative (aria-hidden) unless label is given.
   function face(person, { size = 32, label = '', cls = '' } = {}) {
     const p = typeof person === 'string' ? { name: person } : person || {};
@@ -32,14 +32,23 @@ export function createPeople({ h, api, toast, me = () => null }) {
     return el;
   }
 
-  // Overlapping faces, "+2" for the rest. null when there's nobody.
-  function faces(people, { size = 24, max = 4, cls = '' } = {}) {
+  // A face that opens the person's profile, when it carries their account id (people the server shows you); any
+  // other face is just a face.
+  function faceButton(person, opts = {}) {
+    const p = typeof person === 'string' ? { name: person } : person || {};
+    if (!p.id || !openProfile) return face(p, opts);
+    return h('button', { type: 'button', class: 'face-btn', title: p.name, 'aria-label': T('Open {0}’s profile', p.name),
+      onclick: (e) => { e.stopPropagation(); openProfile(p, e.currentTarget); } }, face(p, opts));
+  }
+
+  // Overlapping faces, "+2" for the rest. null when there's nobody. open: each face opens its profile.
+  function faces(people, { size = 24, max = 4, cls = '', open = false } = {}) {
     const list = (people || []).filter(Boolean);
     if (!list.length) return null;
     const shown = list.slice(0, max);
     const rest = list.length - shown.length;
-    return h('span', { class: `faces${cls ? ` ${cls}` : ''}`, style: `--face:${size}px`, 'aria-hidden': 'true' },
-      shown.map((p) => face(p, { size })),
+    return h('span', { class: `faces${cls ? ` ${cls}` : ''}`, style: `--face:${size}px`, ...(open ? {} : { 'aria-hidden': 'true' }) },
+      shown.map((p) => (open ? faceButton(p, { size }) : face(p, { size }))),
       rest > 0 && h('span', { class: 'face more', style: `--face:${size}px` }, `+${rest}`));
   }
 
@@ -193,5 +202,5 @@ export function createPeople({ h, api, toast, me = () => null }) {
   const saveMine = (blob) => send('/api/me/avatar', blob);
   const saveFor = (id, blob) => send(`/api/admin/users/${Number(id)}/avatar`, blob);
 
-  return { face, faces, choosePhoto, editor, saveMine, saveFor, me };
+  return { face, faceButton, faces, choosePhoto, editor, saveMine, saveFor, me };
 }

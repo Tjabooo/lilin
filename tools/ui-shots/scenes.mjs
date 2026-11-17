@@ -15,6 +15,14 @@ const libraryCard = (type) => `
   const card = group.querySelector('.title-card'); card.scrollIntoView({ block: 'center' }); card.click();`;
 const typeSearch = (q) => `const i = document.querySelector('#q'); i.focus(); i.value = ${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); await __sleep(400);`;
 const filmPage = [libraryCard('movie'), sheetOpen];
+// Live's guide with people watching (faces that open profiles), and an access list with invites (the owner's People).
+const GUIDE_FACES = { '^/api/live$': (j) => { if (j.channels?.[0]) { j.channels[0].faces = [{ id: 2, name: 'Maja', avatar: null }, { id: 4, name: 'Ebba', avatar: null }]; j.channels[0].watching = 2; } return j; } };
+const ACCESS = { '^/api/access$': { configured: true, members: ['owner@example.test', 'member@example.test', 'restricted@example.test', 'mormor@example.test'],
+  names: { 'mormor@example.test': 'Mormor' }, owners: ['owner@example.test'], passwords: ['owner@example.test', 'member@example.test'], error: null,
+  invites: [{ id: 'abcd1234', token: 'aaaaaaaaaaaaaaaa', note: 'Morfar', expires: Date.now() + 5 * 864e5, state: 'open', byName: 'Maja' },
+    { id: 'abcd1235', token: 'bbbbbbbbbbbbbbbb', note: '', expires: Date.now() + 6 * 864e5, state: 'open', byName: 'Oliver' }] } };
+// The friend request popup (it waits for nothing on a page that's just open): Later, so the page underneath shows.
+const laterAsks = "await __sleep(1500); if (document.querySelector('#picker.open .friend-asks')) { document.querySelector('#picker .whats-new-done').click(); await __sleep(600); }";
 const openPlayer = ["await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(5000); const v = document.querySelector('#video'); v.pause(); await __sleep(500);"];
 const menu = (sel) => `const b = document.querySelector('${sel}'); if (b && !b.hidden) { b.click(); await __sleep(700); } else return 'no ${sel}';`;
 
@@ -231,6 +239,21 @@ export const SCENES = [
   { name: 'owner-wrapped', path: '/#you', ready: '#you-rows .lrow', steps: ["await __clickText('(Wrapped)', '#you-rows button'); await __sleep(1800);"] },
   { name: 'owner-nowbar', path: '/', ready: '#discover-body .shelf', mocks: { '^/api/cast/sessions': { sessions: [MOCK_SESSION] } }, after: 1000 },
   { name: 'owner-remote', path: '/', ready: '#nowbar:not([hidden])', mocks: { '^/api/cast/sessions': { sessions: [MOCK_SESSION] }, '^/api/cast/living-room/status': { state: 'playing', position: 1260, duration: 6960, volume: 0.6 } }, steps: ["document.querySelector('#nowbar').click(); await __sleep(1500);"] },
+  // Live + the Invite sheet (revamp 2, r2-C): Watch with someone, the guide's faces, each Invite context, People and
+  // Live in search. Local server: a film called Arrival in everyone's library, a planned party, friends.
+  { name: 'live', path: '/#live', ready: '#live-body .together .party-card', full: true, steps: [laterAsks] },
+  { name: 'live-guide', path: '/#live', ready: '#live-body .guide-row', patch: GUIDE_FACES, steps: [laterAsks, "document.querySelector('.guide-scroll').scrollIntoView({ block: 'center' }); await __sleep(600);"] },
+  { name: 'people-access', path: '/#house/people', ready: '#house-body .person', mocks: ACCESS, full: true, steps: [laterAsks] },
+  { name: 'invite-lilin', path: '/#house/people', ready: '#house-body .person', mocks: ACCESS, steps: ["await __clickText('^(Invite someone|Bjud in någon)$', '#house-body button'); await __waitFor('#picker .invite-sheet .invite-make'); await __sleep(700);"] },
+  { name: 'you-invite', path: '/#you/invite', ready: '#you-page .invite', after: 1500 },
+  { name: 'friend-add', path: '/#you/friends', ready: '.friends-add', steps: ["await __click('.friends-add'); await __waitFor('#picker .invite-sheet .friends-find'); const i = document.querySelector('#picker .friends-search'); i.value = 'ma'; i.dispatchEvent(new Event('input')); await __sleep(900);"] },
+  { name: 'room-ask', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
+    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
+    "await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
+    "document.querySelector('#player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); await __sleep(300);",
+    { mouse: '#watch-btn', click: true }, "await __sleep(2500);"] },
+  { name: 'search-people', path: '/#library', ready: '#view-library:not([hidden])', steps: [typeSearch('ma'), "await __waitFor('#search-layer .sr-people .sr-row', 5000).catch(() => {}); await __sleep(500);"] },
+  { name: 'search-live', path: '/#library', ready: '#view-library:not([hidden])', steps: ["document.querySelector('#search-toggle')?.offsetParent && document.querySelector('#search-toggle').click(); await __sleep(800);", typeSearch('fresh'), "await __sleep(800);"] },
   { name: 'owner-watch-room', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
     "await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",

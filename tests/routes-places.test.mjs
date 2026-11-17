@@ -86,7 +86,7 @@ test('You pages per role keep today’s rules', () => {
   assert.deepEqual(pages('memberAct'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('memberInv'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('restricted'), ['history', 'liked', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'download-settings']);
+  assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'activity', 'invite', 'account', 'look', 'watching', 'devices', 'download-settings']);
   assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'people', 'ideas', 'rules', 'screen-time']);
   assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
 });

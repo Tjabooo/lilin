@@ -6,7 +6,7 @@
 // app.js passes in its helpers; this file keeps its own little state and asks app.js to redraw the You page.
 import { T } from './i18n.js';
 
-export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender, openProfile = null, invite = () => null }) {
+export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender, openProfile = null, invite = () => null, addFriend = null }) {
   const view = { loaded: false, loading: null, data: { friends: [], incoming: [], outgoing: [] }, query: '', results: null, searching: 0 };
 
   function load() {
@@ -128,10 +128,19 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
       h('div', { class: 'friend-actions' }, ...actions));
   }
 
-  // Accept / Decline for one request (the page's list and the For you cards).
+  // Accept / Decline for one request (the page's list, the For you cards and the Add a friend sheet).
   const answerButtons = (p) => [
     h('button', { type: 'button', class: 'chip friend-yes', onclick: () => act('accept', p, () => T('You and {0} are friends now', p.name)) }, T('Accept')),
     h('button', { type: 'button', class: 'friend-x', 'aria-label': T('Decline {0}', p.name), title: T('Decline'), onclick: () => act('remove', p) }, icon('close'))];
+
+  // The Add a friend sheet's people (invite.js): requests waiting for you, then find someone by name.
+  function addNodes() {
+    needed();
+    const asks = view.data.incoming || [];
+    return [asks.length > 0 && h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Asked to be your friend')),
+      h('ul', { class: 'friend-list' }, asks.map((p) => row(p, null, ...answerButtons(p))))),
+    searchBox()].filter(Boolean);
+  }
 
   // You → Friends. Empty for restricted people and the shared home account (no friends at all).
   function page() {
@@ -143,7 +152,7 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, T('Asked to be your friend')),
         h('ul', { class: 'friend-list' }, d.incoming.map((p) => row(p, null, ...answerButtons(p))))));
     }
-    body.push(searchBox());
+    body.push(addFriend ? h('button', { type: 'button', class: 'chip friends-add', onclick: (e) => addFriend(e.currentTarget) }, icon('plus'), T('Add a friend')) : searchBox());
     if (d.friends?.length) {
       body.push(h('div', { class: 'friends-block' }, h('p', { class: 'friends-label' }, d.friends.length === 1 ? T('1 friend') : T('{0} friends', d.friends.length)),
         h('ul', { class: 'friend-list' }, d.friends.map((p) => row(p, null,
@@ -169,5 +178,5 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
   }
   const summary = () => ({ friends: friendList().length, requests: incomingCount(), loaded: view.loaded });
 
-  return { page, forYou, summary, load, invalidate, friendList, incomingCount, waitingAsks, askLater, askSheet, jumpNext: () => { view.loaded = false; } };
+  return { page, forYou, summary, addNodes, load, invalidate, friendList, incomingCount, waitingAsks, askLater, askSheet, jumpNext: () => { view.loaded = false; } };
 }

@@ -30,8 +30,9 @@ const SETTINGS = ['account', 'look', 'watching', 'devices'];
 const WATCHING = ['history', 'ratings', 'liked'];
 
 test('You: each role gets exactly its rows, group by group', () => {
-  assert.deepEqual(rows('owner'), { watching: WATCHING, people: ['friends', 'moments', 'activity'], settings: [...SETTINGS, 'download-settings'] });
-  assert.deepEqual(rows('coOwner'), { watching: WATCHING, people: ['friends', 'moments', 'activity'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
+  // owners (co-owners too) invite from You as well as House → People
+  assert.deepEqual(rows('owner'), { watching: WATCHING, people: ['friends', 'moments', 'activity', 'invite'], settings: [...SETTINGS, 'download-settings'] });
+  assert.deepEqual(rows('coOwner'), { watching: WATCHING, people: ['friends', 'moments', 'activity', 'invite'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
   assert.deepEqual(rows('member'), { watching: WATCHING, people: ['friends', 'moments'], settings: SETTINGS, ideas: ['ideas'] });
   assert.deepEqual(rows('memberAct'), { watching: WATCHING, people: ['friends', 'moments', 'activity'], settings: SETTINGS, ideas: ['ideas'] });
   assert.deepEqual(rows('memberInv'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: SETTINGS, ideas: ['ideas'] });

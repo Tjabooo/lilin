@@ -29,7 +29,7 @@ export const ROUTES = {
   'you/friends': { view: 'you', tab: 'you', sub: 'friends', group: 'people', label: 'Friends', allowed: social },
   'you/moments': { view: 'you', tab: 'you', sub: 'moments', group: 'people', label: 'Moments', allowed: (me) => Boolean(me) },
   'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(s?.admin || me?.canSeeActivity) },
-  'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite people', allowed: (me) => Boolean(me?.canInvite && !me.isOwner) },
+  'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite someone to Lilin', allowed: (me, s) => Boolean(s?.admin || (me?.canInvite && me.email && !me.restricted)) },
   'you/account': { view: 'you', tab: 'you', sub: 'account', group: 'settings', label: 'Account' },
   'you/look': { view: 'you', tab: 'you', sub: 'look', group: 'settings', label: 'Language and look' },
   'you/watching': { view: 'you', tab: 'you', sub: 'watching', group: 'settings', label: 'Watching' },
