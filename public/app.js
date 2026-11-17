@@ -1832,7 +1832,7 @@ function openContinueMenu(f, progress, name, opener) {
     h('h2', { id: 'picker-title' }, label),
     h('p', { class: 'muted' }, progress ? T('{0} min left', Math.max(1, Math.ceil(((progress.duration || 0) - (progress.time || 0)) / 60))) : T('Up next')),
     h('div', { class: 'del-actions continue-actions' },
-      h('button', { type: 'button', class: 'del-cancel', onclick: () => { closeTopOverlay(); f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); } }, icon('info'), T('Details')),
+      h('button', { type: 'button', class: 'del-cancel', onclick: () => dismissTopOverlay().catch(() => {}).then(() => { f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); }) }, icon('info'), T('Details')),
       h('button', { type: 'button', class: 'del-cancel', onclick: watched }, icon('check'), T('Mark as watched')),
       h('button', { type: 'button', class: 'del-cancel', onclick: hide }, T('Remove from Continue watching')),
       h('p', { class: 'muted continue-note' }, T('Removing keeps your place: it comes back when you watch it again.')),
