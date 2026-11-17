@@ -7396,8 +7396,12 @@ async function loadPlayerMedia(f, opts = {}) {
     seekPreview.load(null);
     setPlayerSource(`${f.url}/video.mp4`, session);
     if (f.subtitles) {
-      video.append(h('track', { kind: 'subtitles', srclang: 'und', label: T('Subtitles'), src: `${f.url}/subs.vtt`, default: true }));
+      // No `default`: Safari would show its own copy of the cues under Lilin's. Modes are set again once
+      // the file loads, like the other subtitle tracks.
+      const track = h('track', { kind: 'subtitles', srclang: 'und', label: T('Subtitles'), src: `${f.url}/subs.vtt` });
+      video.append(track);
       ccActive = 'und'; applySubModes();
+      track.addEventListener('load', applySubModes);
     }
     video.play().catch(() => { /* autoplay blocked: the controls are there */ });
     return;

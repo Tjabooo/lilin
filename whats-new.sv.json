@@ -1,4 +1,13 @@
 {
+  "2026-11-17-moment-subs": {
+    "title": "Undertexter i Moments fixade",
+    "items": {
+      "Subtitles show once": {
+        "title": "Undertexterna syns en gång",
+        "text": "Moments med undertexter visade dem två gånger på iPhone. Nu finns bara en rad, precis under bilden."
+      }
+    }
+  },
   "2026-11-17-half-stars": {
     "title": "Halva stjärnor",
     "items": {

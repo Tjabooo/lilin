@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-17-moment-subs",
+    "date": "2026-11-17",
+    "title": "Moments subtitles fixed",
+    "items": [
+      {
+        "title": "Subtitles show once",
+        "text": "Moments with subtitles showed them twice on iPhone. Now there's just the one line, right under the picture."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-half-stars",
     "date": "2026-11-17",
     "title": "Half stars",
