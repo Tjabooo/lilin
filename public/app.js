@@ -350,6 +350,10 @@ const luminance = (hex) => {
   const [r, g, b] = hexRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
+// A TMDB rating the same way everywhere: one decimal, in the reader's language ("8.0", Swedish "8,0").
+const fmtRating = (r) => Number(r).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// WCAG contrast ratio between two colours (1 to 21).
+const contrastRatio = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
 // A saved theme ({ preset } or { preset: 'custom', colors }) -> the full set of colours.
 function themeColors(theme) {
@@ -367,7 +371,10 @@ function themeColors(theme) {
 function applyTheme(theme) {
   const c = themeColors(theme);
   const light = luminance(c.bg) > 0.5;
-  const onAccent = luminance(c.accent) > 0.4 ? (luminance(c.bg) < 0.15 ? c.bg : '#141414') : (luminance(c.bg) > 0.8 ? c.bg : '#FFFFFF');
+  // Text on the accent (primary buttons): whichever of a dark or light ink reads better on it.
+  const darkInk = luminance(c.bg) < 0.15 ? c.bg : '#141414';
+  const lightInk = luminance(c.bg) > 0.8 ? c.bg : '#FFFFFF';
+  const onAccent = contrastRatio(darkInk, c.accent) >= contrastRatio(lightInk, c.accent) ? darkInk : lightInk;
   const vars = {
     '--velvet': c.bg, '--curtain': c.surface, '--seat': c.raised, '--line': c.line,
     '--paper': c.text, '--dust': c.muted, '--bulb': c.accent, '--alert': c.alert,
@@ -7680,8 +7687,7 @@ function appearanceSection() {
     const colors = customColors();
     const contrast = h('p', { class: 'set-hint custom-warn', role: 'status' });
     const check = () => {
-      const ratio = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-      const low = ratio(colors.text, colors.bg) < 4.5 || ratio(colors.text, colors.surface) < 4.5;
+      const low = contrastRatio(colors.text, colors.bg) < 4.5 || contrastRatio(colors.text, colors.surface) < 4.5;
       contrast.textContent = low ? T('The text may be hard to read on these backgrounds. Try a lighter or darker text colour.') : '';
     };
     const commit = () => {
