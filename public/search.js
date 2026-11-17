@@ -59,7 +59,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     const folks = h('div', { class: 'sr-people' });
     layer.replaceChildren(h('div', { class: 'sr-body' },
       places.length > 0 && group(T('Go to'), h('div', { class: 'set-stack' }, places.map(placeRow))),
-      owned.length > 0 && group(T('On Lilin'), h('div', { class: 'set-stack' }, owned)),
+      owned.length > 0 && group(T('Plays instantly'), h('div', { class: 'set-stack' }, owned)),
       channels.length > 0 && group(T('Live'), h('div', { class: 'set-stack' }, channels.map((c) => h('button', { type: 'button', class: 'sr-row', onclick: () => { remember(); close(); c.tune(); } },
         h('span', { class: 'guide-number', 'aria-hidden': 'true' }, String(c.number)),
         h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, c.name), c.now && h('span', { class: 'set-hint' }, T('Now: {0}', c.now))))))),

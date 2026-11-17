@@ -71,27 +71,31 @@ class Element {
 function harness() {
   const nodes = new Map(), opened=[]; const document={activeElement:{},createElement:t=>new Element(t),querySelectorAll:()=>[]};
   const $=(s,el)=>el?el.querySelector(s):(nodes.has(s)?nodes.get(s):(nodes.set(s,new Element()),nodes.get(s)));
-  const state={view:'library',sub:null,status:{library:true},library:[],libraryShows:[],downloads:[dl('new',{poster:'/poster.svg'})],libFilter:'all',progress:{},query:'',me:{settings:{}}};
+  const state={view:'library',sub:'downloads',status:{library:true,admin:true},library:[],libraryShows:[],downloads:[dl('new',{poster:'/poster.svg'})],libFilter:'all',progress:{},query:'',me:{settings:{}}};
   const context=vm.createContext({ T: englishT, state,document,filterField(){},pageFilters:{library:''},loadParties(){},newBadgeCount:()=>0,travelView:{items:[]},travelOrder:items=>items,travelRows:()=>[],matchMedia:()=>({matches:false}),canDownload:()=>true,emptyState:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},clearFilter(){},setView(){},rememberView(){},saveMe:async()=>{},rightNow:{mount:()=>new Element(),update(){}},loadRightNow(){},watchlistView:{render(){}},fmtBytes:n=>`${n} B`,timeLeft:()=>'1 day left',episodeLabel:()=>'',libraryShelf:()=>new Element(),libraryCard:()=>new Element(),findTorrents(){},openTransferDetails(){},icon:()=>new Element('span'),watch:{revision:0,items:[]},todayIso:()=>'2026-11-05',Node:Element,$,libraryUnion,libraryAvailability,filterLibrary,librarySignature:'start',libraryProgressRevision:0,libraryRenderPending:false,prefs:()=>({librarySort:'title'}),segmented:(options,value,onPick)=>{const el=new Element();options.forEach(([v,label])=>{const b=new Element('button');b.textContent=label;b.addEventListener('click',()=>onPick(v));el.append(b);});return el;},select:()=>new Element('select'),norm:s=>String(s||'').toLowerCase(),notice:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},nextExpiry:()=>Infinity,libraryFile:f=>({...f,kind:'lib',key:f.id}),savedProgress:()=>null,partlyWatched:()=>false,upNextItems:()=>[],continueItems:()=>[],libraryEntries:()=>[],updateOpenTitle(){},renderConvertBanner(){},openFilm:(f)=>opened.push(['film',f.id]),openShow:id=>opened.push(['show',id]),transferNodes:new Set(),queueMicrotask:fn=>fn(),LIB_FILTERS:[['all','All'],['movie','Films'],['tv','Shows']],plural:(n,w)=>`${n} ${w}`,showSheet:()=>()=>{},pushOverlay(){},openTitle:()=>opened.push(['pending']),setTimeout,window:{},Date });
   vm.runInContext(between('function h(', 'const ICONS ='),context);
-  vm.runInContext(between('const libraryCards =', 'const LIB_FILTERS ='),context);
+  Object.assign(context, { canExtend:()=>true, extendDays:()=>7, extendItems:async()=>{}, rules:{} });
+  vm.runInContext(between('let libraryUI = null;', '// ---------- shows ----------'),context);
   return {state,nodes,opened,$,context,run:code=>vm.runInContext(code,context)};
 }
-test('pending-only Library populates; progress polling retains exact card, poster, toolbar and focused button', () => {
-  const h=harness();h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card'),button=card.querySelector('.title-card'),poster=card.querySelector('.poster'),toolbar=h.$('#library-body').querySelector('.library-toolbar');
+test('House › Downloads: a pending download is one row; polling updates it in place and keeps focus', () => {
+  const h=harness();h.run('renderLibrary()');const row=h.$('#library-body').querySelector('.rn-row'),button=row.querySelector('.rn-open');
   h.context.document.activeElement=button;h.state.downloads[0]={...h.state.downloads[0],progress:.82};h.run('renderLibrary()');
-  assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.poster'),poster);assert.equal(h.$('#library-body').querySelector('.library-toolbar'),toolbar);assert.equal(h.context.document.activeElement,button);assert.match(card.querySelector('.sub').textContent,/82%/);assert.equal(card.querySelector('.poster-progress').className,'poster-progress is-transfer');assert.equal(poster.replacements,1);
+  assert.equal(h.$('#library-body').querySelector('.rn-row'),row);assert.equal(h.context.document.activeElement,button);assert.match(row.querySelector('.rn-sub').textContent,/82%/);
   button.click();assert.deepEqual(h.opened,[['pending']]);
+  assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,0,'no Library grid any more (play first)');
 });
-test('a focused card shows completion in place and ready movies survive a torrent outage', () => {
-  const h=harness();h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card'),button=card.querySelector('.title-card');h.context.document.activeElement=button;
-  h.state.library=[film];h.state.downloads=[dl('new',{done:true,ready:true,progress:1})];h.state.downloadsError='Torrent service down';h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelector('.unified-card'),card);assert.equal(card.querySelector('.sub').textContent,'Ready to watch');assert.equal(card.querySelector('.poster-progress'),null,'retained focused card must reflect completion rather than stale download progress');
-  h.context.document.activeElement={};h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,1);button.click();assert.deepEqual(h.opened,[['film','film']]);
-  h.state.sub='downloads';h.run('renderLibrary()');assert.match(h.$('#library-body').textContent,/Torrent service down/);assert.equal(h.$('#library-body').querySelectorAll('.unified-card').length,0,'only the open segment is drawn');
+test('a finished download leaves the rows; a torrent outage shows its notice', () => {
+  const h=harness();h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelectorAll('.rn-row').length,1);
+  h.state.library=[film];h.state.downloads=[dl('new',{done:true,ready:true,progress:1})];h.state.downloadsError='Torrent service down';h.run('renderLibrary()');
+  assert.equal(h.$('#library-body').querySelectorAll('.rn-open').filter((b)=>/Download new|new/.test(b.textContent)).length,0);
+  assert.match(h.$('#library-body').textContent,/Torrent service down/);
 });
-test('hash metadata promotion retains node and validated ready file playback identity', () => {
-  const h=harness();h.state.downloads=[dl('new',{mediaType:null,tmdbId:null})];h.run('renderLibrary()');const card=h.$('#library-body').querySelector('.unified-card');
-  h.state.library=[film];h.state.downloads=[dl('new',{libraryIds:[film.id],done:true,ready:true})];h.run('renderLibrary()');assert.equal(h.$('#library-body').querySelector('.unified-card'),card);card.querySelector('.title-card').click();assert.deepEqual(h.opened,[['film','film']]);
+test('Leaving soon lists what the automatic delete takes within two days, with Keep', () => {
+  const h=harness();h.context.nextExpiry=(files)=>Math.min(...files.map((f)=>f.expiresAt??Infinity));
+  h.state.downloads=[];h.state.library=[{...film,expiresAt:Date.now()+5*3600e3}];h.run('renderLibrary()');
+  const section=h.$('#library-body').querySelectorAll('.dl-section').find((x)=>x.attrs['aria-label']==='Leaving soon');
+  assert.equal(section.hidden,false);assert.match(section.textContent,/Keep 7 more days/);
 });
 test('pause failures retain a local error and retryable controls while pending poll cannot hide action state', async () => {
   let reject,observed;const pending=new Promise((_,r)=>{reject=r;});const d=dl('one');const context=vm.createContext({ T: englishT,document:{activeElement:null,body:{}},state:{downloads:[d]},api:()=>pending,jsonPost:body=>body,patchTransferNodes(){observed=vm.runInContext("transferOperations.get('one')?.label",context);},patchUnifiedLibrary(){},isPaused:()=>false});
@@ -159,15 +163,8 @@ test('finished non-video downloads are complete and manageable without an endles
   assert.equal(filterLibrary([entry],{availability:'downloading'}).length,0);assert.equal(filterLibrary([entry]).length,1);
 });
 
-test('a focused card whose download was cancelled keeps its grid position until the focusout removes it', () => {
-  const h=harness();h.state.downloads.push(dl('before',{tmdbId:11,canonicalTitle:'0 first'}),dl('after',{tmdbId:12,canonicalTitle:'Z last'}));h.run('renderLibrary()');
-  const list=h.$('#library-body').querySelector('.library-grid'),card=list.children[1];h.context.document.activeElement=card.querySelector('.title-card');
-  h.state.downloads=h.state.downloads.filter(d=>d.hash!=='new');h.run('renderLibrary()');
-  assert.equal(list.children[1],card);assert.equal(list.children.length,3);
-  h.context.document.activeElement={};h.run('renderLibrary()');assert.equal(list.children.includes(card),false);assert.equal(list.children.length,2);
-});
 test('Downloads lists each title once as a row with its state and percent, updated in place', () => {
-  const h=harness();h.state.sub='downloads';h.run('renderLibrary()');const row=h.$('#library-body').querySelector('.rn-row');
+  const h=harness();h.run('renderLibrary()');const row=h.$('#library-body').querySelector('.rn-row');
   assert.match(row.querySelector('.rn-sub').textContent,/50%/);
   h.state.downloads[0]={...h.state.downloads[0],progress:.75};h.run('renderLibrary()');
   assert.equal(h.$('#library-body').querySelector('.rn-row'),row);assert.match(row.querySelector('.rn-sub').textContent,/75%/);

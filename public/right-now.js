@@ -1,7 +1,8 @@
-// Right now: up to three short rows of what's time-bound for you (a party about to start, titles about to be
-// deleted, a download that needs a look, what just became ready, Wrapped). It sits under Discover's billboard,
-// above the type chips (never filtered by them), or at the top of Library › Titles for people who open Lilin on
-// the Library: one place per account. Each row links to the item's own home; its one quiet chip does the thing.
+// Right now: up to three short rows of what's time-bound for you (a party about to start, what just became ready,
+// a Play that's still getting ready, Wrapped, copies for this phone). It sits under Discover's billboard, above the
+// type chips (never filtered by them). Each row links to the item's own home; its one quiet chip does the thing.
+// Play first: downloads are the owner's business, so titles about to be deleted, downloads that need a look and
+// transfer percentages are owner rows (ctx.owner); members see their own starts as "Getting it ready".
 // rightNowRows() is pure (tests/right-now.test.mjs); app.js hands in the data and runs the actions.
 import { T } from './i18n.js';
 
@@ -14,7 +15,7 @@ const pct = (p) => `${Math.floor(Math.max(0, Math.min(1, p)) * 100)} %`;
 const names = (list) => list.slice(0, 2).map((e) => e.name).join(' · ') + (list.length > 2 ? ` · +${list.length - 2}` : '');
 const dayDiff = (a, b) => Math.round((new Date(a).setHours(12, 0, 0, 0) - new Date(b).setHours(12, 0, 0, 0)) / 86400000);
 
-// ctx: { now, parties: [{ token, startsAt, started, title, poster }], entries (libraryUnion), keep (me.keep),
+// ctx: { now, owner, parties: [{ token, startsAt, started, title, poster }], entries (libraryUnion), keep (me.keep),
 // canExtend(f), played(f), travel (phone copies), touch, wrapped: { year, again } | null, convert, hidden: { id: at } }
 export function rightNowRows(ctx, max = 3) {
   const now = ctx.now ?? Date.now(), hidden = ctx.hidden || {}, entries = ctx.entries || [];
@@ -33,7 +34,9 @@ export function rightNowRows(ctx, max = 3) {
       icon: 'party', open: { do: 'route', to: 'live' } });
   }
 
-  if (!ctx.keep) {
+  const owner = Boolean(ctx.owner);
+  const downloads = owner ? { do: 'route', to: 'house/downloads' } : null;
+  if (owner && !ctx.keep) {
     const leaving = entries.map((e) => ({ e, files: e.files.filter((f) => f.expiresAt != null && f.expiresAt - now < 48 * HOUR) }))
       .filter((x) => x.files.length).sort((a, b) => Math.min(...a.files.map((f) => f.expiresAt)) - Math.min(...b.files.map((f) => f.expiresAt)));
     const eligible = leaving.flatMap((x) => x.files.filter((f) => ctx.canExtend?.(f)));
@@ -47,22 +50,22 @@ export function rightNowRows(ctx, max = 3) {
     } else if (leaving.length) {
       add({ id: 'leaving:many', kind: 'leaving', title: T('{0} titles leave within 2 days', leaving.length), sub: names(leaving.map((x) => x.e)), icon: 'clock',
         chip: eligible.length ? { label: T('Keep all {0} more days', days), aria: T('Keep all {0} titles {1} more days', leaving.length, days), act: { do: 'keep', files: eligible } } : null,
-        open: { do: 'titles', sort: 'expiring' } });
+        open: downloads });
     }
   }
 
-  const attention = entries.filter((e) => e.attention);
+  const attention = owner ? entries.filter((e) => e.attention) : [];
   if (attention.length) add({ id: 'attention', kind: 'attention', title: attention.length === 1 ? T('1 download needs a look') : T('{0} downloads need a look', attention.length),
-    sub: names(attention), icon: 'info', alert: true, chip: { label: T('See'), aria: T('See downloads that need a look'), act: { do: 'route', to: 'library/downloads' } },
-    open: { do: 'route', to: 'library/downloads' } });
+    sub: names(attention), icon: 'info', alert: true, chip: { label: T('See'), aria: T('See downloads that need a look'), act: downloads },
+    open: downloads });
 
-  const preparing = entries.filter((e) => e.preparing && !e.attention && !e.active.length);
+  const preparing = entries.filter((e) => e.preparing && (!e.attention || !owner) && !e.active.length);
   if (preparing.length === 1) {
     const [e] = preparing, p = ctx.convert?.(e);
     add({ id: `preparing:${e.key}`, kind: 'preparing', title: e.name, sub: p != null ? T('Preparing playback · {0}', pct(p / 100)) : T('Preparing playback'),
       thumb: e.poster, progress: p != null ? p / 100 : null, open: { do: 'title', entry: e } });
   } else if (preparing.length) {
-    add({ id: 'preparing:many', kind: 'preparing', title: T('Preparing {0} titles for playback', preparing.length), sub: names(preparing), icon: 'clock', open: { do: 'route', to: 'library/downloads' } });
+    add({ id: 'preparing:many', kind: 'preparing', title: T('Preparing {0} titles for playback', preparing.length), sub: names(preparing), icon: 'clock', open: downloads || { do: 'title', entry: preparing[0] } });
   }
 
   const fresh = (e) => e.files.filter((f) => (f.addedAt || f.added || 0) > now - 24 * HOUR);
@@ -74,7 +77,7 @@ export function rightNowRows(ctx, max = 3) {
       chip: { label: T('Play'), aria: T('Play {0}', e.name), act: { do: 'play', entry: e } }, open: { do: 'title', entry: e }, dismiss: true });
   } else if (ready.length) {
     add({ id: `ready:${ready.map((e) => e.key).sort().join(',')}`, kind: 'ready', title: T('{0} new titles ready', ready.length), sub: names(ready), thumb: ready[0].poster,
-      open: { do: 'titles', sort: 'newest' }, dismiss: true });
+      open: { do: 'route', to: 'discover/instant' }, dismiss: true });
   }
 
   if (ctx.wrapped) add({ id: `wrapped:${ctx.wrapped.year}`, kind: 'wrapped', title: T('Your Lilin Wrapped {0}', ctx.wrapped.year),
@@ -85,15 +88,23 @@ export function rightNowRows(ctx, max = 3) {
   const copies = ctx.touch ? (ctx.travel || []).filter((i) => i.state === 'ready' && i.url && !i.downloadedAt) : [];
   if (copies.length) add({ id: `phone:${copies.map((i) => `${i.id}-${i.quality}`).sort().join(',')}`, kind: 'phone',
     title: copies.length === 1 ? T('1 copy ready for this phone') : T('{0} copies ready for this phone', copies.length), sub: copies.map((i) => i.title).slice(0, 2).join(' · '),
-    icon: 'phone', chip: { label: T('Open'), aria: T('Open the copies for this phone'), act: { do: 'travel' } }, open: { do: 'route', to: 'library/downloads' }, dismiss: true });
+    icon: 'phone', chip: { label: T('Open'), aria: T('Open the copies for this phone'), act: { do: 'travel' } }, open: { do: 'travel' }, dismiss: true });
 
-  const onway = entries.filter((e) => e.active.length && !e.attention);
+  // Starts still coming: the owner sees transfers and percentages, a member only that Play is getting it ready.
+  const onway = entries.filter((e) => e.active.length && (!e.attention || !owner));
   if (onway.length) {
     const one = onway.length === 1 ? onway[0] : null;
-    add({ id: 'onway', kind: 'onway', title: one ? one.name : T('{0} on the way', onway.length),
-      sub: one ? [T('On its way'), one.progress != null && pct(one.progress)].filter(Boolean).join(' · ')
-        : onway.slice(0, 2).map((e) => (e.progress != null ? `${e.name} ${pct(e.progress)}` : e.name)).join(' · '),
-      thumb: one?.poster, icon: 'download', progress: one?.progress ?? null, open: { do: 'route', to: 'library/downloads' } });
+    if (owner) {
+      add({ id: 'onway', kind: 'onway', title: one ? one.name : T('{0} on the way', onway.length),
+        sub: one ? [T('On its way'), one.progress != null && pct(one.progress)].filter(Boolean).join(' · ')
+          : onway.slice(0, 2).map((e) => (e.progress != null ? `${e.name} ${pct(e.progress)}` : e.name)).join(' · '),
+        thumb: one?.poster, icon: 'download', progress: one?.progress ?? null, open: downloads });
+    } else {
+      add({ id: 'onway', kind: 'onway', title: one ? one.name : T('Getting {0} titles ready', onway.length),
+        sub: one ? T('Getting it ready') : names(onway), thumb: one?.poster, icon: 'play',
+        chip: one ? { label: T('Play'), aria: T('Play {0}', one.name), act: { do: 'play', entry: one } } : null,
+        open: { do: 'title', entry: one || onway[0] } });
+    }
   }
   return out.sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind)).slice(0, max);
 }

@@ -1,7 +1,7 @@
 // Discover → Moods: a row of vibe tiles ("Slow-burn rainy day thriller", "90s indie nostalgia") and the page
 // behind each one. The server builds each mood's titles from TMDB and scores them (src/vibes.js); this page
 // orders them with a seed, so they come out a little different every day and on every Shuffle, with what's
-// already in your library first. app.js passes in its helpers, as it does for documentaries.js.
+// on the server (it plays instantly) first. app.js passes in its helpers, as it does for documentaries.js.
 import { T } from './i18n.js';
 
 // Small line drawings for the tiles (24 × 24, stroked). Unknown names fall back to the sparkle.
@@ -162,7 +162,7 @@ export function createVibes(ui) {
       items = orderVibe(pool, { seed: view.seed ?? dailySeed(), owned: ui.owned, type: view.type });
       const mine = items.filter(ui.owned).length;
       owned.hidden = !mine;
-      owned.textContent = mine === 1 ? T('1 of these is in your library, so it comes first.') : T('{0} of these are in your library, so they come first.', mine);
+      owned.textContent = mine === 1 ? T('1 of these plays instantly, so it comes first.') : T('{0} of these play instantly, so they come first.', mine);
       grid.replaceChildren();
       shown = 0;
       if (!items.length) { content.replaceChildren(ui.notice(T('Nothing here'), T('Try another type.'))); return; }

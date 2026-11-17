@@ -86,12 +86,8 @@ export function createDocumentaries(ui) {
   const stillOpen = (token) => shown === token && ui.sheet().classList.contains('open');
 
   function statusWord(item) {
-    if (item.status === 'queued') {
-      if (item.state === 'queuedDL') return T('In line');
-      if (/^paused/.test(item.state || '')) return T('Paused');
-      return item.progress > 0 ? `${T('On its way')} · ${Math.floor(item.progress * 100)} %` : T('On its way');
-    }
-    return { library: T('In your library'), server: T('On server'), failed: T('Couldn’t save this') }[item.status] || '';
+    if (item.status === 'queued') return T('Getting it ready');
+    return { library: T('Plays instantly'), server: T('Plays instantly'), failed: T('Couldn’t get this one') }[item.status] || '';
   }
 
   function playById(id) {
@@ -99,12 +95,12 @@ export function createDocumentaries(ui) {
     if (f) ui.play(f); else toast(T('It’s nearly ready. Try again in a moment.'));
   }
 
-  // One episode or film: Play when it's here, Add when it isn't, a word in between.
-  function actionFor(item, label, add) {
-    if (item.status === 'library') return h('button', { class: 'play-btn round', 'aria-label': T('Play {0} here', label), onclick: () => playById(item.libraryId) }, icon('play'));
-    if (item.status === 'queued') return h('span', { class: 'doc-status' }, item.state === 'queuedDL' ? T('In line') : `${Math.floor((item.progress || 0) * 100)} %`);
-    if (!ui.canAdd()) return null;
-    return h('button', { class: 'play-btn round stroke-icon', 'aria-label': T('Add {0} to your library', label), title: T('Add to library'), onclick: add }, icon('plus'));
+  // One episode or film: Play, always (play first). Here: it plays. Not yet: Lilin fetches it from SVT Play and the
+  // player waits on Getting it ready (app.js waitAndPlay) until the whole video is here.
+  function actionFor(item, label, play) {
+    if (item.status === 'library') return h('button', { class: 'play-btn round', 'aria-label': T('Play {0}', label), onclick: () => playById(item.libraryId) }, icon('play'));
+    if (item.status !== 'queued' && !ui.canAdd()) return null;
+    return h('button', { class: 'play-btn round', 'aria-label': T('Play {0}', label), onclick: play }, icon('play'));
   }
 
   function renderTitle(t, data, token, seasonNo) {
@@ -112,19 +108,27 @@ export function createDocumentaries(ui) {
     const isSeries = data && data.kind === 'series';
     const status = h('p', { class: 'device-status', role: 'status' });
     const refresh = (season) => load(t, token, season);
-    const add = async (payload, label) => {
+    // Play on one that isn't here: fetch it (unless it's already coming), then wait for it in the player.
+    // pick(data) finds the item again in a fresh read (the film, or that episode).
+    const play = async (payload, label, pick, queued) => {
       status.classList.remove('is-error');
-      status.textContent = T('Adding…');
+      status.textContent = '';
       try {
-        const r = await api('/api/svt/add', jsonPost({ path: t.path, ...payload }));
-        toast(r.message || T('On its way from SVT Play.'));
-        ui.refreshLibrary();
-        refresh(seasonNo);
+        if (!queued) await api('/api/svt/add', jsonPost({ path: t.path, ...payload }));
       } catch (err) {
         status.classList.add('is-error');
         status.textContent = err.message;
         ui.log?.(`SVT add ${label}: ${err.message}`);
+        return;
       }
+      ui.waitAndPlay({ title: label, art: data?.backdrop || t.backdrop || t.wide, check: async () => {
+        const item = pick(await api(`/api/svt/title?path=${encodeURIComponent(t.path)}`));
+        if (!item) return { failed: T('Couldn’t get this one') };
+        if (item.status === 'library' && item.libraryId) return { id: item.libraryId };
+        if (item.status === 'failed') return { failed: T('Couldn’t get this one') };
+        return { progress: item.progress || 0 };
+      } });
+      refresh(seasonNo);
     };
     const facts = [(data?.year || t.year), (isSeries || t.kind === 'series') ? T('Series') : T('Film'), T('Free on SVT Play')].filter(Boolean);
     const content = [
@@ -135,21 +139,19 @@ export function createDocumentaries(ui) {
       content.push(h('p', { class: 'muted' }, T('Loading…')));
     } else if (!isSeries) {
       const here = data.status === 'library';
-      const button = here
-        ? h('button', { class: 'play-btn action-btn', onclick: () => playById(data.libraryId) }, icon('play'), h('span', {}, T('Play')))
-        : data.status === 'queued'
-          ? h('button', { class: 'play-btn action-btn', disabled: true }, h('span', {}, statusWord(data)))
-          : ui.canAdd() && h('button', { class: 'play-btn action-btn stroke-icon', onclick: () => add({}, data.title) }, icon('plus'), h('span', {}, T('Add to library')));
+      const button = (here || data.status === 'queued' || ui.canAdd()) && h('button', { class: 'play-btn action-btn', onclick: () => (here ? playById(data.libraryId)
+        : play({}, data.title, (d) => d, data.status === 'queued')) }, icon('play'), h('span', {}, T('Play')));
       content.push(h('div', { class: 'title-bar' }, button, status));
       if (data.minutes) content[1].append(h('li', {}, T('{0} min', data.minutes)));
     } else {
       const season = data.seasons.find((s) => s.number === seasonNo) || data.seasons.at(-1);
-      const rest = season.episodes.filter((e) => !['library', 'queued'].includes(e.status));
       const count = season.episodes.length;
+      const episodePlay = (e) => () => (e.status === 'library' ? playById(e.libraryId)
+        : play({ seasons: [season.number], episodes: [e.number] }, e.name, (d) => d.seasons?.find((s) => s.number === season.number)?.episodes.find((x) => x.number === e.number), e.status === 'queued'));
+      const first = season.episodes[0];
       content.push(h('div', { class: 'title-bar' },
-        ui.canAdd() && rest.length > 0 && h('button', { class: 'play-btn action-btn stroke-icon', onclick: () => add({ seasons: [season.number] }, data.title) },
-          icon('plus'), h('span', {}, rest.length === 1 ? T('Add 1 episode') : T('Add {0} episodes', rest.length))),
-        !rest.length && h('p', { class: 'muted' }, season.episodes.some((e) => e.status === 'queued') ? T('On its way. It’ll be ready to watch soon.') : T('This season is in your library.')),
+        first && (first.status === 'library' || first.status === 'queued' || ui.canAdd()) && h('button', { class: 'play-btn action-btn', onclick: episodePlay(first) },
+          icon('play'), h('span', {}, T('Play {0}', first.name))),
         status));
       content.push(h('p', { class: 'overview' }, data.overview));
       if (data.seasons.length > 1) {
@@ -165,13 +167,11 @@ export function createDocumentaries(ui) {
         h('div', { class: 'row-text' },
           h('div', { class: 'row-title' }, e.name),
           h('div', { class: 'row-meta' }, [e.minutes && T('{0} min', e.minutes), statusWord(e)].filter(Boolean).map((m) => h('span', {}, m))),
-          e.status === 'queued' && e.progress > 0 && h('div', { class: 'resume-track' }, h('i', { style: `width:${(e.progress * 100).toFixed(1)}%` })),
           e.overview && h('p', { class: 'doc-episode-text' }, e.overview)),
-        h('div', { class: 'row-actions' },
-          actionFor(e, e.name, () => add({ seasons: [season.number], episodes: [e.number] }, e.name)))))));
+        h('div', { class: 'row-actions' }, actionFor(e, e.name, episodePlay(e)))))));
     }
     if (data && !isSeries && data.overview) content.push(h('p', { class: 'overview' }, data.overview));
-    if (data) content.push(h('p', { class: 'muted doc-note' }, T('Saved from SVT Play to your library in full quality, with Swedish subtitles. SVT Play only works in Sweden.')));
+    if (data) content.push(h('p', { class: 'muted doc-note' }, T('From SVT Play in full quality, with Swedish subtitles. SVT Play only works in Sweden.')));
     const backdrop = data?.backdrop || t.backdrop;
     // The same hero as TMDB title pages: the picture fades out under the title, so it stays readable.
     body.replaceChildren(ui.pageHero(backdrop), h('div', { class: 'sheet-content' }, ...content));
