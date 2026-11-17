@@ -110,7 +110,7 @@ export function createLiveTv(deps) {
           const viewers = room ? [...new Map([...room.members.values()].map((m) => [m.userId, m])).values()] : [];
           const blind = Boolean(accounts.isRestricted?.(user)), hidden = accounts.restrictedIds?.() || new Set();
           return { watching: viewers.length,
-            faces: blind ? [] : viewers.filter((m) => !hidden.has(m.userId)).slice(0, 8).map((m) => ({ name: m.name, avatar: m.avatar || null })) };
+            faces: blind ? [] : viewers.filter((m) => !hidden.has(m.userId)).slice(0, 8).map((m) => ({ id: m.userId, name: m.name, avatar: m.avatar || null })) };
         })(),
         programmes: channels.between(def.id, from, to).map(programme),
       })).sort((a, b) => a.number - b.number),

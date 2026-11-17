@@ -142,10 +142,11 @@ export function idForHandle(handle) {
 
 const social = (user) => Boolean(user) && user.email !== HOME && user.email !== null;
 
-// What the viewer may see of target's profile: 'self', 'full' or 'locked'. Throws 404 for nobody / Home network.
+// What the viewer may see of target's profile: 'self', 'full' or 'locked'. Throws 404 for nobody, and for the Home
+// network's shared account to anyone but itself (it sees its own history in You; it can't publish a page).
 export function access(viewer, target) {
+  if (target && viewer?.id === target.id) return 'self';
   if (!target || !social(target)) throw fail(404, 'No such profile.');
-  if (viewer.id === target.id) return 'self';
   if (isRestricted(viewer) || isRestricted(target)) return 'locked';
   const vis = profileOf(target).visibility;
   if (vis === 'public') return 'full';

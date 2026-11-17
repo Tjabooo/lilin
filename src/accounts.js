@@ -53,7 +53,7 @@ const USER_DEFAULTS = { theme: null, language: '', subLang: '', quality: 'all', 
 const DOWNLOAD_PROFILES = ['save', 'balanced', 'best'];
 const MAX_SIZES = [0, 1, 2, 4, 8, 15, 30, 60]; // GB per film or episode; 0 = no limit
 const QUALITIES = ['all', '2160p', '1440p', '1080p', '720p'];
-const START_VIEWS = ['discover', 'library', 'downloads'];
+const START_VIEWS = ['discover', 'live', 'library', 'downloads', 'you']; // 'downloads' = Library › Downloads (older choice)
 const LIBRARY_SORTS = ['newest', 'expiring', 'title'];
 const SKIP_INTRO = ['button', 'auto']; // Skip intro: offer a button, or skip on its own
 const HEX = /^#[0-9a-f]{6}$/i;
