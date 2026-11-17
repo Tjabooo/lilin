@@ -353,6 +353,26 @@ export async function probeVideo(file) {
   videoCache.set(key, out);
   return out;
 }
+// The container's own length in seconds (same-name-film.js), read from a file that may still be
+// downloading; null when ffprobe can't tell yet. A length ffmpeg only estimated (from the bitrate, which
+// a half-empty file throws off) doesn't count. Given up after 20 s.
+export function probeDuration(file) {
+  if (!status.enabled) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let child, out = '', err = '';
+    try { child = spawn(FFPROBE, ['-v', 'warning', '-show_entries', 'format=duration', '-of', 'json', file], { windowsHide: true }); } catch { return resolve(null); }
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } resolve(null); }, 20_000);
+    timer.unref?.();
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { err = (err + d).slice(-8000); });
+    child.on('error', () => { clearTimeout(timer); resolve(null); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0 || /estimat/i.test(err)) return resolve(null);
+      try { resolve(Number(JSON.parse(out)?.format?.duration) || null); } catch { resolve(null); }
+    });
+  });
+}
 // Stats for nerds: everything worth showing about a file's streams, from one ffprobe (cached per
 // file version). describeProbe is pure, so tests can feed it ffprobe JSON.
 const detailCache = new Map();

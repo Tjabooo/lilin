@@ -1,4 +1,15 @@
 [
+  {
+    "id": "2026-11-17-same-name-films",
+    "date": "2026-11-17",
+    "title": "Films with the same name",
+    "items": [
+      {
+        "title": "The right film when two share a name",
+        "text": "Some films share their name and year with another one. In 2026 there were three films called The Odyssey, so uploads of the short ones showed up as Nolan's long before his was out. Lilin now checks how long the video is in the first minutes of a download. If it's clearly the other film of that name, Lilin removes it and looks for the right one. It only steps in when the length matches the other film, so a real copy is never thrown out."
+      }
+    ]
+  },
 {
   "id": "2026-11-17-details",
   "date": "2026-11-17",

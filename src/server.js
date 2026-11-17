@@ -48,6 +48,7 @@ import { scratchPlan, liveRoot, usesScratch } from './scratch.js';
 import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
 import { fakeRelease } from './fake-release.js';
+import { mainVideo, otherFilm } from './same-name-film.js';
 import { PROFILES, isDualAudio, PLAY_MARGIN } from './recommend.js';
 import * as accounts from './accounts.js';
 import * as live from './live.js';
@@ -1576,7 +1577,7 @@ async function startSmartFor(user, body) {
   const want = { ...downloadWant(user, body), runtime };
   const documentary = (details.genres || []).some((g) => g.id === 99);
   const id = smart.startSmartJob({
-    type, title, year, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub,
+    type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub,
     upgrade: upgrade && { episodes: upgrade.episodes, bytes: upgrade.bytes, names: upgrade.names, quality: upgrade.quality },
     originalTitle: original && original !== title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
     want,
@@ -2171,23 +2172,110 @@ async function fakeGuardRound() {
       if (!files?.length) continue; // no metadata yet: next round
       fakeChecked.add(hash);
       const why = fakeRelease(files);
-      if (!why) continue;
-      try { await removeDownloadWithFiles(t); } catch (e) {
-        fakeChecked.delete(hash);
-        console.warn(`[fake] couldn’t remove ${t.name}: ${e.message}`);
-        continue;
-      }
-      const found = smart.fakeFound(hash);
-      knownFakes.push({ hash, ref: found?.ref || undefined, name: t.name, at: Date.now() });
-      try { fs.writeFileSync(FAKES_FILE, JSON.stringify(knownFakes.slice(-1000))); } catch (e) { console.warn(`[fake] ${e.message}`); }
-      console.warn(`[fake] removed ${t.name}: it ${why}${found?.retried ? '; looking for another release' : ''}`);
-      activity.record(SYSTEM, 'blocked', `${String(t.name).slice(0, 200)} (fake: ${why})`, { user: accounts.userById(ownerId)?.email || 'Lilin' });
+      if (why) { if (!await blockFake(t, why, ownerId)) fakeChecked.delete(hash); continue; }
+      const film = shows.filmDownload(hash);
+      if (film?.id && Number(film.runtime) > 0 && mainVideo(files)) sameNamePending.set(hash, { film, since: Date.now(), tried: 0 });
     }
     for (const hash of fakeChecked) if (!present.has(hash)) fakeChecked.delete(hash);
+    for (const hash of sameNamePending.keys()) if (!present.has(hash)) sameNamePending.delete(hash);
   } catch { /* qBittorrent down: next round */ }
   finally { fakeGuardBusy = false; }
 }
 setInterval(() => fakeGuardRound(), 3000).unref();
+
+// Removes a fake (or wrong-film) download with its files and runs its Download again. notFilm: the TMDB
+// film it was mistaken for; such an upload is real, so it stays allowed for every other film.
+async function blockFake(t, why, ownerId, { notFilm = null } = {}) {
+  const hash = t.hash.toLowerCase();
+  try { await removeDownloadWithFiles(t); } catch (e) {
+    console.warn(`[fake] couldn’t remove ${t.name}: ${e.message}`);
+    return false;
+  }
+  const found = smart.fakeFound(hash, { notFilm });
+  knownFakes.push({ hash, ref: found?.ref || undefined, name: t.name, at: Date.now(), ...(notFilm ? { notFilm } : {}) });
+  try { fs.writeFileSync(FAKES_FILE, JSON.stringify(knownFakes.slice(-1000))); } catch (e) { console.warn(`[fake] ${e.message}`); }
+  console.warn(`[fake] removed ${t.name}: it ${why}${found?.retried ? '; looking for another release' : ''}`);
+  activity.record(SYSTEM, 'blocked', `${String(t.name).slice(0, 200)} (${notFilm ? 'wrong film' : 'fake'}: ${why})`, { user: accounts.userById(ownerId)?.email || 'Lilin' });
+  return true;
+}
+
+// ---- same-name films (same-name-film.js) ----
+// A film download whose one main video is as long as another film of the same name, and nowhere near
+// the film it was added for, is that other film ("The Odyssey 2026" uploads of the 92-minute Odyssey
+// while Nolan's 173-minute one wasn't out). Its length is read once the start and end of the video are
+// here (first and last pieces come first), so this happens in the download's first minutes.
+const sameNamePending = new Map(); // hash -> { film, since, tried }
+const SAME_NAME_GIVE_UP = 6 * 60 * 60 * 1000;
+const PIECE_HAVE = 2;
+const sameTitleFilm = (a, b) => {
+  const keys = (f) => [f.title, f.original_title].filter(Boolean).map((x) => shows.showKey(x)).filter(Boolean);
+  const theirs = new Set(keys(b));
+  return keys(a).some((k) => theirs.has(k));
+};
+// Other films with this film's title (any year), with runtimes. Cached a day per film.
+const sameNameCache = new Map();
+function sameNameFilms(film) {
+  const hit = sameNameCache.get(film.id);
+  if (hit && Date.now() - hit.at < 24 * 3600 * 1000) return hit.promise;
+  const promise = (async () => {
+    const titles = [...new Set([film.title, film.original_title].filter(Boolean))];
+    const found = new Map();
+    for (const query of titles) {
+      for (const r of (await tmdb('/search/movie', { query })).results || []) {
+        if (r.id !== film.id && sameTitleFilm(r, film)) found.set(r.id, r);
+      }
+    }
+    const out = [];
+    for (const r of [...found.values()].slice(0, 10)) {
+      const d = await cachedTmdb(`/movie/${r.id}`, {}, 24 * 3600 * 1000).catch(() => null);
+      if (d?.id) out.push(d);
+    }
+    return out;
+  })();
+  sameNameCache.set(film.id, { at: Date.now(), promise });
+  promise.catch(() => sameNameCache.delete(film.id));
+  if (sameNameCache.size > 200) sameNameCache.delete(sameNameCache.keys().next().value);
+  return promise;
+}
+let sameNameBusy = false;
+async function sameNameRound() {
+  if (!QBIT_URL || sameNameBusy || !sameNamePending.size) return;
+  sameNameBusy = true;
+  try {
+    for (const [hash, job] of sameNamePending) {
+      if (Date.now() - job.since > SAME_NAME_GIVE_UP) { sameNamePending.delete(hash); continue; }
+      if (Date.now() - (job.last || 0) < (job.tried ? 60_000 : 10_000)) continue;
+      job.last = Date.now();
+      const [t] = await qbit(`/api/v2/torrents/info?hashes=${hash}`);
+      if (!t) { sameNamePending.delete(hash); continue; }
+      if (deletingDownloads.has(hash)) continue;
+      // Only films with a same-name twin far from its runtime are worth reading the video for.
+      const others = await sameNameFilms(job.film).catch(() => null);
+      if (!others) continue;
+      if (!others.some((o) => Number(o.runtime) > 0 && Math.abs(Number(o.runtime) - Number(job.film.runtime)) >= 20)) { sameNamePending.delete(hash); continue; }
+      const files = await torrentFileMetadata(t).catch(() => null);
+      const main = mainVideo(files);
+      if (!main) { sameNamePending.delete(hash); continue; }
+      if (t.progress < 1) {
+        const states = await qbit(`/api/v2/torrents/pieceStates?hash=${hash}`).catch(() => null);
+        const [first, last] = Array.isArray(main.piece_range) ? main.piece_range : [];
+        if (!Array.isArray(states) || first == null || states[first] !== PIECE_HAVE || states[last] !== PIECE_HAVE) continue;
+      }
+      let file;
+      try { file = torrentLivePath(t, main); } catch { sameNamePending.delete(hash); continue; }
+      job.tried++;
+      const seconds = await converter.probeDuration(file);
+      if (!seconds) { if (t.progress >= 1 || job.tried >= 30) sameNamePending.delete(hash); continue; } // MP4 index still coming: later
+      sameNamePending.delete(hash);
+      const verdict = otherFilm(seconds / 60, job.film, others, sameTitleFilm);
+      if (!verdict) continue;
+      const ownerId = accounts.torrentRow(hash)?.user_id ?? accounts.userFromTags(t.tags);
+      await blockFake(t, verdict.why, ownerId, { notFilm: job.film.id });
+    }
+  } catch (e) { console.warn(`[same-name] ${e.message}`); }
+  finally { sameNameBusy = false; }
+}
+setInterval(() => sameNameRound(), 5000).unref();
 
 // ---- slow swarms (smart-download.js, recommend.js streamable) ----
 // A Best Quality download has to play while it downloads. Its first minutes are measured: from one
@@ -4238,6 +4326,10 @@ async function handleApi(req, res, url) {
         if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, 'Invalid show identity.');
         show = await tmdb(`/tv/${id}`);
       }
+      // An upload Lilin already found to be another film with the same name (same-name-film.js).
+      if (film && smart.isWrongFilm({ magnet: String(body.link || '') }, film.id)) {
+        throw new HttpError(409, 'Lilin already checked this upload: it’s a different film with the same name. Pick another one.');
+      }
       const check = name ? await newVersionCheck(user, { link: String(body.link || ''), name, film, show, mediaType: body.mediaType }) : null;
       const added = await addDownload({ link: body.link, user, name, film, show,
         mediaType: ['tv', 'movie'].includes(body.mediaType) ? body.mediaType : null });
@@ -5406,7 +5498,7 @@ function startPickJob(pick, details) {
   const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
   const documentary = (details.genres || []).some((g) => g.id === 99);
   return smart.startSmartJob({
-    type, title: pick.title, year, season: pick.season, episodes: pick.episodes, range: Boolean(pick.episodes), requester: null, subs, anime: animeCtx,
+    type, tmdbId: pick.tmdbId, title: pick.title, year, season: pick.season, episodes: pick.episodes, range: Boolean(pick.episodes), requester: null, subs, anime: animeCtx,
     originalTitle: original && original !== pick.title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
     want: { profile: 'balanced', prefer: null, quality: null, maxBytes: PICK_MAX_BYTES[type], audioLang: owner?.settings?.audioLang || '', runtime },
   }, {

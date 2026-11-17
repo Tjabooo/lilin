@@ -109,19 +109,40 @@ function isFake(r) {
   const hash = hashOf(r);
   return Boolean((hash && fakes.has(hash)) || (r.ref && fakes.has(`ref:${r.ref}`)));
 }
+// Uploads that turned out to be a different film with the same name (same-name-film.js): a real
+// upload, so only skipped for the film it was mistaken for. "hash" or "ref:..." -> Set of TMDB film ids.
+const wrongFilms = new Map();
+function wrongFilmMark(key, filmId) {
+  if (!key || !filmId) return;
+  if (!wrongFilms.has(key)) wrongFilms.set(key, new Set());
+  wrongFilms.get(key).add(Number(filmId));
+}
+export function isWrongFilm(r, filmId) {
+  if (!filmId) return false;
+  const hash = hashOf(r) || r.hash;
+  return Boolean((hash && wrongFilms.get(String(hash).toLowerCase())?.has(Number(filmId)))
+    || (r.ref && wrongFilms.get(`ref:${r.ref}`)?.has(Number(filmId))));
+}
 // Remembered fakes from earlier runs (server.js keeps them in a file).
 export function loadFakes(list) {
-  for (const f of list || []) { if (f.hash) fakes.add(String(f.hash).toLowerCase()); if (f.ref) fakes.add(`ref:${f.ref}`); }
+  for (const f of list || []) {
+    if (f.notFilm) { wrongFilmMark(f.hash && String(f.hash).toLowerCase(), f.notFilm); if (f.ref) wrongFilmMark(`ref:${f.ref}`, f.notFilm); continue; }
+    if (f.hash) fakes.add(String(f.hash).toLowerCase()); if (f.ref) fakes.add(`ref:${f.ref}`);
+  }
 }
 // The server removed this torrent as a fake: block it, and run the job that added it again. The new
 // job sees every other episode already on its way, so it looks for just what the fake was meant to be.
 // Returns { ref, retried } (ref: to remember with the hash), or null when Lilin's search didn't add it.
-export function fakeFound(hash) {
+// notFilm: the TMDB id of the film it was taken for, when it's really another film of the same name
+// (blocked for that film only).
+export function fakeFound(hash, { notFilm = null } = {}) {
   hash = String(hash || '').toLowerCase();
-  fakes.add(hash);
   const origin = origins.get(hash);
   origins.delete(hash);
-  if (origin?.ref) fakes.add(`ref:${origin.ref}`);
+  if (notFilm) { wrongFilmMark(hash, notFilm); if (origin?.ref) wrongFilmMark(`ref:${origin.ref}`, notFilm); } else {
+    fakes.add(hash);
+    if (origin?.ref) fakes.add(`ref:${origin.ref}`);
+  }
   if (!origin || Date.now() - origin.at > ORIGIN_TTL) return origin ? { ref: origin.ref || null, retried: null } : null;
   const { only, ...spec } = origin.spec;
   return { ref: origin.ref || null, retried: startSmartJob(spec, origin.deps) };
@@ -241,7 +262,7 @@ async function runFilm(job, spec, deps) {
   let results = [], best = { pick: null, why: null }, failures = 0;
   for (const query of queries) {
     try { results = [...results, ...await search(query, 'movie', deps)]; } catch (e) { if (e.status === 503) throw e; failures++; continue; }
-    best = pickBest(results.filter(usable), want, deps.parseName);
+    best = pickBest(results.filter((r) => usable(r) && !isWrongFilm(r, spec.tmdbId)), want, deps.parseName);
     if (best.pick && want.profile !== 'best') break; // Best Quality: every search before choosing
   }
   if (!best.pick) {
