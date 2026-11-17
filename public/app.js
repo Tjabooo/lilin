@@ -906,9 +906,13 @@ function row(r) {
 
 // ---------- shared by the billboard, peek and title pages ----------
 // TMDB backdrops come 780 px wide; screens with the pixels for it get the 1280 px version.
-function bigArt(url, max = 1280) {
+// Banner-sized art: TMDB's w1280 on mid screens, the original file (usually 1080p-4K) once the screen is
+// wider than 1280 real pixels, where w1280 would be stretched (a 1440p monitor blew it up 2x).
+function bigArt(url, max = Infinity) {
   if (!url || !/image\.tmdb\.org\/t\/p\/w780\//.test(url)) return url;
-  return max > 780 && innerWidth * (devicePixelRatio || 1) > 900 ? url.replace('/t/p/w780/', '/t/p/w1280/') : url;
+  const px = innerWidth * (devicePixelRatio || 1);
+  const size = max > 1280 && px > 1400 ? 'original' : max > 780 && px > 900 ? 'w1280' : null;
+  return size ? url.replace('/t/p/w780/', `/t/p/${size}/`) : url;
 }
 const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${fmtRating(t.rating)}`, ...genreNames(t)].filter(Boolean).join(' · ');
 // A title page's extras (logo art, runtime, genres, cast, similar titles: /api/title/:type/:id/page), kept for hours.

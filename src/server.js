@@ -90,6 +90,7 @@ import { ensurePlayhead } from './setup/playhead.js';
 
 import { APP_DIR, DATA_DIR, CACHE_DIR, PUBLIC_DIR, dataDirProblem, ensureDataDir } from './paths.js';
 import * as preview from './preview.js';
+import { pickBackdrop } from './backdrop.js';
 import { createComingSoon } from './coming-soon.js'; // comingsoon: Discover's Coming soon row and page
 
 {
@@ -756,11 +757,28 @@ function withoutDisliked(user, data) {
   return out;
 }
 
+// The full TMDB record behind a title page (images, credits, ...), cached 12 h; the billboard reads it too.
+function titlePageData(type, id) {
+  const lang = TMDB_LANG.split('-')[0];
+  return cachedTmdb(`/${type}/${id}`, {
+    append_to_response: type === 'tv' ? 'images,aggregate_credits,recommendations,content_ratings' : 'images,credits,recommendations,release_dates',
+    include_image_language: [...new Set(['en', lang, 'null'])].join(','),
+  }, 12 * 3600 * 1000);
+}
+// A billboard title with our own banner pick (src/backdrop.js) in place of TMDB's default. Never holds
+// Discover up: a slow or failed lookup keeps the default.
+async function bannerArt(t) {
+  if (!['movie', 'tv'].includes(t.type) || !Number.isSafeInteger(t.id)) return t;
+  const d = await Promise.race([titlePageData(t.type, t.id), new Promise((r) => setTimeout(r, 2500, null).unref())]).catch(() => null);
+  const file = pickBackdrop(d?.images?.backdrops);
+  return file ? { ...t, backdrop: `${TMDB_IMG}w780${file}` } : t;
+}
+
 async function discoverHome(type) {
   const rows = HOME_ROWS[type] || HOME_ROWS.all;
   const lists = await Promise.all(rows.map(([key]) => (comingSoon.handles(key) ? comingSoon.list(key, 1, { wait: 2500 }) // comingsoon: skipped until built
     : discoverList(key)).catch(() => null)));
-  const featured = (lists[0]?.results || []).filter((t) => t.backdrop && t.overview).slice(0, 6);
+  const featured = await Promise.all((lists[0]?.results || []).filter((t) => t.backdrop && t.overview).slice(0, 6).map(bannerArt));
   return {
     featured,
     rows: rows.map(([key, title], i) => ({ key, title: translate(title), items: lists[i]?.results || [] })).filter((r) => r.items.length),
@@ -4253,13 +4271,7 @@ async function handleApi(req, res, url) {
   // faces and titles like it. One TMDB call (append_to_response), cached 12 h like the trailer.
   if ((m = p.match(/^\/api\/title\/(movie|tv)\/(\d+)\/page$/))) {
     if (!tmdbOn()) return sendJson(res, 200, { page: null });
-    const tv = m[1] === 'tv';
-    const lang = TMDB_LANG.split('-')[0];
-    const d = await cachedTmdb(`/${m[1]}/${m[2]}`, {
-      append_to_response: tv ? 'images,aggregate_credits,recommendations,content_ratings' : 'images,credits,recommendations,release_dates',
-      include_image_language: [...new Set(['en', lang, 'null'])].join(','),
-    }, 12 * 3600 * 1000);
-    return sendJson(res, 200, { page: titlePage(m[1], d) });
+    return sendJson(res, 200, { page: titlePage(m[1], await titlePageData(m[1], m[2])) });
   }
   // details: the More details disclosure (src/details.js); the page asks only when someone opens it.
   if ((m = p.match(/^\/api\/title\/(movie|tv)\/(\d+)\/details$/))) {

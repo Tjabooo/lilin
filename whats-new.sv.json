@@ -1,4 +1,13 @@
 {
+  "2026-11-17-sharper-banners": {
+    "title": "Skarpare banners",
+    "items": {
+      "Better pictures at the top of Discover": {
+        "title": "Bättre bilder högst upp i Upptäck",
+        "text": "Den stora bannern väljer nu en omtyckt bild utan text i minst full HD för varje titel i stället för den som filmdatabasen råkar visa först, och stora skärmar får bilden i full storlek i stället för en uppförstorad."
+      }
+    }
+  },
   "2026-11-17-activity-house": {
     "title": "Aktivitet har flyttat till Huset",
     "items": {

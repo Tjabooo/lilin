@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-sharper-banners",
+  "date": "2026-11-17",
+  "title": "Sharper banners",
+  "items": [
+    {
+      "title": "Better pictures at the top of Discover",
+      "text": "The big banner now picks a well-liked, full-HD-or-better picture without text for each title instead of whatever the movie database lists first, and big screens get the full-size picture instead of a stretched one."
+    }
+  ]
+},
+{
   "id": "2026-11-17-activity-house",
   "date": "2026-11-17",
   "title": "Activity moved to House",
