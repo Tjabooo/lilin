@@ -10,11 +10,12 @@ const shelfCard = (re, nth = 0) => `
 const sheetOpen = "await __waitFor('#sheet.open #sheet-title'); await __sleep(700);";
 // The one title page has one gold button: report how many are lit (visible .play-btn in the sheet).
 const lit = "return 'lit ' + [...document.querySelectorAll('#sheet-body .play-btn')].filter((b) => b.offsetParent && !b.closest('[hidden]')).length;";
+// A title from Discover's Instant page (what's on the server; there is no Library tab since play first).
 const libraryCard = (type) => `
-  await __waitFor('.unified-library .lib-group .title-card');
-  const groups = [...document.querySelectorAll('.unified-library .lib-group')].filter((g) => !g.hidden);
-  const group = groups.find((g) => /${type === 'tv' ? 'shows|serier' : 'films|filmer'}/i.test(g.querySelector('h3')?.textContent || '')) || groups[0];
-  const card = group.querySelector('.title-card'); card.scrollIntoView({ block: 'center' }); card.click();`;
+  await __waitFor('#discover-body .grid .title-card');
+  const cards = [...document.querySelectorAll('#discover-body .grid .title-card')];
+  const card = cards.find((c) => /${type === 'tv' ? 'series|serie' : 'film'}/i.test(c.querySelector('.kind')?.textContent || '')) || cards[0];
+  card.scrollIntoView({ block: 'center' }); card.click();`;
 const typeSearch = (q) => `const i = document.querySelector('#q'); i.focus(); i.value = ${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); await __sleep(400);`;
 const filmPage = [libraryCard('movie'), sheetOpen];
 // Live's guide with people watching (faces that open profiles), and an access list with invites (the owner's People).
@@ -107,6 +108,56 @@ const R2_MOCKS = ({ empty = false } = {}) => ({
   '^/api/convert': { enabled: true, active: [], queued: 0, recentFailures: [] },
 });
 
+// Play first (no Library tab): Discover with Instant marks, personal rows and search on phones; the Instant page;
+// title pages where Play is the only action; Getting it ready in the player; the owner's House › Downloads.
+// For a throwaway local server (ADMIN_EMAILS=owner@example.test): run once per role with --as owner@example.test,
+// --as member@example.test, and the restricted scenes (pf-*-r) for a restricted member.
+const pfFilm = (i, o = {}) => r2File(i, { expiresAt: null, ...o });
+const pfEp = (show, tmdb, season, episode, o = {}) => ({ id: `ep-${tmdb}-${season}-${episode}`, mediaKey: `ek-${tmdb}-${season}-${episode}`, file: `S${season}E${episode}.mkv`,
+  title: R2_NAMES[(tmdb - 9000) % R2_NAMES.length], show, season, episode, episodeName: `Chapter ${episode}`, size: 1.2e9, addedAt: Date.now() - 50 * HOUR, added: Date.now() - 50 * HOUR, ...o });
+const PF_SHOW = { id: 'tv-9003', tmdbId: 9003, title: 'Severance', year: 2022, poster: art(3), backdrop: art(3, 780, 439), overview: 'A story told across one long night.',
+  seasons: [{ number: 1, total: 9, episodes: {} }] };
+const PF_SHOW2 = { id: 'tv-9006', tmdbId: 9006, title: 'The Bear', year: 2023, poster: art(6), backdrop: art(6, 780, 439), overview: 'Kitchens, again.', seasons: [{ number: 2, total: 10, episodes: {} }] };
+const PF_LIBRARY = {
+  items: [pfFilm(1, { addedAt: Date.now() - 2 * HOUR, added: Date.now() - 2 * HOUR }), pfFilm(4), pfFilm(5),
+    pfEp('tv-9003', 9003, 1, 1), pfEp('tv-9003', 9003, 1, 2), pfEp('tv-9003', 9003, 1, 3, { addedAt: Date.now() - 20 * HOUR, added: Date.now() - 20 * HOUR })],
+  server: [pfFilm(2), pfFilm(10), pfFilm(14), pfFilm(16), pfFilm(29), pfFilm(31), pfFilm(44), pfFilm(46), pfFilm(58),
+    pfEp('tv-9006', 9006, 2, 1), pfEp('tv-9006', 9006, 2, 2, { addedAt: Date.now() - 30 * HOUR, added: Date.now() - 30 * HOUR })],
+  shows: [PF_SHOW, PF_SHOW2],
+};
+const PF_STATUS = ({ restricted = false, start = null } = {}) => ({ '^/api/status$': (j) => {
+  Object.assign(j, { search: true, downloads: true, torrents: true, library: true });
+  if (restricted) Object.assign(j.me, { restricted: true, canDownload: false });
+  if (start) j.me.settings.startView = start;
+  return j;
+} });
+// A cold Play: the smart download runs (Finding the best copy…), then, with transfer: true, a transfer whose start is
+// on its way (Play now opening: "Starting in about 25 s"); fail: the search found nothing.
+const PF_COLD = 9048; // In cinemas now's 7th film (The Odyssey): not on the server
+const pfTransfer = () => dl({ hash: 'e'.repeat(40), name: 'Nosferatu.2024.1080p.WEB-DL', title: R2_NAMES[PF_COLD % R2_NAMES.length], canonicalTitle: R2_NAMES[PF_COLD % R2_NAMES.length],
+  tmdbId: PF_COLD, year: 2024, progress: 0.01, state: 'downloading', canPlayNow: true, speed: 4e6, seeds: 30 });
+// Mocks match in order, so these come before R2's (whose '^/api/downloads' would also answer the smart download).
+const pfWith = (own, o) => ({ ...own, ...Object.fromEntries(Object.entries(R2_MOCKS(o)).filter(([k]) => k !== '^/api/downloads' && !(k in own))) });
+const PF_MOCKS = ({ transfer = false, fail = false, empty = false } = {}) => pfWith({
+  '^/api/library$': empty ? { items: [], server: [], shows: [] } : PF_LIBRARY,
+  '^/api/me/progress$': empty ? { progress: {}, finished: {} } : { progress: { 'm:mk-4': { time: 1200, duration: 6000, at: Date.now() - 5 * HOUR } },
+    finished: { 'tv:9003': { season: 1, episode: 1, at: Date.now() - 60 * HOUR } } },
+  '^/api/watchlist$': empty ? { items: [], autoDownload: true } : { autoDownload: true, items: [{ type: 'tv', id: 9006, title: 'The Bear', poster: art(6), follow: true },
+    { type: 'movie', id: 9105, title: 'The Odyssey', poster: art(5), saved: true, release: new Date(Date.now() + 9 * 86400e3).toISOString().slice(0, 10), releaseKind: 'digital' },
+    { type: 'movie', id: 9106, title: 'Nosferatu', poster: art(6), saved: true }] },
+  '^/api/search': { results: r2List(0, 8), page: 1, totalPages: 1 },
+  '^/api/downloads/smart$': { id: 'job1' },
+  '^/api/downloads/smart/job1': fail ? { state: 'done', outcome: 'none', title: 'Nosferatu', message: 'Couldn’t find a copy that plays well right now.' } : { state: 'running', step: 'Searching' },
+  '^/api/downloads(\\?|$)': transfer ? { items: [pfTransfer()] } : { items: [] },
+  '^/api/part/open': { ready: false, status: { progress: 0.02, inOrder: 0, startProgress: 0.45, startEta: 22 } },
+  '^/api/tv/9003/seasons': { seasons: [{ number: 1, name: 'Season 1', episodes: 9, first: 1, upcoming: false }] },
+  '^/api/tv/9003/season/1': { episodes: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, name: `Chapter ${i + 1}`, runtime: 55, airDate: '2022-02-18', overview: 'Mark is promoted.' })) },
+}, { empty });
+const pfCard = (re, nth = 0) => `
+  const shelf = await (async () => { for (let i = 0; i < 60; i++) { const s = [...document.querySelectorAll('#discover-body .shelf')].find((x) => /${re}/i.test(x.querySelector('h3')?.textContent || '')); if (s) return s; await __sleep(200); } throw new Error('no shelf ${re}'); })();
+  const card = shelf.querySelectorAll('.title-card')[${nth}]; card.scrollIntoView({ block: 'center' }); card.click();`;
+const pfPlay = "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#getting-ready:not([hidden])'); await __sleep(2600);";
+
 export const SCENES = [
   // ---- revamp 2: Discover + Library (mocked; see R2_MOCKS) ----
   { name: 'r2-discover', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), after: 1500 },
@@ -114,13 +165,25 @@ export const SCENES = [
   { name: 'r2-discover-top', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), steps: ["await __waitFor('.right-now:not([hidden])', 15000); document.querySelector('.right-now').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(600);"] },
   { name: 'r2-discover-genres', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), steps: ["await __click('.genres-toggle'); document.querySelector('.discover-controls').scrollIntoView({ block: 'center' }); await __sleep(500);"] },
   { name: 'r2-discover-new', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), full: true, steps: ["await __waitFor('.vibes-shelf', 15000); await __sleep(1500);"] },
-  { name: 'r2-library', path: '/#library', ready: '#library-body .unified-card', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 1000 },
-  { name: 'r2-library-start', path: '/#library', ready: '#library-body .unified-card', mocks: R2_MOCKS(), patch: R2_STATUS({ start: 'library' }), after: 1500 },
-  { name: 'r2-watchlist', path: '/#library/watchlist', ready: '#library-body .rn-row', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 800 },
-  { name: 'r2-downloads', path: '/#library/downloads', ready: '#library-body .rn-row', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 800 },
-  { name: 'r2-library-empty', path: '/#library', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
-  { name: 'r2-watchlist-empty', path: '/#library/watchlist', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
-  { name: 'r2-downloads-empty', path: '/#library/downloads', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
+  // ---- play first (see PF_MOCKS) ----
+  { name: 'pf-discover', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS(), after: 1800 },
+  { name: 'pf-discover-full', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS({ transfer: true }), patch: PF_STATUS(), full: true, steps: ["await __waitFor('.vibes-shelf', 15000); await __sleep(1500);"] },
+  { name: 'pf-discover-r', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS({ restricted: true }), full: true, steps: ["await __waitFor('.vibes-shelf', 15000); await __sleep(1500);"] },
+  { name: 'pf-discover-new', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS({ empty: true }), patch: PF_STATUS(), after: 1800 },
+  { name: 'pf-instant', path: '/#discover/instant', ready: '#discover-body .grid .title-card', mocks: PF_MOCKS(), patch: PF_STATUS(), full: true, after: 800 },
+  { name: 'pf-instant-empty', path: '/#library', ready: '#discover-body .empty-state', mocks: PF_MOCKS({ empty: true }), patch: PF_STATUS(), after: 600 },
+  { name: 'pf-search', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: [typeSearch('dun'), "await __sleep(900);"] },
+  { name: 'pf-title-cold', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: [pfCard('in cinemas|på bio', 3), sheetOpen], probe: lit },
+  { name: 'pf-title-cold-more', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: [pfCard('in cinemas|på bio', 3), sheetOpen, "const m = document.querySelector('#sheet .title-bar .row-more:not([hidden]) summary'); if (m) { m.click(); await __sleep(500); } else return 'no ⋯';"] },
+  { name: 'pf-title-cold-r', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS({ restricted: true }), steps: [pfCard('in cinemas|på bio', 3), sheetOpen], probe: lit },
+  { name: 'pf-title-instant', path: '/#discover/instant', ready: '#discover-body .grid .title-card', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: ["document.querySelectorAll('#discover-body .grid .title-card')[1].click();", sheetOpen], probe: lit },
+  { name: 'pf-title-show', path: '/#discover/instant', ready: '#discover-body .grid .title-card', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: [libraryCard('tv'), sheetOpen, "const e = await __waitFor('#sheet .episode-list .ep'); await __sleep(400); e.scrollIntoView({ block: 'center' }); await __sleep(500);"], probe: lit },
+  { name: 'pf-ready-finding', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS(), patch: PF_STATUS(), steps: [pfCard('in cinemas|på bio', 3), sheetOpen, pfPlay] },
+  { name: 'pf-ready-starting', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS({ transfer: true }), patch: PF_STATUS(), steps: [pfCard('in cinemas|på bio', 6), sheetOpen, pfPlay] },
+  { name: 'pf-ready-failed', path: '/', ready: '#discover-body .billboard', mocks: PF_MOCKS({ fail: true }), patch: PF_STATUS(), steps: [pfCard('in cinemas|på bio', 3), sheetOpen, "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#getting-ready.is-failed'); await __sleep(700);"] },
+  { name: 'pf-downloads', path: '/#library/downloads', ready: '#library-body .rn-row', mocks: { ...PF_MOCKS({ transfer: true }), '^/api/downloads(\\?|$)': { items: [...MOCK_DOWNLOADS.slice(0, 3), pfTransfer()] },
+    '^/api/library$': { ...PF_LIBRARY, items: PF_LIBRARY.items.map((f, i) => (i < 2 ? { ...f, expiresAt: Date.now() + (i + 1) * 14 * HOUR } : f)) } }, patch: PF_STATUS(), full: true, after: 1000 },
+  { name: 'pf-house', path: '/#house', ready: '#house-body .tool', mocks: PF_MOCKS({ transfer: true }), patch: PF_STATUS(), after: 800 },
   // ---- Discover ----
   { name: 'discover', path: '/', ready: '#discover-body .shelf' },
   { name: 'discover-rows', path: '/', ready: '#discover-body .shelf', steps: ['window.scrollTo(0, innerHeight * 1.5); await __sleep(500);'] },
@@ -163,24 +226,24 @@ export const SCENES = [
     probe: "const img = document.querySelector('.bb-slide.is-active .bb-img'); const active = [...document.querySelectorAll('.bb-bulb')].findIndex((b) => b.getAttribute('aria-current') === 'true'); return JSON.stringify({ slide: active, drift: getComputedStyle(img).animationName, trailer: !!document.querySelector('.bb-trailer'), viewAnim: getComputedStyle(document.querySelector('.view:not([hidden])')).animationName });" },
 
   // ---- Library ----
-  { name: 'library', path: '/#library', ready: '.unified-library' , after: 1500 },
-  { name: 'library-grid', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: ["document.querySelector('.unified-library .lib-group:not([hidden])').scrollIntoView(); window.scrollBy(0, -80); await __sleep(400);"] },
-  { name: 'library-film', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: filmPage, probe: lit },
-  { name: 'library-film-more', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __click('#sheet .title-bar .row-more > summary'); await __sleep(500);"], probe: lit },
-  { name: 'library-show', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [libraryCard('tv'), sheetOpen], probe: lit },
-  { name: 'library-season', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [libraryCard('tv'), sheetOpen,
+  { name: 'library', path: '/#discover/instant', ready: '#discover-body .grid' , after: 1500 },
+  { name: 'library-grid', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: ["document.querySelector('#discover-body .grid').scrollIntoView(); window.scrollBy(0, -80); await __sleep(400);"] },
+  { name: 'library-film', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: filmPage, probe: lit },
+  { name: 'library-film-more', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, "await __click('#sheet .title-bar .row-more > summary'); await __sleep(500);"], probe: lit },
+  { name: 'library-show', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [libraryCard('tv'), sheetOpen], probe: lit },
+  { name: 'library-season', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [libraryCard('tv'), sheetOpen,
     "const se = document.querySelector('#sheet .season-chips .chip:last-child'); if (se) { se.click(); await __sleep(900); } const r = document.querySelector('#sheet .episode-list .ep'); r?.scrollIntoView({ block: 'center' }); await __sleep(500);"], probe: lit },
-  { name: 'picker', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(Play on TV|Spela på TV)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
-  { name: 'delete', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(Delete|Radera)$'); await __waitFor('#picker.open'); await __sleep(1200);"] },
-  { name: 'travel', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(To phone|Till telefonen)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
+  { name: 'picker', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, "await __clickText('^(Play on TV|Spela på TV)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
+  { name: 'delete', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, "await __clickText('^(Delete|Radera)$'); await __waitFor('#picker.open'); await __sleep(1200);"] },
+  { name: 'travel', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, "await __clickText('^(To phone|Till telefonen)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
 
   // ---- Player (paused, so the controls stay up) ----
-  { name: 'player', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, ...openPlayer] },
-  { name: 'player-subs', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, ...openPlayer, menu('#cc-btn')] },
-  { name: 'player-quality', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, ...openPlayer, menu('#quality-btn')] },
-  { name: 'player-bedtime', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, ...openPlayer, menu('#night-btn')] },
-  { name: 'player-audio', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, ...openPlayer, menu('#sync-btn')] },
-  { name: 'player-help', path: '/#library', ready: '.unified-library .lib-group .title-card', sizes: ['desktop', 'tv'], steps: [...filmPage, ...openPlayer,
+  { name: 'player', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, ...openPlayer] },
+  { name: 'player-subs', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, ...openPlayer, menu('#cc-btn')] },
+  { name: 'player-quality', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, ...openPlayer, menu('#quality-btn')] },
+  { name: 'player-bedtime', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, ...openPlayer, menu('#night-btn')] },
+  { name: 'player-audio', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [...filmPage, ...openPlayer, menu('#sync-btn')] },
+  { name: 'player-help', path: '/#discover/instant', ready: '#discover-body .grid .title-card', sizes: ['desktop', 'tv'], steps: [...filmPage, ...openPlayer,
     "document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true })); await __sleep(500);"] },
 
   // ---- Settings ----
@@ -197,7 +260,7 @@ export const SCENES = [
   { name: 'you-friends', path: '/#you/friends', ready: '#you-page .friends', full: true, after: 1500 },
   { name: 'you-moments', path: '/#you/moments', ready: '#you-page .set-group', full: true, after: 1500 },
   { name: 'you-account', path: '/#you/account', ready: '#you-page .set-group', after: 1200 },
-  { name: 'you-friend-popup', path: '/#library', ready: '#picker .friend-asks', after: 1000, probe: "return 'You dot ' + document.querySelector('.tab[data-view=you] .tab-dot, #me-btn .tab-dot').textContent;" },
+  { name: 'you-friend-popup', path: '/#discover/instant', ready: '#picker .friend-asks', after: 1000, probe: "return 'You dot ' + document.querySelector('.tab[data-view=you] .tab-dot, #me-btn .tab-dot').textContent;" },
   { name: 'you-edit-profile', path: '/#you', ready: '#you-rows .set-group .set-hint', steps: ["await __clickText('Edit profile', '#view-you button'); await __waitFor('.pf-editor'); await __sleep(900);"] },
   // Navigation checks (the note in report.json): tab stacks, Back from a page, old addresses
   { name: 'nav-stack', path: '/#you/watching', ready: '#you-page .set-row', steps: ["document.querySelector('.tab[data-view=discover]').click(); await __sleep(500); document.querySelector(innerWidth < 900 ? '.tab[data-view=you]' : '#me-btn').click(); await __sleep(600); window.__a = location.hash; document.querySelector(innerWidth < 900 ? '.tab[data-view=you]' : '#me-btn').click(); await __sleep(600);"],
@@ -206,29 +269,29 @@ export const SCENES = [
     probe: "return 'page ' + __a + ', after Back ' + location.hash + ', list shown ' + Boolean(document.querySelector('#you-list').offsetParent);" },
   { name: 'nav-legacy-ideas', path: '/?ideas=1#settings', ready: '#view-you:not([hidden]), #view-house:not([hidden])', after: 1500, probe: "return 'ideas link → ' + location.hash + ', idea box ' + Boolean(document.querySelector('#idea-box, [data-anchor=\"idea-inbox\"]'));" },
   { name: 'nav-legacy', path: '/?friends=1#settings', ready: '#view-you:not([hidden])', after: 1200, probe: "return 'friends link → ' + location.hash + location.search;" },
-  { name: 'search-goto', path: '/#library', ready: '#view-library:not([hidden])', steps: [typeSearch('subtitles'), "await __waitFor('#search-layer .sr-row');"] },
-  { name: 'search-open', path: '/#library', ready: '#view-library:not([hidden])', steps: ["const t = document.querySelector('#search-toggle'); if (t && t.offsetParent) t.click(); else document.querySelector('#q').focus(); await __sleep(500);"] },
+  { name: 'search-goto', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('subtitles'), "await __waitFor('#search-layer .sr-row');"] },
+  { name: 'search-open', path: '/', ready: '#discover-body .shelf', steps: ["const t = document.querySelector('#search-toggle'); if (t && t.offsetParent) t.click(); else document.querySelector('#q').focus(); await __sleep(500);"] },
   { name: 'whats-new', path: '/', ready: '#discover-body .shelf', whatsNew: true, after: 2500 },
 
   // ---- States ----
   { name: 'offline', path: '/', ready: '#discover-body .notice', mocks: { '^/api/status$': { __status: 503 } } },
 
   // ---- Owner screens and edge cases: a throwaway local server (--as owner@…, see README) ----
-  { name: 'owner-library', path: '/#library', ready: '.unified-library .lib-group .title-card', after: 1500 },
-  { name: 'owner-season-46', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
-    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /One Piece/.test(b.textContent)); c.click();", sheetOpen,
+  { name: 'owner-library', path: '/#discover/instant', ready: '#discover-body .grid .title-card', after: 1500 },
+  { name: 'owner-season-46', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [
+    "const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /One Piece/.test(b.textContent)); c.click();", sheetOpen,
     "const r = document.querySelectorAll('#sheet .episode-list .ep'); r[Math.min(30, r.length - 1)]?.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
-  { name: 'owner-long-title', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
-    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(400); c.click();", sheetOpen] },
-  { name: 'owner-long-title-card', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
-    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
-  { name: 'owner-downloads', path: '/#library', ready: '.unified-library', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, after: 1500 },
+  { name: 'owner-long-title', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [
+    "const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(400); c.click();", sheetOpen] },
+  { name: 'owner-long-title-card', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [
+    "const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
+  { name: 'owner-downloads', path: '/#house/downloads', ready: '#library-body .house-downloads', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, after: 1500 },
   { name: 'owner-downloads-home', path: '/', ready: '#discover-body .shelf', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, steps: ["document.querySelector('.home-shelf, .continue-shelf')?.scrollIntoView({ block: 'center' }); await __sleep(500);"] },
-  { name: 'owner-download-title', path: '/#library', ready: '.unified-library .unified-card', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
-    steps: ["const c = [...document.querySelectorAll('.unified-library .unified-card .title-card')].find((b) => /Dune/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); c.click();", sheetOpen], probe: lit },
-  { name: 'owner-downloads-only', path: '/#library', ready: '.unified-library', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
+  { name: 'owner-download-title', path: '/#discover/instant', ready: '#discover-body .grid .title-card', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
+    steps: ["const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /Dune/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); c.click();", sheetOpen], probe: lit },
+  { name: 'owner-downloads-only', path: '/#house/downloads', ready: '#library-body .house-downloads', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
     steps: ["const s = document.querySelector('.library-availability select'); s.value = 'downloading'; s.dispatchEvent(new Event('change')); await __sleep(800);"] },
-  { name: 'owner-library-empty', path: '/#library', ready: '.unified-library', mocks: { '^/api/library': { items: [], server: [], shows: [] }, '^/api/downloads': { items: [] } }, after: 1200 },
+  { name: 'owner-library-empty', path: '/#discover/instant', ready: '#discover-body .grid, #discover-body .empty-state', mocks: { '^/api/library': { items: [], server: [], shows: [] }, '^/api/downloads': { items: [] } }, after: 1200 },
   { name: 'owner-ideas', path: '/#house/ideas', ready: '[data-anchor="idea-inbox"]', steps: ["document.querySelector('[data-anchor=\"idea-inbox\"]').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(700);"] },
   { name: 'owner-ideas-inbox', path: '/#house/ideas', ready: '.idea-filters', steps: ["document.querySelector('.idea-filters').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(700);"] },
   { name: 'owner-ideas-answer', path: '/#house/ideas', ready: '.idea-answer-open', steps: ["document.querySelector('.idea-answer-open').click(); await __sleep(400); document.querySelector('.idea-answer').scrollIntoView({ block: 'center' }); await __sleep(500);"] },
@@ -255,15 +318,15 @@ export const SCENES = [
   { name: 'invite-lilin', path: '/#house/people', ready: '#house-body .person', mocks: ACCESS, steps: ["await __clickText('^(Invite someone|Bjud in någon)$', '#house-body button'); await __waitFor('#picker .invite-sheet .invite-make'); await __sleep(700);"] },
   { name: 'you-invite', path: '/#you/invite', ready: '#you-page .invite', after: 1500 },
   { name: 'friend-add', path: '/#you/friends', ready: '.friends-add', steps: ["await __click('.friends-add'); await __waitFor('#picker .invite-sheet .friends-find'); const i = document.querySelector('#picker .friends-search'); i.value = 'ma'; i.dispatchEvent(new Event('input')); await __sleep(900);"] },
-  { name: 'room-ask', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
-    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
+  { name: 'room-ask', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [
+    "const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
     "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
     "document.querySelector('#player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); await __sleep(300);",
     { mouse: '#watch-btn', click: true }, "await __sleep(2500);"] },
-  { name: 'search-people', path: '/#library', ready: '#view-library:not([hidden])', steps: [typeSearch('ma'), "await __waitFor('#search-layer .sr-people .sr-row', 5000).catch(() => {}); await __sleep(500);"] },
-  { name: 'search-live', path: '/#library', ready: '#view-library:not([hidden])', steps: ["document.querySelector('#search-toggle')?.offsetParent && document.querySelector('#search-toggle').click(); await __sleep(800);", typeSearch('fresh'), "await __sleep(800);"] },
-  { name: 'owner-watch-room', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
-    "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
+  { name: 'search-people', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('ma'), "await __waitFor('#search-layer .sr-people .sr-row', 5000).catch(() => {}); await __sleep(500);"] },
+  { name: 'search-live', path: '/', ready: '#discover-body .shelf', steps: ["document.querySelector('#search-toggle')?.offsetParent && document.querySelector('#search-toggle').click(); await __sleep(800);", typeSearch('fresh'), "await __sleep(800);"] },
+  { name: 'owner-watch-room', path: '/#discover/instant', ready: '#discover-body .grid .title-card', steps: [
+    "const c = [...document.querySelectorAll('#discover-body .grid .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
     "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
     "document.querySelector('#player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); await __sleep(300);",
     { mouse: '#watch-btn', click: true }, "await __sleep(2500);"],
@@ -282,7 +345,7 @@ export const SCENES = [
     "if (!document.querySelector('.preview-pill')) throw new Error('no preview pill after /preview');",
     "await __click('.bb-slide.is-active .btn-glass, .bb-slide .btn-glass'); await __waitFor('#sheet.open #sheet-title'); await __sleep(1200);",
     "history.back(); await __sleep(600);",
-    "await __click('.tab[data-view=\"library\"]'); await __waitFor('.unified-library .lib-group .title-card');",
+    "await __click('.instant-toggle'); await __waitFor('#discover-body .grid .title-card');",
     libraryCard('movie'), sheetOpen,
     "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(4000); document.querySelector('#video').pause();",
     "await __click('#watch-btn'); await __waitFor('#watch-bar:not([hidden])'); await __sleep(1500);",

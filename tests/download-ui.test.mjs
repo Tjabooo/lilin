@@ -32,7 +32,7 @@ test('a show someone else already has joins your library in one press, every sea
   assert.match(ui, /function serverOnlyEpisodes\(s, season = null\)/);
   assert.match(ui, /const ADD_BATCH = 400;/);
   assert.match(ui, /files\.slice\(i, i \+ ADD_BATCH\)/);
-  assert.match(page, /addFromServer\(serverOnlyEpisodes\(c\.stateOf\(\)\)\)/, 'without download rights, Add uses the same batches');
+  assert.match(page, /tools && serverOnly\.length > 0 && \[icon\('plus'\), T\('Add season'\), async \(\) => \{ try \{ await addFromServer\(serverOnly\); \}/, 'the owner’s season ⋯ adds what’s here in the same batches');
   assert.match(app, /try \{ await addIds\(files\); \}/);
   assert.match(ui, /addingAll \? T\('Adding…'\)/);
 });
@@ -44,12 +44,13 @@ test('manual releases and an exact resolution only appear inside Advanced option
   assert.match(adv, /Exact quality/);
 });
 
-test('Library shows state and progress only; details carry speed and ETA', () => {
-  const card = between('function makeUnifiedCard(', 'function openUnifiedTitle(');
-  assert.doesNotMatch(card, /transfer-stats|fmtEta|entry\.speed/);
+test('play first: members only ever meet Play; transfers and their numbers are the owner’s', () => {
   assert.doesNotMatch(css, /\.transfer-stats/);
-  assert.match(css, /\.poster-progress\.is-transfer \{/); // a slim bar on the card; Downloads has the rest
-  assert.match(page, /episodeDownload\(tvT, season, k\)/, 'a missing episode has a quiet Add');
+  assert.doesNotMatch(app, /function episodeDownload\(|function makeUnifiedCard\(/, 'no Add on episodes, no Library grid');
+  assert.match(page, /onclick: \(e\) => playTitle\(x, e\.currentTarget\)/, 'pressing an episode plays it, here or fetched');
+  assert.match(ui, /const progress = tools \? transferSummary\(/, 'a film’s download card is the owner’s');
+  assert.match(page, /tv && state\.status\.admin && transferSummary\(/, 'a show’s too');
+  assert.match(ui, /get\.hidden = true;/, 'no Add to library button: Play does it');
 });
 
 test('Settings has one Downloads group: profile, size limit, audio language', () => {
@@ -72,7 +73,7 @@ test('the Audio choice is for anime, sends dub, and Dubbed counts only dual-audi
 test('an anime others have here offers Add dubbed beside the one-press add', () => {
   assert.match(app, /dubBtn\.hidden = !\(addsAll && dub\.anime && !addingAll\)/, 'only when one press would add copies, anime only');
   assert.match(app, /dubBtn\.addEventListener\('click', \(\) => \{\s+dub\.choose\('dub'\);\s+ps\.open = true;/, 'opens the panel set to Dubbed');
-  assert.match(page, /dubbed: \(c\) => \[icon\('plus'\), T\('Dubbed'\), \(\) => \(c\.fa \? c\.fa\.chooseDub\(\) : c\.tvd\?\.dubBtn\.click\(\)\)/, 'Dubbed waits in the page’s ⋯');
+  assert.match(page, /dubbed: \(c\) => \(c\.fa \|\| c\.tvd\) && \[icon\('plus'\), T\('Dubbed'\), \(\) => \(c\.fa \? c\.fa\.chooseDub\(\) : c\.tvd\.dubBtn\.click\(\)\)/, 'Dubbed waits in the page’s ⋯');
 });
 
 test('Upgrade quality sits with the season and in the player, not in the add panel', () => {

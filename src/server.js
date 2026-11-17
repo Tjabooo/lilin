@@ -3626,15 +3626,16 @@ function announceArrivals(hash, arrived, claimants) {
     if (shown.size === 1 && infos[0].season != null && follows.get(userId)?.has([...shown][0])) {
       const name = pushTitle(infos[0].title);
       notify([userId], 'episode', { title: files.length === 1 ? `New episode of ${name}` : `${files.length} new episodes of ${name}`,
-        body: files.length === 1 ? `${titleOf(files[0])} is in your library. Tap to watch.` : 'They’re in your library. Tap to watch.', url: '/#library', tag: `download-${hash.toLowerCase()}` });
+        body: files.length === 1 ? `${titleOf(files[0])} plays instantly now. Tap to watch.` : 'They play instantly now. Tap to watch.', url: '/', tag: `download-${hash.toLowerCase()}` });
       continue;
     }
     let title;
     if (files.length === 1) title = `${titleOf(files[0])} is ready`;
     else if (shown.size === 1 && infos[0].season != null) title = `${files.length} episodes of ${pushTitle(infos[0].title)} are ready`;
     else title = `${files.length} videos are ready`;
-    notify([userId], 'download', { title, body: files.length === 1 ? 'It’s in your library. Tap to watch.' : 'They’re in your library. Tap to watch.',
-      url: '/#library', tag: `download-${hash.toLowerCase()}` });
+    // Play first: no Library to open; Discover's Instant filter has it (and Continue watching, when it was a Play).
+    notify([userId], 'download', { title, body: files.length === 1 ? 'It plays instantly now. Tap to watch.' : 'They play instantly now. Tap to watch.',
+      url: '/#discover/instant', tag: `download-${hash.toLowerCase()}` });
   }
   // New episodes: everyone else with an episode of the show in their library hears once per episode.
   // Following alone isn't enough: a show that isn't in your library stays quiet until it lands there.

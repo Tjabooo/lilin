@@ -199,14 +199,6 @@ h1, h2, h3, h4 { text-wrap: balance; }
 }
 .icon-btn:hover { background: color-mix(in srgb, var(--seat) 85%, transparent); }
 .icon-btn:active { transform: scale(.94); }
-.head-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 16px;
-  font-size: 14px; font-weight: 700; color: var(--text);
-  background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: 999px;
-  transition: border-color var(--d-1), background-color var(--d-1);
-}
-.head-btn:hover { border-color: var(--hairline-2); }
 .retry {
   margin-top: var(--s4); height: 44px; padding: 0 20px;
   font-weight: 700;
@@ -398,12 +390,11 @@ body:not(.searching) .search-cancel { display: none; }
 .me-btn .tab-dot { top: 1px; left: auto; right: 1px; }
 .me-btn > svg { width: 24px; height: 24px; color: var(--text-2); }
 @media (min-width: 900px) { .tab[data-view="you"] { display: none; } .tab-dot { position: static; margin-left: 6px; } .me-btn .tab-dot { position: absolute; } }
+/* A count on a House tool tile (the tab bar's own badge went with the Library tab) */
 .tab-badge {
-  position: absolute; top: 5px; left: calc(50% + 7px);
-  min-width: 18px; height: 18px; padding: 0 5px;
+  position: absolute; top: 10px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px;
   font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
   color: var(--on-bulb); background: var(--bulb); border-radius: 9px;
-  box-shadow: 0 0 0 2px var(--velvet);
 }
 
 /* ---------- views ---------- */
@@ -478,28 +469,17 @@ main {
 .title-card .sub { margin-top: 2px; font-size: clamp(12px, 11.5px + .12vw, 14px); line-height: 1.35; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .title-card .sub .star { color: var(--bulb); }
 
-/* One status badge, top left: In your library, On server, a transfer. Narrow cards show just its bulb. */
-.on-server, .transfer-pill {
-  position: absolute; top: 7px; left: 7px; z-index: 1;
-  display: inline-flex; align-items: center; gap: 5px;
-  max-width: calc(100% - 14px); height: 22px; padding: 0 8px 0 7px;
-  font: 700 11px/1 var(--body); letter-spacing: .01em; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
-  color: var(--on-bulb); background: var(--bulb);
-  border-radius: var(--r-xs);
-  box-shadow: 0 2px 10px rgb(0 0 0 / .35);
+/* Instant: a small lit bolt, top left, on what's on the server (it plays at once). With words on the billboard and the
+   title page's state line; inline in search rows and episode lines. */
+.instant-mark { display: inline-flex; align-items: center; gap: 5px; color: var(--bulb); font-weight: 700; white-space: nowrap; }
+.instant-mark svg { flex: none; width: 14px; height: 14px; fill: currentColor; stroke: none; }
+.poster > .instant-mark, .peek-art > .instant-mark {
+  position: absolute; top: 7px; left: 7px; z-index: 2; justify-content: center; width: 24px; height: 24px;
+  color: var(--on-bulb); background: var(--bulb); border-radius: 50%; box-shadow: 0 2px 10px rgb(0 0 0 / .35);
 }
-.on-server::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.on-server.is-other, .transfer-pill {
-  color: #fff; background: rgb(var(--picture-dark) / .74);
-  border: 1px solid rgb(255 255 255 / .16);
-}
-.on-server.is-other::before { background: var(--bulb); box-shadow: 0 0 6px var(--bulb); }
-@container (max-width: 132px) {
-  .title-card .sub .kind { display: none; }
-  .poster .on-server { width: 22px; padding: 0; gap: 0; justify-content: center; font-size: 0; }
-  .poster .on-server::before { width: 8px; height: 8px; }
-}
+.instant-mark.has-words { height: 24px; padding: 0 9px 0 7px; font-size: 12px; color: var(--on-bulb); background: var(--bulb); border-radius: 999px; }
+.instant-mark.has-words svg { width: 12px; height: 12px; }
+@container (max-width: 132px) { .title-card .sub .kind { display: none; } }
 /* top right: something new, or SVT Play's own mark */
 .new-badge {
   position: absolute; top: 7px; right: 7px; z-index: 1;
@@ -515,14 +495,7 @@ main {
   font-size: 11px; font-weight: 800; line-height: 1.2; letter-spacing: .01em;
   color: #fff; background: rgba(9, 58, 36, .92); border-radius: var(--r-xs);
 }
-/* bottom: time left, and how far you got */
-.poster-expiry {
-  position: absolute; left: 7px; bottom: 10px; z-index: 1;
-  padding: 3px 7px; font-size: 11px; font-weight: 700; line-height: 1.2;
-  color: #fff; background: rgb(var(--picture-dark) / .74); border-radius: var(--r-xs);
-}
-.poster-expiry.is-soon { color: var(--on-bulb); background: var(--bulb); }
-.poster:has(> .poster-expiry) > .poster-fallback { padding-bottom: 36px; } /* no art: the title sits above the badge */
+/* bottom: how far you got */
 .poster-progress {
   position: absolute; left: 8px; right: 8px; bottom: 5px; z-index: 1; height: 4px;
   border-radius: 2px; background: rgb(255 255 255 / .28); overflow: hidden;
@@ -572,7 +545,6 @@ main {
   margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--text-2);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.doc-status { font-size: 13px; color: var(--bulb); white-space: nowrap; }
 .doc-note { margin-top: 18px; font-size: 13px; }
 
 /* ---------- rows ---------- */
@@ -681,7 +653,7 @@ main {
 .bb-logo { display: block; width: auto; height: auto; max-width: min(80vw, 340px); max-height: clamp(84px, 12vw + 40px, 190px); object-fit: contain; filter: drop-shadow(0 2px 20px rgb(0 0 0 / .5)); }
 .bb-logo.is-wide { max-width: min(88vw, 520px); }
 .bb-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; margin: var(--s3) 0 0; font-size: var(--t-small); font-weight: 600; color: rgb(255 255 255 / .86); text-shadow: 0 1px 8px rgb(0 0 0 / .5); }
-.bb-meta .on-server { position: static; box-shadow: none; }
+.bb-meta .instant-mark { text-shadow: none; }
 .bb-overview { display: none; }
 .bb-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s2) var(--s3); margin-top: var(--s4); }
 .bb-foot { position: absolute; z-index: 4; left: 0; right: 0; bottom: var(--s3); display: flex; justify-content: center; align-items: center; gap: var(--s3); pointer-events: none; }
@@ -763,7 +735,6 @@ body.bb-trailer-live .billboard .btn-glass {
 .peek-art { position: relative; aspect-ratio: 16 / 9; background: var(--surface-2); }
 .peek-art img { width: 100%; height: 100%; object-fit: cover; }
 .peek-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--surface-1), transparent 45%); }
-.peek-art .on-server { z-index: 2; }
 .peek-body { position: relative; z-index: 1; margin-top: -42px; padding: 0 var(--s4) var(--s4); }
 .peek-title { margin: 0; font: 800 22px/1.05 var(--display); letter-spacing: -.02em; }
 .peek-logo { display: block; max-width: 70%; max-height: 64px; width: auto; object-fit: contain; filter: drop-shadow(0 1px 10px rgb(0 0 0 / .45)); }
@@ -795,7 +766,7 @@ html.has-vt .view { animation: none; }
 .hero-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hero-card::after { content: ""; position: absolute; inset: 0; background: var(--scrim-bottom); }
 .hero-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 16px; color: var(--on-image); }
-.hero-text .on-server { position: static; display: inline-flex; margin-bottom: 8px; }
+.hero-text .instant-mark { margin-bottom: 8px; }
 .hero-title { font: 800 24px/1.1 var(--display); }
 .hero-meta { margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--bulb); }
 .hero-overview { margin: 6px 0 0; font-size: 14px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1105,7 +1076,7 @@ html.has-vt .view { animation: none; }
   padding: var(--s2); border-radius: var(--r-md);
   transition: background-color var(--d-1);
 }
-.ep > .row-more, .ep > .chip, .ep-actions { align-self: center; }
+.ep > .row-more, .ep-actions { align-self: center; }
 .ep-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ep-art[aria-disabled="true"] { cursor: progress; }
 .ep:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
@@ -1116,11 +1087,11 @@ html.has-vt .view { animation: none; }
 .ep-title { margin: 0; font-weight: 700; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
 .ep-meta { margin: 3px 0 0; font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .ep-overview { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ep.is-missing .wide-art { opacity: .55; filter: saturate(.5); }
+.ep.is-missing > div .wide-art { opacity: .55; filter: saturate(.5); }
 @media (max-width: 520px) {
   .ep { grid-template-columns: 124px minmax(0, 1fr) auto; }
   .ep > .row-more { align-self: start; }
-  .ep > .chip, .ep-actions { grid-column: 2 / -1; justify-self: start; }
+  .ep-actions { grid-column: 2 / -1; justify-self: start; }
   .ep-overview { -webkit-line-clamp: 3; }
 }
 
@@ -1705,8 +1676,6 @@ body.has-nowbar main { padding-bottom: calc(var(--tabs-h) + var(--safe-bottom) +
 body.has-nowbar .toast { bottom: calc(var(--tabs-h) + var(--safe-bottom) + 84px); }
 
 /* ---------- torrent search ---------- */
-.head-btn svg { width: 18px; height: 18px; }
-.head-btn:active { transform: scale(0.97); }
 
 .tor-search { margin: 14px 0 12px; }
 .picker-sub + .tor-search { margin-top: 4px; }
@@ -1985,7 +1954,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   .tab:hover { color: var(--text); }
   .tab[aria-current="page"] { color: var(--text); }
   .tab::before { top: auto; bottom: 1px; width: 20px; margin-left: -10px; height: 3px; border-radius: 3px; }
-  .tab-badge { position: static; margin-left: 7px; box-shadow: none; }
   body.has-billboard .tab { text-shadow: 0 1px 10px rgb(0 0 0 / .5); }
   /* light themes: over the billboard's dark scrim the tabs read as picture text, until the header turns to glass */
   :root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .tab { color: color-mix(in srgb, var(--on-image) 80%, transparent); }
@@ -2424,8 +2392,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* Torrent search: whole season, episode by episode */
 
-/* ---------- accounts: library sections, countdown, adding from the server ---------- */
-#library-body > .segmented { margin: 0 0 16px; }
+/* ---------- accounts: countdown, keeping longer ---------- */
 .expiry { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .expiry::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
@@ -2501,9 +2468,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .set-card { padding: 16px; background: var(--surface-1); border-radius: var(--r-md); }
 .set-card p { margin: 0 0 6px; }
 .set-card p:last-child { margin-bottom: 0; }
-/* You: Sign out row + Change password, a row that opens into a small form */
-.set-account > .set-row { margin: 0; background: none; }
-.set-account > .set-details { border-top: 1px solid var(--hairline); }
 .set-stack > .set-details { padding: 0; }
 .set-details > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 16px;
@@ -2611,17 +2575,11 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   --ok: #6fcf8f; --info: #7fb2ff;
 }
 
-/* Library: poster grid, shelves, and clear controls for keeping a title longer. */
-.library-grid { grid-template-columns: repeat(auto-fill, minmax(var(--poster-w), 1fr)); }
-.library-card { min-width: 0; }
-.library-card .title-card { color: var(--text); }
-.library-card .sub { margin-top: 3px; line-height: 1.4; }
+/* Sections under a heading (For you's groups, House › Downloads) and the Continue watching shelf. */
 .lib-group { margin-top: var(--s6); }
 .lib-group + .lib-group { margin-top: var(--s7); }
 .lib-subhead { margin: 0 0 var(--s4); font: 700 var(--t-h2)/1.2 var(--display); letter-spacing: -.012em; color: var(--text); }
 .library-shelf { margin-bottom: var(--s6); }
-.library-keep { margin-top: 9px; width: 100%; height: auto; min-height: 38px; padding: 6px 8px; color: var(--bulb); background: var(--bulb-dim); border-color: transparent; font-size: 12px; justify-content: center; }
-.library-keep:disabled { opacity: 0.6; }
 
 /* Discover carousels keep touch scrolling and expose the same movement to mouse and keyboard. */
 .carousel-controls .see-all { margin-right: 6px; }
@@ -2649,34 +2607,20 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* Recommended season selector and the safe missing-only alternative. */
 
-/* Library: Titles · Watchlist · Downloads. A count is plain, lit only when a download needs a look. */
-.library-seg { margin-bottom: var(--s5); }
-.seg-count { margin-left: 6px; font-weight: 600; opacity: .7; }
-.seg-count:empty { display: none; }
-.seg-count.is-lit { color: var(--bulb); opacity: 1; }
-[aria-pressed="true"] > .seg-count.is-lit { color: inherit; }
-.library-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: var(--s4); }
-.library-toolbar .segmented { margin: 0; }
-.library-toolbar .segmented button { min-height: 40px; }
-.library-sort select { min-height: 40px; border-radius: 999px; }
-.library-shared { margin: -8px 0 var(--s4); font-size: 13px; }
+/* House › Downloads (the owner's): rows, Leaving soon, the line about what's here. */
 .library-source-notice { padding: 12px 14px; border: 1px solid var(--hairline-2); border-radius: var(--r-md); color: var(--text-2); font-size: 13px; }
 .library-foot { margin-top: var(--s7); font-size: 13px; color: var(--text-2); }
 .library-foot p { margin: 0 0 6px; }
-.library-foot .link-btn { margin-left: 8px; padding: 0; color: var(--bulb); background: none; border: 0; font: inherit; font-weight: 600; text-decoration: underline; }
 .lib-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s4); }
-.dl-section .lib-subhead, .wl-section .lib-subhead { font-size: var(--t-h3); margin-bottom: var(--s3); }
+.dl-section .lib-subhead { font-size: var(--t-h3); margin-bottom: var(--s3); }
 .dl-none { padding: 4px 0; font-size: 14px; }
-.unified-card { position: relative; }
-.unified-card .title-card .sub { min-height: 19px; }
-.poster-progress.is-transfer { left: 0; right: 0; bottom: 0; height: 3px; border-radius: 0; }
 .transfer-line { display: flex; justify-content: space-between; align-items: start; gap: 5px; min-height: 18px; line-height: 1.35; }
 .transfer-state { overflow-wrap: anywhere; }
 .transfer-percent { flex-shrink: 0; }
 .transfer-track { height: 4px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 6px 0; }
 .transfer-track i { display: block; height: 100%; background: var(--bulb); border-radius: inherit; box-shadow: 0 0 8px var(--glow-color); transition: width .6s var(--ease-out); }
 
-/* Right now (right-now.js) and the rows Downloads and Watchlist share with it: 56 px, a 40 × 60 thumb, two lines,
+/* Right now (right-now.js) and the rows House › Downloads shares with it: 56 px, a 40 × 60 thumb, two lines,
    one quiet chip. Never lit: the billboard's Play stays the page's one lit button. */
 .right-now { margin: 0 0 var(--s5); }
 .rn-head { margin: 0 0 var(--s2); font: 700 var(--t-h3)/1.2 var(--display); }
@@ -2698,11 +2642,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .rn-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--surface-2); }
 .rn-bar i { display: block; height: 100%; background: var(--bulb); }
 .rn-row.is-paused .rn-bar i { background: var(--dust); }
-/* Watchlist: a date in front of Coming up rows, a switch at the end of Following rows */
-.wl-date { flex: none; width: 64px; padding-left: 10px; font-size: 12px; font-weight: 700; line-height: 1.25; color: var(--bulb); }
-.wl-date + .rn-open { padding-left: 0; }
-.wl-switch { flex: none; display: flex; align-items: center; gap: 6px; max-width: 42%; font-size: 12.5px; color: var(--text-2); }
-.wl-switch input { flex: none; width: 20px; height: 20px; accent-color: var(--bulb); }
 .transfer-release { overflow-wrap: anywhere; color: var(--dust); font-size: 12px; margin: 10px 0; }
 .transfer-files { font-size: 12px; overflow-wrap: anywhere; margin-bottom: 10px; color: var(--dust); }
 .transfer-files summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
@@ -2716,7 +2655,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   .transfer-detail-list .dl-head { flex-wrap: wrap; }
   .transfer-detail-list .dl-foot { flex-wrap: wrap; }
 }
-.library-keep, #picker-body > .chip, #picker-body .segmented button { min-height: 44px; }
+#picker-body > .chip, #picker-body .segmented button { min-height: 44px; }
 .dl-ctl[aria-disabled="true"] { opacity: .6; cursor: wait; }
 
 /* The title page: a state line, then one bar with the gold button, quiet chips and ⋯; the season panel and progress
@@ -2731,7 +2670,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .action-btn { min-width: 150px; height: 52px; padding: 0 24px; gap: 8px; font-size: 16px; font-weight: 700; }
 .action-btn svg { width: 20px; height: 20px; flex: none; }
 .action-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.action-btn[aria-disabled="true"], .dl-submit[aria-disabled="true"], .episode-get[aria-disabled="true"] { opacity: 0.7; cursor: progress; transform: none; }
+.action-btn[aria-disabled="true"], .dl-submit[aria-disabled="true"] { opacity: 0.7; cursor: progress; transform: none; }
 .stroke-icon svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
 .action-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .action-result:has(.action-status:empty):has(.action-retry[hidden]) { display: none; }
@@ -2808,8 +2747,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-ctl[hidden] { display: none; }
 .link-btn { height: 44px; padding: 0 6px; font-size: 14px; color: var(--dust); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; }
 .link-btn:hover { color: var(--paper); }
-.episode-get { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; color: var(--paper); }
-.episode-get svg { width: 16px; height: 16px; }
 
 @media (max-width: 479px) {
   .dl-panel { padding: 16px; }
@@ -2866,8 +2803,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(150px, 22%), 1fr)); gap: var(--s3); }
 .tool { position: relative; display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
 .tool .set-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.lrow .tab-badge { position: static; box-shadow: none; }
-.tool .tab-badge { position: absolute; top: 10px; right: 10px; left: auto; margin: 0; box-shadow: none; }
 .tool:has(.tab-badge) .set-label { padding-right: 26px; }
 .tool:hover { background: var(--surface-2); }
 .house-card-link.has-alert { border-color: var(--bulb); }
@@ -4015,3 +3950,42 @@ html.wrapped-on { overflow: hidden; }
 .scout-earlier { padding-top: 4px; }
 .scout-earlier[open] summary { margin-bottom: 10px; }
 .scout-empty { margin: 0; color: var(--text-3); font-size: 14px; }
+
+/* ---------- play first: Instant, search on phones, Getting it ready ---------- */
+.instant-toggle { min-height: 40px; }
+.instant-toggle svg, .instant-title svg { width: 14px; height: 14px; fill: var(--bulb); stroke: none; }
+.instant-toggle[aria-pressed="true"] svg { fill: currentColor; }
+.instant-title { display: flex; align-items: center; gap: 10px; margin: var(--s3) 0 var(--s4); font: 800 var(--t-h1)/1.1 var(--display); letter-spacing: -.02em; }
+.instant-title svg { width: .72em; height: .72em; }
+.instant-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4); margin: -8px 0 var(--s4); font-size: var(--t-small); }
+.instant-head p { margin: 0; }
+:is(.ep-meta, .set-hint) .instant-mark svg { width: 12px; height: 12px; }
+.set-hint .instant-mark { margin-right: 6px; vertical-align: -1px; }
+/* Phones: a big search field floating over the billboard's top (tinted, not frosted). Wide screens: the header's box. */
+.search-hero { position: relative; z-index: 5; display: flex; align-items: center; gap: 12px; width: 100%; height: 50px; margin: 0 0 var(--s4); padding: 0 18px;
+  font: 600 16px/1 var(--body); color: rgb(255 255 255 / .78); background: rgb(var(--picture-dark) / .62); border: 1px solid rgb(255 255 255 / .2); border-radius: 999px; }
+.search-hero svg { width: 20px; height: 20px; color: var(--bulb); }
+.search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + 66px + var(--s2))); }
+.search-hero:not(:has(+ .billboard)) { color: var(--text-2); background: var(--surface-1); border-color: var(--hairline-2); }
+@media (min-width: 900px) { .search-hero { display: none; } .search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + var(--s2))); } }
+/* Getting it ready (getting-ready.js): the title's picture, dimmed; under the title one line of words, a thin bulb
+   line and Cancel. It fades out as the picture starts. */
+.getting-ready { position: absolute; inset: 0; z-index: 6; display: grid; align-content: end; padding: calc(var(--safe-top) + 72px) var(--gutter) calc(var(--safe-bottom) + 48px);
+  color: #fff; background: #000; transition: opacity .45s var(--ease-out); }
+.getting-ready[hidden] { display: none; }
+.getting-ready.is-leaving { opacity: 0; pointer-events: none; }
+.gr-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .42; }
+.getting-ready::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, #000 10%, rgb(0 0 0 / .6) 48%, rgb(0 0 0 / .25)); }
+.gr-back { position: absolute; z-index: 1; top: calc(var(--safe-top) + 12px); left: 12px; color: #fff; background: rgb(255 255 255 / .1); }
+.gr-copy { position: relative; max-width: 560px; }
+.gr-kicker { margin: 0 0 8px; font: 800 var(--t-kicker)/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--bulb); }
+.gr-title { margin: 0; font: 800 var(--t-h1)/1.05 var(--display); letter-spacing: -.02em; text-wrap: balance; }
+.gr-sub, .gr-hint { margin: 4px 0 0; color: rgb(255 255 255 / .66); }
+.gr-track { height: 3px; margin: var(--s5) 0 var(--s3); border-radius: 2px; background: rgb(255 255 255 / .16); overflow: hidden; }
+.gr-track i { display: block; width: 0; height: 100%; background: var(--bulb); box-shadow: 0 0 10px var(--glow-color); transition: width .6s var(--ease-out); }
+.gr-line { margin: 0; font-weight: 650; }
+.gr-actions { display: flex; gap: 12px; margin-top: var(--s5); }
+.gr-cancel { min-height: 44px; padding: 0 20px; font: 700 15px/1 var(--body); color: #fff; background: rgb(255 255 255 / .1); border: 1px solid rgb(255 255 255 / .22); border-radius: 999px; }
+.is-failed :is(.gr-track) { visibility: hidden; }
+.is-failed .gr-line { color: var(--alert); }
+@media (min-width: 900px) { .getting-ready { align-content: center; padding-left: 8vw; } }

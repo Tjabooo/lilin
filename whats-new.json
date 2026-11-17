@@ -1,5 +1,28 @@
 [
   {
+    "id": "2026-11-17-play-first",
+    "date": "2026-11-17",
+    "title": "Just press Play",
+    "items": [
+      {
+        "title": "No more Library",
+        "text": "Find something on Discover or in search and press Play. That's all there is to it now: no adding, no waiting for downloads, no list to keep tidy. The Library tab is gone, and the tabs are Discover, Live and You."
+      },
+      {
+        "title": "Getting it ready",
+        "text": "When a film or episode isn't on Lilin yet, Play opens the player straight away and says what's happening, like \"Starting in about 30 s\". It starts playing by itself when it's ready, usually within a minute. Cancel if you change your mind."
+      },
+      {
+        "title": "The lightning mark plays at once",
+        "text": "Titles with a small lightning mark are already here and start instantly. Tap Instant on Discover to see only those."
+      },
+      {
+        "title": "Your things are on Discover",
+        "text": "Continue watching, new episodes of shows you watch, and anything you've saved for later now sit at the top of Discover. Pressing an episode plays it, and the next ones come along by themselves."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-play-now-steadier",
     "date": "2026-11-17",
     "title": "First watches start sooner",

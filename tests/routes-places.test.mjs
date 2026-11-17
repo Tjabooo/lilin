@@ -56,11 +56,11 @@ test('labels and words have Swedish', () => {
   assert.deepEqual([...new Set(missing)], []);
 });
 
-test('no role gets more than 5 tabs; owners get House, nobody else does', () => {
+test('no Library tab: Discover, Live and You for everyone; owners get House, nobody else does', () => {
   each((name, me, status) => {
     const tabs = tabsFor(me, status);
-    assert.ok(tabs.length <= 5, `${name}: ${tabs.join(',')}`);
-    assert.deepEqual(tabs.filter((t) => t !== 'house'), ['discover', 'live', 'library', 'you'], name);
+    assert.ok(tabs.length <= 4, `${name}: ${tabs.join(',')}`);
+    assert.deepEqual(tabs.filter((t) => t !== 'house'), ['discover', 'live', 'you'], name);
     assert.equal(tabs.includes('house'), Boolean(status.admin), name);
   });
   for (const t of TABS) assert.equal(ROUTES[t].tab, t);
@@ -87,15 +87,24 @@ test('You pages per role keep today’s rules', () => {
   assert.deepEqual(pages('memberInv'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('restricted'), ['history', 'liked', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'download-settings']);
-  assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'activity', 'people', 'ideas', 'rules', 'screen-time']);
-  assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'activity', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
+  assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'downloads', 'activity', 'people', 'ideas', 'rules', 'screen-time']);
+  assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'downloads', 'activity', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
 });
 
 test('old addresses and notification links land on their new homes, or the start view when not allowed', () => {
   const { owner, ownerNotes, member, memberAct, home, restricted } = ROLES;
   assert.equal(resolve('#settings', member.me, member.status), 'you');
-  assert.equal(resolve('#library', member.me, member.status), 'library');
-  assert.equal(resolve('#downloads', member.me, member.status), 'library/downloads');
+  // the Library tab is gone: its titles are Discover's Instant filter, its downloads House › Downloads (owners only)
+  assert.equal(resolve('#library', member.me, member.status), 'discover/instant');
+  assert.equal(resolve('#library/watchlist', member.me, member.status), 'discover');
+  assert.equal(resolve('#watchlist', restricted.me, restricted.status), 'discover');
+  assert.equal(resolve('#library/somewhere', member.me, member.status), 'discover');
+  assert.equal(resolve('#downloads', member.me, member.status), 'discover', 'members never see downloads');
+  assert.equal(resolve('#library/downloads', home.me, home.status), 'discover');
+  assert.equal(resolve('#downloads', owner.me, owner.status), 'house/downloads');
+  assert.equal(resolve('#library/downloads', owner.me, owner.status), 'house/downloads');
+  assert.equal(resolve('#house/downloads', member.me, member.status), 'discover');
+  assert.equal(resolve('#discover/instant', restricted.me, restricted.status), 'discover/instant');
   assert.equal(resolve('#activity', memberAct.me, memberAct.status), 'you/activity');
   assert.equal(resolve('#activity', member.me, member.status), null);
   assert.equal(resolve('#activity', owner.me, owner.status), 'house/activity', 'owners read Activity in House');
@@ -118,13 +127,16 @@ test('old addresses and notification links land on their new homes, or the start
   assert.equal(linkRoute(q('ideas=1'), member.me, member.status), 'you/ideas');
   assert.equal(linkRoute(q('ideas=1'), owner.me, owner.status), 'house/ideas');
   assert.equal(linkRoute(q('moment=abc'), home.me, home.status), 'you/moments', 'the shared home account has its own moments');
-  assert.equal(linkRoute(q('travel=1'), home.me, home.status), 'library/downloads');
+  assert.equal(linkRoute(q('travel=1'), home.me, home.status), 'discover', 'phone copies open over Discover');
+  assert.equal(linkRoute(q('travel=1'), owner.me, owner.status), 'house/downloads');
   assert.equal(linkRoute(q('watch=x'), member.me, member.status), null);
   for (const key of Object.keys(LINK_PARAMS)) each((name, me, status) => { const r = linkRoute(q(`${key}=1`), me, status); if (r) assert.ok(allowedRoute(r, me, status)); });
   // start views: the saved choice, or Discover when it isn't allowed any more
   assert.equal(startRoute('live', member.me, member.status), 'live');
   assert.equal(startRoute('you', member.me, member.status), 'you');
-  assert.equal(startRoute('downloads', member.me, member.status), 'library/downloads');
+  assert.equal(startRoute('downloads', member.me, member.status), 'discover');
+  assert.equal(startRoute('library', member.me, member.status), 'discover', 'a Library start opens Discover');
+  assert.equal(startRoute('downloads', owner.me, owner.status), 'house/downloads');
   assert.equal(startRoute(undefined, member.me, member.status), 'discover');
   assert.equal(startRoute('house', member.me, member.status), 'discover');
 });
@@ -140,6 +152,10 @@ test('Go to finds places by name and by the words people type, in both languages
   assert.ok(ids('people', owner).includes('people'));
   assert.ok(!ids('people', member).includes('people'), 'owner tools never show for members');
   assert.ok(!ids('friends', home).includes('friends'), 'the shared account has no friends');
+  assert.equal(ids('library')[0], 'instant', 'people who look for the Library find what plays instantly');
+  assert.ok(!ids('downloads', member).includes('downloads'), 'downloads are the owner’s');
+  assert.ok(ids('downloads', owner).includes('downloads'));
+  assert.ok(!ids('torrents', ROLES.memberDl).includes('torrents'), 'torrent tools are the owner’s');
   assert.deepEqual(ids(''), []);
   assert.ok(defaultPlaces(member.me, member.status).length > 0);
   assert.ok(defaultPlaces(owner.me, owner.status).every((p) => placeShown(p, owner.me, owner.status)));

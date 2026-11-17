@@ -8,7 +8,7 @@ const NOW = Date.UTC(2026, 10, 17, 12);
 const H = 3600000;
 const film = (id, extra = {}) => ({ id, mediaKey: `k-${id}`, title: `Film ${id}`, tmdbId: Number(id.replace(/\D/g, '')) || 1, addedAt: NOW - 72 * H, ...extra });
 const dl = (hash, extra = {}) => ({ hash, name: 'release', canonicalTitle: `Download ${hash}`, mediaType: 'movie', tmdbId: 900 + hash.length, progress: 0.4, size: 100, mine: true, done: false, state: 'downloading', ...extra });
-const ctx = (extra = {}) => ({ now: NOW, entries: [], parties: [], travel: [], hidden: {}, canExtend: () => true, played: () => false, ...extra });
+const ctx = (extra = {}) => ({ now: NOW, owner: true, entries: [], parties: [], travel: [], hidden: {}, canExtend: () => true, played: () => false, ...extra });
 
 test('nothing time-bound: no rows, so the strip stays absent', () => {
   assert.deepEqual(rightNowRows(ctx({ entries: libraryUnion([film('f1')]) })), []);
@@ -36,7 +36,7 @@ test('kinds of the same type collapse into one summary row', () => {
   const [row, ...rest] = rightNowRows(ctx({ entries }));
   assert.equal(rest.length, 0);
   assert.equal(row.id, 'leaving:many'); assert.match(row.title, /^2 titles leave/);
-  assert.deepEqual(row.open, { do: 'titles', sort: 'expiring' });
+  assert.deepEqual(row.open, { do: 'route', to: 'house/downloads' });
   assert.equal(row.chip.act.files.length, 2);
   const one = rightNowRows(ctx({ entries: libraryUnion([film('f1', { expiresAt: NOW + 10 * H })]) }))[0];
   assert.equal(one.chip.act.do, 'keep'); assert.equal(one.open.do, 'title');
@@ -70,28 +70,43 @@ test('phone copies only on touch devices; downloads already fetched are left out
   assert.equal(row.kind, 'phone'); assert.match(row.title, /^1 copy/); assert.equal(row.chip.act.do, 'travel');
 });
 
-test('downloads: attention links to Library › Downloads; the rest is one On the way row with its percent', () => {
+test('downloads (owners): attention links to House › Downloads; the rest is one On the way row with its percent', () => {
   const rows = rightNowRows(ctx({ entries: libraryUnion([], [], [dl('a', { progress: 0.64 }), dl('bb', { state: 'missingFiles' })]) }));
-  assert.equal(rows[0].kind, 'attention'); assert.deepEqual(rows[0].open, { do: 'route', to: 'library/downloads' }); assert.equal(rows[0].alert, true);
+  assert.equal(rows[0].kind, 'attention'); assert.deepEqual(rows[0].open, { do: 'route', to: 'house/downloads' }); assert.equal(rows[0].alert, true);
   assert.equal(rows[1].kind, 'onway'); assert.match(rows[1].sub, /On its way · 64 %/); assert.equal(rows[1].progress, 0.64);
 });
 
-// Deep links of the Library (revamp 2, spec 2.7): every role lands on the segment, old addresses included.
+test('members (play first): no downloads, no deletes; their own starts say Getting it ready and Play', () => {
+  const entries = libraryUnion([film('f1', { expiresAt: NOW + 10 * H })], [], [dl('a', { progress: 0.64 }), dl('bb', { state: 'missingFiles' })]);
+  const rows = rightNowRows(ctx({ owner: false, entries }), 10);
+  assert.ok(!rows.some((r) => ['leaving', 'attention'].includes(r.kind)), rows.map((r) => r.kind).join());
+  const onway = rows.find((r) => r.kind === 'onway');
+  assert.equal(onway.title, 'Getting 2 titles ready'); assert.equal(onway.progress, undefined);
+  assert.ok(!JSON.stringify(rows).includes('downloads'), 'no row points at downloads');
+  const [one] = rightNowRows(ctx({ owner: false, entries: libraryUnion([], [], [dl('a')]) }));
+  assert.equal(one.sub, 'Getting it ready'); assert.equal(one.chip.act.do, 'play'); assert.equal(one.open.do, 'title');
+  const ready = libraryUnion([film('f1', { addedAt: NOW - 2 * H }), film('f2', { addedAt: NOW - 3 * H })]);
+  assert.deepEqual(rightNowRows(ctx({ owner: false, entries: ready }))[0].open, { do: 'route', to: 'discover/instant' });
+});
+
+// The Library tab is gone (play first): its deep links land on Discover's Instant filter, House › Downloads (owners)
+// or Discover, for every role, old addresses included.
 const ROLES = {
   owner: { me: { id: 1, email: 'o@x.test', isOwner: true }, status: { admin: true, downloads: true } },
   member: { me: { id: 2, email: 'm@x.test' }, status: { downloads: true } },
   restricted: { me: { id: 3, email: 'r@x.test', restricted: true }, status: {} },
   home: { me: { id: 4, email: null }, status: { downloads: true } },
 };
-test('Library deep links land on their segment for every role', () => {
+test('old Library deep links land on their new homes for every role', () => {
   for (const [name, { me, status }] of Object.entries(ROLES)) {
-    for (const [hash, id] of [['#library', 'library'], ['#library/watchlist', 'library/watchlist'], ['#library/downloads', 'library/downloads'],
-      ['#downloads', 'library/downloads'], ['#watchlist', 'library/watchlist'], ['#discover', 'discover']]) {
+    const downloads = name === 'owner' ? 'house/downloads' : 'discover';
+    for (const [hash, id] of [['#library', 'discover/instant'], ['#library/watchlist', 'discover'], ['#library/downloads', downloads],
+      ['#downloads', downloads], ['#watchlist', 'discover'], ['#discover', 'discover']]) {
       assert.equal(resolve(hash, me, status), id, `${name} ${hash}`);
     }
-    assert.equal(linkRoute(new URLSearchParams('travel=1'), me, status), 'library/downloads', name);
-    assert.equal(startRoute('downloads', me, status), 'library/downloads', name);
-    assert.equal(startRoute('library', me, status), 'library', name);
-    assert.equal(ROUTES['library/watchlist'].tab, 'library');
+    assert.equal(linkRoute(new URLSearchParams('travel=1'), me, status), downloads, name);
+    assert.equal(startRoute('downloads', me, status), downloads, name);
+    assert.equal(startRoute('library', me, status), 'discover', name);
+    assert.equal(ROUTES.library, undefined);
   }
 });
