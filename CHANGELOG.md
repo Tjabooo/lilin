@@ -4,6 +4,13 @@ All notable changes to Lilin. Versions follow [Semantic Versioning](https://semv
 
 ## [Unreleased]
 
+### Added
+
+- **Moods on Discover.** A row of mood tiles after Trending ("Slow-burn rainy day thriller", "90s indie nostalgia",
+  about 28 in all) opens a page of films and shows built from TMDB keywords, genres, decades and vote floors plus
+  hand-picked anchors (`src/vibes.js`, `GET /api/vibes`, `GET /api/vibes/<id>`). Your titles first, daily order,
+  Shuffle. `tools/vibes-check.mjs` checks the TMDB IDs against the API.
+
 ## [2.0.2] - 2026-11-12
 
 ### Changed

@@ -77,6 +77,14 @@ Discover's **Coming soon** (src/coming-soon.js on the server, public/coming-soon
 
 Copies live in `cache/travel/<key>.mp4`, where the key covers the source path, size and modification time, the size choice and an encode version, so a replaced file gets a fresh copy and two people asking for the same thing share one file. Each person's list remembers what they asked for and when they last downloaded it; a request untouched for `TRAVEL_KEEP_DAYS` (7) is dropped, and a copy nobody's list points at is deleted. `TRAVEL_MAX_GB` (50) caps the folder: before a copy is made, copies everyone already downloaded go first, oldest request first; if it still doesn't fit, the copy fails with a message. Downloads are served with `Content-Disposition: attachment` and range support, only to people whose list holds that copy. Unfinished copies are queued again after a restart. Finished copies notify the people waiting for them (*Downloads ready*), and the notification opens **For your phone** in the Library.
 
+## Moods
+
+Discover's **Moods** row (`src/vibes.js` on the server, `public/vibes.js` + `vibes.css` on the page) lists about 28 hand-made moods. Each is data: English and Swedish names and a one-line blurb, two colours and a glyph for its tile, and a few TMDB `/discover` queries (keyword IDs, genres to want and to leave out, release years, original language) with a rating and vote-count floor, plus 6 to 17 hand-picked anchor titles. A query marked `boost` only lifts titles the other queries found (tone keywords like *suspenseful* are too broad to find titles on their own), and `skip` leaves out titles that match the filters but not the feeling. `months` limits a mood to part of the year.
+
+A mood's titles are pooled once per language and kept for 6 hours: two pages of each query (sorted by vote count, adult titles excluded, nothing unreleased), the anchors, scored by a vote-weighted rating plus a little for being well known, more for being found by several queries, most for being an anchor; the best 120 are kept. The page orders that pool itself with a seeded shake of the scores (the seed is the day, or a new one on **Shuffle**), titles in your library first, and filters films and shows without asking the server again. Titles you gave a thumbs down are left out, as everywhere on Discover.
+
+The IDs are checked against TMDB by `TMDB_TOKEN=… node tools/vibes-check.mjs [mood …]`, which also lists what a mood finds, so a change can be judged by eye before it ships.
+
 ## Shows in the library
 
 Films and shows appear as poster cards, separated into Films and Shows inside each library section. A card shows the next deletion countdown; the Leaving soon shelf collects titles with less than 48 hours left and offers a keep button directly on the card. Opening a film or show puts its countdown and keep controls above the synopsis and seasons. Titles without a countdown say that no automatic deletion is scheduled. Film posters, backdrops and descriptions come from TMDB, matched by title and year and cached in `.lilin-shows.json` (30 days for matches, one day for misses); unavailable artwork falls back to the title.
@@ -165,7 +173,7 @@ src/
   accounts.js        people, libraries, progress (SQLite)
   convert.js         MP4 conversion, browser audio, browser copies
   torrents.js, smart-download.js, season.js, release-match.js, recommend.js, download-paths.js, torrent-fetch.js
-  documentaries.js (Discover's documentary categories), svtplay.js + svt-queue.js (SVT Play catalogue, saved copies)
+  documentaries.js (Discover's documentary categories), vibes.js (Discover's Moods), svtplay.js + svt-queue.js (SVT Play catalogue, saved copies)
   subtitles.js, subsync.js
   cast.js            DLNA and Apple TV
   watch.js, watch-page.js   Watch Together
@@ -227,6 +235,8 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |
 | `GET` | `/api/title/<movie\|tv>/<id>/details` | A title page's **More details** (src/details.js), asked only when someone opens it: crew groups (`people: [{ key, people: [{ id, name, jobs?, episodes? }] }]`), `facts` (studios, countries, languages, dates, money), `keywords`, `links`, and `music.albums` (soundtrack albums with tracks from Wikidata + MusicBrainz, cached in `CACHE_DIR/title-music.json`; `musicPending: true` while still being looked up). Season answers (`/api/tv/<id>/season/<n>`) give episodes a `credits` field (director, writers, guest stars) when TMDB has them |
+| `GET` | `/api/vibes` | Discover's moods (`vibes: [{ id, name, blurb, colors, glyph, types, seasonal }]`, in the viewer's language; empty without TMDB) |
+| `GET` | `/api/vibes/<id>` | One mood with its titles (`results`: TMDB cards with a `score`, best first; the page shuffles them) |
 | `GET` | `/api/library` | Your library (`items`, with `expiresAt`), and what else is on the server (`server`) |
 | `POST` | `/api/library/add` | Add videos already on the server to your library (`{ ids }`) |
 | `POST` | `/api/library/extend` | Keep videos longer (`{ ids }`) |

@@ -19,6 +19,7 @@ import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesTe
 import { createReviews } from './reviews.js'; // reviews: stars + written reviews
 import { rateHooks } from './social.js'; // reviews: the Review button beside the thumbs
 import { createDocumentaries } from './documentaries.js';
+import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pages
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
 import { createBillboard } from './billboard.js';
@@ -846,6 +847,7 @@ function segmented(options, value, onPick, label) {
 function pickDiscover(changes) {
   Object.assign(disc, changes, { list: null });
   documentaries.reset();
+  vibesUi.reset(); // vibes
   if (disc.genre && !genreFits(disc.genre)) disc.genre = null;
   window.scrollTo({ top: 0 });
   renderDiscover();
@@ -1238,6 +1240,8 @@ async function renderDiscover() {
     if (signal.aborted) return;
   }
   const content = h('div', { class: 'discover-content' });
+  // vibes: a mood's page has its own header and type filter
+  if (vibesUi.active()) { body.replaceChildren(content); return vibesUi.render(content, signal); }
   body.replaceChildren(discoverFilters(), content);
 
   if (disc.type === 'docs') return documentaries.render(content, signal);
@@ -1276,7 +1280,9 @@ async function renderDiscover() {
       savedShelf(),
       popularSlot,
       because && rowSlot(becauseRow(because, signal), signal),
-      r1, r2,
+      r1,
+      rowSlot(vibesUi.row(disc.type, signal), signal), // vibes: the Moods row, right after Trending
+      r2,
       moods[0] && rowSlot(moodRow(moods[0], signal), signal),
       newInLibraryRow(),
       r3, r4,
@@ -3477,6 +3483,8 @@ const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notic
   fileById: (id) => localFiles().find((f) => f.id === id) || null,
   play: (f) => openPlayer(libraryFile(f)),
 }); // Discover -> Documentaries and SVT Play titles (documentaries.js)
+// vibes: Discover -> Moods (vibes.js)
+const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => ownedTitle(t) });
 
 // The subtitles the phone player would turn on by itself (see its subtitle setup), so a TV starts with
 // them too: the last used language when it's already saved for this video, else the one from Settings.
@@ -10100,6 +10108,7 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
 $('#home-link').addEventListener('click', async (e) => {
   e.preventDefault();
   disc.list = null; disc.genre = null;
+  vibesUi.reset(); // vibes
   state.query = ''; input.value = ''; $('#q-clear').hidden = true;
   if (state.view === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
   else await setView('discover');

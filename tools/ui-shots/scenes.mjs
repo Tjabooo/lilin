@@ -37,6 +37,9 @@ export const SCENES = [
   { name: 'discover', path: '/', ready: '#discover-body .shelf' },
   { name: 'discover-rows', path: '/', ready: '#discover-body .shelf', steps: ['window.scrollTo(0, innerHeight * 1.5); await __sleep(500);'] },
   { name: 'discover-films', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-filters .segmented button:nth-child(2)'); await __waitFor('#discover-body .shelf');"] },
+  // vibes: the Moods row and a mood's page
+  { name: 'vibes-row', path: '/', ready: '#discover-body .shelf', steps: ["const s = await __waitFor('.vibes-shelf', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(800);"] },
+  { name: 'vibes-page', path: '/', ready: '#discover-body .shelf', full: true, steps: ["await __click('.vibe-tile', 20000); await __waitFor('.vibe-grid .title-card', 30000); await __sleep(2500);"] },
   { name: 'discover-browse', path: '/', ready: '#discover-body .billboard', sizes: ['phone', 'tablet'], steps: ["await __click('#browse-btn'); await __waitFor('#picker.open'); await __sleep(700);"] },
   { name: 'discover-genres-open', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.genres-toggle'); await __sleep(500);"] },
   { name: 'discover-genre', path: '/', ready: '#discover-body .shelf', steps: ["const t = document.querySelector('.genres-toggle'); if (t) { t.click(); await __sleep(300); } await __click('.genre-chips .chip:nth-child(4)'); await __waitFor('#discover-body .grid .title-card');"] },

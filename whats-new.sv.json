@@ -1,4 +1,13 @@
 {
+  "2026-11-17-vibes": {
+    "title": "Stämningar",
+    "items": {
+      "Browse by mood": {
+        "title": "Bläddra efter stämning",
+        "text": "Upptäck har en ny rad, Stämningar, direkt efter Populärt den här veckan: rutor som Smygande thriller för regniga dagar, Indienostalgi från 90-talet, Mysigt och tryggt, Hjärnvridare och Neon efter midnatt. Tryck på en för en sida med filmer och serier som passar känslan, med det du redan har först. Ordningen ändras varje dag, och Blanda blandar om den igen."
+      }
+    }
+  },
   "2026-11-17-details": {
     "title": "Mer information",
     "items": {

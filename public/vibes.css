@@ -1,0 +1,75 @@
+/* Discover → Moods (public/vibes.js). Each mood brings its own two colours (--v1 deep, --v2 light); the
+   tiles and the page header are lit from those, so they read as art like posters do, whatever the theme. */
+
+/* ---------- the row of tiles ---------- */
+.vibe-tiles { grid-auto-columns: 152px; }
+@media (min-width: 600px) { .vibe-tiles { grid-auto-columns: 176px; } }
+@media (min-width: 1600px) { .vibe-tiles { grid-auto-columns: 208px; } }
+.vibe-tile {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
+  width: 100%; aspect-ratio: 16 / 10; padding: 12px 13px; overflow: hidden; isolation: isolate;
+  color: var(--on-image); text-align: left;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--v2) 70%, transparent), transparent 62%),
+    radial-gradient(90% 80% at 0% 100%, color-mix(in srgb, var(--v1) 80%, #000 20%), transparent 70%),
+    linear-gradient(150deg, var(--v1), color-mix(in srgb, var(--v1) 55%, var(--v2)));
+  border: 0; border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .09), var(--e1);
+  transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-2);
+}
+/* a soft grain of light across the top, like a lamp on a wall */
+.vibe-tile::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(to top, rgb(var(--picture-dark) / .42), rgb(var(--picture-dark) / 0) 60%);
+}
+.vibe-tile .vibe-glyph {
+  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+  color: color-mix(in srgb, var(--v2) 55%, #fff); opacity: .9;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--v2) 60%, transparent));
+}
+.vibe-name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  max-width: 100%; font: 700 15px/1.18 var(--display); letter-spacing: -.01em;
+  text-shadow: 0 1px 8px rgb(0 0 0 / .45); text-wrap: balance;
+}
+@media (min-width: 600px) { .vibe-name { font-size: 16px; } }
+.vibe-tile:hover { transform: translateY(-3px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .16), var(--e2); }
+.vibe-tile:active { transform: scale(.97); }
+.vibe-tile:focus-visible { outline: none; box-shadow: var(--ring); }
+@media (prefers-reduced-motion: reduce) { .vibe-tile, .vibe-tile:hover { transition: none; transform: none; } }
+
+/* ---------- a mood's page ---------- */
+.vibe-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  margin: 0 calc(-1 * var(--gutter)) var(--s4); padding: var(--s3) var(--gutter) var(--s5);
+  color: var(--on-image);
+  background:
+    radial-gradient(70% 120% at 100% 0%, color-mix(in srgb, var(--v2) 55%, transparent), transparent 65%),
+    linear-gradient(160deg, var(--v1), color-mix(in srgb, var(--v1) 70%, #000) 80%);
+}
+/* fades into the room below, so the grid doesn't sit under a hard edge */
+.vibe-hero::after {
+  content: ""; position: absolute; inset: auto 0 0; height: 48px; z-index: -1;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--velvet) 55%, transparent));
+}
+.vibe-hero .back-link { color: rgb(255 255 255 / .78); margin: 0 0 var(--s3) -2px; }
+.vibe-hero .back-link:hover { color: #fff; }
+.vibe-hero-glyph {
+  position: absolute; z-index: -1; right: -18px; top: 18px; width: 150px; height: 150px;
+  color: color-mix(in srgb, var(--v2) 60%, #fff); opacity: .22;
+}
+@media (min-width: 900px) { .vibe-hero-glyph { width: 220px; height: 220px; right: 6%; top: 12px; } }
+.vibe-kicker { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--v2) 65%, #fff); }
+.vibe-title { margin: 0; max-width: 18ch; font: 800 var(--t-h1)/1.06 var(--display); letter-spacing: -.02em; text-wrap: balance; text-shadow: 0 2px 18px rgb(0 0 0 / .35); }
+.vibe-blurb { margin: var(--s2) 0 0; max-width: 46ch; font-size: 15px; line-height: 1.45; color: rgb(255 255 255 / .82); }
+.vibe-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); margin-top: var(--s4); }
+.vibe-hero .segmented { background: rgb(var(--picture-dark) / .4); border-color: rgb(255 255 255 / .14); }
+.vibe-hero .segmented button { color: rgb(255 255 255 / .78); }
+.vibe-hero .segmented button[aria-pressed="true"] { color: #141014; background: #fff; }
+.vibe-shuffle { gap: 6px; color: #fff; background: rgb(var(--picture-dark) / .4); border-color: rgb(255 255 255 / .16); }
+.vibe-shuffle:hover:not(:disabled) { background: rgb(var(--picture-dark) / .55); border-color: rgb(255 255 255 / .28); }
+.vibe-shuffle-icon { width: 17px; height: 17px; }
+.vibe-shuffle.spun .vibe-shuffle-icon { animation: vibe-spin .5s var(--ease-out); }
+@keyframes vibe-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .vibe-shuffle.spun .vibe-shuffle-icon { animation: none; } }
+.vibe-owned { margin: 0 0 var(--s3); font-size: var(--t-small); }

@@ -2131,4 +2131,11 @@ export default {
   "The owner can always see activity": "Ägaren kan alltid se aktivitet",
   "{0} can see activity": "{0} kan se aktivitet",
   "People and invites": "Personer och inbjudningar",
+  // vibes: Discover's Moods (public/vibes.js)
+  "Moods": "Stämningar",
+  "Mood": "Stämning",
+  "Show more": "Visa fler",
+  "Try another type.": "Prova en annan typ.",
+  "1 of these is in your library, so it comes first.": "1 av dem finns i ditt bibliotek, så den kommer först.",
+  "{0} of these are in your library, so they come first.": "{0} av dem finns i ditt bibliotek, så de kommer först.",
 };

@@ -44,6 +44,7 @@ import * as svt from './svtplay.js';
 import { createSvtQueue, expectedSize } from './svt-queue.js';
 import { createDocumentaries } from './documentaries.js';
 import { createDetails, episodeCredits } from './details.js'; // details: More details on title pages
+import { createVibes } from './vibes.js'; // vibes: Discover's Moods
 import { scratchPlan, liveRoot, usesScratch } from './scratch.js';
 import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
@@ -799,6 +800,8 @@ const titleDetails = createDetails({
   tmdb: (endpoint, params) => cachedTmdb(endpoint, params, 12 * 3600 * 1000), country: () => (currentLanguage() === 'sv' ? 'SE' : 'US'),
   cacheFile: path.join(CACHE_DIR, 'title-music.json'), enabled: process.env.TITLE_MUSIC !== 'off', log: (line) => console.log(line),
 });
+// vibes: Discover's Moods ("Slow-burn rainy day thriller"), src/vibes.js
+const vibes = createVibes({ tmdb: (endpoint, params) => tmdbForViewer(endpoint, params), mapTitle, language: currentLanguage });
 
 // ---------- SVT Play ----------
 // Saved into the media folder like any download, under requester's library (src/svt-queue.js).
@@ -4240,6 +4243,14 @@ async function handleApi(req, res, url) {
       sort: url.searchParams.get('sort'), page,
     });
     if (!data) throw new HttpError(404, 'There’s no such category.');
+    return sendJson(res, 200, withoutDisliked(user, data));
+  }
+  // vibes: the Moods chips on Discover and one mood's titles (best first; the page shuffles them)
+  if (p === '/api/vibes') return sendJson(res, 200, { vibes: tmdbOn() ? vibes.list() : [] });
+  if ((m = p.match(/^\/api\/vibes\/([a-z0-9-]{1,40})$/))) {
+    if (!tmdbOn()) throw new HttpError(503, 'Moods need TMDB. Add TMDB_TOKEN to .env and restart.');
+    const data = await vibes.vibe(m[1]);
+    if (!data) throw new HttpError(404, 'There’s no such mood.');
     return sendJson(res, 200, withoutDisliked(user, data));
   }
   if (p === '/api/svt/title') {
