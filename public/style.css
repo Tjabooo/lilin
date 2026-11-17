@@ -2662,7 +2662,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-percent { flex-shrink: 0; }
 .transfer-track { height: 4px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 6px 0; }
 .transfer-track i { display: block; height: 100%; background: var(--bulb); border-radius: inherit; box-shadow: 0 0 8px var(--glow-color); transition: width .6s var(--ease-out); }
-.transfer-action-error { color: var(--alert); }
 
 /* Right now (right-now.js) and the rows Downloads and Watchlist share with it: 56 px, a 40 × 60 thumb, two lines,
    one quiet chip. Never lit: the billboard's Play stays the page's one lit button. */
@@ -2696,7 +2695,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-files summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 .transfer-files ul { padding-left: 18px; }
 .transfer-files li { margin-bottom: 6px; }
-.transfer-action-error { margin: 6px 0; font-size: 13px; overflow-wrap: anywhere; }
+.transfer-action-error { margin: 6px 0; font-size: 13px; overflow-wrap: anywhere; color: var(--alert); }
 .transfer-action-error:empty { display: none; }
 .transfer-detail-list .dl-controls { display: flex; flex-wrap: wrap; gap: 6px; }
 .transfer-detail-list .dl-ctl, .pending-episode .chip { min-height: 44px; }

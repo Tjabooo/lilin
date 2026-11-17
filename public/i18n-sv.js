@@ -2226,7 +2226,6 @@ export default {
   "Add a comment (optional with Accept)": "Lägg till en kommentar (valfritt när du godkänner)",
   "A note for the build agent": "En anteckning till byggagenten",
   "Comment": "Kommentera",
-  "Accept": "Godkänn",
   "In Lilin": "I Lilin",
   "From the scout": "Från scouten",
   "{0} waiting": "{0} väntar",
@@ -2471,7 +2470,6 @@ export default {
   // You: the list's groups and lines, For you, your own lists
   "Your watching": "Ditt tittande",
   "Ratings and reviews": "Betyg och recensioner",
-  "For you": "Till dig",
   "View public page": "Visa din offentliga sida",
   "Home network": "Hemnätverket",
   "Shared by everyone at home who opens the server’s local address.": "Delas av alla hemma som öppnar serverns lokala adress.",
@@ -2504,7 +2502,6 @@ export default {
   "Your idea is in Lilin now": "Din idé finns i Lilin nu",
   "An answer to your idea": "Ett svar på din idé",
   "Wants to be your friend": "Vill bli din vän",
-  "Invite someone to Lilin": "Bjud in någon till Lilin",
   "Titles you give a thumbs up show up here.": "Titlar du ger tummen upp visas här.",
   "When Lilin gets something new.": "När Lilin får något nytt.",
   "Answers to your ideas": "Svar på dina idéer",
