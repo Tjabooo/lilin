@@ -46,7 +46,7 @@ const RETENTION_CHOICES = [0, 1, 3, 7, 14, 30];
 const EXTEND_CHOICES = [1, 3, 7, 14, 30];
 
 // Per-person preferences (Settings tab).
-const USER_DEFAULTS = { theme: null, language: '', subLang: '', quality: 'all', downloadProfile: '', maxSize: 0, audioLang: '', dubbed: [], startView: 'discover', librarySort: 'newest', seenUpdate: '', skipIntro: 'button',
+const USER_DEFAULTS = { theme: null, language: '', subLang: '', quality: 'all', downloadProfile: '', maxSize: 0, audioLang: '', dubbed: [], startView: 'discover', librarySort: 'watched', seenUpdate: '', skipIntro: 'button',
   pushDownload: true, pushEpisode: true, pushWatch: true, pushAgent: true, pushUpdate: true, pushIdea: true,
   pushFriend: true, pushShare: true }; // which notifications they get (push.js)
 // Settings → Downloads. quality is the resolution chosen before profiles existed: it maps to a profile until one is chosen.
@@ -54,7 +54,7 @@ const DOWNLOAD_PROFILES = ['save', 'balanced', 'best'];
 const MAX_SIZES = [0, 1, 2, 4, 8, 15, 30, 60]; // GB per film or episode; 0 = no limit
 const QUALITIES = ['all', '2160p', '1440p', '1080p', '720p'];
 const START_VIEWS = ['discover', 'live', 'library', 'downloads', 'you']; // 'downloads' = Library › Downloads (older choice)
-const LIBRARY_SORTS = ['newest', 'expiring', 'title'];
+const LIBRARY_SORTS = ['watched', 'newest', 'expiring', 'title']; // watched = Recently watched (the default)
 const SKIP_INTRO = ['button', 'auto']; // Skip intro: offer a button, or skip on its own
 const HEX = /^#[0-9a-f]{6}$/i;
 const THEME_KEYS = ['bg', 'surface', 'text', 'accent'];

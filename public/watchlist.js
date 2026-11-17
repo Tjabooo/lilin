@@ -72,3 +72,51 @@ export function watchStatus(item, { today = todayIso(), autoDownload = false, in
   }
   return parts.join(' ');
 }
+
+// Library › Watchlist: Coming up (dated rows), Saved (out now, not in your library yet) and Following (shows, with
+// the switch that adds new episodes as they air). app.js passes in its helpers, as it does for vibes.js.
+// ui: { h, icon, items(), autoDownload(), inLibrary(item), setWatch(item, flags), openDetails(item, opener), titleCard,
+//       emptyState, openComingSoon(), norm, toast }
+export function createWatchlistView(ui) {
+  const { h } = ui;
+  const thumb = (i) => (i.poster ? h('img', { class: 'rn-thumb', src: i.poster, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'rn-thumb' }));
+  // A switch that saves at once; a failure puts it back.
+  const toggle = (label, on, flags, aria = label) => h('label', { class: 'wl-switch' },
+    h('input', { type: 'checkbox', checked: on, 'aria-label': aria, onchange: async (e) => {
+      const box = e.currentTarget; box.disabled = true;
+      try { await ui.setWatch(flags(box.checked)); } catch (err) { box.checked = !box.checked; ui.toast(err.message); } finally { box.disabled = false; }
+    } }), h('span', {}, label));
+  const row = (i, when, sub, control) => h('li', { class: 'rn-row wl-row' },
+    when && h('span', { class: 'wl-date' }, when),
+    h('button', { type: 'button', class: 'rn-open', onclick: (e) => ui.openDetails(i, e.currentTarget) }, thumb(i),
+      h('span', { class: 'rn-text' }, h('strong', { class: 'rn-title' }, i.title), h('span', { class: 'rn-sub' }, sub))),
+    control);
+  const section = (title, body) => h('section', { class: 'shelf wl-section', 'aria-label': title }, h('h3', { class: 'lib-subhead' }, title), body);
+  const rows = (list) => h('ul', { class: 'rn-list' }, list);
+
+  function render(box, { type = 'all', query = '' } = {}) {
+    const today = todayIso();
+    const q = ui.norm(query.trim());
+    const all = ui.items().filter((i) => i.saved || i.follow);
+    const items = all.filter((i) => (type === 'all' || i.type === type) && (!q || ui.norm(i.title).includes(q)));
+    const upcoming = comingUp(items, today).slice(0, 30);
+    const soon = new Set(upcoming.map((c) => c.item));
+    const saved = items.filter((i) => i.saved && !soon.has(i) && !ui.inLibrary(i));
+    const following = items.filter((i) => i.type === 'tv' && i.follow);
+    const auto = ui.autoDownload();
+    const nodes = [
+      upcoming.length > 0 && section(T('Coming up'), rows(upcoming.map((c) => row(c.item, c.when, c.what, c.item.type === 'tv'
+        && toggle(T('Following'), true, (on) => ({ type: 'tv', id: c.item.id, follow: on })))))),
+      saved.length > 0 && section(T('Saved'), h('ul', { class: 'grid wl-grid' }, saved.map(ui.titleCard))),
+      following.length > 0 && section(T('Following'), rows(following.map((i) => row(i, null, watchStatus(i, { today, autoDownload: auto }) || T('Following'),
+        auto && toggle(T('Auto-add'), Boolean(i.auto), (on) => ({ type: 'tv', id: i.id, auto: on }), T('Add new episodes of {0} as they air', i.title)))))),
+    ].filter(Boolean);
+    if (!nodes.length) {
+      nodes.push(all.length ? ui.emptyState(T('No matching titles'), T('Nothing on your watchlist matches these filters.'))
+        : ui.emptyState(T('Nothing saved yet'), T('Tap Save on a film or Follow on a show, and it waits here with its dates.'),
+          { label: T('See what’s coming soon'), run: ui.openComingSoon }));
+    }
+    box.replaceChildren(...nodes);
+  }
+  return { render };
+}
