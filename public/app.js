@@ -653,7 +653,15 @@ function rowMenu(label, items) {
       menu.open = false;
       run(summary);
     } }, ic, h('span', {}, text)))));
-  menu.addEventListener('toggle', () => { if (menu.open) menu.querySelector('.row-menu-item')?.focus(); });
+  menu.addEventListener('toggle', () => {
+    if (!menu.open) return;
+    // Opens upward when there's no room below (a short title page, the last row of a list).
+    const list = menu.querySelector('.row-menu');
+    list.classList.remove('is-up');
+    const box = list.getBoundingClientRect(), floor = Math.min(innerHeight, menu.closest('.sheet')?.getBoundingClientRect().bottom ?? innerHeight);
+    if (box.bottom > floor - 8 && box.top - box.height - summary.offsetHeight > 8) list.classList.add('is-up');
+    menu.querySelector('.row-menu-item:not([hidden])')?.focus();
+  });
   menu.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.open) { e.stopPropagation(); menu.open = false; summary.focus(); } });
   return menu;
 }

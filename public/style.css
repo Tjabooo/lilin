@@ -1162,6 +1162,9 @@ html.has-vt .view { animation: none; }
 .row-menu-item svg { width: 19px; height: 19px; flex: none; color: var(--text-2); }
 .row-menu-item.is-danger, .row-menu-item.is-danger svg { color: var(--alert); }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.row-menu.is-up { top: auto; bottom: calc(100% + 6px); }
+/* Phones: the title page's ⋯ opens across the width of its bar */
+@media (max-width: 599px) { .title-bar { position: relative; } .title-bar > .row-more { position: static; } .title-bar .row-menu { left: 0; right: 0; } }
 
 /* Thumbs and the Review button, beside the reviews */
 .title-reactions { margin: var(--s6) 0 0; }
