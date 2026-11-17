@@ -2884,13 +2884,13 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
       { background: true, onAdded: (hash) => followUps.set(String(hash).toLowerCase(), Date.now()) });
     console.log(`[cold] ${show.name || c.title} S${String(c.season).padStart(2, '0')}: the episodes after ${c.episode} are on their way too`);
   },
-  dropPick: async (c) => {
+  dropPick: async (c, why = `no episode ${c.episode} in it`) => {
     const [t] = await qbit(`/api/v2/torrents/info?hashes=${c.hash}`);
     const others = accounts.torrentWanters(c.hash).filter((id) => id !== c.userId);
     accounts.leaveTorrent(c.hash, c.userId);
     if (t && !others.length) await removeDownloadWithFiles(t).catch((e) => console.warn(`[cold] couldn’t remove ${t.name}: ${e.message}`));
     const retried = smart.slowFound(c.hash); // skipped for a day; the Download runs once more without it
-    console.log(`[cold] ${c.title || c.name}: removed ${c.name} (no episode ${c.episode} in it)${retried ? ', looking again' : ''}`);
+    console.log(`[cold] ${c.title || c.name}: removed ${c.name} (${why})${retried ? ', looking again' : ''}`);
   },
   background: async () => {
     for (const [h, at] of followUps) if (Date.now() - at > 24 * 3600e3) followUps.delete(h);

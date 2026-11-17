@@ -16,6 +16,10 @@
 // Everything that talks to qBittorrent or Lilin's records comes in as deps (server.js); the decisions are here.
 
 export const META_WAIT = 20_000;       // pick without a file list this long, a spare has one: switch
+// No file list and nothing to switch to: the pick goes and the Download runs once more without it (2026-11-17: ER
+// S4E10's only single release, 4 seeders per the site, never sent its file list; with no spare the race just waited).
+export const META_GIVE_UP = 75_000;
+export const META_GIVE_UP_PEERS = 3 * 60_000; // ...a pick connected to peers may still get it: this long
 export const RATE_SETTLE = 25_000;     // measure the pick's speed this long after its file list arrived
 export const SPARE_TRIAL = 25_000;     // a spare started for comparison runs this long before the verdict
 export const RACE_MAX = 4 * 60_000;    // after this the pick stays whatever happens, and the spares go
@@ -61,7 +65,10 @@ export function raceStep(c, now = Date.now()) {
   }
   if (c.metaAt == null) {
     if (now - c.addedAt >= META_WAIT && clean.length) return { swap: clean[0].hash, why: 'its file list never came' };
-    return now - c.addedAt >= RACE_MAX ? { settle: true } : null;
+    // A spare added a moment ago gets its own chance at a file list first.
+    const fresh = (c.spares || []).some((s) => s.metaAt == null && !s.fake && now - (s.addedAt ?? c.addedAt) < META_WAIT);
+    if (!fresh && now - c.addedAt >= (c.peers > 0 ? META_GIVE_UP_PEERS : META_GIVE_UP)) return { drop: true, why: 'its file list never came' };
+    return null;
   }
   if (c.done || c.lead >= SETTLED_LEAD) return { settle: true };
   if (running) {
@@ -90,8 +97,8 @@ export class ColdStarts {
   //   partial: PartialStreams (prewarm, entriesOf, drop, readable), addSpare(c, candidate) -> { hash, name, link, ref } | null,
   //   startSpare(hash), stopSpare(hash) (also pauses a pack pick without the episode), kick(hash) (stop + start),
   //   prepareSpare(hash, files, index) (a pack: only that file), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
-  //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), dropPick(c) (a pack pick without the episode
-  //   and nothing to replace it: removed, the Download runs again), setLimit(hashes, bytesPerSecond),
+  //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), dropPick(c, why) (a pack pick without the
+  //   episode, or a pick whose file list never came, and nothing to replace it: removed, the Download runs again), setLimit(hashes, bytesPerSecond),
   //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it, log }
   constructor(deps) {
     this.deps = deps;
@@ -122,7 +129,7 @@ export class ColdStarts {
         if (c.settled || c.ended) return;
         const s = await this.deps.addSpare(c, r).catch(() => null);
         if (s?.hash && s.hash !== c.hash && !c.spares.some((x) => x.hash === s.hash.toLowerCase())) {
-          c.spares.push({ ...s, hash: s.hash.toLowerCase(), pack: Boolean(r.pack), metaAt: null, fake: null, running: false, startedAt: null, rate: 0, tried: false, fileIndex: null });
+          c.spares.push({ ...s, hash: s.hash.toLowerCase(), pack: Boolean(r.pack), addedAt: Date.now(), metaAt: null, fake: null, running: false, startedAt: null, rate: 0, tried: false, fileIndex: null });
         }
       }
     };
@@ -189,6 +196,7 @@ export class ColdStarts {
     const t = info.get(c.hash);
     if (!t) { await this.end(c, 'gone'); return; }
     const until = c.addedAt + LIFETIME;
+    c.peers = (Number(t.num_seeds) || 0) + (Number(t.num_leechs) || 0);
     const { entry } = await this.warm(c, t, c, until);
     // A pack without the episode in it (its name promised the season): stopped at once, then replaced or removed.
     if (c.pack && c.metaAt != null && !c.fake && c.fileIndex == null && !c.missing && !c.settled) {
@@ -237,6 +245,14 @@ export class ColdStarts {
     }
     if (!c.settled) {
       const act = raceStep(c, now);
+      if (act?.drop) {
+        // Nothing to switch to: removed, and its Download runs once more without it (smart-download.js, slowFound).
+        this.deps.log?.info?.(`[cold] ${c.title || c.name}: ${c.name}: ${act.why} in ${Math.round((now - c.addedAt) / 1000)} s and no other copy has one; looking again without it`);
+        await this.settle(c);
+        await this.deps.dropPick?.(c, act.why);
+        await this.end(c);
+        return;
+      }
       if (act?.swap) await this.swapTo(c, c.spares.find((s) => s.hash === act.swap), act.why, t);
       else if (act?.start) {
         const s = c.spares.find((x) => x.hash === act.start);
@@ -249,7 +265,7 @@ export class ColdStarts {
         await this.settle(c);
         // A fake with no spare to take over: the usual way (removed, and its Download runs again).
         if (c.fake) { await this.deps.fakeFound(c, c.hash, t.name, c.fake, { primary: true, retry: true }); await this.end(c); return; }
-        if (c.missing) { await this.deps.dropPick?.(c); await this.end(c); return; }
+        if (c.missing) { await this.deps.dropPick?.(c, `no episode ${c.episode} in it`); await this.end(c); return; }
       }
     }
     if (!isCold(c, now) && (c.kind === 'episode' || c.better) && !c.followed && !c.fake && !c.missing) {

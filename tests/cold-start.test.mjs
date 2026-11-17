@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { raceStep, isCold, ColdStarts, edgePiece, stuckEdge, META_WAIT, RATE_SETTLE, SPARE_TRIAL, RACE_MAX, COLD_MAX, THROTTLE_BPS } from '../src/cold-start.js';
+import { raceStep, isCold, ColdStarts, edgePiece, stuckEdge, META_WAIT, META_GIVE_UP, META_GIVE_UP_PEERS, RATE_SETTLE, SPARE_TRIAL, RACE_MAX, COLD_MAX, THROTTLE_BPS } from '../src/cold-start.js';
 import { PartialStreams, readyToStart } from '../src/partial-stream.js';
 import { startSmartJob, smartJob, fakeFound, uploaderOf, raceSwapped } from '../src/smart-download.js';
 import { parseTpb } from '../src/torrents.js';
@@ -21,7 +21,20 @@ test('race: a pick whose file list never comes gives way to a spare that has one
   assert.equal(raceStep(c, T0 + META_WAIT - 1), null, 'gets its chance first');
   assert.deepEqual(raceStep(c, T0 + META_WAIT), { swap: 's2', why: 'its file list never came' });
   assert.equal(raceStep(pick({ metaAt: null, spares: [spare({ metaAt: null })] }), T0 + 60_000), null, 'no spare ready: waits');
-  assert.deepEqual(raceStep(pick({ metaAt: null }), T0 + RACE_MAX), { settle: true });
+});
+
+// 2026-11-17: ER S4E10's only single release never sent its file list, and with no spare holding one the race waited
+// for ever (8 minutes, no Play now). Now the pick is given up and the Download runs again without it.
+test('race: a pick whose file list never comes and nothing to switch to is given up', () => {
+  const drop = { drop: true, why: 'its file list never came' };
+  assert.equal(raceStep(pick({ metaAt: null }), T0 + META_GIVE_UP - 1), null);
+  assert.deepEqual(raceStep(pick({ metaAt: null }), T0 + META_GIVE_UP), drop, 'no spares at all');
+  assert.deepEqual(raceStep(pick({ metaAt: null, spares: [spare({ metaAt: null })] }), T0 + META_GIVE_UP), drop, 'spares without file lists either');
+  assert.equal(raceStep(pick({ metaAt: null, spares: [spare({ metaAt: null, addedAt: T0 + 70_000 })] }), T0 + META_GIVE_UP), null, 'a spare added a moment ago gets its chance');
+  assert.deepEqual(raceStep(pick({ metaAt: null, spares: [spare({ metaAt: null, addedAt: T0 + 70_000 })] }), T0 + 70_000 + META_WAIT), drop);
+  assert.equal(raceStep(pick({ metaAt: null, peers: 3 }), T0 + META_GIVE_UP), null, 'connected to peers: the list may still come');
+  assert.deepEqual(raceStep(pick({ metaAt: null, peers: 3 }), T0 + META_GIVE_UP_PEERS), drop);
+  assert.deepEqual(raceStep(pick({ metaAt: null, spares: [spare({ hash: 's2' })] }), T0 + META_GIVE_UP), { swap: 's2', why: 'its file list never came' }, 'a spare with a list still wins');
 });
 
 test('race: a fake pick is replaced by a clean spare, and waits for one whose file list is still coming', () => {
@@ -228,6 +241,25 @@ test('a pick without a file list is swapped for a spare that has one; a fake spa
   assert.equal(c.hash, 's2');
   await w.cold.round();
   assert.ok(w.prewarmed.includes('s2-0'), 'the new pick runs for watching');
+});
+
+test('a pick whose file list never comes, with no other copy that has one: removed, and the Download runs again', async () => {
+  const w = world({ primaryMeta: false, spareMeta: false });
+  const dropped = [];
+  w.deps.dropPick = async (c, why) => { dropped.push([c.hash, why]); w.torrents.delete(c.hash); };
+  w.cold.register({ userId: 1, hash: 'p', name: 'p', kind: 'episode', season: 4, episode: 10, runtime: 45, alternatives: [{ hash: 's1', name: 'pack' }] });
+  await settle();
+  await w.cold.round();
+  const c = w.cold.list()[0];
+  c.addedAt -= META_GIVE_UP - 1000;
+  await w.cold.round();
+  assert.deepEqual(dropped, [], 'not yet');
+  c.addedAt -= 1000;
+  c.spares[0].addedAt -= META_GIVE_UP;
+  await w.cold.round();
+  assert.deepEqual(dropped, [['p', 'its file list never came']]);
+  assert.ok(w.log.some(([a, h]) => a === 'remove' && h === 's1'), 'its spare goes too');
+  assert.equal(w.cold.list().length, 0, 'nothing left to look after');
 });
 
 test('a slow pick: a spare runs next to it and takes over when clearly faster; an episode then brings the next ones', async () => {
