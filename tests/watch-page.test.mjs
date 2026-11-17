@@ -49,3 +49,21 @@ test('link artwork works for films (no still) and prefers the full-size episode 
   shows.knownEpisode = () => null;
   assert.equal(context.watchArtwork({ title: 'House', season: 3, episode: 1 }).image, 'https://image.tmdb.org/t/p/w780/show.jpg');
 });
+
+test('Swedish browsers get the watch page in Swedish, the time included; a cut-off /c/ link gets a card, not JSON', async () => {
+  const { inLanguage } = await import('../src/i18n.js');
+  const { sendDeadLink } = await import('../src/clips.js');
+  const startsAt = new Date(2026, 10, 20, 20, 0).getTime();
+  const page = inLanguage('sv', () => render(`/c/w/${TOKEN}`, { preview: () => ({ media: { title: 'Dune' }, host: 'Ebi', viewers: 1, startsAt }) }));
+  assert.match(page.body, /<html lang="sv">/);
+  assert.match(page.body, /<h1>Titta på Dune tillsammans<\/h1>/);
+  assert.match(page.body, /Ebi bjöd in dig \(börjar fredag 20 november kl\. 20:00\)/);
+  assert.match(page.body, />Gå med i rummet</);
+
+  const res = { status: 0, headers: {}, body: '', writeHead(s, h) { this.status = s; this.headers = h; }, end(b) { this.body = b || ''; } };
+  assert.equal(sendDeadLink({ method: 'GET', headers: { accept: 'application/json' } }, res), false, 'API callers keep the JSON 404');
+  assert.equal(sendDeadLink({ method: 'GET', headers: { accept: 'text/html,application/xhtml+xml' } }, res), true);
+  assert.equal(res.status, 404);
+  assert.match(res.body, /<div class="card"><h1>This link doesn’t work<\/h1>/);
+  assert.match(res.body, /<a class="brand" href="\/">Open Lilin<\/a>/);
+});

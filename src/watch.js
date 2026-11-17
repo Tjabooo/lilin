@@ -206,13 +206,13 @@ export class WatchRooms {
       const first = room.members.size === 1 && !existing;
       this.changed(room);
       if (first) this.refreshLive(room); // the timer only runs while someone watches
-      return this.snapshot(room);
+      return this.snapshot(room, room.members.get(client));
     }
     // Whoever planned a party hosts it once they arrive, unless it's already under way.
     if (!room.members.has(room.host) || (user.id === room.creator && !room.started && room.members.get(room.host)?.userId !== user.id)) room.host = client;
     if (!room.people.has(user.id)) { room.people.add(user.id); this.persist(room); }
     this.changed(room);
-    return this.snapshot(room);
+    return this.snapshot(room, room.members.get(client));
   }
 
   blockers(room) { return [...room.members.values()].filter((m) => !m.streams.size || !m.ready || m.buffering || m.blocked); }
@@ -236,20 +236,35 @@ export class WatchRooms {
     this.reconcile(room);
     room.revision++;
     room.touched = this.now();
-    const snapshot = this.snapshot(room);
-    for (const m of room.members.values()) for (const send of m.streams) send(snapshot);
+    // A channel's member list depends on who's looking (Restrict), so each viewer gets their own copy there.
+    const shared = room.live ? null : this.snapshot(room);
+    for (const m of room.members.values()) {
+      if (!m.streams.size) continue;
+      const snapshot = shared || this.snapshot(room, m);
+      for (const send of m.streams) send(snapshot);
+    }
   }
 
-  snapshot(room) {
+  // friends: Restrict on a channel. Restricted (quiet) viewers are never sent to anyone else, and a restricted viewer
+  // is sent nobody but themselves (they get the head count in `watching` instead). Watch Together rooms by link keep
+  // everyone: people there joined each other on purpose. `viewer` = the member it's for (null = nobody in particular).
+  visibleMembers(room, viewer = null) {
+    const all = [...room.members.values()];
+    if (!room.live) return all;
+    if (viewer?.quiet) return all.filter((m) => m.userId === viewer.userId);
+    return all.filter((m) => !m.quiet || (viewer && m.userId === viewer.userId));
+  }
+
+  snapshot(room, viewer = null) {
     return { token: room.token, media: room.media, host: room.host, revision: room.revision, serverNow: this.now(),
       position: room.position, at: room.at, playing: room.playing, intentPlaying: room.wantPlay,
-      ...(room.live ? { live: room.liveInfo || {} } : {}),
+      ...(room.live ? { live: room.liveInfo || {}, watching: new Set([...room.members.values()].map((m) => m.userId)).size } : {}),
       audioLang: room.audioLang || null,
       startsAt: room.started ? null : room.startsAt,
-      waitingFor: room.wantPlay ? this.blockers(room).map((m) => m.name) : [],
+      waitingFor: room.wantPlay && !room.live ? this.blockers(room).map((m) => m.name) : [], // a channel waits for nobody
       waitingForDownload: Boolean(room.wantPlay && this.downloadHolds(room)),
       download: room.download ? { ...room.download } : null,
-      members: [...room.members.values()].map((m) => ({ id: m.id, name: m.name, avatar: m.avatar || null, ready: m.ready,
+      members: this.visibleMembers(room, viewer).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar || null, ready: m.ready,
         connected: m.streams.size > 0, buffering: m.buffering, blocked: m.blocked, ...(room.live && m.quiet ? { quiet: true } : {}) })) };
   }
 
@@ -277,13 +292,14 @@ export class WatchRooms {
     const room = this.room(token);
     const member = this.member(room, user, client);
     member.seen = this.now(); room.touched = this.now();
-    const next = { name: String(user.name || 'Viewer').slice(0, 80), avatar: user.avatar || null, ready: status.ready === true, buffering: status.buffering === true, blocked: status.blocked === true };
-    const changed = Object.keys(next).some((k) => member[k] !== next[k]);
+    const next = { name: String(user.name || 'Viewer').slice(0, 80), avatar: user.avatar || null, quiet: Boolean(user.restricted && !user.isOwner), ready: status.ready === true, buffering: status.buffering === true, blocked: status.blocked === true };
+    let changed = Object.keys(next).some((k) => member[k] !== next[k]);
     Object.assign(member, next);
+    for (const m of room.members.values()) if (m.userId === member.userId && m.quiet !== next.quiet) { m.quiet = next.quiet; changed = true; } // Restrict: all their devices
     if (Number.isFinite(status.rtt)) member.rtt = Math.max(0, Math.min(2000, status.rtt));
     if (room.live && this.now() > (room.liveEndsAt || 0) + 1000) this.refreshLive(room); // a missed cut (a sleeping timer)
     if (changed) this.changed(room);
-    return this.snapshot(room);
+    return this.snapshot(room, member);
   }
 
   control(token, user, client, action, position) {

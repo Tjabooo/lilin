@@ -867,6 +867,16 @@ export function page({ title, desc, url, image, images = [], video, body }) {
 </html>`;
 }
 
+// A /c/ link nobody knows (cut off in a chat app, mistyped, or a token of the wrong length): the same card as the
+// other dead links, never raw JSON. People only; anything else gets the usual JSON 404 from the caller.
+export function sendDeadLink(req, res) {
+  if (!/text\/html/.test(String(req.headers.accept || ''))) return false;
+  res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer' });
+  res.end(req.method === 'HEAD' ? undefined : translateHtml(page({ title: 'Link not found', desc: 'This link doesn’t work any more.', url: '',
+    body: '<div class="card"><h1>This link doesn’t work</h1><p>Part of it may have been cut off when it was sent, or it no longer exists.</p><p>Ask whoever sent it for a new link.</p><p><a class="brand" href="/">Open Lilin</a></p></div>' })));
+  return true;
+}
+
 // Returns true when it handled the request.
 export async function handlePublic(req, res, url, { sendVideo, previews }) {
   const p = url.pathname;
@@ -908,7 +918,7 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
   const m = p.match(/^\/c\/([A-Za-z0-9_-]{16})(?:\/(video\.mp4|thumb\.jpg|preview\.json|preview\/(\d{1,4})\.jpg))?\/?$/);
   if (!m) return false;
   const clip = sharedClip(m[1]);
-  if (!clip) return send(404, 'text/html; charset=utf-8', page({ title: 'Clip not found', desc: 'This link doesn’t work any more.', url: '', body: '<h1>This clip isn’t shared any more</h1><p>Ask whoever sent it for a new link.</p>' }), { 'Cache-Control': 'no-store' });
+  if (!clip) return send(404, 'text/html; charset=utf-8', page({ title: 'Clip not found', desc: 'This link doesn’t work any more.', url: '', body: '<div class="card"><h1>This clip isn’t shared any more</h1><p>Ask whoever sent it for a new link.</p><p><a class="brand" href="/">Open Lilin</a></p></div>' }), { 'Cache-Control': 'no-store' });
 
   if (m[2] === 'thumb.jpg') {
     try { return send(200, 'image/jpeg', await fs.promises.readFile(await thumbnail(clip.id))); } catch { return send(404, 'text/plain', 'Not found.'); }

@@ -17,6 +17,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { esc, page, baseUrl } from './clips.js';
 import { passwordProblem } from './auth.js';
+import { translateHtml, translate, tr } from './i18n.js';
 
 const CF_API = (process.env.CF_API_BASE || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
 const CF_TOKEN = process.env.CF_API_TOKEN || '';
@@ -137,7 +138,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   if (!m) return false;
   const send = (status, body, extra = {}) => {
     res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'same-origin', ...extra }); // same-origin, not no-referrer: no-referrer turns the form's Origin into `null`
-    res.end(req.method === 'HEAD' ? undefined : body);
+    res.end(req.method === 'HEAD' ? undefined : translateHtml(body)); // Swedish for Swedish browsers (src/i18n-sv.json)
     return true;
   };
   const base = baseUrl(req);
@@ -148,7 +149,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
 
   const inv = Object.hasOwn(invites, m[1]) ? invites[m[1]] : null;
   if (!inv || state(inv) !== 'open') {
-    return view('Invite not valid', `<h1>This invite doesn’t work any more</h1><p>${inv?.usedAt ? 'It has already been used.' : inv ? 'It has expired.' : 'It may have been cancelled.'} Ask for a new link.</p><p><a class="brand" href="/">Already have access? Open Lilin</a></p>`);
+    return view('Invite not valid', `<h1>This invite doesn’t work any more</h1><p>${inv?.usedAt ? 'It has already been used. Ask for a new link.' : inv ? 'It has expired. Ask for a new link.' : 'It may have been cancelled. Ask for a new link.'}</p><p><a class="brand" href="/">Already have access? Open Lilin</a></p>`);
   }
   if (!invitesConfigured()) return view('Invites aren’t set up', '<h1>Invites aren’t set up yet</h1><p>The server owner still needs to connect Lilin to Cloudflare.</p>');
 
@@ -164,7 +165,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
       <input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}>
       <label for="again">Same password again</label>
       <input id="again" name="again" type="password" required minlength="10" autocomplete="new-password">
-      ${error ? `<p class="err">${esc(error)}</p>` : ''}
+      ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
       <button type="submit">${bound ? 'Save password' : 'Join Lilin'}</button>
     </form>
     <p class="foot">On a new phone or computer, open Lilin and sign in with this email and password.</p>` : `
@@ -173,7 +174,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
     <form method="post">
       <label for="email">The email you’ll sign in with</label>
       <input id="email" name="email" type="email" required autocomplete="email" autofocus value="${esc(email)}" placeholder="you@example.com">
-      ${error ? `<p class="err">${esc(error)}</p>` : ''}
+      ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
       <button type="submit">Get access</button>
     </form>
     <p class="foot">Next you choose how to sign in: a one-time code sent to this email, or an account like Google if it uses the same address.</p>`);
@@ -232,7 +233,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   record(req, 'joined', inv.note || 'with an invite', { user: email });
   return view('Welcome to Lilin', `
     <h1>You’re in</h1>
-    <p class="ok">${esc(email)} can now sign in to Lilin.</p>
+    <p class="ok">${esc(tr('{0} can now sign in to Lilin.', email))}</p>
     <p>Taking you there… pick how you want to sign in (with a code sent to this email, or an account that uses it). Next time just open Lilin and sign in the same way.</p>
     <form method="get" action="/"><button type="submit">Open Lilin</button></form>
     <script>setTimeout(() => location.replace('/'), 2500)</script>`);

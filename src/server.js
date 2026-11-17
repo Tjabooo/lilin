@@ -22,6 +22,7 @@ import { createJellyfin } from './jellyfin.js';
 import * as load from './load.js';
 import * as screenTime from './screentime.js';
 import * as clips from './clips.js';
+import { createStaticFiles } from './static-files.js';
 import * as invites from './invites.js';
 import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
@@ -4921,22 +4922,21 @@ async function handleApi(req, res, url) {
 }
 
 // ---------- static files ----------
+const staticFiles = createStaticFiles();
 // With the preview switched on (preview.js), PREVIEW_DIR is tried first and public/ fills the gaps.
+// staticFiles (static-files.js) adds the ETag (a 304 when nothing changed) and brotli/gzip for text. `no-cache` means
+// the browser always asks, so a deploy shows up on the next load; the ETag makes asking cheap.
 async function serveStatic(req, res, pathname) {
-  let data, full;
   for (const root of preview.staticRoots(req, PUBLIC_DIR, PREVIEW_DIR)) {
-    full = preview.staticFile(root, pathname);
+    const full = preview.staticFile(root, pathname);
     if (!full) throw new HttpError(400, 'Bad path.');
-    try { data = await fs.promises.readFile(full); break; } catch { /* not in this folder */ }
+    if (await staticFiles.send(req, res, full, MIME[path.extname(full).toLowerCase()] || 'application/octet-stream', {
+      'Cache-Control': 'no-cache',
+      'CDN-Cache-Control': 'no-store', // keeps Cloudflare from serving an old copy after an update
+      ...(PREVIEW_DIR && { Vary: 'Cookie' }),
+    })) return;
   }
-  if (!data) throw new HttpError(404, 'Not found.');
-  res.writeHead(200, {
-    'Content-Type': MIME[path.extname(full).toLowerCase()] || 'application/octet-stream',
-    'Cache-Control': 'no-cache',
-    'CDN-Cache-Control': 'no-store', // keeps Cloudflare from serving an old copy after an update
-    ...(PREVIEW_DIR && { Vary: 'Cookie' }),
-  });
-  res.end(data);
+  throw new HttpError(404, 'Not found.');
 }
 
 // Index (no sheet): frame times and sheet layout, made in the background on first ask (previews.js).
@@ -5104,7 +5104,8 @@ async function handleRequest(req, res) {
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
         && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))
         && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
-        && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))) throw new HttpError(404, 'Not found.');
+        && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))
+        && !(['GET', 'HEAD'].includes(req.method) && clips.sendDeadLink(req, res))) throw new HttpError(404, 'Not found.');
     }
     else if (isAndroidPath(url.pathname)) androidTv.handle(req, res, url, { home: !req.auth.remote, gateway: Boolean(req.tvGateway) });
     else if (!(req.method === 'GET' && preview.previewRoute(req, res, url.pathname, PREVIEW_DIR))) await serveStatic(req, res, url.pathname);

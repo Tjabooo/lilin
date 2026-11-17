@@ -3,7 +3,7 @@ import { T, lang, langTag, locale, LANGUAGES, saveLanguage, translatePage } from
 import { WatchSession, offsetCues } from './watch-sync.js';
 import { createNotesView } from './notes-view.js';
 import { createLiveView, channelName, clock as liveClock, programmeLine } from './live.js';
-import { createLiveChat } from './live-chat.js'; // livechat
+import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
 import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
@@ -4707,14 +4707,11 @@ function renderLiveStrip() {
   strip.hidden = !info;
   if (!info) return;
   const ch = info.channel || {};
-  const others = (party.state.members || []).filter((m) => m.id !== watchClient);
-  const seen = new Map(); for (const m of others) if (!seen.has(m.name)) seen.set(m.name, m);
   // friends: Restrict. Restricted viewers see how many are watching, not who; restricted people's faces stay out.
-  const blind = Boolean(state.me?.restricted);
-  const shown = blind ? [] : [...seen.values()].filter((m) => !m.quiet);
+  const { shown, count } = liveWatchers(party.state, state.me, watchClient);
   const now = info.now, next = info.next;
   const done = now ? Math.min(1, Math.max(0, (Date.now() - now.s) / (now.e - now.s))) : 0;
-  const sig = JSON.stringify([ch.id, now?.s, next?.s, [...seen.keys()], Math.round(done * 200)]);
+  const sig = JSON.stringify([ch.id, now?.s, next?.s, count, shown.map((m) => [m.name, m.avatar]), Math.round(done * 200)]);
   if (strip.dataset.sig === sig) return;
   strip.dataset.sig = sig;
   const button = (label, onclick, cls = 'chip') => h('button', { type: 'button', class: cls, onclick: (e) => { e.stopPropagation(); onclick(); } }, label);
@@ -4722,8 +4719,8 @@ function renderLiveStrip() {
     h('div', { class: 'live-strip-top' },
       h('span', { class: 'live-pill' }, h('i', { 'aria-hidden': 'true' }), T('Live')),
       h('b', { class: 'live-strip-channel' }, `${ch.number ?? ''} ${channelName(ch, state.me)}`.trim()),
-      seen.size ? h('span', { class: 'live-strip-faces', title: shown.length ? namesText(shown.map((m) => m.name)) : null }, shown.length ? people.faces(shown, { size: 24, max: 4 }) : null,
-        h('small', {}, T('{0} watching', seen.size + 1))) : null,
+      count > 1 ? h('span', { class: 'live-strip-faces', title: shown.length ? namesText(shown.map((m) => m.name)) : null }, shown.length ? people.faces(shown, { size: 24, max: 4 }) : null,
+        h('small', {}, T('{0} watching', count))) : null,
       h('span', { class: 'live-surf' },
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': T('Previous channel'), onclick: (e) => { e.stopPropagation(); surf(-1); } }, '▲'),
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': T('Next channel'), onclick: (e) => { e.stopPropagation(); surf(1); } }, '▼'))),

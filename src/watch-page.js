@@ -2,7 +2,9 @@
 // past Cloudflare Access, so this page (under the /c/ bypass, like shared clips and invites) carries
 // the embed (the title, its artwork and who's hosting) and sends people on to /?watch=<token>,
 // where they sign in as usual. It reveals no more than the link's holder would see after joining.
+// Swedish browsers get it in Swedish (src/i18n-sv.json), like the other link pages.
 import { esc, page, baseUrl } from './clips.js';
+import { translateHtml, tr, currentLanguage } from './i18n.js';
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -19,7 +21,7 @@ export function handleWatchPage(req, res, url, { rooms, artwork }) {
 
   const send = (status, html) => {
     res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer' });
-    res.end(req.method === 'HEAD' ? undefined : html);
+    res.end(req.method === 'HEAD' ? undefined : translateHtml(html));
     return true;
   };
   if (!preview) {
@@ -34,15 +36,16 @@ export function handleWatchPage(req, res, url, { rooms, artwork }) {
   const what = [media.title, episode].filter(Boolean).join(' · ');
   const art = artwork(media) || {};
   const starts = preview.startsAt ? new Date(preview.startsAt) : null;
-  const when = starts && `${starts.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${pad2(starts.getHours())}:${pad2(starts.getMinutes())}`;
+  const day = starts && starts.toLocaleDateString(currentLanguage() === 'sv' ? 'sv-SE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const when = starts && tr('{0} at {1}', day, `${pad2(starts.getHours())}:${pad2(starts.getMinutes())}`);
   const desc = when
     ? `${host} planned a watch party on Lilin: it starts ${when}. Open the link and sign in to join; there's a countdown until then.`
     : `${host} is hosting a Watch Together room on Lilin${viewers > 1 ? ` · ${viewers} watching` : ''}. Open the link and sign in to join; playback stays in sync for everyone.`;
   return send(200, page({
-    title: `Watch ${what} together`, desc, url: link, image: art.image || `${base}/c/lilin.png`,
-    body: `<div class="card"><h1>Watch ${esc(what)} together</h1><p>${esc(host)} invited you${when ? ` (starts ${esc(when)})` : ''}. Taking you to the room…</p>
+    title: tr('Watch {0} together', what), desc, url: link, image: art.image || `${base}/c/lilin.png`,
+    body: `<div class="card"><h1>${esc(tr('Watch {0} together', what))}</h1><p>${esc(when ? tr('{0} invited you (starts {1}). Taking you to the room…', host, when) : tr('{0} invited you. Taking you to the room…', host))}</p>
       <form method="get" action="/"><input type="hidden" name="watch" value="${esc(token)}"><button type="submit">Join the room</button></form>
-      <p class="foot">You'll sign in to Lilin as usual first.</p></div>
+      <p class="foot">You’ll sign in to Lilin as usual first.</p></div>
       <script>location.replace(${JSON.stringify(join)})</script>`,
   }));
 }

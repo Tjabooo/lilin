@@ -11,6 +11,17 @@ const SVG = {
 };
 const STORE = 'live:chat';
 
+// friends: Restrict. Who a channel's strip and chat header show: the other viewers (one face per name), never a
+// restricted one, and nobody at all to a restricted viewer, who only gets the head count. The server already leaves
+// those people out of the room it sends (src/watch.js visibleMembers); this keeps the screens agreeing if it doesn't.
+export function liveWatchers(state, me, client) {
+  const seen = new Map();
+  for (const m of state?.members || []) if (m.id !== client && !seen.has(m.name)) seen.set(m.name, m);
+  const shown = me?.restricted ? [] : [...seen.values()].filter((m) => !m.quiet);
+  const count = Number.isFinite(state?.watching) ? state.watching : seen.size + 1;
+  return { shown, count };
+}
+
 // deps: { h, api, jsonPost, toast, people, social (chatLine, floatMessage, burst), reactions, me() -> user,
 //   client (this player's room id), player (the #player element), floats (#chat-layer), bursts (#reaction-layer),
 //   say(text) -> Promise, react(emoji), layout() (after the picture moved) }
@@ -105,12 +116,11 @@ export function createLiveChat(deps) {
   function drawHeader(state) {
     const ch = state.live?.channel || {};
     title.textContent = [ch.number, deps.channelName(ch)].filter((x) => x != null && x !== '').join(' ');
-    const seen = new Map();
-    for (const m of state.members || []) if (!seen.has(m.name)) seen.set(m.name, m);
-    const key = JSON.stringify([...seen.values()].map((m) => [m.name, m.avatar]));
+    const { shown: others, count } = liveWatchers(state, deps.me(), deps.client);
+    const key = JSON.stringify([count, others.map((m) => [m.name, m.avatar])]);
     if (faces.dataset.key !== key) {
       faces.dataset.key = key;
-      faces.replaceChildren(...[people.faces([...seen.values()], { size: 22, max: 4 }), seen.size ? h('small', {}, T('{0} watching', seen.size)) : null].filter(Boolean));
+      faces.replaceChildren(...[others.length ? people.faces(others, { size: 22, max: 4 }) : null, h('small', {}, T('{0} watching', count))].filter(Boolean));
     }
   }
 
