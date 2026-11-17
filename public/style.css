@@ -2030,7 +2030,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 @media (min-width: 1600px) {
   :focus-visible { outline-width: 3px; outline-offset: 3px; }
   #sheet { width: min(1320px, 90vw); }
-  .ep { grid-template-columns: 260px minmax(0, 1fr); }
+  .ep { grid-template-columns: 260px minmax(0, 1fr) auto; }
   .ep-title { font-size: 17px; }
   .ep-overview, .ep-meta { font-size: 15px; }
 }
