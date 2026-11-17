@@ -836,8 +836,10 @@ function titleCard(t) {
       ownershipBadge(t),
       svt && h('span', { class: 'svt-mark' }, 'SVT Play')),
     h('div', { class: 'name' }, t.title),
-    h('div', { class: 'sub' }, [t.year, isSeries(t) ? T('Series') : T('Film')].filter(Boolean).join(' · '),
-      t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', t.rating) }, ` · ★ ${t.rating.toFixed(1)}`) : null));
+    // Narrow grid cards drop the Film/Series word (style.css) so the rating always fits.
+    h('div', { class: 'sub' }, t.year ? String(t.year) : '',
+      h('span', { class: t.year ? 'kind' : null }, `${t.year ? ' · ' : ''}${isSeries(t) ? T('Series') : T('Film')}`),
+      t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', fmtRating(t.rating)) }, ` · ★ ${fmtRating(t.rating)}`) : null));
   button._title = t; // peek.js: the preview on hover or long press
   return h('li', {}, button);
 }
@@ -906,7 +908,7 @@ function discoverFilters() {
 }
 
 function heroSlide(t) {
-  const meta = [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${t.rating.toFixed(1)}`, ...genreNames(t)].filter(Boolean);
+  const meta = [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${fmtRating(t.rating)}`, ...genreNames(t)].filter(Boolean);
   return h('li', { class: 'hero-slide' },
     h('button', { class: 'hero-card', onclick: (e) => openDetails(t, e.currentTarget) },
       h('img', { src: t.backdrop, alt: '', decoding: 'async' }),
@@ -953,7 +955,7 @@ function bigArt(url, max = 1280) {
   if (!url || !/image\.tmdb\.org\/t\/p\/w780\//.test(url)) return url;
   return max > 780 && innerWidth * (devicePixelRatio || 1) > 900 ? url.replace('/t/p/w780/', '/t/p/w1280/') : url;
 }
-const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${t.rating.toFixed(1)}`, ...genreNames(t)].filter(Boolean).join(' · ');
+const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${fmtRating(t.rating)}`, ...genreNames(t)].filter(Boolean).join(' · ');
 // A title page's extras (logo art, runtime, genres, cast, similar titles: /api/title/:type/:id/page), kept for hours.
 const pageInfo = (type, id) => cachedFor(`/api/title/${type}/${id}/page`, 6 * 3600 * 1000).then((d) => d.page);
 
@@ -1268,6 +1270,7 @@ async function renderDiscover() {
   if (disc.genre) {
     const g = disc.genre;
     content.before(h('div', { class: 'discover-head' },
+      h('button', { class: 'back-link', onclick: () => { disc.genre = null; renderDiscover(); } }, T('‹ Discover')),
       h('h3', {}, g.name),
       segmented(SORT_LABELS, disc.sort, (sort) => { disc.sort = sort; renderDiscover(); }, T('Sort by'))));
     return pagedGrid(content, (page) => `/api/discover/genre?type=${disc.type}&movie=${g.movie || ''}&tv=${g.tv || ''}&sort=${disc.sort}&page=${page}`, signal);
@@ -1863,7 +1866,7 @@ function renderFilm() {
     pageHero(f.backdrop),
     h('div', { class: 'sheet-content' },
       pageTitle(f.filmTitle || f.title, 'movie', tmdbFilm),
-      pageFacts([f.year, f.season != null ? episodeLabel(f) : T('Film'), f.rating && h('li', { class: 'fact-rating' }, `★ ${f.rating}`), f.format?.toUpperCase(), fmtBytes(f.size)], 'movie', tmdbFilm),
+      pageFacts([f.year, f.season != null ? episodeLabel(f) : T('Film'), f.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(f.rating)}`), f.format?.toUpperCase(), fmtBytes(f.size)], 'movie', tmdbFilm),
       transferPanel(unifiedLibrary().find(e => e.files.some(file => file.id === f.id))),
       f.movieAmbiguous && h('p', { class: 'identity-note' }, state.me?.isOwner
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
@@ -2840,7 +2843,7 @@ function renderDetails(t) {
     detailsHero(t),
     h('div', { class: 'sheet-content' },
       pageTitle(t.title, t.type, t.id),
-      pageFacts([t.year, t.type === 'tv' ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${t.rating}`),
+      pageFacts([t.year, t.type === 'tv' ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(t.rating)}`),
         files.some((f) => f.done) && h('li', { class: 'fact-owned' }, T('In your library'))], t.type, t.id),
       actions,
       !isTv && filmVersionPick(t, () => renderDetails(t)),
