@@ -20,7 +20,7 @@
 // TITLES.json: [{ "label": "phm", "category": "new-film", "query": "Project Hail Mary", "type": "movie",
 //                 "year": 2026, "tmdbId": 687163, "season": 1, "episode": 3, "profile": "best" }, ...]
 //   profile is optional (default: the account's saved one, like the app). Episodes are asked for one at a time,
-//   like the episode row's Download button.
+//   like the episode row's Download button. "settings": {...} applies account settings for that title only (runTitle).
 //
 // Configuration (env, or KEY=VALUE lines in $PLAYBENCH_ENV, default ~/.config/lilin-playbench/playbench.env):
 //   LILIN_URL        e.g. http://192.0.2.10:8080 (the server as a viewer at home reaches it)
@@ -151,7 +151,20 @@ const ffprobe = (file) => new Promise((resolve) => {
 // ---------- one title, start to finish ----------
 const claimedHashes = new Set();
 const together = { active: false };
-async function runTitle(spec, { lilin, out, capMs, me, stopWhenSmooth = false }) {
+// spec.settings: the test account's settings for this title only, put back afterwards, e.g. someone who prefers 4K:
+// { "downloadProfile": "best", "quality": "2160p" }. (A setting Lilin won't take back as it was goes back to its default.)
+const SETTING_DEFAULTS = { downloadProfile: 'balanced', quality: 'all' };
+async function runTitle(spec, ctx) {
+  if (!spec.settings) return runTitleNow(spec, ctx);
+  const before = (await ctx.lilin.api('/api/me')).me.settings || {};
+  const restore = Object.fromEntries(Object.keys(spec.settings).map((k) => [k, before[k] || SETTING_DEFAULTS[k] || before[k]]));
+  await ctx.lilin.api('/api/me', { method: 'POST', body: spec.settings });
+  log(`${spec.label}: account settings for this title ${JSON.stringify(spec.settings)}`);
+  try { return await runTitleNow(spec, ctx); } finally {
+    await ctx.lilin.api('/api/me', { method: 'POST', body: restore }).catch((e) => log(`${spec.label}: COULDN'T PUT THE SETTINGS BACK (${e.message}): ${JSON.stringify(restore)}`));
+  }
+}
+async function runTitleNow(spec, { lilin, out, capMs, me, stopWhenSmooth = false }) {
   const run = `${spec.label}@${stamp()}`;
   const ctl = new AbortController();
   const { signal } = ctl;
