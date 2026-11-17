@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>D · Watch (phone, owner)</title>
+<link rel="stylesheet" href="../../../../../public/style.css">
+<link rel="stylesheet" href="mock.css">
+<script>
+  // #a = annotate where each block came from; #s = show the page scrolled past the billboard
+  const h = location.hash;
+  if (h.includes('a')) document.documentElement.classList.add('annot');
+  if (h.includes('s')) document.documentElement.classList.add('scrolled', 'shift');
+</script>
+<style>
+  html.shift main { margin-top: -540px; }
+  html.shift .billboard { visibility: hidden; }
+</style>
+</head>
+<body class="has-billboard">
+<header class="top">
+  <div class="top-inner">
+    <h1 class="wordmark"><a>Lilin</a></h1>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M10 9.5v5l4-2.5z"/></svg><span>Watch</span><b class="tab-badge">2</b></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Find</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg><span>Live</span></button>
+      <button class="tab"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg><span>House</span><i class="dot"></i></button>
+      <button class="tab"><span class="face" style="--tint:#f4c152">O</span><span>You</span></button>
+    </nav>
+    <div class="top-actions">
+      <button class="news-btn"><span class="news-bulb"></span><span class="news-label">What’s new</span></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="view">
+    <div class="billboard" data-from="Billboard: personal picks, always playable (was Trending)">
+      <ul class="bb-track">
+        <li class="bb-slide is-active">
+          <div class="bb-art"><img class="bb-img is-loaded" src="img/bb-phone.jpg" alt=""></div>
+          <div class="bb-copy">
+            <p class="kicker bb-rank"><i class="bb-rank-bulb"></i>Ready for you · you saved it</p>
+            <h2 class="bb-title">The Odyssey</h2>
+            <p class="bb-meta"><span>2026 · Film · 2 h 52 m · ★ 8.0 · 4K</span></p>
+            <div class="bb-actions">
+              <button class="play-btn"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg>Play</button>
+              <button class="btn-glass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>More info</button>
+            </div>
+          </div>
+          <div class="bb-foot"><div class="bb-bulbs"><button class="bb-bulb" aria-current="true"></button><button class="bb-bulb"></button><button class="bb-bulb"></button><button class="bb-bulb"></button><button class="bb-bulb"></button></div></div>
+        </li>
+      </ul>
+    </div>
+
+    <section class="shelf compact" data-from="was Discover row 1 + Library shelf">
+      <div class="shelf-head"><div><h3>Keep watching</h3></div></div>
+      <ul class="shelf-items wide-cards">
+        <li><button class="title-card"><div class="wide-art"><img src="img/still-evildeadburn.jpg" alt=""><div class="poster-progress"><i style="width:86%"></i></div></div><div class="name">Evil Dead Burn</div><div class="sub">8 min left</div></button></li>
+        <li><button class="title-card"><div class="wide-art"><img src="img/nana.jpg" alt="" style="object-position:50% 20%"><div class="poster-progress"><i style="width:30%"></i></div></div><div class="name">NANA</div><div class="sub">Up next · S1 E27</div></button></li>
+      </ul>
+    </section>
+
+    <section class="shelf compact" data-from="was 7 download surfaces">
+      <div class="shelf-head"><div><h3>On its way</h3></div><span class="row-note">2 on the way · <b>1 needs a look</b> ›</span></div>
+      <ul class="shelf-items wide-cards">
+        <li><button class="title-card"><div class="wide-art"><img src="img/rings.jpg" alt="" style="object-position:50% 30%"><span class="transfer-pill">43 % · Play now</span><div class="poster-progress"><i style="width:43%"></i></div></div><div class="name">The Rings of Power</div><div class="sub">Season 2 · 6 of 8 episodes</div></button></li>
+        <li><button class="title-card"><div class="wide-art"><img src="img/avengers.jpg" alt="" style="object-position:50% 25%"><span class="transfer-pill">Preparing playback</span></div><div class="name">Avengers: Doomsday</div><div class="sub">Ready in about 20 min</div></button></li>
+      </ul>
+    </section>
+
+    <section class="shelf compact" data-from="New in your library + saved now ready + new episodes">
+      <div class="shelf-head"><div><h3>Ready for you</h3></div></div>
+      <ul class="shelf-items">
+        <li><button class="title-card"><div class="poster"><img src="img/gilmore.jpg" alt=""><span class="new-badge">New</span></div><div class="name">Gilmore Girls</div><div class="sub">S7 E3 arrived</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/kon.jpg" alt=""></div><div class="name">K-ON!</div><div class="sub">New on Lilin</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/10things.jpg" alt=""></div><div class="name">10 Things I Hate About You</div><div class="sub">You saved it</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/episode1.jpg" alt=""></div><div class="name">Star Wars: Episode I</div><div class="sub">New on Lilin</div></button></li>
+      </ul>
+    </section>
+
+    <section class="shelf compact" data-from="Saved for later (Discover) + Coming up (Library)">
+      <div class="shelf-head"><div><h3>Your list</h3></div><span class="row-note">Saved 9 · Following 4 ›</span></div>
+      <ul class="shelf-items">
+        <li><button class="title-card"><div class="poster"><img src="img/1212.jpg" alt=""><span class="date-chip">Fri 21 Nov</span></div><div class="name">12 12 12</div><div class="sub">Saved · in cinemas</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/hungergames.jpg" alt=""><span class="date-chip">Dec</span></div><div class="name">Sunrise on the Reaping</div><div class="sub">Saved</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/othermommy.jpg" alt=""><span class="date-chip">S2 · Mar</span></div><div class="name">Other Mommy</div><div class="sub">Following</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/visionquest.jpg" alt=""></div><div class="name">VisionQuest</div><div class="sub">Following</div></button></li>
+      </ul>
+    </section>
+
+    <section class="shelf compact" data-from="was Discover (social.js)">
+      <div class="shelf-head"><div><h3>Popular on Lilin</h3></div></div>
+      <ul class="shelf-items">
+        <li><button class="title-card"><div class="poster"><img src="img/house.jpg" alt=""></div><div class="name">House</div><div class="sub">5 people watching</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/southpark.jpg" alt=""></div><div class="name">South Park</div><div class="sub">3 people watching</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/evildead.jpg" alt=""></div><div class="name">Evil Dead</div><div class="sub">co-owner loved it</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/domestics.jpg" alt=""></div><div class="name">The Domestics</div><div class="sub">2 people</div></button></li>
+      </ul>
+    </section>
+
+    <div data-from="was the Library tab">
+      <div class="lib-head"><h3>Your library</h3></div>
+      <p class="lib-cap">Shared with Sam and Alex · 142 titles</p>
+      <div class="lib-tools">
+        <button class="chip" aria-pressed="true">All</button><button class="chip">Films</button><button class="chip">Shows</button>
+        <span class="sep"></span>
+        <button class="chip">Ready</button><button class="chip">On the way 2</button><button class="chip">Needs a look 1</button><button class="chip">Leaving soon</button>
+        <span class="sep"></span>
+        <button class="chip">Newest <i class="chev"></i></button>
+        <button class="chip"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter</button>
+      </div>
+      <ul class="grid">
+        <li><button class="title-card"><div class="poster"><img src="img/jigsaw.jpg" alt=""><span class="poster-expiry is-soon">2 d left</span></div><div class="name">Jigsaw</div><div class="sub">Film</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/playdead.jpg" alt=""><div class="poster-progress"><i style="width:40%"></i></div></div><div class="name">Play Dead</div><div class="sub">Film</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/bringher.jpg" alt=""></div><div class="name">Bring Her Back</div><div class="sub">Film</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/evildead2.jpg" alt=""></div><div class="name">The Evil Dead</div><div class="sub">Film</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/daddyshead.jpg" alt=""></div><div class="name">Daddy’s Head</div><div class="sub">Film</div></button></li>
+        <li><button class="title-card"><div class="poster"><img src="img/odyssey.jpg" alt=""><span class="new-badge">New</span></div><div class="name">The Odyssey</div><div class="sub">Film · 4K</div></button></li>
+      </ul>
+      <p class="lib-foot">142 titles · 2.1 TB · titles nobody has watched for 30 days leave the server · next to go: Jigsaw in 2 days, <a>keep it</a></p>
+    </div>
+  </section>
+</main>
+</body>
+</html>
