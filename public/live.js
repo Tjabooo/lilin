@@ -68,7 +68,8 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
         onclick: () => tune(c.id) },
         h('span', { class: 'guide-number' }, String(c.number)),
         h('span', { class: 'guide-channel-text' }, h('b', {}, channelName(c, me())),
-          watching.length ? h('span', { class: 'guide-faces' }, people.faces(watching, { size: 18, max: 3 })) : null));
+          watching.length ? h('span', { class: 'guide-faces' }, people.faces(watching, { size: 18, max: 3 }))
+            : c.watching > (c.faces || []).length ? h('span', { class: 'guide-faces guide-count' }, T('{0} watching', c.watching)) : null)); // friends: Restrict
       const lane = h('div', { class: 'guide-lane', style: `width:${width}px` });
       for (const p of c.programmes) {
         const left = Math.max(0, x(p.s)), right = Math.min(width, x(p.e));

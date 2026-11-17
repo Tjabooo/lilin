@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-moments",
+  "date": "2026-11-17",
+  "title": "Moments",
+  "items": [
+    {
+      "title": "Send a bit of a film or episode",
+      "text": "While you watch, tap ⋯ in the player and choose Clip a moment. Drag the two yellow handles to pick up to three minutes, press Preview to check it, then Next. Add a note if you like, pick friends to send it to, or copy a link that anyone can open. Moments friends send you are in Settings → Moments, and with notifications on you hear when one arrives. Links stop working after 30 days, or straight away if you delete the moment."
+    }
+  ]
+},
+{
   "id": "2026-11-17-vibes",
   "date": "2026-11-17",
   "title": "Moods",

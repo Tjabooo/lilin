@@ -1174,6 +1174,9 @@ html.has-vt .view { animation: none; }
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 .player-game { color: var(--dust); font-weight: 500; }
+/* friends: the sender's note on a shared moment's page (/c/m/, moments.js) */
+.player-moment-note { position: absolute; left: max(16px, var(--safe-left, 0px)); right: 16px; top: calc(var(--safe-top, 0px) + 56px); margin: 0; max-width: 60ch; font-size: 14px; color: var(--on-image, #fff); opacity: .9; text-shadow: 0 1px 6px rgb(0 0 0 / .6); transition: opacity var(--d-2, .2s); }
+.player:not(.ui-visible) .player-moment-note { opacity: 0; }
 .player-episode { color: rgba(255, 255, 255, 0.78); font-weight: 500; }
 .player-error {
   position: absolute; z-index: 3; left: var(--gutter); right: var(--gutter); top: 45%;

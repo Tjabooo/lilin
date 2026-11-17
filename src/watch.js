@@ -200,6 +200,7 @@ export class WatchRooms {
       ready: false, buffering: false, blocked: false, rtt: 0, seen: this.now(), streams: new Set() });
     room.members.get(client).seen = this.now();
     room.members.get(client).name = String(user.name || 'Viewer').slice(0, 80);
+    room.members.get(client).quiet = Boolean(user.restricted && !user.isOwner); // friends: Restrict (Live TV strip hides their face)
     room.members.get(client).avatar = user.avatar || null;
     if (room.live) { // nobody hosts a channel
       const first = room.members.size === 1 && !existing;
@@ -249,7 +250,7 @@ export class WatchRooms {
       waitingForDownload: Boolean(room.wantPlay && this.downloadHolds(room)),
       download: room.download ? { ...room.download } : null,
       members: [...room.members.values()].map((m) => ({ id: m.id, name: m.name, avatar: m.avatar || null, ready: m.ready,
-        connected: m.streams.size > 0, buffering: m.buffering, blocked: m.blocked })) };
+        connected: m.streams.size > 0, buffering: m.buffering, blocked: m.blocked, ...(room.live && m.quiet ? { quiet: true } : {}) })) };
   }
 
   preview(token) {

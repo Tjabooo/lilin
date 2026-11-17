@@ -943,9 +943,10 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
 
 // Discord shows the thumbnail as a large card; clicking it opens this page. The video is the
 // full-quality copy, played in Lilin's player, and the page has no way into the rest of Lilin.
-function playerPage({ title, game, link }) {
+// friends: moments.js (/c/m/<token>) uses it too, with a description, a note under the title and subtitles.
+export function playerPage({ title, game, link, desc = `${game} · watch the clip`, note = '', track = null }) {
   const local = new URL(link).pathname; // same host the viewer used
-  const og = [['og:site_name', 'Lilin'], ['og:title', title], ['og:description', `${game} · watch the clip`], ['og:url', link],
+  const og = [['og:site_name', 'Lilin'], ['og:title', title], ['og:description', desc], ['og:url', link],
     ['og:type', 'website'], ['og:image', `${link}/thumb.jpg`], ['twitter:card', 'summary_large_image'], ['twitter:image', `${link}/thumb.jpg`]]
     .map(([k, v]) => `<meta ${k.startsWith('twitter:') ? 'name' : 'property'}="${k}" content="${esc(v)}">`).join('\n  ');
   return `<!doctype html>
@@ -967,12 +968,12 @@ function playerPage({ title, game, link }) {
 <body class="in-player">
   <div class="player ui-visible is-paused" id="player" role="region" aria-label="${esc(title)}">
     <div class="player-stage" id="player-stage">
-      <video id="video" src="${esc(`${local}/video.mp4`)}" poster="${esc(`${local}/thumb.jpg`)}" playsinline preload="auto"></video>
+      <video id="video" src="${esc(`${local}/video.mp4`)}" poster="${esc(`${local}/thumb.jpg`)}" playsinline preload="auto">${track ? `<track kind="subtitles" src="${esc(track)}" default>` : ''}</video>
       <div class="player-spinner" id="player-spinner" hidden></div>
       <div class="player-osd" id="player-osd" aria-hidden="true"></div>
     </div>
     <div class="player-bar">
-      <p class="player-title" id="player-title">${esc(title)}<span class="player-game"> · ${esc(game)}</span></p>
+      <p class="player-title" id="player-title">${esc(title)}<span class="player-game"> · ${esc(game)}</span></p>${note ? `<p class="player-moment-note">${esc(note)}</p>` : ''}
     </div>
     <div class="player-center">
       <button class="pc-btn pc-skip" data-skip="-10" aria-label="Back 10 seconds (J)"></button>

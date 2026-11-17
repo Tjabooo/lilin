@@ -27,6 +27,7 @@ import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
+import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -332,6 +333,13 @@ clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => conv
 ideas.initIdeas({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
 scout.initScout({ dataDir: DATA_DIR }); // scout
+moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, // friends: Moments
+  resolve: async (key) => { const i = key && (await scanLibrary())?.find((x) => accounts.mediaKey(x.full) === key); return i ? converter.preferConverted(i.full) : null; },
+  ready: (m, ids) => { // a moment sent to friends can be watched now: tell them
+    const from = accounts.userById(moments.ownerOf(m.id))?.name || 'Someone';
+    notify(ids, 'share', { title: `${from} sent you a moment`, body: m.note || [m.title, m.label].filter(Boolean).join(' · '), url: `/?moment=${m.id}`, tag: `moment-${m.id}` });
+    for (const id of ids) live.publish('moments', { audience: 'user', userId: id });
+  } });
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
@@ -3888,6 +3896,38 @@ async function handleApi(req, res, url) {
     }
     throw new HttpError(404, 'Not found.');
   }
+  // friends: Moments (moments.js): cut a piece of something you're watching, send it to friends or copy its link.
+  if (p === '/api/moments' || p.startsWith('/api/moments/')) {
+    try {
+      if (p === '/api/moments' && req.method === 'GET') return sendJson(res, 200, moments.list(user));
+      if (p === '/api/moments' && req.method === 'POST') {
+        const body = await readJson(req, 300_000);
+        const kind = String(body.kind || ''), id = String(body.id || '');
+        if (!['lib', 'dl'].includes(kind)) throw new HttpError(400, 'Moments can be made from your library.');
+        const source = await sourceFile(kind, id);
+        const key = accounts.mediaKey(source);
+        const inRoom = [...watchRooms.rooms.values()].some((r) => r.media?.mediaKey === key && [...r.members.values()].some((v) => v.userId === user.id));
+        if (!user.isOwner && !inRoom && !(key && accounts.hasEntry(user.id, key))) throw new HttpError(403, 'That isn’t in your library.');
+        const info = parseFile(source);
+        const moment = await moments.create(user, { file: converter.preferConverted(source), mediaKey: key, audioLang: user.settings?.audioLang || '',
+          title: String(body.title || '') || info.title, label: String(body.label || ''), titleKey: String(body.titleKey || '') }, body);
+        activity.record(req, 'moment', `${moment.title}${moment.label ? ` ${moment.label}` : ''}`);
+        if (Array.isArray(body.to) && body.to.length && !accounts.isRestricted(user)) {
+          const r = moments.send(user, moment.id, body.to);
+          return sendJson(res, 200, { ...r, link: `${clips.baseUrl(req)}${moment.url}` });
+        }
+        return sendJson(res, 200, { moment, sent: 0, link: `${clips.baseUrl(req)}${moment.url}` });
+      }
+      if ((m = p.match(/^\/api\/moments\/([a-f0-9]{12})\/(send|delete|seen)$/)) && req.method === 'POST') {
+        const body = await readJson(req);
+        if (m[2] === 'send') return sendJson(res, 200, moments.send(user, m[1], body.userIds));
+        if (m[2] === 'delete') return sendJson(res, 200, moments.remove(user, m[1]));
+        moments.markSeen(user, m[1]);
+        return sendJson(res, 200, { ok: true });
+      }
+    } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+    throw new HttpError(404, 'Not found.');
+  }
   // friends: the friends list (friends.js). Requests need the other person's yes; restricted people have none.
   if (p === '/api/friends' || p.startsWith('/api/friends/')) {
     if (p === '/api/friends' && req.method === 'GET') return sendJson(res, 200, friends.view(user));
@@ -4952,8 +4992,8 @@ async function handleRequest(req, res) {
     const allowed = req.method === 'GET' || req.method === 'HEAD'
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
@@ -4977,6 +5017,7 @@ async function handleRequest(req, res) {
       else if (await oidc.handle(req, res, url)) { /* sign-in provider for Cloudflare Access */ }
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
         && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))
+        && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
         && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))) throw new HttpError(404, 'Not found.');
     }
     else if (isAndroidPath(url.pathname)) androidTv.handle(req, res, url, { home: !req.auth.remote, gateway: Boolean(req.tvGateway) });

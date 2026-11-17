@@ -191,6 +191,16 @@ the CPU. See [hardware-acceleration.md](hardware-acceleration.md).
 | --- | --- | --- |
 | `CLIPS_DIR` | | Folder game clips are synced to (`Kept/<game>/`, `Trimmed Clips/`). Blank hides the Clips tab. |
 
+## Moments
+
+Moments are short pieces (2 s to 3 min) of a film or episode that people cut in the player (⋯ → Clip a moment) and send to friends or share by link. See [architecture.md](architecture.md#moments).
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `MOMENTS_DIR` | `moments` in `CACHE_DIR` | Folder for the cut moments (small H.264 MP4s, a thumbnail and subtitles each). |
+| `MOMENTS_DAYS` | `30` | Days a moment, and its link, is kept. The person who made it can delete it sooner. |
+| `MOMENTS_MAX_GB` | `20` | Space all moments together may use. Past it the oldest are deleted first. |
+
 ## Invites
 
 Invites add people to the email list your Cloudflare Access policy allows. See

@@ -105,7 +105,7 @@ There's no separate login. Cloudflare Access adds the signed-in email to every r
 - **Auto-delete.** Each video in someone's library has a date it goes: by default 7 days after the download finished (or after it was added from the server). **Keep 7 more days** pushes it back. When the date passes it leaves that person's library, and once it's in nobody's library the file is deleted (with its MP4 copy and subtitles), checked every 10 minutes. A file that's playing is retried later. The owner can change the period (or turn it off), the extension, and how many times a video can be extended, and can exempt someone (**Never auto-delete**) in Settings.
 - **Deleting** takes a video out of your library; the file is only deleted when nobody else has it. The owner can also delete it for everyone.
 - **Privacy.** People only see their own library and downloads. Search tells them a title is on the server, not whose it is. The owner's Settings tab lists everyone with how much they have.
-- **Restrict.** The owner can mark a person **Restrict** in Settings → People (`users.restricted`; never the owner). A restricted person keeps Watch Together (rooms, Live TV and room chat) but no other social features: they don't see who else liked a title and nobody sees their likes (counts stay), they have no friends list and can't be found in it, they aren't offered as a Watch Together invitee and can't send notification invites. They share and receive by copying links only. Code reads it through `isRestricted(user)` and `restrictedIds()` in `src/accounts.js`.
+- **Restrict.** The owner can mark a person **Restrict** in Settings → People (`users.restricted`; never the owner). A restricted person keeps Watch Together (rooms, Live TV and room chat) but no other social features: they don't see who else liked a title and nobody sees their likes (counts stay), they have no friends list and can't be found in it, they aren't offered as a Watch Together invitee and can't send notification invites, and nobody can send them a moment. They share and receive by copying links only. Code reads it through `isRestricted(user)` and `restrictedIds()` in `src/accounts.js`.
 - **Staying signed in.** How long a sign-in lasts is Cloudflare's setting: Zero Trust → Access → Applications → your Lilin app → **Session duration** (24 hours by default; up to a month). If a sign-in runs out while Lilin is open, it says so and signs back in with one tap.
 
 ## Activity
@@ -143,6 +143,7 @@ People turn it on per device in **Settings → Notifications** and switch each k
 | Downloads ready | `pushDownload` | Something you downloaded (or asked for) landed in your library; a season pack's episodes replace each other's notification |
 | New episodes | `pushEpisode` | A show you follow got an episode downloaded for you, or an episode of a show in your library was downloaded by someone else; once per episode. Nothing about shows or films that aren't in your library |
 | Watch Together invites | `pushWatch` | Someone in a room taps **Invite** and picks you; opens the room's join screen. Off: you aren't offered as an invitee |
+| Moments | `pushShare` | A friend sent you a moment and it's ready to watch; opens and plays it (`/?moment=<id>`) |
 | Friends | `pushFriend` | Someone asks to be your friend, or says yes to your request; opens Settings → Friends (`/?friends=1`) |
 | Lilin updates | `pushUpdate` | A new update in `whats-new.json` that you haven't read yet: its title, a short summary and *Tap to read more*, which opens its notes (`/?update=<id>`). Sent once per update (`.lilin-update-pushes.json` in `DATA_DIR`), only for updates dated today or yesterday, after the file has sat unchanged for 90 s; several at once become one notification |
 
@@ -151,6 +152,12 @@ Push endpoints must belong to a known push service (Google FCM, Mozilla, Apple, 
 ## Friends
 
 Settings → **Friends** (src/friends.js, public/friends.js; table `friend_links` in `.lilin.db`). People find each other by name (two letters or more), send a request, and become friends once the other person accepts; asking someone who already asked you accepts theirs. Declining, taking back a request and removing a friend are quiet (no notification). Restricted people (see Accounts) can't be found, can't ask or be asked, and their friendships are hidden while they're restricted (kept, so lifting it brings them back). The shared Home network account has no friends. Other code uses `areFriends(a, b)` and `friendIds(userId)`; Watch Together lists friends first among invitees.
+
+## Moments
+
+A moment is a piece of a film or episode (2 s to 3 min) someone cut in the player (src/moments.js, public/moments.js; tables `moments` and `moment_shares` in `.lilin.db`, files in `MOMENTS_DIR`). Not the owner's game Clips. In the player, **⋯ → Clip a moment** pauses and shows a zoomed strip of about six minutes around the current spot, with two handles (drag, or arrow keys; the picture follows), **Start here** / **End here** for the playhead, and **Preview**. In a Watch Together room the picture isn't moved; only the handles are. **Next** takes a note, whether to keep the subtitles that were on (the cues the player showed, saved as WebVTT beside the moment, not burned in), and which friends to send it to; **Copy link** makes the link only. You can clip what's in your library (the owner anything, room members the room's video).
+
+The server cuts it in the background, one at a time: when the source is browser-safe H.264 (8-bit, SDR, up to 1080p) and a keyframe lies within 0.25 s of the start, the video is copied unchanged; otherwise it is encoded to H.264 (NVENC when available, else x264 veryfast; at most 1080p, HDR tone-mapped). The audio is the person's audio language (or the default track), as stereo AAC. Each moment gets an unguessable 22-character link, `/c/m/<token>`: a public page like a shared game clip (Lilin's player with only that piece, the note, a thumbnail for chat previews). Friends it was sent to get it in Settings → **Moments** (Shared with you) and a notification once it's ready (`pushShare`); opening the notification plays it. The maker sees their moments there too, with Copy link and Delete (the link stops working at once). Moments are deleted after `MOMENTS_DAYS` and the oldest go first past `MOMENTS_MAX_GB`. Restricted people can make links but can't send moments to anyone directly, and nobody can send them one.
 
 ## Watch Together
 
@@ -231,6 +238,10 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET` | `/api/friends` | Your friends, requests you got (`incoming`) and sent (`outgoing`) |
 | `GET` | `/api/friends/search?q=` | People to add by name (not restricted people), with `state`: `friend`, `sent`, `received` or `null` |
 | `POST` | `/api/friends/request`, `/api/friends/accept`, `/api/friends/remove` | `{ id }`: ask, accept, or decline / take back / remove |
+| `GET` | `/api/moments` | Moments you made (`mine`) and that friends sent you (`shared`, with `seen`) |
+| `POST` | `/api/moments` | `{ kind: "lib" \| "dl", id, start, end, note?, title?, label?, subtitles?: [{ start, end, text }], to?: [userId] }`: cut a moment (and send it); returns `{ moment, link, sent }` |
+| `POST` | `/api/moments/<id>/send`, `/delete`, `/seen` | Send to friends (`{ userIds }`), delete (yours: for everyone; sent to you: off your list), mark as watched |
+| `GET` | `/c/m/<token>` | Public moment page; `/video.mp4`, `/thumb.jpg`, `/subs.vtt` |
 | `GET` | `/api/watch/parties` | Planned parties you made or joined |
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |

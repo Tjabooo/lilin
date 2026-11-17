@@ -22,6 +22,7 @@ import { createDocumentaries } from './documentaries.js';
 import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pages
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
+import { createMoments } from './moments.js'; // friends: Moments
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
@@ -2394,6 +2395,7 @@ async function applyLive() {
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('moments')) { momentsUI.invalidate(); if (view === 'settings') jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
   if (has('friends') || has('people')) { friendsUI.invalidate(); if (view === 'settings') jobs.push(friendsUI.load().then(renderSettingsWhenStill)); } // friends
   if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
@@ -4637,6 +4639,9 @@ function renderLiveStrip() {
   const ch = info.channel || {};
   const others = (party.state.members || []).filter((m) => m.id !== watchClient);
   const seen = new Map(); for (const m of others) if (!seen.has(m.name)) seen.set(m.name, m);
+  // friends: Restrict. Restricted viewers see how many are watching, not who; restricted people's faces stay out.
+  const blind = Boolean(state.me?.restricted);
+  const shown = blind ? [] : [...seen.values()].filter((m) => !m.quiet);
   const now = info.now, next = info.next;
   const done = now ? Math.min(1, Math.max(0, (Date.now() - now.s) / (now.e - now.s))) : 0;
   const sig = JSON.stringify([ch.id, now?.s, next?.s, [...seen.keys()], Math.round(done * 200)]);
@@ -4647,7 +4652,7 @@ function renderLiveStrip() {
     h('div', { class: 'live-strip-top' },
       h('span', { class: 'live-pill' }, h('i', { 'aria-hidden': 'true' }), T('Live')),
       h('b', { class: 'live-strip-channel' }, `${ch.number ?? ''} ${channelName(ch, state.me)}`.trim()),
-      seen.size ? h('span', { class: 'live-strip-faces', title: namesText([...seen.keys()]) }, people.faces([...seen.values()], { size: 24, max: 4 }),
+      seen.size ? h('span', { class: 'live-strip-faces', title: shown.length ? namesText(shown.map((m) => m.name)) : null }, shown.length ? people.faces(shown, { size: 24, max: 4 }) : null,
         h('small', {}, T('{0} watching', seen.size + 1))) : null,
       h('span', { class: 'live-surf' },
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': T('Previous channel'), onclick: (e) => { e.stopPropagation(); surf(-1); } }, '▲'),
@@ -5001,7 +5006,7 @@ const mediaId = (f) => (f.kind === 'lib' || f.kind === 'part' ? f.id || f.key : 
 // Clips and note videos play in the player's plain mode: no subtitles, audio choices, casting,
 // Watch Together, Up next or resume points.
 // A video still downloading (Play now) plays the same way until the finished file is there, but keeps its resume point.
-function plainMedia(f) { return f?.kind === 'clip' || f?.kind === 'note' || f?.kind === 'part'; }
+function plainMedia(f) { return f?.kind === 'clip' || f?.kind === 'note' || f?.kind === 'part' || f?.kind === 'moment'; } // moment: friends
 const sourceIsCurrent = (f) => Boolean(f) && (f.hlsPlayer ? true : video.currentSrc === f.sourceUrl);
 
 // ---- subtitles ----
@@ -6360,6 +6365,18 @@ const seekTip = $('#seek-tip');
 // The frame at the hovered time sits in the tip (seek-preview.js); a sheet arriving late re-places it.
 let seekTipX = null;
 const seekPreview = createSeekPreview(seekTip, () => { if (!seekTip.hidden && seekTipX != null) showSeekTip(seekTipX); });
+// friends: Moments (moments.js): player ⋯ → Clip a moment, and Settings → Moments.
+const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, copyWithToast, fmtAgo, video, playerEl: $('#player'),
+  current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
+  describe: (f) => {
+    const show = f.show != null ? state.libraryShows.find((s) => s.id === f.show) : null;
+    const pad = (n) => String(n).padStart(2, '0');
+    return { title: show?.title || f.filmTitle || f.title || '',
+      label: f.season != null ? (f.episode != null ? `S${pad(f.season)} E${pad(f.episode)}` : `S${pad(f.season)}`) : f.year ? String(f.year) : '' };
+  },
+  closeOthers: () => { closeCcMenu(); closeAudioMenu(); closeQualityMenu(); closeNightMenu(); },
+  openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
+  rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
 const muteBtn = $('#pc-mute');
 const volInput = $('#pc-vol');
@@ -6371,7 +6388,7 @@ const osdEl = $('#player-osd');
 const spinner = $('#player-spinner');
 const helpEl = $('#player-help');
 
-const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || (watchPanelOpen && !roomDocked());
+const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || (watchPanelOpen && !roomDocked()) || momentsUI.menuOpen(); // friends: Moments
 let lastPointer = 'mouse';
 let overControls = false;
 let uiTimer = null;
@@ -6928,6 +6945,7 @@ document.addEventListener('keyup', (e) => { if (e.key === ' ' && playerKeyTarget
 // closes and Next episode, which keeps the same overlay, fullscreen element and history entry.
 function resetPlayerMedia() {
   saveProgress(true);
+  momentsUI.stop(); // friends: leave Clip a moment
   playedSince = 0; playTick = null;
   seekPreview.load(null);
   const old = current;
@@ -7002,6 +7020,7 @@ async function loadPlayerMedia(f, opts = {}) {
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
   const err = $('#player-error');
   setPlayerTitle(f);
+  momentsUI.sync(); // friends: the ⋯ menu (Clip a moment) for library videos
   playerEl.classList.toggle('is-clip', plainMedia(f));
   updatePlayState();
   updateTime();
@@ -7015,6 +7034,18 @@ async function loadPlayerMedia(f, opts = {}) {
     const clipBase = `/api/clips/${encodeURIComponent(f.id)}/preview`;
     seekPreview.load({ indexUrl: clipBase, sheetUrl: (n, key) => `${clipBase}/${n}.jpg?k=${key}` });
     setPlayerSource(`/api/clips/${encodeURIComponent(f.id)}/video`, session);
+    video.play().catch(() => { /* autoplay blocked: the controls are there */ });
+    return;
+  }
+  // friends: a shared moment (moments.js), from its own small file; its subtitles drawn like any others.
+  if (f.kind === 'moment') {
+    renderParty();
+    seekPreview.load(null);
+    setPlayerSource(`${f.url}/video.mp4`, session);
+    if (f.subtitles) {
+      video.append(h('track', { kind: 'subtitles', srclang: 'und', label: T('Subtitles'), src: `${f.url}/subs.vtt`, default: true }));
+      ccActive = 'und'; applySubModes();
+    }
     video.play().catch(() => { /* autoplay blocked: the controls are there */ });
     return;
   }
@@ -7720,6 +7751,7 @@ function renderSettings() {
 
   if (me.via === 'session' || me.hasPassword) out.push(accountSection());
   out.push(...friendsUI.settings()); // friends
+  out.push(...momentsUI.settings()); // friends: Moments
 
   out.push(...appearanceSection());
 
@@ -8077,6 +8109,8 @@ function notificationSettings() {
       toggle(p.pushUpdate !== false, (v) => saveMe({ pushUpdate: v }), T('Notify about Lilin updates'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Friends'), T('When someone asks to be your friend, or says yes.'), // friends
       toggle(p.pushFriend !== false, (v) => saveMe({ pushFriend: v }), T('Notify about friend requests'))));
+    if (!state.me?.restricted) out.push(settingsRow(T('Moments'), T('When a friend sends you a moment from a film or episode.'), // friends
+      toggle(p.pushShare !== false, (v) => saveMe({ pushShare: v }), T('Notify about moments friends send'))));
     if (state.me?.isOwner) out.push(settingsRow(T('New ideas'), T('When someone sends an idea through the idea box.'),
       toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about new ideas'))));
     if (state.me?.isOwner) out.push(settingsRow(T('Agents'), T('When a script or AI agent on your home machines asks for your attention.'),
@@ -8315,6 +8349,7 @@ const ACTIVITY_TEXT = {
   slow: (d) => T('swapped out {0}, which downloaded too slowly to watch while downloading', d),
   settings: (d) => T('changed the server rules ({0})', d),
   permission: (d) => T('changed a permission: {0}', d),
+  moment: (d) => T('made a moment of {0}', d), // friends
 };
 const personName = (person) => typeof person === 'string' ? person.split('@')[0]
   : person.name || String(person.user || T('Viewer')).split('@')[0];
@@ -10126,6 +10161,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
   if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
+  if (url.searchParams.get('moment')) { momentsUI.jumpTo(url.searchParams.get('moment')); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends: Moments
   if (url.searchParams.has('friends')) { friendsUI.jumpNext(); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends
   if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
@@ -10165,6 +10201,12 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (noteId) {
     const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     if (state.status.admin && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
+  }
+  // friends: a "sent you a moment" notification opens Lilin as ?moment=<id>: Settings → Moments, and it plays.
+  if (new URL(location.href).searchParams.get('moment')) {
+    const url = new URL(location.href); const id = url.searchParams.get('moment'); url.searchParams.delete('moment'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    momentsUI.jumpTo(id);
+    if (state.view === 'settings') renderSettings(); else await setView('settings');
   }
   // friends: a friend request notification opens Lilin as ?friends=1: Settings, scrolled to Friends.
   if (new URL(location.href).searchParams.has('friends')) {

@@ -104,7 +104,14 @@ export function createLiveTv(deps) {
       name: deps.name(), now: t, from, to, owner: Boolean(user.isOwner),
       channels: shown.map(({ def, pool }) => ({
         ...describe(def), size: pool.length,
-        faces: watchRooms.liveFaces(liveToken(def.id)),
+        // friends: Restrict. Restricted viewers get a count instead of faces; nobody sees restricted people's faces.
+        ...(() => {
+          const room = watchRooms.rooms.get(liveToken(def.id));
+          const viewers = room ? [...new Map([...room.members.values()].map((m) => [m.userId, m])).values()] : [];
+          const blind = Boolean(accounts.isRestricted?.(user)), hidden = accounts.restrictedIds?.() || new Set();
+          return { watching: viewers.length,
+            faces: blind ? [] : viewers.filter((m) => !hidden.has(m.userId)).slice(0, 8).map((m) => ({ name: m.name, avatar: m.avatar || null })) };
+        })(),
         programmes: channels.between(def.id, from, to).map(programme),
       })).sort((a, b) => a.number - b.number),
     };

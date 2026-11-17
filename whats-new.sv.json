@@ -1,4 +1,13 @@
 {
+  "2026-11-17-moments": {
+    "title": "Ögonblick",
+    "items": {
+      "Send a bit of a film or episode": {
+        "title": "Skicka en bit av en film eller ett avsnitt",
+        "text": "Medan du tittar trycker du på ⋯ i spelaren och väljer Klipp ut ett ögonblick. Dra de två gula handtagen för att välja upp till tre minuter, tryck på Förhandsvisa för att kolla, och sedan Nästa. Skriv en rad om du vill, välj vänner att skicka det till, eller kopiera en länk som vem som helst kan öppna. Ögonblick som vänner skickar dig finns under Inställningar → Ögonblick, och med aviseringar på får du veta när ett kommer. Länkarna slutar fungera efter 30 dagar, eller direkt om du raderar ögonblicket."
+      }
+    }
+  },
   "2026-11-17-vibes": {
     "title": "Stämningar",
     "items": {
