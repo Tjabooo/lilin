@@ -17,6 +17,7 @@ export const ROUTES = {
   discover: { view: 'discover', tab: 'discover', label: 'Discover' },
   live: { view: 'live', tab: 'live', label: 'Live' },
   library: { view: 'library', tab: 'library', label: 'Library' },
+  'library/watchlist': { view: 'library', tab: 'library', sub: 'watchlist', label: 'Watchlist' },
   'library/downloads': { view: 'library', tab: 'library', sub: 'downloads', label: 'Downloads' },
 
   // You: the person's own hub (replaces Settings). The root list is the phone's index; each row opens a page.
@@ -47,6 +48,7 @@ export const ROUTES = {
 export const LEGACY = {
   settings: 'you',
   downloads: 'library/downloads',
+  watchlist: 'library/watchlist',
   activity: 'you/activity',
   notes: 'house/notes',
   clips: 'house/clips',

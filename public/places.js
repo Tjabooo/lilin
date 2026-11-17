@@ -13,7 +13,8 @@ const syn = (en, sv) => ({ en, sv });
 export const PLACES = [
   { id: 'discover', route: 'discover', syn: syn(['home', 'browse', 'trending', 'films', 'shows', 'genres'], ['hem', 'bläddra', 'trendar', 'filmer', 'serier', 'genrer']) },
   { id: 'live', route: 'live', syn: syn(['tv', 'seele tv', 'channels', 'guide', 'live tv'], ['tv', 'kanaler', 'tablå']) },
-  { id: 'library', route: 'library', syn: syn(['my titles', 'my films', 'my shows', 'collection'], ['mina titlar', 'mina filmer', 'mina serier', 'samling']) },
+  { id: 'library', route: 'library', syn: syn(['my titles', 'my films', 'my shows', 'collection', 'library order', 'sort', 'leaving soon'], ['mina titlar', 'mina filmer', 'mina serier', 'samling', 'ordning i biblioteket', 'sortera', 'försvinner snart']) },
+  { id: 'watchlist', route: 'library/watchlist', syn: syn(['saved', 'saved for later', 'following', 'coming up', 'follow a show'], ['sparat', 'sparad till senare', 'följer', 'på gång', 'bevakat']) },
   { id: 'downloads', route: 'library/downloads', syn: syn(['transfers', 'on its way', 'downloading'], ['nedladdningar', 'på väg', 'laddar ner']) },
   { id: 'you', route: 'you', syn: syn(['settings', 'preferences', 'me', 'my account'], ['inställningar', 'jag', 'mitt konto']) },
   { id: 'activity', route: 'you/activity', syn: syn(['what happened', 'log', 'history of everyone'], ['aktivitet', 'logg', 'vad som hänt']) },
@@ -22,7 +23,7 @@ export const PLACES = [
   { id: 'invite', route: 'you/invite', syn: syn(['invite link', 'invite someone'], ['bjud in', 'inbjudningslänk']) },
   { id: 'account', route: 'you/account', syn: syn(['sign out', 'log out', 'password', 'change password'], ['logga ut', 'lösenord', 'byt lösenord', 'konto']) },
   { id: 'look', route: 'you/look', syn: syn(['language', 'theme', 'colours', 'colors', 'appearance', 'swedish', 'english'], ['språk', 'tema', 'färger', 'utseende', 'svenska', 'engelska']) },
-  { id: 'watching', route: 'you/watching', syn: syn(['subtitles', 'intros', 'skip intro', 'theme music', 'start page', 'open lilin on', 'library order'], ['undertexter', 'intron', 'hoppa över intro', 'ledmotiv', 'startsida', 'öppna lilin på']) },
+  { id: 'watching', route: 'you/watching', syn: syn(['subtitles', 'intros', 'skip intro', 'theme music', 'start page', 'open lilin on'], ['undertexter', 'intron', 'hoppa över intro', 'ledmotiv', 'startsida', 'öppna lilin på']) },
   { id: 'devices', route: 'you/devices', syn: syn(['notifications', 'push', 'tv code', 'sign in on a tv', 'android tv', 'jellyfin'], ['aviseringar', 'notiser', 'tv-kod', 'logga in på en tv']) },
   { id: 'download-settings', route: 'you/download-settings', syn: syn(['quality', 'download quality', 'largest download', 'audio language', '4k'], ['kvalitet', 'största nedladdning', 'ljudspråk']) },
   { id: 'ideas', route: 'you/ideas', syn: syn(['idea box', 'bug', 'feedback', 'suggestion', 'something is off'], ['idélåda', 'bugg', 'förslag', 'något är fel']) },

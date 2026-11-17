@@ -72,6 +72,8 @@ export function groupComingSoon(items, today = todayIso()) {
 // ui: h, icon, api helpers and app.js's Save for later / Follow (watchItem, setWatch), plus the shared Discover pieces.
 export function createComingSoon(ui) {
   const { h, icon, toast } = ui;
+  // A Save or Follow toast offers the way to Library › Watchlist, where the title now waits.
+  const savedToast = (text) => (ui.savedToast || toast)(text);
   const view = { type: 'all' };
 
   // Save a film (it adds itself once a good copy is out, for people who may download) or Follow a show.
@@ -97,11 +99,11 @@ export function createComingSoon(ui) {
       try {
         if (isTv) {
           const next = await ui.setWatch(t, { follow: !item?.follow });
-          toast(next?.follow ? (next.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'));
+          (next?.follow ? savedToast : toast)(next?.follow ? (next.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'));
         } else {
           const auto = ui.autoDownload();
           const next = await ui.setWatch(t, item?.saved ? { saved: false } : { saved: true, ...(auto ? { auto: true } : {}) });
-          toast(next?.saved ? (next.auto ? T('Saved. Lilin adds it once a good copy is out.') : T('Saved for later')) : T('Removed from Saved'));
+          (next?.saved ? savedToast : toast)(next?.saved ? (next.auto ? T('Saved. Lilin adds it once a good copy is out.') : T('Saved for later')) : T('Removed from Saved'));
         }
       } catch (err) { toast(err.message); } finally { busy = false; button.classList.remove('is-busy'); draw(); }
     });

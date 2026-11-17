@@ -12,7 +12,8 @@ import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
 import { SUB_SIZES, SUB_BACKGROUNDS, SUB_POSITIONS, subLook, subRaise, secondChoices, createNightAudio,
   SLEEP_MINUTES, sleepTimer, sleepSecondsLeft, sleepFade, sleepLabel } from './player-comfort.js';
-import { comingUp, newEpisodes, watchStatus, todayIso } from './watchlist.js';
+import { comingUp, newEpisodes, watchStatus, todayIso, createWatchlistView } from './watchlist.js';
+import { createRightNow } from './right-now.js';
 import { travelTitle, sizeWords, stateWords, travelSummary, travelOrder } from './travel.js';
 import { libraryUnion, libraryAvailability, filterLibrary, transferState, transferAttention, transferPaused, packScope } from './library-downloads.js';
 import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText, fmtHours } from './social.js';
@@ -216,7 +217,6 @@ const state = {
   rules: null,      // the server's auto-delete rules
   progress: {},     // where this person stopped watching, from any device
   libFilter: 'all',
-  libAvailability: 'all',
 };// Page filters (Library, Activity, House → Machines, Game clips, Notes): what's typed in each page's own field.
 const pageFilters = { library: '', activity: '', house: '', clips: '', notes: '' };
 
@@ -516,7 +516,6 @@ async function loadWatchlist() {
 function refreshWatchViews() {
   document.querySelectorAll('.watch-box').forEach((box) => box._update?.());
   if (state.view === 'library') renderLibrary();
-  if (state.view === 'discover' && !disc.list && !disc.genre) refreshSavedShelf();
   document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: Save / Follow on its cards
 }
 async function setWatch(t, flags) {
@@ -527,6 +526,11 @@ async function setWatch(t, flags) {
   refreshWatchViews();
   return item;
 }
+// Saved or followed: the toast's button goes to Library › Watchlist, closing the sheets on the way.
+const watchlistToast = (text) => actionToast(text, T('Watchlist'), async () => {
+  try { while (overlayStack.length) await dismissTopOverlay(); } catch { /* a sheet stayed open */ }
+  setView('library/watchlist');
+}, 4000);
 // Save (any title), Follow (shows) and the automatic-download switch, with one status line.
 function watchBox(t) {
   const isTv = t.type === 'tv';
@@ -537,7 +541,7 @@ function watchBox(t) {
     busy = true; box.classList.add('is-busy');
     try {
       const item = await setWatch(t, flags);
-      if (what) toast(what(item));
+      if (what) (flags.saved || flags.follow ? watchlistToast : toast)(what(item));
     } catch (err) { toast(err.message); } finally { busy = false; box.classList.remove('is-busy'); box._update(); }
   };
   box._update = () => {
@@ -564,32 +568,6 @@ function watchBox(t) {
   return box;
 }
 
-// Discover: your saved titles first, as their own row.
-function savedShelf() {
-  const items = watch.items.filter((i) => i.saved && (disc.type === 'all' || disc.type === i.type));
-  if (!items.length) return h('div', { class: 'saved-shelf', hidden: true });
-  const list = h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('Saved for later') }, items.map(titleCard));
-  const node = carousel(T('Saved for later'), list);
-  node.classList.add('saved-shelf');
-  return node;
-}
-function refreshSavedShelf() {
-  const old = $('#discover-body .saved-shelf');
-  if (old) old.replaceWith(savedShelf());
-}
-
-// Library: the next episode of each followed show and the release of each saved film, soonest first.
-function comingUpShelf() {
-  const list = comingUp(watch.items, todayIso())
-    .filter((c) => state.libFilter === 'all' || state.libFilter === c.item.type)
-    .filter((c) => !pageFilters.library.trim() || norm(c.item.title).includes(norm(pageFilters.library))).slice(0, 20);
-  if (!list.length) return null;
-  return libraryShelf(T('Coming up'), list.map((c) => h('li', { class: 'library-card continue-card coming-card' },
-    h('button', { type: 'button', class: 'title-card', onclick: (e) => openDetails(c.item, e.currentTarget) },
-      (() => { const art = wideArt([c.item.backdrop, { src: c.item.poster, contain: true }], '', CONTINUE_SIZES); art.append(h('span', { class: 'coming-date' }, c.when)); return art; })(),
-      h('div', { class: 'name' }, c.item.title),
-      h('div', { class: 'sub' }, c.what)))), 'continue-shelf coming-shelf');
-}
 // "3 new" on a followed show's card, for episodes that downloaded by themselves since you last opened it.
 function newBadgeCount(entry) {
   const id = entry.show?.tmdbId;
@@ -790,6 +768,24 @@ function openTravelSeason(files, label, opener) {
   travelOverlay(opener, draw);
 }
 
+// Phone copies as rows, with Download buttons as copies finish: in the For your phone sheet and Library › Downloads.
+function travelRows(items, redraw) {
+  return items.map((item) => h('li', { class: 'row travel-row' },
+    h('div', { class: 'row-text' },
+      h('div', { class: 'row-title' }, item.title),
+      h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
+        item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
+      travelProgress(item)),
+    h('div', { class: 'row-actions' },
+      item.state === 'failed' && h('button', { type: 'button', class: 'chip', onclick: (e) => askTravel([{ kind: item.kind, id: item.id, title: item.title }], item.quality, e.currentTarget).then(redraw) }, T('Try again')),
+      item.url && travelLink(item.url),
+      h('button', { type: 'button', class: 'cast-btn del-btn', title: T('Remove'), 'aria-label': T('Remove {0} ({1}) from your phone list', item.title, item.label), onclick: async (e) => {
+        e.currentTarget.disabled = true;
+        try { travelView.items = (await api('/api/travel/remove', jsonPost({ kind: item.kind, id: item.id, quality: item.quality }))).items; } catch (err) { toast(err.message); }
+        redraw();
+        if (state.view === 'library') renderLibrary();
+      } }, icon('trash')))));
+}
 // Everything you asked for, with Download buttons as copies finish.
 function openTravelList(opener) {
   function draw() {
@@ -797,21 +793,7 @@ function openTravelList(opener) {
     $('#picker-body').replaceChildren(
       h('h2', { id: 'picker-title' }, T('For your phone')),
       h('p', { class: 'muted picker-sub' }, travelSummary(items, items.length === 1 ? T('1 copy') : T('{0} copies', items.length)) || T('Nothing yet. Open a film or episode and choose Download to phone.')),
-      h('ul', { class: 'rows travel-list' }, items.map((item) => h('li', { class: 'row travel-row' },
-        h('div', { class: 'row-text' },
-          h('div', { class: 'row-title' }, item.title),
-          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
-            item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
-          travelProgress(item)),
-        h('div', { class: 'row-actions' },
-          item.state === 'failed' && h('button', { type: 'button', class: 'chip', onclick: (e) => askTravel([{ kind: item.kind, id: item.id, title: item.title }], item.quality, e.currentTarget).then(draw) }, T('Try again')),
-          item.url && travelLink(item.url),
-          h('button', { type: 'button', class: 'cast-btn del-btn', title: T('Remove'), 'aria-label': T('Remove {0} ({1}) from your phone list', item.title, item.label), onclick: async (e) => {
-            e.currentTarget.disabled = true;
-            try { travelView.items = (await api('/api/travel/remove', jsonPost({ kind: item.kind, id: item.id, quality: item.quality }))).items; } catch (err) { toast(err.message); }
-            draw();
-            if (state.view === 'library') renderLibrary();
-          } }, icon('trash')))))),
+      h('ul', { class: 'rows travel-list' }, travelRows(items, draw)),
       ...(items.length ? [h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.'))] : []));
   }
   travelOverlay(opener, draw);
@@ -887,46 +869,25 @@ function pickDiscover(changes) {
   window.scrollTo({ top: 0 });
   renderDiscover();
 }
-// The header's Browse button (phones, tablets): what Discover shows right now, and a sheet to change it.
-function updateBrowseButton() {
-  const label = disc.genre ? disc.genre.name : disc.type === 'all' ? T('Browse') : (TYPE_LABELS.find(([k]) => k === disc.type) || [])[1];
-  $('#browse-label').textContent = label;
-  $('#browse-btn').classList.toggle('is-set', disc.type !== 'all' || Boolean(disc.genre));
-  $('#browse-btn').setAttribute('aria-label', T('Browse: {0}', label));
-}
-function openBrowse(opener) {
-  const choose = (changes) => { closeTopOverlay(); pickDiscover(changes); };
-  const types = h('div', { class: 'browse-types', role: 'group', 'aria-label': T('Show') }, TYPE_LABELS.map(([key, text]) =>
-    h('button', { type: 'button', class: 'browse-type', 'aria-pressed': String(disc.type === key && !disc.genre), onclick: () => choose({ type: key, genre: null }) }, text)));
-  const genres = disc.type !== 'docs' && (disc.genres || []).filter(genreFits);
-  $('#picker-body').replaceChildren(
-    h('h2', { id: 'picker-title' }, T('Browse')),
-    types,
-    genres && genres.length > 0 && h('h3', { class: 'browse-head' }, T('Genres')),
-    genres && genres.length > 0 && h('div', { class: 'browse-genres', role: 'group', 'aria-label': T('Genre') }, genres.map((g) =>
-      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(disc.genre?.name === g.name), onclick: () => choose({ genre: g }) }, g.name))));
-  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => opener?.focus({ preventScroll: true })));
-}
-$('#browse-btn').addEventListener('click', (e) => openBrowse(e.currentTarget));
-
-function discoverFilters() {
+// The one control row, on every width: All · Films · Shows · Documentaries, then Genres, which opens the genre chips
+// under the row. A picked genre turns the chip into "Comedy ✕". In the page flow under the billboard and Right now;
+// everything above it is yours and unfiltered, everything below follows it.
+function discoverControls() {
   const pick = pickDiscover;
-  const open = Boolean(disc.genresOpen || disc.genre);
+  const open = Boolean(disc.genresOpen && !disc.genre);
   const chips = h('div', { class: 'genre-chips', id: 'genre-chips', role: 'group', 'aria-label': T('Genre'), hidden: !open },
-    h('button', { type: 'button', class: 'chip', 'aria-pressed': String(!disc.genre), onclick: () => pick({ genre: null }) }, T('All genres')),
-    (disc.genres || []).filter(genreFits).map((g) => h('button', {
-      type: 'button', class: 'chip', 'aria-pressed': String(disc.genre?.name === g.name), onclick: () => pick({ genre: g }),
-    }, g.name)));
-  requestAnimationFrame(() => { if (!chips.hidden) chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' }); });
-  // Genres fold away behind one chip, so the billboard keeps the top of the page.
-  const toggle = h('button', { type: 'button', class: 'chip genres-toggle', 'aria-expanded': String(open), 'aria-controls': 'genre-chips', onclick: () => {
-    disc.genresOpen = chips.hidden;
-    chips.hidden = !chips.hidden;
-    toggle.setAttribute('aria-expanded', String(!chips.hidden));
-    if (!chips.hidden) chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  } }, h('span', {}, disc.genre ? disc.genre.name : T('Genres')), h('i', { class: 'chev', 'aria-hidden': 'true' }));
-  return h('div', { class: 'discover-filters' },
-    segmented(TYPE_LABELS, disc.type, (type) => pick({ type }), T('Show')), disc.type !== 'docs' && toggle, disc.type !== 'docs' && chips);
+    (disc.genres || []).filter(genreFits).map((g) => h('button', { type: 'button', class: 'chip', onclick: () => pick({ genre: g, genresOpen: false }) }, g.name)));
+  const toggle = disc.genre
+    ? h('button', { type: 'button', class: 'chip genres-toggle', 'aria-pressed': 'true', 'aria-label': T('{0}: show all genres', disc.genre.name), onclick: () => pick({ genre: null }) },
+      h('span', {}, disc.genre.name), icon('close'))
+    : h('button', { type: 'button', class: 'chip genres-toggle', 'aria-expanded': String(open), 'aria-controls': 'genre-chips', onclick: () => {
+      disc.genresOpen = chips.hidden;
+      chips.hidden = !chips.hidden;
+      toggle.setAttribute('aria-expanded', String(!chips.hidden));
+    } }, h('span', {}, T('Genres')), h('i', { class: 'chev', 'aria-hidden': 'true' }));
+  return h('div', { class: 'discover-controls' },
+    h('div', { class: 'dc-line' }, segmented(TYPE_LABELS, disc.type, (type) => pick({ type }), T('Show')), disc.type !== 'docs' && toggle),
+    disc.type !== 'docs' && !disc.genre && chips);
 }
 
 function heroSlide(t) {
@@ -1114,30 +1075,7 @@ function continueRow() {
   const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
-// On its way: what's downloading for you, with how far along it is.
-function onItsWayRow() {
-  const entries = unifiedLibrary().filter((e) => (e.active.length || e.preparing) && (disc.type === 'all' || e.type === disc.type));
-  if (!entries.length) return null;
-  const cards = entries.slice(0, 12).map((e) => {
-    const d = e.transfers[0];
-    const art = wideArt([d?.backdrop || e.show?.backdrop, { src: e.poster || d?.poster, contain: true }]);
-    if (e.progress != null) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${Math.floor(e.progress * 100)}%` })));
-    const button = h('button', { type: 'button', class: 'title-card', onclick: (ev) => openUnifiedTitle(e, ev.currentTarget) },
-      art, h('div', { class: 'name' }, e.name),
-      h('div', { class: `sub${e.attention ? ' is-error' : ''}` }, [e.state, e.progress != null && `${Math.floor(e.progress * 100)}%`].filter(Boolean).join(' · ')));
-    return h('li', { class: 'library-card continue-card' }, button);
-  });
-  return carousel(T('On its way'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('On its way') }, cards), null, 'library-shelf continue-shelf home-shelf');
-}
-// New in your library: the last three weeks, newest first, one card per show.
-function newInLibraryRow() {
-  const since = Date.now() - 21 * 86400000;
-  const fresh = state.library.filter((f) => homeType(f) && (f.added || 0) > since).sort((a, b) => (b.added || 0) - (a.added || 0));
-  if (!fresh.length) return null;
-  const entries = libraryEntries(fresh).slice(0, 16);
-  return carousel(T('New in your library'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('New in your library') }, entries.map((e) => libraryCard(e))), null, 'home-shelf');
-}
-// What you watched last (with a TMDB id), newest first: the seeds for "Because you watched" and Top picks.
+// What you watched last (with a TMDB id), newest first: the seeds for For you.
 function watchedSeeds() {
   const shows = new Map(state.libraryShows.map((x) => [x.id, x]));
   const seeds = [], seen = new Set();
@@ -1153,51 +1091,50 @@ function watchedSeeds() {
   return seeds;
 }
 const ownedTitle = (t) => matchesFor(t).some((f) => f.done) || (t.type === 'tv' && state.libraryShows.some((x) => x.tmdbId === t.id));
-async function becauseRow(seed, signal) {
-  const page = await pageInfo(seed.type, seed.id).catch(() => null);
-  const items = (page?.similar || []).filter((t) => !ownedTitle(t) && (disc.type === 'all' || t.type === disc.type));
-  if (items.length < 4 || signal.aborted) return null;
-  const title = T('Because you watched {0}', seed.title);
-  return carousel(title, h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': title }, items.map(titleCard)), null, 'home-shelf');
-}
-async function topPicksRow(seeds, skip, signal) {
+// For you: titles like the last few things you watched, the ones several of them point at first. Its See all page
+// groups them by what you watched ("Because you watched …").
+async function forYouGroups(seeds, signal) {
   const pages = await Promise.all(seeds.map((x) => pageInfo(x.type, x.id).catch(() => null)));
+  if (signal.aborted) return [];
+  return seeds.map((seed, i) => ({ seed, items: (pages[i]?.similar || []).filter((t) => !ownedTitle(t) && (disc.type === 'all' || t.type === disc.type)) }));
+}
+function forYouItems(groups) {
   const tally = new Map();
-  for (const page of pages) for (const t of page?.similar || []) {
-    const key = `${t.type}:${t.id}`;
-    if (skip.has(key) || ownedTitle(t) || (disc.type !== 'all' && t.type !== disc.type)) continue;
-    const hit = tally.get(key) || { t, n: 0 };
+  for (const { items } of groups) for (const t of items) {
+    const key = `${t.type}:${t.id}`, hit = tally.get(key) || { t, n: 0 };
     hit.n += 1; tally.set(key, hit);
   }
-  const items = [...tally.values()].sort((a, b) => b.n - a.n || (b.t.rating || 0) - (a.t.rating || 0)).map((x) => x.t).slice(0, 20);
-  if (items.length < 4 || signal.aborted) return null;
-  return carousel(T('Top picks for you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('Top picks for you') }, items.map(titleCard)), null, 'home-shelf');
+  return [...tally.values()].sort((a, b) => b.n - a.n || (b.t.rating || 0) - (a.t.rating || 0)).map((x) => x.t).slice(0, 20);
 }
-// Moods: genre rows that change from day to day.
-const MOODS = [
-  { title: T('Laugh out loud'), movie: 35, tv: 35 },
-  { title: T('Edge of your seat'), movie: 53, tv: 9648 },
-  { title: T('Out of this world'), movie: 878, tv: 10765 },
-  { title: T('Big feelings'), movie: 18, tv: 18, sort: 'rating' },
-  { title: T('Animated worlds'), movie: 16, tv: 16 },
-  { title: T('After dark'), movie: 27, tv: null },
-  { title: T('Love stories'), movie: 10749, tv: null },
-  { title: T('Into the unknown'), movie: 12, tv: 10759 },
-  { title: T('Crime scenes'), movie: 80, tv: 80, sort: 'rating' },
-  { title: T('Real lives'), movie: 99, tv: 99 },
-];
-function todaysMoods(n) {
-  const fits = MOODS.filter((m) => (disc.type === 'tv' ? m.tv : disc.type === 'movie' ? m.movie : true));
-  const day = Math.floor(Date.now() / 86400000);
-  return Array.from({ length: Math.min(n, fits.length) }, (_, i) => fits[(day * 3 + i * 4) % fits.length]).filter((m, i, all) => all.indexOf(m) === i);
-}
-async function moodRow(m, signal) {
-  const data = await cachedApi(`/api/discover/genre?type=${disc.type}&movie=${m.movie || ''}&tv=${m.tv || ''}&sort=${m.sort || 'popular'}&page=1`, signal).catch(() => null);
-  const items = (data?.results || []).filter((t) => t.poster);
+async function forYouRow(seeds, signal) {
+  const items = forYouItems(await forYouGroups(seeds, signal));
   if (items.length < 4 || signal.aborted) return null;
-  const genre = (disc.genres || []).find((g) => g.movie === m.movie || (m.tv && g.tv === m.tv));
-  const seeAll = genre && h('button', { class: 'see-all', onclick: () => { disc.genre = genre; disc.sort = m.sort || 'popular'; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all'));
-  return carousel(m.title, h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': m.title }, items.map(titleCard)), seeAll);
+  return carousel(T('For you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('For you') }, items.map(titleCard)),
+    h('button', { class: 'see-all', onclick: () => { disc.list = { key: 'for-you', title: T('For you') }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')), 'home-shelf');
+}
+async function forYouPage(content, signal) {
+  content.replaceChildren(skeletonGrid());
+  const groups = (await forYouGroups(watchedSeeds(), signal)).filter((g) => g.items.length);
+  if (signal.aborted) return;
+  content.replaceChildren(...(groups.length ? groups.map((g) => h('section', { class: 'lib-group' },
+    h('h3', { class: 'lib-subhead' }, T('Because you watched {0}', g.seed.title)), titleGrid(g.items)))
+    : [notice(T('Nothing here'), T('Watch something and Lilin finds more like it.'))]));
+}
+// Popular and Top rated on All: TMDB's film and show lists woven into one row (the TV apps keep both rows).
+const MERGED_ROWS = { 'popular-movie': ['popular-tv', 'Popular'], 'top-movie': ['top-tv', 'Top rated'] };
+function mergeHomeRows(rows) {
+  const out = [];
+  for (const r of rows) {
+    if (Object.values(MERGED_ROWS).some(([tv]) => tv === r.key) && rows.some((x) => MERGED_ROWS[x.key]?.[0] === r.key)) continue;
+    const pair = MERGED_ROWS[r.key] && rows.find((x) => x.key === MERGED_ROWS[r.key][0]);
+    if (!pair) { out.push(r); continue; }
+    const items = [], seen = new Set();
+    for (let i = 0; i < Math.max(r.items.length, pair.items.length); i++) for (const t of [r.items[i], pair.items[i]]) {
+      if (t && !seen.has(`${t.type}:${t.id}`)) { seen.add(`${t.type}:${t.id}`); items.push(t); }
+    }
+    out.push({ key: r.key, keys: [r.key, pair.key], title: T(MERGED_ROWS[r.key][1]), items });
+  }
+  return out;
 }
 // Rows that arrive later fill a slot, so nothing above them jumps.
 function rowSlot(promise, signal) {
@@ -1247,9 +1184,11 @@ async function pagedGrid(content, urlFor, signal, gridClass = 'grid') {
   await load();
 }
 
+// Discover's home, at most 12 blocks: billboard · Right now · (the control row) · Continue watching · Moods ·
+// Trending · For you · Popular on Lilin · then TMDB's rows (on All, Popular and Top rated are one row each).
+// Films and Shows keep the same order with their own TMDB rows. Sub-pages (See all, a genre, a mood) have no Right now.
 async function renderDiscover() {
   const body = $('#discover-body');
-  if (state.view === 'discover') { $('#browse-btn').hidden = false; updateBrowseButton(); }
   const heading = $('#discover-heading');
   heading.textContent = T('Discover');
   heading.classList.add('sr-only');
@@ -1271,15 +1210,28 @@ async function renderDiscover() {
   const content = h('div', { class: 'discover-content' });
   // vibes: a mood's page has its own header and type filter
   if (vibesUi.active()) { body.replaceChildren(content); return vibesUi.render(content, signal); }
-  body.replaceChildren(discoverFilters(), content);
+  const home = !disc.list && !disc.genre;
+  body.replaceChildren(...(home ? [] : [discoverControls()]), content);
 
-  if (disc.type === 'docs') return documentaries.render(content, signal);
+  if (disc.type === 'docs') {
+    if (documentaries.inCategory()) { body.prepend(discoverControls()); return documentaries.render(content, signal); }
+    await documentaries.render(content, signal);
+    if (!signal.aborted && !body.querySelector('.discover-controls')) content.prepend(...homeTop(null)); // no billboard today
+    return;
+  }
 
+  if (disc.list?.key === 'for-you') {
+    content.before(h('div', { class: 'discover-head' },
+      h('button', { class: 'back-link', onclick: () => { disc.list = null; renderDiscover(); } }, T('‹ Discover')), h('h3', {}, disc.list.title)));
+    return forYouPage(content, signal);
+  }
   if (disc.list && comingSoon.handles(disc.list.key)) return comingSoon.page(content, signal); // comingsoon: its own page
   if (disc.list) {
+    const { keys } = disc.list;
     content.before(h('div', { class: 'discover-head' },
       h('button', { class: 'back-link', onclick: () => { disc.list = null; renderDiscover(); } }, T('‹ Discover')),
-      h('h3', {}, disc.list.title)));
+      h('h3', {}, disc.list.title),
+      keys && segmented([[keys[0], T('Films')], [keys[1], T('Shows')]], disc.list.key, (key) => { disc.list = { ...disc.list, key }; renderDiscover(); }, T('Show'))));
     return pagedGrid(content, (page) => `/api/discover/list?key=${disc.list.key}&page=${page}`, signal);
   }
 
@@ -1297,28 +1249,18 @@ async function renderDiscover() {
     const data = await cachedApi(`/api/discover/home?type=${disc.type}`, signal);
     // Popular on Lilin arrives separately (it's quick, but shouldn't hold up TMDB's rows).
     const popularSlot = h('div', { class: 'popular-slot' });
-    // Your own rows sit between TMDB's: what you're watching first, then picks from what you watched.
     const seeds = watchedSeeds();
-    const [because, ...others] = seeds;
-    const moods = todaysMoods(2);
-    const [r1, r2, r3, r4, ...rest] = data.rows.map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
+    const rows = (disc.type === 'all' ? mergeHomeRows(data.rows) : data.rows).map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
+    const [trending, ...rest] = rows;
+    const moods = pickUi.tile(signal).catch(() => null) // pick: the first Moods tile
+      .then((pick) => vibesUi.row(disc.type, signal, { lead: pick })); // vibes: the Moods row
     content.replaceChildren(...[
-      data.featured.length && billboard(data.featured, { signal, label: T('Trending this week') }),
-      wrappedBanner(signal),
+      ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: T('Trending this week') }) : null),
       continueRow(),
-      onItsWayRow(),
-      savedShelf(),
+      rowSlot(moods, signal),
+      trending,
+      seeds.length > 0 && rowSlot(forYouRow(seeds, signal), signal),
       popularSlot,
-      because && rowSlot(becauseRow(because, signal), signal),
-      r1,
-      rowSlot(vibesUi.row(disc.type, signal), signal), // vibes: the Moods row, right after Trending
-      rowSlot(pickUi.entry(signal), signal), // pick: Pick together, one quiet line
-      r2,
-      moods[0] && rowSlot(moodRow(moods[0], signal), signal),
-      newInLibraryRow(),
-      r3, r4,
-      seeds.length > 0 && rowSlot(topPicksRow(others.length ? others : seeds, new Set(), signal), signal),
-      moods[1] && rowSlot(moodRow(moods[1], signal), signal),
       ...rest,
     ].filter(Boolean));
     social.popularShelf(disc.type, { carousel, titleCard, signal }).then((shelf) => { if (shelf && !signal.aborted) popularSlot.replaceWith(shelf); });
@@ -1326,40 +1268,69 @@ async function renderDiscover() {
     if (err.name !== 'AbortError') content.replaceChildren(notice(T('Couldn’t load Discover'), err.message, renderDiscover));
   }
 }
-
-// ---- Lilin Wrapped on the home screen: from release day (status.wrapped) to the end of January ----
-// A big card under the billboard until it's closed; after the story has been seen it says "again".
-let wrappedTeaser = null; // { year, data } once fetched, so Discover re-renders don't refetch
-function wrappedBanner(signal) {
-  const year = state.status?.wrapped?.year;
-  if (!year) return null;
-  let hidden = null, seen = null;
-  try { hidden = localStorage.getItem('lilin:wrappedHidden'); seen = localStorage.getItem('lilin:wrappedSeen'); } catch { /* private mode */ }
-  if (hidden === String(year)) return null;
-  const load = wrappedTeaser?.year === year ? Promise.resolve(wrappedTeaser.data)
-    : api(`/api/me/wrapped?year=${year}`, { signal }).then((data) => { wrappedTeaser = { year, data }; return data; });
-  return rowSlot(load.then((w) => {
-    if (w.empty) return null;
-    const again = seen === String(year);
-    const img = w.topShow?.backdrop || w.top?.find((t) => t.backdrop)?.backdrop;
-    const posters = (w.top || []).filter((t) => t.poster).slice(0, 3);
-    const hide = h('button', { type: 'button', class: 'icon-btn wb-hide', 'aria-label': T('Hide Wrapped from the home screen'), onclick: (e) => {
-      e.stopPropagation();
-      try { localStorage.setItem('lilin:wrappedHidden', String(year)); } catch { /* private mode */ }
-      card.remove(); toast(T('Wrapped is still in Settings'));
-    } }, icon('close'));
-    const card = h('section', { class: `wrapped-banner${again ? ' again' : ''}`, style: img ? `--wb-img:url("${img}")` : null },
-      h('button', { type: 'button', class: 'wb-open', 'aria-label': T('Open Lilin Wrapped {0}', year), onclick: (e) => openWrapped(year, e.currentTarget) },
-        h('span', { class: 'wb-copy' },
-          h('span', { class: 'wb-kicker' }, T('Lilin Wrapped {0}', year)),
-          h('span', { class: 'wb-title' }, again ? T('Your {0}, one more time', year) : T('Your year on Lilin is here')),
-          h('span', { class: 'wb-sub' }, T('{0} watched, your top titles and what kind of watcher you were.', fmtHours(w.seconds))),
-          h('span', { class: 'play-btn wb-cta' }, again ? T('Watch it again') : T('See your year'))),
-        posters.length > 0 && h('span', { class: 'wb-posters', 'aria-hidden': 'true' }, posters.map((t) => h('img', { src: t.poster, alt: '', loading: 'lazy' })))),
-      hide);
-    return card;
-  }), signal);
+// The top of Discover (and of Documentaries): the billboard, Right now (when Discover is where you start) and the
+// control row, in that order.
+function homeTop(bb) {
+  if (rightNowHome() === 'discover') loadRightNow();
+  return [bb, rightNowHome() === 'discover' && rightNow.mount(), discoverControls()].filter(Boolean);
 }
+// Documentaries draws its own billboard: the same top goes with it.
+const docsBillboard = (items, o) => { const f = document.createDocumentFragment(); f.append(...homeTop(billboard(items, o))); return f; };
+
+// ---- Right now (right-now.js): what it ranks, and what its rows do ----
+const rnData = { parties: null, partiesAt: 0, wrapped: undefined };
+function rightNowContext() {
+  const jobs = state.convert?.active || (state.convert?.current ? [state.convert.current] : []);
+  return {
+    now: Date.now(), locale, entries: unifiedLibrary(), keep: Boolean(state.me?.keep), canExtend, extendDays: extendDays(),
+    parties: (rnData.parties || []).map((p) => ({ token: p.token, startsAt: p.startsAt, started: p.started, mine: p.mine, host: p.host,
+      title: partyTitle(p.media), poster: state.library.find((f) => f.id === p.media?.id)?.poster })),
+    played: (f) => Boolean(savedProgress(libraryFile(f))),
+    convert: (e) => jobs.find((j) => e.files.some((f) => f.converting && j.name === f.file))?.percent ?? null,
+    travel: travelView.items, touch: touchDevice(), wrapped: rnData.wrapped || null,
+  };
+}
+// Parties (a minute old at most) and the Wrapped season arrive after the page; the strip updates when they do.
+async function loadRightNow(force = false) {
+  const jobs = [];
+  if (force || Date.now() - rnData.partiesAt > 60000) {
+    rnData.partiesAt = Date.now();
+    jobs.push(api('/api/watch/parties').then((d) => { rnData.parties = d.parties || []; }).catch(() => {}));
+  }
+  const year = state.status?.wrapped?.year;
+  if (year && rnData.wrapped === undefined) {
+    rnData.wrapped = null;
+    let hidden = null, seen = null;
+    try { hidden = localStorage.getItem('lilin:wrappedHidden'); seen = localStorage.getItem('lilin:wrappedSeen'); } catch { /* private mode */ }
+    if (hidden !== String(year)) jobs.push(api(`/api/me/wrapped?year=${year}`).then((w) => { if (!w.empty) rnData.wrapped = { year, again: seen === String(year) }; }).catch(() => {}));
+  }
+  if (!jobs.length) return;
+  await Promise.all(jobs);
+  rightNow.update();
+}
+async function runRightNow(a, opener) {
+  if (a.do === 'join') return offerWatchRoom(a.token);
+  if (a.do === 'route') return setView(a.to);
+  if (a.do === 'title') return openUnifiedTitle(a.entry, opener);
+  if (a.do === 'wrapped') return openWrapped(a.year, opener);
+  if (a.do === 'travel') return openTravelList(opener);
+  if (a.do === 'titles') { state.me.settings = { ...prefs(), librarySort: a.sort }; state.libFilter = 'all'; return setView('library'); }
+  if (a.do === 'keep') { opener.disabled = true; await extendItems(a.files); return rightNow.update(); }
+  if (a.do === 'play') {
+    const e = a.entry;
+    e.files.forEach(rightNow.played);
+    const up = e.show && nextUp(e.show.id);
+    return openPlayer(libraryFile(up?.f || e.files[0]));
+  }
+}
+const rightNow = createRightNow({ h, icon, toast, context: rightNowContext, run: runRightNow });
+// Library › Watchlist (watchlist.js)
+const watchlistView = createWatchlistView({ h, icon, toast, norm, titleCard, emptyState,
+  items: () => watch.items, autoDownload: () => watch.autoDownload && canDownload(),
+  inLibrary: (i) => ownedTitle({ type: i.type, id: i.id }),
+  setWatch: ({ type, id, ...flags }) => setWatch({ type, id }, flags),
+  openDetails: (i, opener) => openDetails(i, opener),
+  openComingSoon: () => { disc.list = { key: 'coming-soon', title: T('Coming soon') }; disc.type = 'all'; setView('discover'); } });
 
 // ---------- Library ----------
 let libraryRequest = null;
@@ -1473,44 +1444,100 @@ let libraryUI = null;
 const unifiedLibrary = () => libraryUnion(state.library, state.libraryShows, state.downloads);
 // "Pappa", "Pappa and Anita", "Pappa, Anita and Home network"
 const nameList = (names) => names.length < 2 ? names.join('') : T('{0} and {1}', names.slice(0, -1).join(', '), names[names.length - 1]);
-// The people this person shares one library with (the owner sets it in Settings → People).
+// The people this person shares one library with (the owner sets it in House › People).
 const libraryMates = () => (state.me?.sharedWith || []).map((m) => m.name);
+
+// ---- Library: three segments with their own address (#library, #library/watchlist, #library/downloads) ----
+// Only the open segment is drawn. Titles keeps its cards between renders, so polling never steals focus or posters.
+const LIB_SEGMENTS = [['titles', 'Titles', 'library'], ['watchlist', 'Watchlist', 'library/watchlist'], ['downloads', 'Downloads', 'library/downloads']];
+const libSegment = () => (state.sub === 'watchlist' || state.sub === 'downloads' ? state.sub : 'titles');
+const LIB_SORTS = [['watched', T('Recently watched')], ['newest', T('Newest')], ['expiring', T('Leaving soonest')], ['title', 'A–Z']];
+const librarySort = () => (LIB_SORTS.some(([k]) => k === prefs().librarySort) ? prefs().librarySort : 'watched');
+// When you last watched something in an entry (Recently watched): its newest resume point or finished episode.
+const lastWatched = (e) => Math.max(0, ...e.files.map((f) => savedProgress(libraryFile(f))?.at || 0), (e.show && state.finished?.[`tv:${e.show.tmdbId}`]?.at) || 0);
+function libraryCounts(all) {
+  return {
+    watchlist: watch.items.filter((i) => i.saved || i.follow).length,
+    downloads: all.filter((e) => e.active.length || e.preparing).length,
+    attention: all.filter((e) => e.attention).length,
+  };
+}
+// Right now goes where the person starts: Discover, or the top of Titles for people who open Lilin on the Library.
+const rightNowHome = () => (['library', 'downloads'].includes(prefs().startView) ? 'library' : 'discover');
 
 function renderLibrary() {
   libraryRenderPending = false;
-  filterField('library', T('Filter your library'), renderLibrary);
+  const field = filterField('library', T('Filter your library'), renderLibrary);
   const body = $('#library-body');
+  const seg = libSegment();
   if (!libraryUI || !body.contains(libraryUI.root)) {
-    const filters = segmented(LIB_FILTERS, state.libFilter, v => { state.libFilter = v; renderLibrary(); }, T('Show'));
-    const availability = select([['all', T('All titles')], ['ready', T('Ready to watch')], ['downloading', T('On the way')], ['attention', T('Needs attention')]], state.libAvailability, v => { state.libAvailability = v; renderLibrary(); }, T('Availability'));
-    const groups = new Map(['movie', 'tv', 'unknown'].map(type => {
-      const list = h('ul', { class: 'grid library-grid' });
-      return [type, { list, section: h('section', { class: 'lib-group' }, h('h3', { class: 'lib-subhead' }, { movie: T('Films'), tv: T('Shows'), unknown: T('Unidentified') }[type]), list) }];
-    }));
+    const tabs = h('div', { class: 'segmented library-seg', role: 'group', 'aria-label': T('Library') }, LIB_SEGMENTS.map(([key, label, route]) =>
+      h('button', { type: 'button', 'data-seg': key, 'data-library-focus': `seg-${key}`, onclick: () => {
+        if (libSegment() === key) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        setView(route, { address: false }); rememberView(route); // segments replace each other: Back leaves the Library
+      } }, h('span', {}, T(label)), h('b', { class: 'seg-count' }))));
     const root = h('div', { class: 'unified-library' });
-    libraryUI = { root, groups, filters, availability, shared: h('p', { class: 'library-shared muted', hidden: true }), notices: h('div'), travel: h('button', { type: 'button', class: 'library-summary travel-summary', hidden: true, onclick: (e) => openTravelList(e.currentTarget) }), parties: h('div', { class: 'parties-slot' }), shelves: h('div'), summary: h('button', { class: 'library-summary', onclick: () => { state.libAvailability = 'downloading'; renderLibrary(); } }), empty: h('div') };
-    root.append(h('div', { class: 'dl convert-banner', id: 'convert-banner', hidden: true }),
-      h('div', { class: 'library-toolbar' }, filters, h('label', { class: 'library-availability' }, T('Availability'), availability)), libraryUI.shared, libraryUI.summary, libraryUI.travel, libraryUI.notices, libraryUI.parties, libraryUI.shelves, ...[...groups.values()].map(g => g.section), libraryUI.empty);
+    libraryUI = { root, tabs, shared: h('p', { class: 'library-shared muted', hidden: true }), content: h('div'), seg: null };
+    root.append(libraryUI.shared, tabs, libraryUI.content);
     body.replaceChildren(root);
-    loadParties();
     libraryCards.clear();
   }
   const ui = libraryUI;
-  ui.availability.value = state.libAvailability;
-  ui.filters.querySelectorAll('button').forEach((button, i) => { button.setAttribute('data-library-focus', `filter-${LIB_FILTERS[i][0]}`); button.setAttribute('aria-pressed', String(state.libFilter === LIB_FILTERS[i][0])); button.classList.toggle('active', state.libFilter === LIB_FILTERS[i][0]); });
   const all = unifiedLibrary();
-  const entries = filterLibrary(all, { type: state.libFilter, availability: state.libAvailability, query: pageFilters.library, sort: prefs().librarySort });
-  const active = all.flatMap(e => e.active).length, attention = all.filter(e => e.attention).length;
-  ui.summary.hidden = !active;
+  const counts = libraryCounts(all);
+  for (const b of ui.tabs.children) {
+    const key = b.dataset.seg, n = counts[key];
+    b.setAttribute('aria-pressed', String(key === seg));
+    const count = b.querySelector('.seg-count');
+    count.textContent = n ? String(n) : '';
+    count.classList.toggle('is-lit', key === 'downloads' && counts.attention > 0);
+  }
   const mates = libraryMates();
   ui.shared.hidden = !mates.length;
   const sharedText = mates.length ? T('Shared library with {0}: you all see and manage the same titles.', nameList(mates)) : '';
   if (ui.shared.textContent !== sharedText) ui.shared.textContent = sharedText;
-  ui.summary.textContent = T('{0} downloading{1}', active, attention ? T(' · {0} needs attention', attention) : '');
-  const phone = travelSummary(travelView.items);
-  ui.travel.hidden = !phone;
-  if (ui.travel.textContent !== phone) ui.travel.replaceChildren(icon('phone'), h('span', {}, phone));
-  const errors = [state.libraryError && T('Library scan unavailable: {0}', state.libraryError), state.downloadsError && T('Downloads unavailable: {0}', state.downloadsError), !state.status.library && T('No media folder is configured. Downloads will still appear here.')].filter(Boolean);
+  if (field) field.hidden = seg === 'downloads';
+  if (ui.seg !== seg) {
+    ui.seg = seg; ui.titles = null; ui.dl = null; ui.wlKey = null;
+    ui.content.replaceChildren();
+    libraryCards.clear();
+  }
+  if (seg === 'titles') renderLibraryTitles(all);
+  else if (seg === 'watchlist') {
+    const key = JSON.stringify([watch.revision, pageFilters.library, librarySignature, todayIso()]);
+    if (ui.wlKey !== key) { ui.wlKey = key; watchlistView.render(ui.content, { query: pageFilters.library }); }
+  }
+  else renderLibraryDownloads(all);
+  if (showView.id) updateOpenShow();
+  if (filmView.id) updateOpenFilm();
+}
+
+// ---- Titles: Right now (Library starters), type + sort, New and Leaving soon shelves, the grids, a footer ----
+function renderLibraryTitles(all) {
+  if (!libraryUI.titles) {
+    const filters = segmented(LIB_FILTERS, state.libFilter, (v) => { state.libFilter = v; renderLibrary(); }, T('Show'));
+    const sort = select(LIB_SORTS, librarySort(), (v) => {
+      state.me.settings = { ...prefs(), librarySort: v };
+      renderLibrary();
+      saveMe({ librarySort: v }, null);
+    }, T('Sort by'));
+    const groups = new Map(['movie', 'tv', 'unknown'].map(type => {
+      const list = h('ul', { class: 'grid library-grid' });
+      return [type, { list, section: h('section', { class: 'lib-group' }, h('h3', { class: 'lib-subhead' }, { movie: T('Films'), tv: T('Shows'), unknown: T('Unidentified') }[type]), list) }];
+    }));
+    const toolbar = h('div', { class: 'library-toolbar' }, filters, h('label', { class: 'library-sort' }, h('span', { class: 'sr-only' }, T('Sort by')), sort));
+    libraryUI.titles = { groups, filters, sort, toolbar, notices: h('div'), shelves: h('div'), empty: h('div'), foot: h('div', { class: 'library-foot' }) };
+    const t = libraryUI.titles;
+    if (rightNowHome() === 'library') loadRightNow();
+    libraryUI.content.append(...[rightNowHome() === 'library' && rightNow.mount(),
+      toolbar, t.notices, t.shelves, ...[...groups.values()].map(g => g.section), t.empty, t.foot].filter(Boolean));
+  }
+  const ui = libraryUI.titles;
+  ui.sort.value = librarySort();
+  ui.toolbar.hidden = !all.length; // nothing to sort or narrow yet
+  ui.filters.querySelectorAll('button').forEach((button, i) => { button.setAttribute('data-library-focus', `filter-${LIB_FILTERS[i][0]}`); button.setAttribute('aria-pressed', String(state.libFilter === LIB_FILTERS[i][0])); button.classList.toggle('active', state.libFilter === LIB_FILTERS[i][0]); });
+  const entries = filterLibrary(all, { type: state.libFilter, query: pageFilters.library, sort: librarySort(), watchedAt: lastWatched });
+  const errors = [state.libraryError && T('Library scan unavailable: {0}', state.libraryError), !state.status.library && T('No media folder is configured. Downloads will still appear here.')].filter(Boolean);
   const noticeText = errors.join(' ');
   if (ui.notices.textContent !== noticeText) ui.notices.replaceChildren(...errors.map(message => h('p', { class: 'library-source-notice', role: 'status' }, message)));
   const seen = new Set(), positions = new Map(), aliases = new Map(), latestByKey = new Map(all.map(entry => [entry.key, entry])), latestByAlias = new Map(), focusedAnchors = new Map();
@@ -1548,12 +1575,10 @@ function renderLibrary() {
   }
   for (const group of ui.groups.values()) group.section.hidden = !group.list.children.length;
   // Filtered down to nothing: say which filter did it, and offer the way back to everything.
-  const filteredText = () => pageFilters.library.trim() ? T('Nothing in your library matches “{0}”.', pageFilters.library.trim())
-    : ({ attention: T('Nothing needs attention right now.'), downloading: T('Nothing is on its way right now.'), ready: T('Nothing is ready to watch yet.') })[state.libAvailability]
-    || T('No titles match these filters.');
+  const filteredText = () => pageFilters.library.trim() ? T('Nothing in your library matches “{0}”.', pageFilters.library.trim()) : T('No titles match these filters.');
   const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? filteredText() : T('Nothing here yet. Find something in Discover and press Add to start watching.');
   const showAll = () => {
-    state.libFilter = 'all'; state.libAvailability = 'all';
+    state.libFilter = 'all';
     clearFilter('library');
     renderLibrary();
   };
@@ -1563,57 +1588,143 @@ function renderLibrary() {
       : emptyState(T('Your library is empty'), emptyText, { label: T('Find something to watch'), icon: 'search', run: () => setView('discover') }));
   }
   // Shelves use ready files only; transfers never create fake playback progress.
-  const shelfKey = JSON.stringify([librarySignature, state.libFilter, pageFilters.library, libraryProgressRevision, watch.revision, todayIso()]);
+  const shelfKey = JSON.stringify([librarySignature, state.libFilter, pageFilters.library, libraryProgressRevision, todayIso()]);
   // Also rebuilt when this page changed the list itself (a delete), before the server's copy catches up.
   if (ui.shelfKey !== shelfKey || ui.shelfLibrary !== state.library || ui.shelfProgress !== state.progress) {
     ui.shelfKey = shelfKey; ui.shelfLibrary = state.library; ui.shelfProgress = state.progress;
     const q = norm(pageFilters.library), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
-    const watching = continueItems(ready);
+    const since = Date.now() - 21 * 86400000;
+    const fresh = libraryEntries(ready.filter(f => (f.added || 0) > since).sort((a, b) => (b.added || 0) - (a.added || 0))).slice(0, 16);
     const leaving = libraryEntries(ready.filter(f => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000));
-    ui.shelves.replaceChildren(...[watching.length && continueShelf(watching.map(({f, progress}) => continueCard(f, progress))), comingUpShelf(), leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)))].filter(Boolean));
+    ui.shelves.replaceChildren(...[fresh.length && libraryShelf(T('New in your library'), fresh.map(e => libraryCard(e))),
+      leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)), 'leaving-shelf')].filter(Boolean));
+    ui.foot.replaceChildren(...libraryFoot(all));
   }
-  ui.shelves.hidden = state.libAvailability !== 'all' && state.libAvailability !== 'ready';
-  if (showView.id) updateOpenShow();
-  if (filmView.id) updateOpenFilm();
+  ui.foot.hidden = !all.length;
+  rightNow.update();
+}
+// "214 titles · 1.2 TB · Next to go: Dune, 13 h left", the deletion rule, and a way to see what goes first.
+function libraryFoot(all) {
+  const mine = state.library, r = state.rules || {};
+  const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
+  const line = [plural(all.filter((e) => e.files.length).length, 'title'), fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0)),
+    next && T('Next to go: {0}, {1}', [next.filmTitle || next.title, episodeLabel(next)].filter(Boolean).join(' '), timeLeft(next.expiresAt))].filter(Boolean).join(' · ');
+  return [h('p', {}, line, next && librarySort() !== 'expiring' ? h('button', { type: 'button', class: 'link-btn', onclick: () => {
+    state.me.settings = { ...prefs(), librarySort: 'expiring' }; renderLibrary(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  } }, T('Sort by leaving soonest')) : ''),
+  h('p', { class: 'muted' }, state.me?.keep ? T('The owner has set your videos to stay until you delete them.')
+    : r.retentionDays
+      ? T('Downloads are deleted {0} after they finish, to keep space free on the server. Use “Keep {1} more days” in the Library to hold on to something{2}.', plural(r.retentionDays, 'day'), r.extendDays, r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
+      : T('Nothing is deleted automatically.'))];
+}
+
+// ---- Downloads: everything about transfers, in one place ----
+// Preparing playback, Needs attention and On the way (one row per title, ⋯ = its transfers), then On this phone.
+const touchDevice = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
+function renderLibraryDownloads(all) {
+  if (!libraryUI.dl) {
+    const actions = h('div', { class: 'lib-actions' },
+      state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => findTorrents('', e.currentTarget) }, icon('search'), T('Find torrents')),
+      state.me?.isOwner && h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails(null, e.currentTarget) }, T('All server downloads')));
+    const section = (title, cls = 'rn-list') => { const list = h('ul', { class: cls }); return { list, node: h('section', { class: 'shelf dl-section', 'aria-label': title, hidden: true }, h('h3', { class: 'lib-subhead' }, title), list) }; };
+    libraryUI.dl = { attention: section(T('Needs attention')), onway: section(T('On the way')), phone: section(T('On this phone'), 'rows travel-list'), rows: new Map(), notices: h('div'), empty: h('div') };
+    const d = libraryUI.dl;
+    libraryUI.content.append(...[actions.childElementCount && actions,
+      h('section', { class: 'shelf dl-section' }, h('div', { class: 'dl convert-banner', id: 'convert-banner', hidden: true })),
+      d.attention.node, d.onway.node, d.empty, d.phone.node, d.notices].filter(Boolean));
+  }
+  const d = libraryUI.dl;
+  const attention = all.filter((e) => e.attention), onway = all.filter((e) => !e.attention && (e.active.length || e.preparing));
+  const seen = new Set();
+  for (const [sec, list] of [[d.attention, attention], [d.onway, onway]]) {
+    list.forEach((e, i) => {
+      let row = d.rows.get(e.key);
+      if (!row) { row = downloadRow(e); d.rows.set(e.key, row); }
+      updateDownloadRow(row, e);
+      seen.add(e.key);
+      if (sec.list.children[i] !== row) sec.list.insertBefore(row, sec.list.children[i] || null);
+    });
+    sec.node.hidden = !list.length;
+  }
+  for (const [key, row] of d.rows) if (!seen.has(key)) { row.remove(); d.rows.delete(key); }
+  const busy = attention.length + onway.length > 0 || Boolean(state.convert?.active?.length || state.convert?.current);
+  const emptyKey = busy ? '' : 'empty';
+  if (d.empty.dataset.key !== emptyKey) {
+    d.empty.dataset.key = emptyKey;
+    d.empty.replaceChildren(busy ? '' : emptyState(T('Nothing on its way'), T('Downloads you start show their progress here.'),
+      canDownload() ? { label: T('Find something to add'), icon: 'search', run: () => setView('discover') } : null));
+  }
+  const copies = travelOrder(travelView.items);
+  d.phone.node.hidden = !copies.length && !touchDevice();
+  const phoneKey = JSON.stringify(copies.map((i) => [i.id, i.quality, i.state, i.percent, i.url, i.downloadedAt]));
+  if (d.phone.key !== phoneKey) {
+    d.phone.key = phoneKey;
+    d.phone.list.replaceChildren(...(copies.length ? travelRows(copies, () => { d.phone.key = null; renderLibrary(); })
+      : [h('li', { class: 'muted dl-none' }, T('Copies you save to watch offline show here.'))]));
+  }
+  const errors = [state.downloadsError && T('Downloads unavailable: {0}', state.downloadsError)].filter(Boolean);
+  if (d.notices.textContent !== errors.join(' ')) d.notices.replaceChildren(...errors.map(message => h('p', { class: 'library-source-notice', role: 'status' }, message)));
   renderConvertBanner();
 }
+// One title's downloads as a row: art, name, state and percent, a bar, and ⋯ for the transfers (Pause, Delete, Retry).
+function downloadRow(e) {
+  const row = h('li', { class: 'rn-row' },
+    h('button', { type: 'button', class: 'rn-open', 'data-library-focus': `dl-${e.key}`, onclick: (ev) => openUnifiedTitle(row._entry, ev.currentTarget) },
+      h('span', { class: 'rn-thumb' }), h('span', { class: 'rn-text' }, h('strong', { class: 'rn-title' }), h('span', { class: 'rn-sub' }))),
+    h('button', { type: 'button', class: 'icon-btn rn-more', 'data-library-focus': `dl-more-${e.key}`, onclick: (ev) => openTransferDetails(row._entry, ev.currentTarget) }, icon('more')),
+    h('span', { class: 'rn-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('i')));
+  return row;
+}
+function updateDownloadRow(row, e) {
+  const old = row._entry;
+  row._entry = e;
+  if (!old || old.poster !== e.poster) row.querySelector('.rn-thumb').replaceChildren(e.poster ? h('img', { src: e.poster, alt: '', loading: 'lazy', decoding: 'async' }) : icon('download'));
+  const pct = e.progress == null ? null : Math.floor(e.progress * 100);
+  row.querySelector('.rn-title').textContent = e.name;
+  const sub = row.querySelector('.rn-sub');
+  sub.textContent = [e.state, pct != null && `${pct}%`, e.speed > 0 && `${fmtBytes(e.speed)}/s`].filter(Boolean).join(' · ');
+  row.classList.toggle('is-alert', e.attention);
+  row.classList.toggle('is-paused', e.state === T('Paused'));
+  row.querySelector('.rn-more').setAttribute('aria-label', T('Download details for {0}', e.name));
+  const bar = row.querySelector('.rn-bar');
+  bar.hidden = pct == null;
+  bar.setAttribute('aria-label', T('{0} download progress', e.name));
+  if (pct != null) { bar.setAttribute('aria-valuenow', String(pct)); bar.firstChild.style.width = `${pct}%`; }
+}
+
 function makeUnifiedCard(entry) {
   const card = h('li', { class: 'library-card unified-card' });
   const button = h('button', { class: 'title-card', type: 'button', onclick: e => openUnifiedTitle(card._entry, e.currentTarget) },
     h('div', { class: 'poster' }), h('div', { class: 'name' }), h('div', { class: 'sub' }));
-  const panel = h('div', { class: 'library-transfer' }, h('div', { class: 'transfer-line' }, h('span', { class: 'transfer-state' }), h('span', { class: 'transfer-percent' })),
-    h('div', { class: 'transfer-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('i')));
-  card.append(button, panel, h('button', { class: 'library-more', type: 'button', 'aria-label': T('Download details for {0}', entry.name), onclick: e => openTransferDetails(card._entry, e.currentTarget) }, '•••'));
+  card.append(button);
   return card;
 }
+// A card shows how its title is doing: New, the deletion countdown, how far you watched or, while it's downloading,
+// a slim bar of the download (the details are on the title page and in Downloads).
 function updateUnifiedCard(card, entry) {
   const old = card._entry;
   card._entry = entry;
   const fresh = newBadgeCount(entry);
   const paint = JSON.stringify([fresh, entry.key, entry.type, entry.transfers.map(d => [d.hash, d.done]), entry.name, entry.poster, entry.ready, entry.state, entry.progress, entry.attention, entry.files.map(f => [f.id, f.expiresAt, savedProgress(libraryFile(f))]), libraryAvailability(entry)]);
   if (card._paint === paint) return; card._paint = paint;
-  const button = $('.title-card', card), poster = $('.poster', card), panel = $('.library-transfer', card);
+  const button = $('.title-card', card), poster = $('.poster', card);
   button.setAttribute('data-library-focus', entry.key);
   if (!old || old.poster !== entry.poster || old.name !== entry.name) poster.replaceChildren(entry.poster ? h('img', { src: entry.poster, alt: '', loading: 'lazy', decoding: 'async', onerror: e => e.currentTarget.replaceWith(h('div', { class: 'poster-fallback' }, entry.name)) }) : h('div', { class: 'poster-fallback' }, entry.name));
   $('.name', card).textContent = entry.name;
-  $('.sub', card).textContent = libraryAvailability(entry);
+  const downloading = entry.active.length > 0 && !entry.attention;
+  $('.sub', card).textContent = downloading ? [entry.state, entry.progress != null && `${Math.floor(entry.progress * 100)}%`].filter(Boolean).join(' · ') : libraryAvailability(entry);
   const next = nextExpiry(entry.files), hours = (next-Date.now())/3600000;
   let expiry = $('.poster-expiry', card);
   if (Number.isFinite(next)) { if (!expiry) { expiry = h('span', { class: 'poster-expiry' }); poster.append(expiry); } expiry.textContent = hours < 1 ? T('Leaving soon') : hours < 48 ? T('{0}h left', Math.ceil(hours)) : T('{0}d left', Math.ceil(hours/24)); expiry.classList.toggle('is-soon', hours < 24); } else expiry?.remove();
-  let watched = $('.poster-progress', card);
+  let bar = $('.poster-progress', card);
   const progress = entry.files[0] && savedProgress(libraryFile(entry.files[0]));
-  if (partlyWatched(progress)) { if (!watched) { watched = h('span', { class: 'poster-progress' }, h('i')); poster.append(watched); } watched.setAttribute('aria-label', T('{0}% watched', Math.round(progress.time/progress.duration*100))); watched.firstChild.style.width = `${progress.time/progress.duration*100}%`; } else watched?.remove();
-  panel.hidden = !entry.active.length && !entry.preparing;
-  $('.library-more', card).hidden = !entry.transfers.length;
-  $('.library-more', card).setAttribute('aria-label', T('Download details for {0}', entry.name));
-  $('.transfer-state', card).textContent = entry.state;
-  $('.transfer-percent', card).textContent = entry.progress == null ? '' : `${Math.floor(entry.progress * 100)}%`;
-  panel.classList.toggle('is-paused', entry.state === T('Paused')); panel.classList.toggle('is-error', entry.attention);
-  const track = $('.transfer-track', card);
-  track.setAttribute('aria-label', T('{0} download progress', entry.name));
-  track.setAttribute('aria-valuetext', `${entry.state}${entry.progress == null ? '' : `, ${Math.floor(entry.progress*100)} percent`}`);
-  if (entry.progress == null) track.removeAttribute('aria-valuenow'); else track.setAttribute('aria-valuenow', String(Math.floor(entry.progress*100)));
-  track.firstChild.style.width = entry.progress == null ? '0%' : `${entry.progress*100}%`;
+  const share = downloading ? (entry.progress ?? 0) : partlyWatched(progress) ? progress.time / progress.duration : null;
+  if (share != null) {
+    if (!bar) { bar = h('span', { class: 'poster-progress' }, h('i')); poster.append(bar); }
+    bar.classList.toggle('is-transfer', downloading);
+    bar.setAttribute('aria-label', downloading ? T('{0} download progress', entry.name) : T('{0}% watched', Math.round(share * 100)));
+    bar.firstChild.style.width = `${share * 100}%`;
+  } else bar?.remove();
   let pill = $('.transfer-pill', poster);
   const pillText = entry.attention ? T('Needs attention') : entry.state === T('Paused') ? T('Paused') : [T('Preparing playback'), T('Checking files')].includes(entry.state) ? T('Preparing') : '';
   if (pillText) { if (!pill) { pill = h('span', { class: 'transfer-pill' }); poster.append(pill); } pill.textContent = pillText; } else pill?.remove();
@@ -2326,7 +2437,7 @@ function pickerManagerSubview(opener) {
     (opener?.isConnected ? opener : $('#picker-body').querySelector('button') || $('#picker').querySelector('.sheet-close'))?.focus({ preventScroll: true });
   };
 }
-function renderDownloads() { if (state.view === 'downloads') { state.libAvailability = 'downloading'; setView('library'); } patchTransferNodes(); }
+function renderDownloads() { patchTransferNodes(); }
 function openTransferDetails(entry, opener) {
   const list = h('ul', { class: 'rows transfer-detail-list' });
   const scope = h('div');
@@ -2364,7 +2475,7 @@ function patchTransferNodes() {
 // An open title page follows along from any tab (renderLibrary does it too when the Library is shown).
 function patchUnifiedLibrary() {
   if (state.view === 'library') renderLibrary();
-  else { if (filmView.id) updateOpenFilm(); if (showView.id) updateOpenShow(); }
+  else { if (filmView.id) updateOpenFilm(); if (showView.id) updateOpenShow(); rightNow.update(); }
   patchTransferNodes();
 }
 
@@ -2472,6 +2583,7 @@ async function applyLive() {
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if (has('avatars') && view === 'library') jobs.push(loadParties());
   if (has('parties') && view === 'library') jobs.push(loadParties());
+  if (has('parties')) jobs.push(loadRightNow(true)); // Right now: a party row
   if (has('me') || has('people') || has('avatars')) {
     jobs.push((async () => {
       try {
@@ -3556,7 +3668,7 @@ function maybeAskFriends() {
   }));
 }
 // comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
-const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
+const comingSoon = createComingSoonView({ h, icon, toast, savedToast: (text) => watchlistToast(text), watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
   openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 // reviews: stars + written reviews (reviews.js); its sheets open in the picker
@@ -3621,7 +3733,7 @@ const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: 
 const themeMusic = createThemeMusic({ h, icon, page: () => showView.id,
   quiet: () => Boolean(party) || state.sessions.length > 0 || ['in-player', 'trailer-live'].some((c) => document.body.classList.contains(c)),
   watch: [[$('#sheet'), { attributes: true, attributeFilter: ['class', 'hidden'] }], [$('#sheet-body'), { childList: true }], [document.body, { attributes: true, attributeFilter: ['class'] }]] });
-const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
+const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => docsBillboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
   sheet: () => $('#sheet'), sheetBody: () => $('#sheet-body'),
@@ -3631,7 +3743,15 @@ const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notic
   play: (f) => openPlayer(libraryFile(f)),
 }); // Discover -> Documentaries and SVT Play titles (documentaries.js)
 // vibes: Discover -> Moods (vibes.js)
-const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => ownedTitle(t) });
+const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => ownedTitle(t),
+  // A genre mood's tile opens that genre's page, sorted the mood's way.
+  openGenre: (m) => {
+    const genre = (disc.genres || []).find((g) => (m.movie && g.movie === m.movie) || (m.tv && g.tv === m.tv));
+    if (!genre) return;
+    Object.assign(disc, { genre, sort: m.sort || 'popular', list: null });
+    window.scrollTo({ top: 0 });
+    renderDiscover();
+  } });
 
 // The subtitles the phone player would turn on by itself (see its subtitle setup), so a TV starts with
 // them too: the last used language when it's already saved for this video, else the one from Settings.
@@ -5116,7 +5236,7 @@ function saveProgress(force = false) {
   // server doesn't count it as finished (Up next stays on it).
   const auto = autoChain > 0;
   if (done) delete state.progress[ref];
-  if (done && !auto) noteFinished(current, now);
+  if (done && !auto) { noteFinished(current, now); rightNow.played(current); } // Right now: no longer "ready"
   else state.progress[ref] = { time: video.currentTime, duration: video.duration, at: now };
   invalidateLibraryProgress();
   const watched = Math.round(playedSince * 10) / 10;
@@ -7581,7 +7701,7 @@ video.addEventListener('error', () => {
     ? T('This video can’t play in this browser. Its format isn’t supported here; open the file link under the video to download it, or try another browser.')
     : current.kind === 'clip'
     ? T('This clip can’t play in this browser. Its video format (often AV1) isn’t supported here; try another browser, or share it to get a copy that plays everywhere.')
-    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.'),
+    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in Library › Downloads.'),
   { title: T('Can’t play here') });
   // When the note below the video says a version is being made, that note is the explanation.
   err.hidden = !$('#player-note').hidden;
@@ -8010,22 +8130,7 @@ function watchingPage() {
   const start = p.startView === 'downloads' ? 'library' : p.startView || 'discover';
   out.push(settingsRow(T('Open Lilin on'), null,
     segmented([['discover', T('Discover')], ['live', T('Live')], ['library', T('Library')], ['you', T('You')]], start, (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
-  out.push(settingsRow(T('Library order'), null,
-    segmented([['newest', T('Newest')], ['expiring', T('Leaving soonest')], ['title', 'A–Z']], p.librarySort || 'newest', (v) => saveMe({ librarySort: v }).then(renderSettings), T('Library order'))));
-  // ---- your library ----
-  const me = state.me;
-  const r = state.rules || {};
-  const mine = state.library;
-  const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
-  out.push(h('h3', { class: 'set-head' }, T('Your library')));
-  out.push(h('div', { class: 'set-card' },
-    h('p', {}, `${plural(mine.length, 'video')}, ${fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0))}.`,
-      next ? T(' Next to go: {0}{1}, {2} left.', next.title, episodeLabel(next) ? ` ${episodeLabel(next)}` : '', timeLeft(next.expiresAt).replace(' left', '')) : ''),
-    libraryMates().length > 0 && h('p', {}, T('Shared with {0}: you all see the same library and can add, keep or remove titles in it. Watch progress stays your own.', nameList(libraryMates()))),
-    h('p', { class: 'set-hint' }, me.keep ? T('The owner has set your videos to stay until you delete them.')
-      : r.retentionDays
-        ? T('Downloads are deleted {0} after they finish, to keep space free on the server. Use “Keep {1} more days” in the Library to hold on to something{2}.', plural(r.retentionDays, 'day'), r.extendDays, r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
-        : T('Nothing is deleted automatically.'))));
+  // Library order and Your library moved to Library › Titles (Sort, and the line under the grids).
   return out;
 }
 function devicesPage() {
@@ -10479,14 +10584,11 @@ async function setView(target, { address = true } = {}) {
   state.route = id; state.sub = r.sub || null; state.view = r.view;
   tabStack[r.tab] = id;
   try { sessionStorage.setItem('lilin:stack', JSON.stringify(tabStack)); } catch { /* private mode: no stacks */ }
-  if (r.sub === 'downloads') state.libAvailability = 'downloading';
-  else if (id === 'library' && state.libAvailability === 'downloading') state.libAvailability = 'all'; // up from Downloads
   document.querySelectorAll('.tab').forEach((t) => { if (t.dataset.view === r.tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
   if (r.tab === 'you') $('#me-btn').setAttribute('aria-current', 'page'); else $('#me-btn').removeAttribute('aria-current');
   const show = () => {
     document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${r.view}`; });
     document.body.classList.toggle('has-billboard', r.view === 'discover' && Boolean($('#discover-body .billboard')));
-    $('#browse-btn').hidden = r.view !== 'discover';
     window.scrollTo(0, 0);
   };
   if (viewChanged && smoothViews()) document.startViewTransition(show); else show();
@@ -10511,10 +10613,8 @@ $('#home-link').addEventListener('click', async (e) => {
   if (state.route === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
   else await setView('discover');
 });
-$('#manage-downloads').addEventListener('click', e => openTransferDetails(null, e.currentTarget));
-// Find torrents: the Library's button, search's footer and Go to all open the same sheet.
+// Find torrents: Library › Downloads, search's footer and Go to all open the same sheet.
 function findTorrents(query, opener) { return openTorrents({ query, opener }); }
-$('#find-torrents').addEventListener('click', (e) => findTorrents(pageFilters.library.trim(), e.currentTarget));
 
 // A link into Lilin (a tapped notification, or how this page was opened): ?friends=1 → You › Friends, ?ideas=1 →
 // You › Ideas or House › Ideas, ?moment= plays it, ?travel=1 opens the phone list, ?note= focuses it. Returns true
@@ -10571,8 +10671,6 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (state.me?.needsPassword) { showPasswordGate(); return; }
   state.rules = state.status.rules;
   applyTheme(prefs().theme);
-  $('#find-torrents').hidden = !state.status.torrents || !canDownload();
-  $('#manage-downloads').hidden = !state.me?.isOwner;
   await Promise.all([loadLibrary(), loadDownloads(), loadSessions(), loadProgress(), loadWatchlist(), loadTravel()]);
   // A reload stays on the page it was on (#library, #you/watching; old addresses like #settings land on their new
   // homes); a fresh visit opens the chosen start view.

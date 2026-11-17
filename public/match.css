@@ -1,34 +1,23 @@
 /* Pick together (public/match.js): a full-screen room on phones, a tall panel on wide screens. The posters
    are the show; the chrome stays quiet around them. Yes is the bulb's gold, no the alert red. */
 
-/* ---------- Discover's line ---------- */
-.pick-entry-wrap { margin: 0 0 var(--s6); }
-.pick-entry {
-  display: flex; align-items: center; gap: 14px; width: 100%; max-width: 640px;
-  padding: 12px 16px 12px 14px; text-align: left; color: var(--text);
-  background: linear-gradient(100deg, color-mix(in srgb, var(--bulb) 9%, var(--surface-1)), var(--surface-1) 60%);
-  border: 1px solid var(--hairline); border-radius: var(--r-md);
-  transition: border-color var(--d-2), transform var(--d-1) var(--ease-out);
-}
-.pick-entry:hover { border-color: var(--hairline-2); }
-.pick-entry:active { transform: scale(.985); }
-.pick-entry:focus-visible { outline: none; box-shadow: var(--ring); }
-.pick-entry.is-going { border-color: color-mix(in srgb, var(--bulb) 45%, transparent); }
-.pick-entry-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.pick-entry-text strong { font: 700 15px/1.25 var(--display); letter-spacing: -.005em; }
-.pick-entry-text span { font-size: 13px; color: var(--text-2); }
-.pick-entry-go, .pick-going-go { flex: none; font-size: 24px; line-height: 1; color: var(--text-3); }
+/* ---------- Discover's tile (the first in Moods) ---------- */
+.pick-tile { --v1: color-mix(in srgb, var(--bulb) 28%, #120d0a); --v2: var(--bulb); }
+.pick-tile.is-going { box-shadow: inset 0 0 0 2px var(--bulb), 0 0 18px color-mix(in srgb, var(--bulb) 35%, transparent); }
+.pick-tile .vibe-kicker { margin: 0 0 3px; font-size: 11px; letter-spacing: .02em; text-transform: none; }
+.pick-going-go { flex: none; font-size: 24px; line-height: 1; color: var(--text-3); }
 /* three little posters fanned out, like a hand of cards */
-.pick-entry-art, .pick-join-fan { position: relative; flex: none; width: 44px; height: 44px; }
-.pick-entry-art span, .pick-join-fan span {
+.pick-tile-art, .pick-join-fan { position: relative; flex: none; width: 44px; height: 44px; }
+.pick-tile-art span, .pick-join-fan span {
   position: absolute; left: 50%; bottom: 3px; width: 22px; height: 33px; margin-left: -11px;
   border-radius: 4px; transform-origin: 50% 100%;
   background: linear-gradient(160deg, color-mix(in srgb, var(--paper) 22%, var(--seat)), var(--seat));
   box-shadow: inset 0 0 0 1px var(--hairline-2), 0 2px 6px rgb(0 0 0 / .3);
 }
-.pick-entry-art span:nth-child(1), .pick-join-fan span:nth-child(1) { transform: rotate(-16deg) translateX(-5px); }
-.pick-entry-art span:nth-child(3), .pick-join-fan span:nth-child(3) { transform: rotate(16deg) translateX(5px); }
-.pick-entry-art span:nth-child(2), .pick-join-fan span:nth-child(2) { z-index: 1; background: linear-gradient(160deg, var(--bulb), color-mix(in srgb, var(--bulb) 55%, var(--seat))); }
+.pick-tile-art span:nth-child(1), .pick-join-fan span:nth-child(1) { transform: rotate(-16deg) translateX(-5px); }
+.pick-tile-art span:nth-child(3), .pick-join-fan span:nth-child(3) { transform: rotate(16deg) translateX(5px); }
+.pick-tile-art span:nth-child(2), .pick-join-fan span:nth-child(2) { z-index: 1; background: linear-gradient(160deg, var(--bulb), color-mix(in srgb, var(--bulb) 55%, var(--seat))); }
+.pick-tile .pick-tile-art { position: absolute; top: 8px; right: 10px; }
 
 /* ---------- the room ---------- */
 body.pick-open { overflow: hidden; }

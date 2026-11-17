@@ -57,14 +57,67 @@ const PICK_MOCKS = (o = {}, vote = { ok: true, match: null, left: 3 }) => ({
   '^/api/match/[A-Za-z0-9_-]{22}(\\?|$)': pickState(o),
 });
 
+// Revamp 2, Discover + Library on a throwaway local server (no TMDB, no qBittorrent): everything Discover and the
+// Library show is mocked, with drawn posters, so the layout can be judged for every role.
+const art = (i, w = 200, h = 300) => {
+  const hue = (i * 47) % 360;
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},55%,38%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},45%,14%)"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>`)}`;
+};
+const R2_NAMES = ['The Odyssey', 'Dune: Part Two', 'Past Lives', 'Severance', 'Arrival', 'Oppenheimer', 'The Bear', 'Shogun', 'Anora', 'Conclave', 'Andor', 'Nosferatu', 'Flow', 'Slow Horses', 'The Brutalist', 'Silo'];
+const r2Title = (i, type = i % 3 ? 'movie' : 'tv') => ({ type, id: 9000 + i, title: R2_NAMES[i % R2_NAMES.length], year: 2020 + (i % 6), rating: 6.5 + (i % 30) / 10,
+  poster: art(i), backdrop: art(i, 780, 439), overview: 'A story told across one long night, with more twists than anyone at the table expected.', genres: [18] });
+const r2List = (from, n = 14, type) => Array.from({ length: n }, (_, i) => r2Title(from + i, type));
+const R2_ROWS = { all: [['trending-all', 'Trending this week'], ['popular-movie', 'Popular films', 'movie'], ['popular-tv', 'Popular shows', 'tv'], ['cinemas', 'In cinemas now', 'movie'], ['on-air', 'New episodes this week', 'tv'], ['top-movie', 'Top rated films', 'movie'], ['top-tv', 'Top rated shows', 'tv']],
+  movie: [['trending-movie', 'Trending films', 'movie'], ['popular-movie', 'Popular', 'movie'], ['cinemas', 'In cinemas now', 'movie'], ['top-movie', 'Top rated', 'movie']],
+  tv: [['trending-tv', 'Trending shows', 'tv'], ['popular-tv', 'Popular', 'tv'], ['on-air', 'New episodes this week', 'tv'], ['top-tv', 'Top rated', 'tv']] };
+const HOUR = 3600e3;
+const r2File = (i, o = {}) => ({ id: `lib-${i}`, mediaKey: `mk-${i}`, file: `File.${i}.mp4`, title: R2_NAMES[i % R2_NAMES.length], filmTitle: R2_NAMES[i % R2_NAMES.length],
+  tmdbId: 9000 + i, year: 2024, poster: art(i), backdrop: art(i, 780, 439), size: 2.1e9 + i * 1e8, addedAt: Date.now() - (i + 1) * 30 * HOUR, added: Date.now() - (i + 1) * 30 * HOUR, expiresAt: Date.now() + (i + 1) * 40 * HOUR, ...o });
+const R2_LIBRARY = [r2File(1, { addedAt: Date.now() - 2 * HOUR, added: Date.now() - 2 * HOUR }), r2File(2, { expiresAt: Date.now() + 20 * HOUR }), ...Array.from({ length: 10 }, (_, i) => r2File(i + 3))];
+const R2_STATUS = (o = {}) => ({ '^/api/status$': (j) => { j.search = true; j.downloads = true; j.wrapped = { year: 2026 }; if (o.start) j.me.settings.startView = o.start; return j; } });
+const R2_MOCKS = ({ empty = false } = {}) => ({
+  '^/api/discover/genres': { genres: [['Action', 28, 10759], ['Comedy', 35, 35], ['Crime', 80, 80], ['Drama', 18, 18], ['Horror', 27, null], ['Romance', 10749, null], ['Science Fiction', 878, 10765], ['Thriller', 53, null]].map(([name, movie, tv]) => ({ name, movie, tv })) },
+  '^/api/discover/home': (u) => { const rows = R2_ROWS[u.searchParams.get('type')] || R2_ROWS.all; return { featured: r2List(40, 5), rows: rows.map(([key, title, type], i) => ({ key, title, items: r2List(i * 14, 14, type) })) }; },
+  '^/api/discover/list': (u) => ({ page: 1, totalPages: 1, results: r2List(3, 20, u.searchParams.get('key').endsWith('tv') ? 'tv' : 'movie') }),
+  '^/api/vibes$': { vibes: [['rainy', 'Slow-burn rainy day thriller', 'rain', ['#14263d', '#6aa7e8']], ['90s', '90s indie nostalgia', 'cassette', ['#3d2414', '#e8a06a']], ['cosy', 'Cosy Sunday', 'mug', ['#2b1a12', '#f0c27a']], ['neon', 'Neon nights', 'neon', ['#24103d', '#c07af0']]].map(([id, name, glyph, colors]) => ({ id, name, glyph, colors, types: ['movie', 'tv'] })) },
+  '^/api/social/popular': empty ? { items: [] } : { items: r2List(60, 10).map((t, i) => ({ ...t, likes: i % 3, viewers: 2, likedBy: i % 3 ? ['Ebba'] : [], people: [{ id: 2, name: 'Ebba' }] })) },
+  '^/api/match$': { picks: [], people: [], canInvite: true },
+  '^/api/watch/parties$': empty ? { parties: [] } : { parties: [{ token: 't'.repeat(24), startsAt: Date.now() + 3 * HOUR, started: false, mine: true, host: 'Owner', faces: [], media: { kind: 'lib', id: 'lib-3', title: 'Past Lives' } }] },
+  '^/api/me/wrapped': { empty: true },
+  '^/api/title/': { page: { similar: r2List(80, 12) } },
+  '^/api/library$': empty ? { items: [], server: [], shows: [] } : { items: R2_LIBRARY, server: [], shows: [] },
+  '^/api/me/progress$': empty ? { progress: {}, finished: {} } : { progress: { 'm:mk-4': { time: 1200, duration: 6000, at: Date.now() - 5 * HOUR }, 'm:mk-6': { time: 300, duration: 2400, at: Date.now() - 30 * HOUR } }, finished: {} },
+  '^/api/downloads': empty ? { items: [] } : { items: MOCK_DOWNLOADS.slice(0, 3) },
+  '^/api/watchlist$': empty ? { items: [], autoDownload: true } : { autoDownload: true, items: [
+    { type: 'tv', id: 9104, title: 'Severance', poster: art(4), follow: true, auto: true, nextEpisode: { season: 2, episode: 7, name: 'Chikhai Bardo', airDate: new Date(Date.now() + 2 * 86400e3).toISOString().slice(0, 10) } },
+    { type: 'movie', id: 9105, title: 'The Odyssey', poster: art(5), saved: true, release: new Date(Date.now() + 9 * 86400e3).toISOString().slice(0, 10), releaseKind: 'digital' },
+    { type: 'movie', id: 9106, title: 'Nosferatu', poster: art(6), saved: true },
+    { type: 'movie', id: 9107, title: 'Conclave', poster: art(7), saved: true },
+    { type: 'tv', id: 9108, title: 'Slow Horses', poster: art(8), follow: true, auto: false }] },
+  '^/api/convert': { enabled: true, active: [], queued: 0, recentFailures: [] },
+});
+
 export const SCENES = [
+  // ---- revamp 2: Discover + Library (mocked; see R2_MOCKS) ----
+  { name: 'r2-discover', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), after: 1500 },
+  { name: 'r2-discover-full', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, steps: ["await __waitFor('.vibes-shelf', 15000); await __sleep(1500);"] },
+  { name: 'r2-discover-top', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), steps: ["await __waitFor('.right-now:not([hidden])', 15000); document.querySelector('.right-now').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(600);"] },
+  { name: 'r2-discover-genres', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS(), patch: R2_STATUS(), steps: ["await __click('.genres-toggle'); document.querySelector('.discover-controls').scrollIntoView({ block: 'center' }); await __sleep(500);"] },
+  { name: 'r2-discover-new', path: '/', ready: '#discover-body .billboard', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), full: true, steps: ["await __waitFor('.vibes-shelf', 15000); await __sleep(1500);"] },
+  { name: 'r2-library', path: '/#library', ready: '#library-body .unified-card', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 1000 },
+  { name: 'r2-library-start', path: '/#library', ready: '#library-body .unified-card', mocks: R2_MOCKS(), patch: R2_STATUS({ start: 'library' }), after: 1500 },
+  { name: 'r2-watchlist', path: '/#library/watchlist', ready: '#library-body .rn-row', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 800 },
+  { name: 'r2-downloads', path: '/#library/downloads', ready: '#library-body .rn-row', mocks: R2_MOCKS(), patch: R2_STATUS(), full: true, after: 800 },
+  { name: 'r2-library-empty', path: '/#library', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
+  { name: 'r2-watchlist-empty', path: '/#library/watchlist', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
+  { name: 'r2-downloads-empty', path: '/#library/downloads', ready: '#library-body .empty-state', mocks: R2_MOCKS({ empty: true }), patch: R2_STATUS(), after: 500 },
   // ---- Discover ----
   { name: 'discover', path: '/', ready: '#discover-body .shelf' },
   { name: 'discover-rows', path: '/', ready: '#discover-body .shelf', steps: ['window.scrollTo(0, innerHeight * 1.5); await __sleep(500);'] },
-  { name: 'discover-films', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-filters .segmented button:nth-child(2)'); await __waitFor('#discover-body .shelf');"] },
+  { name: 'discover-films', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-controls .segmented button:nth-child(2)'); await __waitFor('#discover-body .shelf');"] },
   // pick: Pick together: Discover's line, starting one, the stack, a drag, a match, joining from a link
-  { name: 'pick-entry', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["const s = await __waitFor('.pick-entry', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
-  { name: 'pick-setup', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["await __click('.pick-entry', 20000); await __waitFor('.pick-setup'); await __sleep(700);"] },
+  { name: 'pick-entry', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["const s = await __waitFor('.pick-tile', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
+  { name: 'pick-setup', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["await __click('.pick-tile', 20000); await __waitFor('.pick-setup'); await __sleep(700);"] },
   { name: 'pick-swipe', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), after: 1500 },
   { name: 'pick-drag', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), steps: ["const c = document.querySelector('.pick-card.is-top'); c.classList.add('is-dragging'); c.style.transform = 'translate(70px, 6px) rotate(4deg)'; c.style.setProperty('--yes', '0.9'); await __sleep(1500);"] },
   { name: 'pick-about', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), steps: ["document.querySelector('.pick-card.is-top').classList.add('is-about'); await __sleep(1500);"] },
@@ -75,11 +128,10 @@ export const SCENES = [
   // vibes: the Moods row and a mood's page
   { name: 'vibes-row', path: '/', ready: '#discover-body .shelf', steps: ["const s = await __waitFor('.vibes-shelf', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(800);"] },
   { name: 'vibes-page', path: '/', ready: '#discover-body .shelf', full: true, steps: ["await __click('.vibe-tile', 20000); await __waitFor('.vibe-grid .title-card', 30000); await __sleep(2500);"] },
-  { name: 'discover-browse', path: '/', ready: '#discover-body .billboard', sizes: ['phone', 'tablet'], steps: ["await __click('#browse-btn'); await __waitFor('#picker.open'); await __sleep(700);"] },
   { name: 'discover-genres-open', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.genres-toggle'); await __sleep(500);"] },
   { name: 'discover-genre', path: '/', ready: '#discover-body .shelf', steps: ["const t = document.querySelector('.genres-toggle'); if (t) { t.click(); await __sleep(300); } await __click('.genre-chips .chip:nth-child(4)'); await __waitFor('#discover-body .grid .title-card');"] },
   { name: 'discover-see-all', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.see-all'); await __waitFor('#discover-body .grid .title-card');"] },
-  { name: 'discover-docs', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-filters .segmented button:nth-child(4)'); await __sleep(3500);"] },
+  { name: 'discover-docs', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-controls .segmented button:nth-child(4)'); await __sleep(3500);"] },
   { name: 'search', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('house'), "await __waitFor('#search-layer .grid .title-card');"] },
   { name: 'search-empty', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('zzqxjvwq'), "await __waitFor('#search-layer .notice, #search-layer .empty');"] },
   { name: 'title-film', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular films|populära filmer'), sheetOpen] },

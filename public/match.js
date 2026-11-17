@@ -605,20 +605,20 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
     close();
   }
 
-  // ---------- Discover's card ----------
-  // One quiet line on Discover: start a pick, or get back to one that's going (or that you were invited to).
-  async function entry(signal) {
+  // ---------- Discover's tile ----------
+  // The first tile of Discover's Moods row: start a pick, or get back to one that's going (or that you were invited
+  // to). A pick that's going lights the tile's edge (a still glow, no pulse).
+  async function tile(signal) {
     const data = listCache && Date.now() - listCache.at < 30000 ? listCache.data : await loadList();
     if (signal?.aborted) return null;
-    entryEl = h('section', { class: 'pick-entry-wrap', 'aria-label': T('Pick together') });
+    entryEl = h('li', { class: 'vibe-item' });
     fillEntry(data);
     return entryEl;
   }
   function fillEntry(data) {
     if (!entryEl) return;
     const p = (data.picks || [])[0];
-    const art = h('span', { class: 'pick-entry-art', 'aria-hidden': 'true' }, h('span', {}), h('span', {}), h('span', {}));
-    let title = T('Can’t agree on what to watch?'), sub = T('Pick together: everyone swipes, the first shared yes wins.'), faces = null;
+    let title = T('Pick together'), sub = T('Everyone swipes, the first shared yes wins.'), faces = null;
     if (p?.invited) {
       title = p.type === 'tv' ? T('{0} wants to pick a show with you', p.host?.name || '') : T('{0} wants to pick a film with you', p.host?.name || '');
       sub = T('Join and start swiping'); faces = people.faces([p.host], { size: 28 });
@@ -627,10 +627,9 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
       sub = p.matches ? (p.matches === 1 ? T('1 match so far') : T('{0} matches so far', p.matches)) : T('Carry on swiping');
       faces = people.faces(p.members, { size: 28, max: 3 });
     }
-    entryEl.replaceChildren(h('button', { type: 'button', class: `pick-entry${p ? ' is-going' : ''}`, onclick: () => (p ? openPick(p.id) : openSetup()) },
-      faces || art,
-      h('span', { class: 'pick-entry-text' }, h('strong', {}, title), h('span', {}, sub)),
-      h('span', { class: 'pick-entry-go', 'aria-hidden': 'true' }, '›')));
+    entryEl.replaceChildren(h('button', { type: 'button', class: `vibe-tile pick-tile${p ? ' is-going' : ''}`, onclick: () => (p ? openPick(p.id) : openSetup()) },
+      faces ? h('span', { class: 'pick-tile-art' }, faces) : h('span', { class: 'pick-tile-art', 'aria-hidden': 'true' }, h('span', {}), h('span', {}), h('span', {})),
+      h('span', { class: 'vibe-kicker' }, sub), h('span', { class: 'vibe-name' }, title)));
   }
   async function refreshEntry() {
     if (!entryEl?.isConnected) return;
@@ -644,5 +643,5 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
     else refreshEntry();
   }
 
-  return { entry, open: openSetup, openPick, onLive, isOpen: () => open };
+  return { tile, open: openSetup, openPick, onLive, isOpen: () => open };
 }
