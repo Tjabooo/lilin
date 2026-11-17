@@ -2,6 +2,10 @@
   "2026-11-17-fleet-fixes": {
     "title": "En omgång rättningar",
     "items": {
+      "No Add on films that aren't out yet": {
+        "title": "Inget Lägg till på filmer som inte kommit ut",
+        "text": "Filmer som bara går på bio och serier som inte börjat sändas visar inte längre Lägg till i biblioteket på sina kort. Spara eller följ dem i stället, så lägger Lilin till dem när de kommit ut."
+      },
       "Watch Together fits the screen": {
         "title": "Titta tillsammans får plats",
         "text": "På telefoner och stående surfplattor ligger rummet nu under bilden i stället för över den, och på liggande skärmar dockar det till höger och lämnar kontrollerna fria. Ljudknappen är tillbaka i rummen, så alla kan välja sitt eget ljudspråk."
