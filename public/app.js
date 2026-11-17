@@ -32,6 +32,7 @@ import { createPeek } from './peek.js';
 import { createComingSoon as createComingSoonView } from './coming-soon.js'; // comingsoon
 import { createScout, scoutWaiting } from './scout.js'; // scout: the idea scout's cards in the owner's inbox
 import { createTitleDetails } from './details.js'; // details: More details at the bottom of title pages
+import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme music on show pages
 
 translatePage();
 saveLanguage(lang);
@@ -2092,7 +2093,7 @@ function renderShow() {
   }
   // The same Download panel as in Discover, opened on the season you're looking at.
   const tv = canGet() && show.tmdbId ? showDownload({ id: show.tmdbId, title: show.title, type: 'tv' }, { season: open?.number ?? null, onAdded: renderShow }) : null;
-  $('#sheet-body').replaceChildren(pageHero(show.backdrop),
+  $('#sheet-body').replaceChildren(themeMusic.hero(pageHero(show.backdrop)), // theme
     h('div', { class: 'sheet-content' }, pageTitle(show.title, 'tv', show.tmdbId), pageFacts([show.year, T('Series'), libraryAvailability(entry)], 'tv', show.tmdbId),
       h('div', { class: 'title-actions' }, showPlayButton(show.id, entry), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
       h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
@@ -2103,6 +2104,7 @@ function renderShow() {
       moreLike('tv', show.tmdbId),
       titleDetails.section('tv', show.tmdbId))); // details
   if (open && show.tmdbId && state.status.search) fillEpisodeDetails(show.tmdbId, open.number);
+  themeMusic.enter(show.id, themeUrl(files)); // theme: keeps going between seasons
   showStructure = JSON.stringify([showView.id, showView.season, entry.files, entry.transfers.map(d => [d.hash, d.season, (d.episodes || []).map(ep => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])])]);
 }
 
@@ -3622,6 +3624,10 @@ function renderMeButton() {
 $('#me-btn').addEventListener('click', (e) => profiles.openMine(e.currentTarget));
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
+// theme: a show's theme song, softly, while its page is open (theme-music.js)
+const themeMusic = createThemeMusic({ h, icon, page: () => showView.id,
+  quiet: () => Boolean(party) || state.sessions.length > 0 || ['in-player', 'trailer-live'].some((c) => document.body.classList.contains(c)),
+  watch: [[$('#sheet'), { attributes: true, attributeFilter: ['class', 'hidden'] }], [$('#sheet-body'), { childList: true }], [document.body, { attributes: true, attributeFilter: ['class'] }]] });
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
@@ -7312,6 +7318,7 @@ async function loadPlayerMedia(f, opts = {}) {
 
 async function openPlayer(f, opts = {}) {
   const opener = document.activeElement;
+  themeMusic.stop(); // theme: pressing play ends the show page's song
   (opts.replace ? swapTopOverlay : pushOverlay)(() => {
     resetPlayerMedia();
     clearSleep();
@@ -7951,6 +7958,7 @@ function renderSettings() {
     select([['', T('Off')], ...(state.status.subLangs || []).map((l) => [l.code, l.name])], p.subLang || '', (v) => saveMe({ subLang: v }), T('Default subtitles'))));
   out.push(settingsRow(T('Intros'), p.skipIntro === 'auto' ? T('Opening titles are skipped as they start (not in Watch Together).') : T('A Skip intro button shows during opening titles.'),
     segmented([['button', T('Show a button')], ['auto', T('Skip automatically')]], p.skipIntro || 'button', (v) => saveMe({ skipIntro: v }).then(renderSettings), T('Intros'))));
+  out.push(themeMusic.settings(settingsRow, segmented, renderSettings)); // theme
   out.push(settingsRow(T('Open Lilin on'), null,
     segmented([['discover', T('Discover')], ['library', T('Library')]], p.startView === 'downloads' ? 'library' : p.startView || 'discover', (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
   out.push(tvSignInRow());

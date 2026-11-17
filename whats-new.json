@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-theme-music",
+  "date": "2026-11-17",
+  "title": "Theme music",
+  "items": [
+    {
+      "title": "Show pages play their theme song",
+      "text": "Open a show in your Library and its theme song plays quietly in the background, like the menu of a home cinema. It keeps going while you look through seasons and episodes, and fades out when you press play or leave the page. Tap the small speaker on the picture to stop it. Turn it off, or a little louder, on each device in Settings → Watching → Theme music. Shows where Lilin hasn’t found the opening titles yet stay silent."
+    }
+  ]
+},
+{
   "id": "2026-11-17-profile-reload-clips-live",
   "date": "2026-11-17",
   "title": "Profiles stay put, clips arrive by themselves",

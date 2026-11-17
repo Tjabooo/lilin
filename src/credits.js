@@ -407,6 +407,18 @@ export async function knownTimes(file, siblings = []) {
   return { duration: entry.duration, intro, creditsAt };
 }
 
+// The opening titles already known for a file, from the cache alone (nothing is read or decoded): theme music on
+// show pages (theme-music.js). Every neighbour it was compared with counts, and they must agree, as in introFor.
+export function storedIntro(file) {
+  const entry = state.files[file];
+  if (!entry) return null;
+  if (entry.intro) return entry.intro;
+  const near = Object.values(entry.ivs || {}).filter(Boolean);
+  if (near.length) return agreeIntro(near);
+  const far = Object.values(entry.ifar || {}).filter(Boolean);
+  return far.length >= 2 ? agreeIntro(far) : null;
+}
+
 // The theme song both episodes open with, in each one's own time. Rounded inwards: the button may
 // appear a moment late and skip a moment short, never past the start of the episode itself.
 async function compareOpenings(fileA, a, fileB, b, far = false) {

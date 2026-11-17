@@ -192,7 +192,7 @@ src/
   subtitles.js, subsync.js
   cast.js            DLNA and Apple TV
   watch.js, watch-page.js   Watch Together
-  shows.js, episode-order.js, credits.js, previews.js
+  shows.js, episode-order.js, credits.js, previews.js, theme-music.js
   notes*.js, note-share.js  Notes, attachments, OCR, shared previews
   house.js, load.js, screentime.js, clips.js, invites.js, activity.js, live.js, network.js
   social.js, reviews.js thumbs, Popular, Wrapped, watch parties; stars + written reviews
@@ -276,6 +276,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET`, `POST` | `/api/me` | You and your settings (`{ name?, theme?, subLang?, quality?, startView?, librarySort?, seenUpdate?, skipIntro?, pushDownload?, pushEpisode?, pushWatch? }`); `skipIntro`: `button` or `auto` |
 | `GET` | `/api/media/<lib\|dl>/<id>/credits` | When the closing credits start (`{ creditsAt }`, seconds or `null`) |
 | `GET` | `/api/media/<lib\|dl>/<id>/intro` | The opening titles to skip (`{ intro: { start, end } }` in seconds, or `intro: null`) |
+| `GET` | `/api/media/lib/<id>/theme` | A show page's theme music (src/theme-music.js): up to 30 s of the opening Skip intro found in any episode of the show `<id>` belongs to (the earliest season first), as `audio/mp4` (AAC, cached in `CACHE_DIR/theme-music`). Only what's already known is used: `204` when no opening is known yet, and one episode is then looked at in the background while nobody is watching |
 | `GET` | `/api/whats-new` | Every update's notes (`updates`, newest first) and the newest one you've seen (`seen`); `/api/status` carries `whatsNew: { latest, unseen, build }` |
 | `GET`, `POST` | `/api/me/progress` | Where you stopped watching (`{ ref, time, duration }`; `time: null` = finished). The player adds `{ watched, about: { titleKey, title, season, episode }, room }`: seconds really played since the last save, logged per day in `watch_log` (capped at ~2x the time that passed) |
 | `GET` | `/api/me/wrapped?year=` | Lilin Wrapped: your year from `watch_log`, `watch_company` and `ratings` |

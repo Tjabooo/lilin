@@ -2397,4 +2397,11 @@ export default {
   "Nothing found.": "Inget hittades.",
   "Your profile": "Din profil",
   "Open {0}’s profile": "Öppna {0}s profil",
+  // theme: theme music on show pages
+  "Theme music": "Ledmotiv",
+  "A show’s theme song plays softly on its page. Only on this device.": "Seriens ledmotiv spelas svagt på dess sida. Bara på den här enheten.",
+  "Quiet": "Lågt",
+  "Louder": "Högre",
+  "Stop theme music": "Stoppa ledmotivet",
+  "Play theme music": "Spela ledmotivet",
 };

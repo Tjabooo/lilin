@@ -65,7 +65,8 @@ import * as noteShare from './note-share.js';
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
-import { creditsFor, introFor, initCredits, knownTimes } from './credits.js';
+import { creditsFor, introFor, initCredits, knownTimes, storedIntro } from './credits.js';
+import { createThemeMusic } from './theme-music.js'; // theme: theme music on show pages
 import { createLiveTv } from './live-tv.js';
 import { LiveChat } from './live-chat.js'; // livechat
 import { liveToken } from './channels.js'; // livechat
@@ -3258,6 +3259,21 @@ async function creditPeers(file) {
   return { siblings: siblings.slice(0, 2).map((i) => i.full), next: siblings.find((i) => i.episode === here.episode + 1)?.full };
 }
 
+// theme: every episode of the show a file belongs to (originals), for its theme music. Nothing is decoded here.
+const themeMusic = createThemeMusic({ dir: path.join(CACHE_DIR, 'theme-music'), storedIntro, idle: () => !load.watching(),
+  search: async (file) => introFor(file, (await creditPeers(file)).siblings) });
+async function themeEpisodes(file) {
+  const items = await scanLibrary();
+  const all = libraryCache.all || items || [];
+  const here = all.find((i) => samePath(i.full, file));
+  if (!here || here.season == null || here.episode == null) return null;
+  const key = shows.showKey(here.title);
+  const mine = all.filter((i) => i.season != null && i.episode != null && shows.showKey(i.title) === key);
+  const copies = new Set(mine.filter((i) => converter.needsConversion(i.full)).map((i) => converter.twinPath(i.full)));
+  // An MP4 copy's original is listed too, and Skip intro's findings are kept under the original.
+  return { key, episodes: mine.filter((i) => !copies.has(i.full)).map((i) => ({ file: i.full, season: i.season, episode: i.episode })) };
+}
+
 // Skip intro and Up next for a whole season, worked out when its episodes arrive. Otherwise the first
 // play has to compare the audio itself, and the button can turn up after the intro has passed. One
 // decode at a time, so someone pressing play waits for the one in progress at most, and with longer
@@ -4744,6 +4760,15 @@ async function handleApi(req, res, url) {
     const intro = await introFor(file, peers.siblings);
     if (peers.next) creditPeers(peers.next).then((n) => introFor(peers.next, n.siblings)).catch(() => {});
     return sendJson(res, 200, { intro });
+  }
+  // theme: a show page's theme music (theme-music.js), from the opening its episodes share. 204 = none (yet).
+  if ((m = p.match(/^\/api\/media\/lib\/([A-Za-z0-9_-]+)\/theme$/))) {
+    const listed = await sourceFile('lib', m[1]);
+    const show = await themeEpisodes(converter.originalFor(listed) || listed);
+    const theme = show && await themeMusic.themeFor(show.key, show.episodes);
+    if (!theme) { res.writeHead(204, { 'Cache-Control': 'no-store' }); return res.end(); }
+    res.writeHead(200, { 'Content-Type': 'audio/mp4', 'Cache-Control': 'private, max-age=86400' });
+    return res.end(req.method === 'HEAD' ? undefined : await fs.promises.readFile(theme));
   }
 
   // Timeline previews of the copy the browser plays (its timeline is the one the seek bar shows).

@@ -1,4 +1,13 @@
 {
+  "2026-11-17-theme-music": {
+    "title": "Ledmotiv",
+    "items": {
+      "Show pages play their theme song": {
+        "title": "Seriesidor spelar sitt ledmotiv",
+        "text": "Öppna en serie i ditt bibliotek så spelas dess ledmotiv svagt i bakgrunden, som menyn på en hemmabio. Det fortsätter medan du bläddrar bland säsonger och avsnitt och tonar ut när du trycker på spela eller lämnar sidan. Tryck på den lilla högtalaren på bilden för att stoppa det. Stäng av det, eller höj det lite, på varje enhet under Inställningar → Uppspelning → Ledmotiv. Serier där Lilin inte har hittat förtexterna än är tysta."
+      }
+    }
+  },
   "2026-11-17-profile-reload-clips-live": {
     "title": "Profiler stannar kvar, klipp kommer av sig själva",
     "items": {
