@@ -408,9 +408,16 @@ function skeletonGrid(n = 8) {
 }
 
 let toastTimer;
+// In the player, a note at the top (Making a version…, Off air) would sit under the toast: the toast goes below it.
+function placeToast(t) {
+  const note = document.body.classList.contains('in-player') ? $('#player-note') : null;
+  const below = note && !note.hidden ? note.getBoundingClientRect().bottom : 0;
+  t.style.top = below > 0 ? `${Math.round(below + 10)}px` : '';
+}
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
+  placeToast(t);
   t.classList.remove('has-action');
   t.classList.add('show');
   clearTimeout(toastTimer);
@@ -420,6 +427,7 @@ function toast(msg) {
 // A toast with one button (Undo). It stays a little longer than a plain one.
 function actionToast(msg, label, action, ms = 6000) {
   const t = $('#toast');
+  placeToast(t);
   t.replaceChildren(h('span', {}, msg), h('button', { type: 'button', class: 'toast-action', onclick: () => { t.classList.remove('show'); action(); } }, label));
   t.classList.add('show', 'has-action');
   clearTimeout(toastTimer);
@@ -4381,9 +4389,11 @@ let watchPanelOpen = false;
 let partyUnread = 0; // chat messages since the Room panel was last open
 const watchClient = globalThis.crypto?.randomUUID?.() || `${CLIENT_ID}-${Math.random().toString(36).slice(2, 10)}`;
 
-// Wide screens dock the room on the right and the picture moves over; phones get a sheet.
-const roomDocks = matchMedia('(min-width: 1100px)');
+// Wide or landscape screens dock the room on the right and the picture moves over; phones and upright tablets
+// get a sheet under the picture, which moves up (the live chat's model). Either way nothing covers the picture.
+const roomDocks = matchMedia('(min-width: 1100px), (orientation: landscape) and (min-width: 560px)');
 const roomDocked = () => Boolean(party && watchPanelOpen && roomDocks.matches);
+const roomSheet = () => Boolean(party && watchPanelOpen && !roomDocks.matches);
 roomDocks.addEventListener?.('change', () => { if (party) renderParty(); });
 
 // One line about the room, with a tone for its colour: live, count, wait or alert.
@@ -4458,8 +4468,9 @@ function renderParty() {
   playerEl.classList.toggle('is-live', onAir);
   renderLiveStrip();
   playerEl.classList.toggle('in-party', Boolean(party));
-  if (playerEl.classList.contains('room-docked') !== roomDocked()) {
+  if (playerEl.classList.contains('room-docked') !== roomDocked() || playerEl.classList.contains('room-sheet') !== roomSheet()) {
     playerEl.classList.toggle('room-docked', roomDocked());
+    playerEl.classList.toggle('room-sheet', roomSheet());
     requestAnimationFrame(layoutSubs);
   }
   updateUpNext();
@@ -4572,10 +4583,10 @@ const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, 
 let tuning = null, lastChannel = null, liveDigits = '', liveDigitsTimer = null;
 const liveChannelId = () => (current?.live ? party?.state.live?.channel?.id || current.live.channel?.id : null);
 
-async function tuneIn(id) {
+async function tuneIn(id, again = false) {
   if (!id || tuning) return;
   const was = liveChannelId();
-  if (was === id && !playerEl.hidden) { showPlayerUi(); return; }
+  if (was === id && !playerEl.hidden && !again) { showPlayerUi(); return; }
   tuning = id;
   try {
     const room = await api(`/api/live/${encodeURIComponent(id)}/tune`, jsonPost({ clientId: watchClient }));
@@ -4923,11 +4934,6 @@ async function loadParties() {
 }
 $('#watch-btn').addEventListener('click', () => { if (party) setWatchPanel(!watchPanelOpen); else hostWatchRoom(); });
 $('#watch-hide').addEventListener('click', () => { setWatchPanel(false); $('#watch-btn').focus(); });
-// The phone sheet covers the picture, so a tap outside closes it; the docked panel stays put.
-document.addEventListener('click', (event) => {
-  if (!watchPanelOpen || roomDocked() || !event.target.isConnected) return;
-  if (!event.target.closest?.('#watch-bar, #watch-btn')) setWatchPanel(false);
-});
 $('#watch-copy').addEventListener('click', () => {
   // /c/w/ shows a preview in Discord and other chats, then forwards to /?watch=
   if (party) copyWithToast(`${location.origin}/c/w/${party.state.token}`, T('Room link copied. Everyone uses their usual Lilin sign-in.'));
@@ -6425,7 +6431,7 @@ function closePlayerMenus(except) {
 }
 const playerMenuOpen = () => !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
   || !$('#more-menu').hidden || !helpEl.hidden || streamStats.isOpen();
-const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || (watchPanelOpen && !roomDocked()) || momentsUI.menuOpen(); // friends: Moments
+const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen(); // friends: Moments
 let lastPointer = 'mouse';
 let overControls = false;
 let uiTimer = null;
@@ -6446,7 +6452,7 @@ function hidePlayerUi() {
   setUi(false);
 }
 playerEl.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; }, true);
-playerEl.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !(roomDocked() && e.target.closest?.('#watch-bar'))) showPlayerUi(); });
+playerEl.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !(watchPanelOpen && e.target.closest?.('#watch-bar'))) showPlayerUi(); });
 controlsEl.addEventListener('pointerenter', (e) => { overControls = e.pointerType === 'mouse'; });
 controlsEl.addEventListener('pointerleave', () => { overControls = false; });
 video.addEventListener('play', showPlayerUi);
@@ -7058,9 +7064,8 @@ function setPlayerTitle(f) {
 
 async function loadPlayerMedia(f, opts = {}) {
   resetPlayerMedia();
-  const session = current = { ...f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
+  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
-  const err = $('#player-error');
   setPlayerTitle(f);
   momentsUI.sync(); // friends: the ⋯ menu (Clip a moment) for library videos
   playerEl.classList.toggle('is-clip', plainMedia(f));
@@ -7121,7 +7126,7 @@ async function loadPlayerMedia(f, opts = {}) {
       setSpinner,
       showNote: (text) => { const note = $('#player-note'); note.textContent = text; note.hidden = false; },
       hideNote: () => { $('#player-note').hidden = true; },
-      showError: (text) => { err.textContent = text; err.hidden = false; },
+      showError: (text) => showPlayerError(text, { title: T('Can’t play this yet') }),
       fullItem: (id) => state.library.find((x) => x.id === id && !x.converting) || null,
       switchToFull: (item) => {
         const at = video.currentTime || 0;
@@ -7135,7 +7140,7 @@ async function loadPlayerMedia(f, opts = {}) {
     // and a viewer who isn't heard from for 20 s leaves the room. Until their video is ready the room waits.
     if (watchSession) {
       watchSession.start().catch((error) => {
-        if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); err.textContent = error.message; err.hidden = false; }
+        if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); roomFailed(error); }
       });
     }
     return;
@@ -7154,8 +7159,8 @@ async function loadPlayerMedia(f, opts = {}) {
     if (current !== session) return;
     if (party === watchSession && watchSession) leaveWatchRoom();
     setSpinner(false);
-    err.textContent = error.message;
-    err.hidden = false;
+    if (watchSession) roomFailed(error);
+    else showPlayerError(error.message, { title: T('Couldn’t start this video') });
     return;
   }
   if (current !== session) return;
@@ -7185,7 +7190,7 @@ async function loadPlayerMedia(f, opts = {}) {
   watchAudio(f, session);
   if (watchSession) {
     try { await watchSession.start(); }
-    catch (error) { if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); err.textContent = error.message; err.hidden = false; } }
+    catch (error) { if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); roomFailed(error); } }
   } else video.play().catch(() => { /* autoplay blocked: the controls are there */ });
 }
 
@@ -7395,15 +7400,49 @@ video.addEventListener('pause', () => saveProgress(true));
 // A video that already played and then errors lost its connection (Lilin restarted, Wi-Fi blip); it didn't
 // turn unplayable. Fetch a fresh link and carry on where it stopped. At most 3 reconnects per spot.
 let reconnect = null;
+// The error card over the picture: what went wrong, a way on (Try again) and a way out (Back). While it shows,
+// the play button and spinner under it are hidden (style.css), so nothing pokes out around it.
+function showPlayerError(text, { title = T('Something went wrong'), retry = retryPlayer, retryLabel = T('Try again'), busy = false } = {}) {
+  const err = $('#player-error');
+  const action = (label, cls, onclick) => h('button', { type: 'button', class: cls, onclick: (e) => { e.stopPropagation(); onclick(); } }, label);
+  err.replaceChildren(
+    h('p', { class: 'player-error-title' }, title),
+    h('p', { class: 'player-error-text' }, text),
+    busy ? h('span', { class: 'bulb-loader', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'), h('i')) : null,
+    h('div', { class: 'player-error-actions' },
+      !busy && retry ? action(retryLabel, 'play-btn', retry) : null,
+      action(T('Back'), 'btn-glass', closeTopOverlay)));
+  err.setAttribute('role', 'alert');
+  err.hidden = false;
+  setSpinner(false);
+  if (!busy) err.querySelector('button')?.focus({ preventScroll: true });
+}
+// Start the same video again from where it stopped (or tune the channel in again).
+function retryPlayer() {
+  const session = current;
+  if (!session) return;
+  $('#player-error').hidden = true;
+  const channel = session.live?.channel?.id;
+  if (channel) { tuneIn(channel, true); return; }
+  const at = session.ready ? video.currentTime || 0 : 0;
+  loadPlayerMedia(session.origin || { ...session }, at > 0 ? { startAt: at } : {});
+}
+// Joining or keeping the room failed. On a channel the server's room wording ("ask someone to start a new
+// one") makes no sense, so it says the channel dropped out; elsewhere the video can carry on without the room.
+function roomFailed(error) {
+  if (current?.live) {
+    showPlayerError(T('Tune in again to catch up with the channel.'), { title: T('This channel dropped out'), retryLabel: T('Tune in again') });
+    return;
+  }
+  showPlayerError(error.message, { title: T('Couldn’t join the room'), retryLabel: T('Watch on your own'),
+    retry: () => { const session = current; if (!session) return; $('#player-error').hidden = true; loadPlayerMedia(session.origin || { ...session }); } });
+}
 function startReconnect(session) {
   const at = video.currentTime || 0;
   const key = mediaId(session);
   if (reconnect?.key !== key || Math.abs(reconnect.at - at) > 30 || Date.now() - reconnect.since > 180000) reconnect = { key, at, since: Date.now(), tries: 0 };
   if (reconnect.tries++ >= 3) return false;
-  const err = $('#player-error');
-  err.textContent = T('Lost the connection to Lilin. Reconnecting…');
-  err.hidden = false;
-  setSpinner(true);
+  showPlayerError(T('Lost the connection to Lilin. Reconnecting…'), { title: T('Reconnecting'), busy: true });
   const f = { ...session };
   (async () => {
     for (const wait of [1500, 3000, 5000, 8000, 12000, 15000, 15000]) {
@@ -7418,7 +7457,7 @@ function startReconnect(session) {
     }
     if (current !== session) return;
     setSpinner(false);
-    err.textContent = T('Lilin can’t be reached right now. Close the player and open it again in a minute.');
+    showPlayerError(T('Lilin can’t be reached right now. Check your connection and try again in a minute.'), { title: T('Can’t reach Lilin') });
   })();
   return true;
 }
@@ -7426,11 +7465,12 @@ video.addEventListener('error', () => {
   if (!current?.sourceUrl || video.currentSrc !== current.sourceUrl || current.kind === 'part') return;
   if (!party && !plainMedia(current) && current.ready && (video.error?.code === 2 || video.currentTime > 0) && startReconnect(current)) return;
   const err = $('#player-error');
-  err.textContent = current.kind === 'note'
+  showPlayerError(current.kind === 'note'
     ? T('This video can’t play in this browser. Its format isn’t supported here; open the file link under the video to download it, or try another browser.')
     : current.kind === 'clip'
     ? T('This clip can’t play in this browser. Its video format (often AV1) isn’t supported here; try another browser, or share it to get a copy that plays everywhere.')
-    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.');
+    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.'),
+  { title: T('Can’t play here') });
   // When the note below the video says a version is being made, that note is the explanation.
   err.hidden = !$('#player-note').hidden;
 });

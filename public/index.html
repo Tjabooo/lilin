@@ -225,8 +225,8 @@
         <button class="pc-btn" id="pc-fs" aria-label="Fullscreen (F)"></button>
       </div>
     </div>
-    <!-- Watch Together: the room panel. Docked on the right on wide screens (the picture moves over),
-         a sheet over the lower picture on phones. app.js renderParty() fills it in. -->
+    <!-- Watch Together: the room panel. Docked on the right on wide or landscape screens (the picture moves over),
+         a sheet under the picture on phones and upright tablets (the picture moves up). app.js renderParty() fills it in. -->
     <aside class="room" id="watch-bar" role="region" aria-label="Watch Together room" hidden>
       <header class="room-head">
         <div class="room-sign"><span class="room-bulbs" aria-hidden="true"></span><span class="room-kicker">Watch together</span><span class="room-bulbs" aria-hidden="true"></span></div>
@@ -299,7 +299,7 @@
       </div>
     </section>
     <div class="player-help" id="player-help" role="dialog" aria-label="Keyboard shortcuts" hidden></div>
-    <p class="player-error" id="player-error" hidden></p>
+    <div class="player-error" id="player-error" role="alert" hidden></div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
