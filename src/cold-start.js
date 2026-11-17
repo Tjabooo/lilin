@@ -58,7 +58,7 @@ export class ColdStarts {
   //   info(hashes) -> Map(hash -> qBittorrent torrent info),  files(t) -> file list ([] / null without metadata),
   //   pickFile(c, t, files) -> file index for the film / episode (null: none), fake(files) -> why | null,
   //   partial: PartialStreams (prewarm, entriesOf, drop, readable), addSpare(c, candidate) -> { hash, name, link, ref } | null,
-  //   startSpare(hash), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
+  //   startSpare(hash), stopSpare(hash), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
   //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), setLimit(hashes, bytesPerSecond),
   //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it, log }
   constructor(deps) {
@@ -161,6 +161,8 @@ export class ColdStarts {
         if (se) this.measure(s, se, st);
         continue;
       }
+      // (qBittorrent stops a spare once its file list is there; one that keeps going is stopped here.)
+      if (s.metaAt != null && /^(downloading|stalledDL|forcedDL)$/.test(st.state || '')) await this.deps.stopSpare?.(s.hash);
       const files = s.metaAt == null ? await this.deps.files(st).catch(() => null) : null;
       if (files?.length) {
         s.metaAt = now;

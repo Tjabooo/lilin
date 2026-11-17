@@ -546,11 +546,15 @@ async function main() {
     const results = await Promise.all(specs.map((s) => runTitle(s, ctx)));
     if (!flag('keep')) for (const r of results) await cleanupRun(r, lilin, out);
   } else if (cmd === 'run') {
+    const done = [];
     for (const s of specs) {
       const r = await runTitle(s, ctx);
+      done.push(r);
       if (!flag('keep')) await cleanupRun(r, lilin, out);
       if (flag('pause-s')) await sleep(Number(flag('pause-s')) * 1000);
     }
+    // Downloads Lilin started a little later for these titles (the next episodes): gone too.
+    if (!flag('keep')) { await sleep(45_000); for (const r of done) await cleanupRun({ ...r, hashes: [] }, lilin, out); }
   } else throw new Error(`unknown command ${cmd}`);
   sampler?.kill();
   log(`results in ${out.file}`);
@@ -577,9 +581,13 @@ function startSampler(out) {
   return child;
 }
 
-// Right after a run: cancel its download through Lilin (/leave), unless someone else also wants it.
+// Right after a run: cancel its download through Lilin (/leave), unless someone else also wants it. Also whatever
+// else of that title the run brought in since it started (a spare that took over, the episodes after the one watched).
 async function cleanupRun(r, lilin, out) {
-  for (const hash of r.hashes || []) {
+  const since = Date.parse(r.started) - 5000;
+  const extra = ((await lilin.api('/api/downloads').catch(() => ({ items: [] }))).items || [])
+    .filter((d) => d.mine !== false && d.hash && Number(d.tmdbId) === Number(r.tmdbId) && (d.added || 0) >= since && !(r.hashes || []).includes(d.hash)).map((d) => d.hash);
+  for (const hash of [...(r.hashes || []), ...extra]) {
     const d = ((await lilin.api('/api/downloads').catch(() => ({ items: [] }))).items || []).find((x) => x.hash === hash);
     if (!d) { out.write({ type: 'cleanup', run: r.run, hash, action: 'not in downloads (finished or gone): run cleanup later' }); continue; }
     const res = await lilin.call(`/api/downloads/${hash}/leave`, { method: 'POST', body: {} });

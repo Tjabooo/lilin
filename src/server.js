@@ -2733,6 +2733,7 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
     return { hash, name: r.name, link, ref: r.magnet ? null : r.ref || null, uploader: smart.uploaderOf(r) };
   },
   startSpare: (hash) => setPaused(hash, false),
+  stopSpare: (hash) => setPaused(hash, true),
   swap: async (c, spare, why) => {
     const user = accounts.userById(c.userId);
     const [neu] = await qbit(`/api/v2/torrents/info?hashes=${spare.hash}`);
