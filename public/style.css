@@ -2889,9 +2889,14 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .st-c-utilities { --st: var(--st-utilities); } .st-c-other { --st: var(--st-other); }
 /* House: a tile per tool */
 .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(150px, 22%), 1fr)); gap: var(--s3); }
-.tool { display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
+.tool { position: relative; display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
+.tool .set-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lrow .tab-badge { position: static; box-shadow: none; }
+.tool .tab-badge { position: absolute; top: 10px; right: 10px; left: auto; margin: 0; box-shadow: none; }
+.tool:has(.tab-badge) .set-label { padding-right: 26px; }
 .tool:hover { background: var(--surface-2); }
-.tool.has-alert { border-color: var(--bulb); }
+.house-card-link.has-alert { border-color: var(--bulb); }
+.house-card-link, .house-needs { margin-bottom: var(--s5); }
 .st-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .st-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .st-controls .segmented button { height: 30px; padding: 0 12px; font-size: 13px; white-space: nowrap; }

@@ -2543,6 +2543,7 @@ function patchTransferNodes() {
 function patchUnifiedLibrary() {
   if (state.view === 'library') renderLibrary();
   else updateOpenTitle();
+  updateHouseDot();
   patchTransferNodes();
 }
 
@@ -9268,26 +9269,59 @@ function renderHouse() {
   }
   renderMachines(body);
 }
-// The tiles: one line each, with what's going on where that's known already.
+// House → Needs you: what's waiting for the owner, at most three rows (the machines' alerts, new ideas, downloads
+// that need a look). The House tab's dot lights while any is there; the rows hide when nothing waits.
+function houseNeeds() {
+  if (!state.status?.admin) return [];
+  const out = [];
+  for (const issue of (state.house?.issues || []).slice(0, 2)) out.push({ route: 'house/machines', label: issue, meta: T('Machines'), run: () => setView('house/machines') });
+  const ideas = (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout);
+  if (ideas) out.push({ route: 'house/ideas', label: T('New ideas'), meta: T('Ideas and bugs people sent you'), count: ideas, run: () => setView('house/ideas') });
+  const stuck = state.downloads.filter(transferAttention);
+  if (stuck.length) out.push({ label: T('Downloads need attention'), meta: stuck.slice(0, 2).map((d) => d.canonicalTitle || d.title || d.name).join(', '),
+    count: stuck.length, run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) });
+  return out.slice(0, 3);
+}
+function updateHouseDot() { if (state.status?.admin) setHouseDot(houseNeeds().length); }
+// The landing: a status card for the machines (the worst line and a line of numbers; it opens Machines), Needs you,
+// then a tile per tool with one live line. A count on a tile means something there wants doing.
 function renderHouseHub(body) {
-  const r = state.house;
-  const lines = {
-    machines: r ? (r.issues.length ? (r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)) : T('Everything’s fine'))
+  const r = state.house, needs = houseNeeds();
+  setHouseDot(needs.length);
+  const sv = r?.server;
+  const online = (r?.machines || []).filter((m) => !m.away).length;
+  const status = h('div', { class: `set-stack house-card-link${r?.issues.length ? ' has-alert' : ''}` }, navRow({ route: 'house/machines', run: () => setView('house/machines'),
+    label: r ? (r.issues.length ? (r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)) : T('Everything’s fine'))
       : state.houseError ? T('Couldn’t check the house') : T('Checking…'),
-    notes: T('Notes to yourself, with files and reminders'),
-    clips: state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
-    people: T('Who uses Lilin and what they may do'),
-    ideas: T('Ideas and bugs people sent you'),
-    rules: T('Auto-delete, keeping longer, new people'),
-    'screen-time': T('Time on your devices'),
+    meta: [T('Machines'), sv && upFor(sv.uptime), sv?.cpu != null && T('CPU {0} %', sv.cpu), r?.agents && r.machines.length && T('{0} of {1} machines online', online, r.machines.length)].filter(Boolean).join(' · ') }));
+  const stuck = state.downloads.filter(transferAttention).length;
+  const active = state.downloads.filter((d) => !d.done).length;
+  const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
+  const tools = [
+    ...['house/notes', 'house/clips', 'house/people', 'house/ideas'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+    { label: T('Downloads'), line: stuck ? T('Needs attention') : active ? T('Downloading · {0}', plural(active, 'download')) : T('Everything the server is downloading'),
+      count: stuck, run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) },
+    { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
+    ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+  ];
+  const lines = {
+    'house/notes': T('Notes to yourself, with files and reminders'),
+    'house/clips': state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
+    'house/people': T('Who uses Lilin and what they may do'),
+    'house/ideas': newIdeas ? T('{0} new', newIdeas) : T('Ideas and bugs people sent you'),
+    'house/rules': T('Auto-delete, keeping longer, new people'),
+    'house/screen-time': T('Time on your devices'),
   };
-  const tile = ({ label, line, run, alert, route }) => h('button', { type: 'button', class: `tool${alert ? ' has-alert' : ''}`, 'data-route': route, onclick: run },
-    h('span', { class: 'set-label' }, label), h('span', { class: 'set-hint' }, line));
-  const tiles = pagesOf('house', state.me, state.status).map((id) => tile({ route: id, label: T(ROUTES[id].label), line: lines[ROUTES[id].sub] || '',
-    alert: id === 'house/machines' && r?.issues.length > 0, run: () => setView(id) }));
-  tiles.push(tile({ label: T('Manage downloads'), line: T('Everything the server is downloading'), run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) }),
-    tile({ label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) }));
-  body.replaceChildren(h('div', { class: 'tool-grid' }, tiles));
+  const counts = { 'house/ideas': newIdeas };
+  const tile = ({ label, line, run, route, count }) => h('button', { type: 'button', class: 'tool', 'data-route': route, onclick: run },
+    h('span', { class: 'set-label' }, label || T(ROUTES[route].label)), h('span', { class: 'set-hint' }, line || lines[route]),
+    (count ?? counts[route]) ? h('b', { class: 'tab-badge' }, String(count ?? counts[route])) : null);
+  body.replaceChildren(status,
+    needs.length > 0 && h('section', { class: 'house-needs', 'aria-labelledby': 'house-needs-head' }, h('h3', { class: 'set-head', id: 'house-needs-head' }, T('Needs you')),
+      h('div', { class: 'set-stack' }, needs.map((n) => navRow(n)))),
+    h('div', { class: 'tool-grid' }, tools.map(tile)));
+  // New ideas count here and in the dot: the inbox is read once the hub is open.
+  if (!ideasView.loaded && !ideasView.loading) loadIdeas().then(() => { if (state.view === 'house' && !state.sub) renderHouse(); else updateHouseDot(); });
 }
 // House → Machines: the server, VPN, sharing, power and every machine.
 function renderMachines(body) {
@@ -10575,6 +10609,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   applyTheme(prefs().theme);
   $('#find-torrents').hidden = !state.status.torrents || !canDownload();
   $('#manage-downloads').hidden = !state.me?.isOwner;
+  if (state.status.admin) loadIdeas().then(updateHouseDot); // House → Needs you lights the tab
   await Promise.all([loadLibrary(), loadDownloads(), loadSessions(), loadProgress(), loadWatchlist(), loadTravel()]);
   // A reload stays on the page it was on (#library, #you/watching; old addresses like #settings land on their new
   // homes); a fresh visit opens the chosen start view.
