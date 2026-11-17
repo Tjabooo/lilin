@@ -86,7 +86,8 @@ import { raiseServer } from './priority.js';
 import { startPlaybackGuard } from './playback-guard.js';
 import { PhoneStreams, segmentIndex, isHeavy, probe as probePhone } from './phone-stream.js';
 import { PartialStreams, parsePartialId, roomGate } from './partial-stream.js';
-import { PlayheadService, playheadBinding } from './playhead.js';
+import { ColdStarts, THROTTLE_BPS } from './cold-start.js';
+import { PlayheadService, playheadBinding, mergeStates } from './playhead.js';
 import { ensurePlayhead } from './setup/playhead.js';
 
 import { APP_DIR, DATA_DIR, CACHE_DIR, PUBLIC_DIR, dataDirProblem, ensureDataDir } from './paths.js';
@@ -1433,7 +1434,9 @@ async function addDownload(opts) {
   downloadAdds.set(hash, done);
   return done;
 }
-async function addDownloadNow({ link, file, user = null, name = '', film = null, show = null, mediaType = null, tags = '' }) {
+// spare: a first-time watch's spare release (cold-start.js): fetches its file list only, then qBittorrent stops it.
+// It's nobody's (tagged lilin-race, no records) until it takes over from the pick.
+async function addDownloadNow({ link, file, user = null, name = '', film = null, show = null, mediaType = null, tags = '', spare = false }) {
   // .torrent links are downloaded here and handed to qBittorrent as a file: its own web requests
   // may be fenced off by the torrent VPN kill switch.
   if (!file && /^https?:\/\//i.test(String(link || '').trim())) {
@@ -1459,7 +1462,7 @@ async function addDownloadNow({ link, file, user = null, name = '', film = null,
   }
   const hash = accounts.magnetHash(link);
   assertDownloadNotDeleting(hash);
-  if (hash && user) {
+  if (hash && user && !spare) {
     const [existing] = await qbit(`/api/v2/torrents/info?hashes=${hash}`);
     assertDownloadNotDeleting(hash);
     if (existing) {
@@ -1473,7 +1476,10 @@ async function addDownloadNow({ link, file, user = null, name = '', film = null,
     }
   }
   const form = new FormData();
-  if (user) {
+  if (spare) {
+    form.append('tags', RACE_TAG);
+    form.append('stopCondition', 'MetadataReceived');
+  } else if (user) {
     form.append('tags', accounts.tagFor(user.id));
   } else if (tags) {
     form.append('tags', tags);
@@ -1508,6 +1514,7 @@ async function addDownloadNow({ link, file, user = null, name = '', film = null,
   if (r.status === 415 || /^fails/i.test(text)) {
     throw new HttpError(400, file ? 'qBittorrent couldn’t read that .torrent file.' : 'qBittorrent couldn’t use that link.');
   }
+  if (spare) { torrentInventory.at = 0; return { existing: false, hash }; }
   if (hash && user) {
     assertDownloadNotDeleting(hash);
     const recent = recentlyAddedDownloads.get(hash);
@@ -1598,7 +1605,9 @@ function notOutMessage(title, rel) {
 }
 // The Download command (smart-download.js) for one person: a film, a season or some episodes.
 // Used by the Download button and by Save for later / Follow (watchlist.js) in the background.
-async function startSmartFor(user, body) {
+// background: nobody is about to watch it (Save for later / Follow, the episodes after one being watched); else a
+// film or single episode is a first-time watch (cold-start.js). onAdded(hash): each torrent the job adds.
+async function startSmartFor(user, body, { background = false, onAdded = null } = {}) {
   if (!QBIT_URL) throw new HttpError(503, 'Downloads aren’t connected. Add QBIT_URL to .env and restart.');
   const type = body.type === 'tv' ? 'tv' : 'movie';
   const tmdbId = Number(body.tmdbId);
@@ -1637,7 +1646,7 @@ async function startSmartFor(user, body) {
   const want = { ...downloadWant(user, body), runtime };
   const documentary = (details.genres || []).some((g) => g.id === 99);
   const id = smart.startSmartJob({
-    type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub,
+    type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub, background,
     upgrade: upgrade && { episodes: upgrade.episodes, bytes: upgrade.bytes, names: upgrade.names, quality: upgrade.quality },
     originalTitle: original && original !== title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
     want,
@@ -1646,7 +1655,8 @@ async function startSmartFor(user, body) {
     parseName, magnetFor1337x: torrents.magnetFor1337x,
     searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary }),
     alternative: upgrade || animeCtx ? null : svtAlternative(user, { type, title, originalTitle: original, year, tmdbId }),
-    addDownload: (opts) => addDownload({ ...opts, user, film, show }),
+    addDownload: async (opts) => { const added = await addDownload({ ...opts, user, film, show }); if (added?.hash) onAdded?.(added.hash); return added; },
+    coldStart: background || !coldStarts ? null : (start) => coldStarts.register({ ...start, userId: user.id, runtime: type === 'tv' ? runtime || 45 : runtime, title, tmdbId }),
     wantSubtitles: (link, list, name) => { subtitles.wantSubtitles(link, list, name); setTimeout(checkSubtitleWants, 30_000); },
     filmHave: () => filmHave(tmdbId, user, want.quality, { dub }), freeBytes: freeBytesFor,
     seasonEpisodes: (t, y, n) => shows.seasonEpisodes(t, y, n, tmdb),
@@ -1791,7 +1801,7 @@ function watchMeta(type, d) {
   };
 }
 async function finishedSmartJob(user, body) {
-  const { id } = await startSmartFor(user, body);
+  const { id } = await startSmartFor(user, body, { background: true });
   for (const end = Date.now() + 20 * 60 * 1000; Date.now() < end;) {
     const job = smart.smartJob(id);
     if (!job || job.state !== 'running') return job;
@@ -2248,6 +2258,7 @@ async function fakeGuardRound() {
       const hash = t.hash.toLowerCase();
       present.add(hash);
       if (fakeChecked.has(hash) || deletingDownloads.has(hash)) continue;
+      if (coldStarts?.owns(hash)) continue; // a first-time watch checks its pick and spares itself (cold-start.js)
       const ownerId = accounts.torrentRow(hash)?.user_id ?? accounts.userFromTags(t.tags);
       if (ownerId == null || (Number(t.added_on) < fakeGuardSince && t.progress >= 1)) { fakeChecked.add(hash); continue; }
       const files = await torrentFileMetadata(t, { fresh: true }).catch(() => null);
@@ -2267,14 +2278,18 @@ setInterval(() => fakeGuardRound(), 3000).unref();
 
 // Removes a fake (or wrong-film) download with its files and runs its Download again. notFilm: the TMDB
 // film it was mistaken for; such an upload is real, so it stays allowed for every other film.
-async function blockFake(t, why, ownerId, { notFilm = null } = {}) {
+// retry false: already replaced (a first-time watch's spare took over), so the Download doesn't run again.
+// removed: the torrent is gone already. ref: its 1337x page, when Lilin's search didn't add it (a spare).
+async function blockFake(t, why, ownerId, { notFilm = null, retry = true, removed = false, ref = null } = {}) {
   const hash = t.hash.toLowerCase();
-  try { await removeDownloadWithFiles(t); } catch (e) {
-    console.warn(`[fake] couldn’t remove ${t.name}: ${e.message}`);
-    return false;
+  if (!removed) {
+    try { await removeDownloadWithFiles(t); } catch (e) {
+      console.warn(`[fake] couldn’t remove ${t.name}: ${e.message}`);
+      return false;
+    }
   }
-  const found = smart.fakeFound(hash, { notFilm });
-  knownFakes.push({ hash, ref: found?.ref || undefined, name: t.name, at: Date.now(), ...(notFilm ? { notFilm } : {}) });
+  const found = smart.fakeFound(hash, { notFilm, retry, ref });
+  knownFakes.push({ hash, ref: found?.ref || undefined, uploader: found?.uploader || undefined, name: t.name, at: Date.now(), ...(notFilm ? { notFilm } : {}) });
   try { fs.writeFileSync(FAKES_FILE, JSON.stringify(knownFakes.slice(-1000))); } catch (e) { console.warn(`[fake] ${e.message}`); }
   console.warn(`[fake] removed ${t.name}: it ${why}${found?.retried ? '; looking for another release' : ''}`);
   activity.record(SYSTEM, 'blocked', `${String(t.name).slice(0, 200)} (${notFilm ? 'wrong film' : 'fake'}: ${why})`, { user: accounts.userById(ownerId)?.email || 'Lilin' });
@@ -2425,7 +2440,10 @@ const validHash = (h) => /^[a-f0-9]{40}$|^[a-f0-9]{64}$/i.test(h);
 // Torrents added straight in qBittorrent belong to the owner.
 // Live TV picks (tv-picks.js) are nobody's.
 const isPickTorrent = (t) => Boolean(tvPicks?.ownsHash(t.hash)) || String(t.tags || '').split(',').some((tag) => tag.trim() === TV_PICK_TAG);
-const torrentOwner = (t) => accounts.torrentRow(t.hash)?.user_id ?? (isPickTorrent(t) ? null : accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null);
+// A first-time watch's spare release (cold-start.js) is nobody's until it takes over.
+const RACE_TAG = 'lilin-race';
+const isRaceTorrent = (t) => String(t.tags || '').split(',').some((tag) => tag.trim() === RACE_TAG);
+const torrentOwner = (t) => accounts.torrentRow(t.hash)?.user_id ?? (isPickTorrent(t) || isRaceTorrent(t) ? null : accounts.userFromTags(t.tags) ?? accounts.ownerUser()?.id ?? null);
 
 // The user's own downloads; `all` (the owner only) lists everyone's, with whose each one is.
 // An SVT Play copy in the shape of a torrent, so every client's download views just show it.
@@ -2463,7 +2481,7 @@ async function listDownloads(user, all = false) {
     return names.get(id);
   };
   const mates = accounts.libraryMates(user.id); // a shared library shows the group's downloads too
-  const owned = torrents.map((t) => [t, torrentOwner(t), accounts.torrentRequesters(t.hash).some((id) => mates.includes(id))])
+  const owned = torrents.filter((t) => !isRaceTorrent(t)).map((t) => [t, torrentOwner(t), accounts.torrentRequesters(t.hash).some((id) => mates.includes(id))])
     .filter(([, owner, requested]) => all || mates.includes(owner) || requested);
   await scanLibrary();
   const library = new Map((libraryCache.items || []).map((i) => [accounts.mediaKey(i.full), i]));
@@ -2485,7 +2503,8 @@ async function listDownloads(user, all = false) {
     const canonicalTitle = art?.title || parsed.title;
     const showKey = mediaType === 'tv' ? shows.showKey(canonicalTitle) : null;
     const streamable = PARTIAL_ENABLED && filesKnown && videos.length > 0 && STREAMABLE_TORRENT.test(t.state || '');
-    const states = streamable && t.progress < 1 ? await torrentPieceStates(t.hash) : null;
+    // playhead's pieces count too (a first-time watch's start often comes from it, cold-start.js).
+    const states = streamable && t.progress < 1 ? mergeStates(await torrentPieceStates(t.hash), partialStreams.assistOwn(t.hash)) : null;
     const safeFiles = await Promise.all(videos.map(async (f) => {
       let full = null;
       try { full = torrentFilePath(t, f); } catch { /* Invalid metadata cannot become playable. */ }
@@ -2667,6 +2686,140 @@ const partialStreams = new PartialStreams({
   },
 });
 const STREAMABLE_TORRENT = /^(?!error$|missingFiles$|checking|moving$|metaDL$|forcedMetaDL$|allocating$)/;
+
+// ---- first-time watches (cold-start.js) ----
+// Someone pressed Download on a film or one episode: it downloads for watching from the start, spare releases stand
+// by in case the pick can't deliver, and background downloads wait while it starts. A Play now key whose download
+// was swapped for a spare keeps working: it leads to the new one (a player already polling it just carries on).
+const partAliases = new Map(); // old part id -> { to, at }
+const PART_ALIAS_MS = 60 * 60_000;
+function resolvePartId(id) {
+  for (let i = 0; i < 5; i++) {
+    const next = partAliases.get(String(id).toLowerCase());
+    if (!next || Date.now() - next.at > PART_ALIAS_MS) break;
+    id = next.to;
+  }
+  return id;
+}
+const followUps = new Map(); // hash -> when: the episodes after one someone started watching
+const FOLLOW_EPISODES = 24;
+// The file someone will watch: the film's main video, or the episode's.
+function coldFile(c, t, files) {
+  const videos = files.map((f, i) => ({ ...f, index: f.index ?? i })).filter((f) => f.priority !== 0 && isVideo(f.name));
+  if (!videos.length) return null;
+  if (c.kind === 'episode') {
+    const hit = videos.find((f) => season.episodesIn(path.basename(f.name.replace(/\\/g, '/')), c.season).includes(c.episode))
+      || videos.find((f) => season.episodesIn(f.name, c.season).includes(c.episode));
+    if (hit) return hit.index;
+    if (videos.length > 1) return null;
+  }
+  return videos.toSorted((a, b) => b.size - a.size)[0].index;
+}
+const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
+  info: async (hashes) => new Map((await qbit(`/api/v2/torrents/info?hashes=${hashes.join('|')}`)).map((t) => [t.hash.toLowerCase(), t])),
+  files: async (t) => (/metaDL/i.test(t.state || '') ? [] : torrentFileMetadata(t)),
+  pickFile: coldFile,
+  fake: (files) => fakeRelease(files),
+  partial: partialStreams,
+  addSpare: async (c, r) => {
+    const user = accounts.userById(c.userId);
+    const link = r.magnet || await torrents.magnetFor1337x(r.ref).catch(() => null);
+    const hash = accounts.magnetHash(link);
+    if (!user || !hash || hash === c.hash) return null;
+    const [here] = await qbit(`/api/v2/torrents/info?hashes=${hash}`);
+    if (here) return null; // someone has it already: not a spare
+    const film = shows.filmDownload(c.hash), show = shows.showDownload(c.hash);
+    await addDownload({ link, user, name: r.name, film, show, mediaType: c.kind === 'movie' ? 'movie' : 'tv', spare: true });
+    return { hash, name: r.name, link, ref: r.magnet ? null : r.ref || null, uploader: smart.uploaderOf(r) };
+  },
+  startSpare: (hash) => setPaused(hash, false),
+  swap: async (c, spare, why) => {
+    const user = accounts.userById(c.userId);
+    const [neu] = await qbit(`/api/v2/torrents/info?hashes=${spare.hash}`);
+    if (!user || !neu) return false;
+    const [old] = await qbit(`/api/v2/torrents/info?hashes=${c.hash}`);
+    const tags = (tag) => new URLSearchParams({ hashes: spare.hash, tags: tag });
+    await qbitRequest('/api/v2/torrents/removeTags', { method: 'POST', body: tags(RACE_TAG) });
+    await qbitRequest('/api/v2/torrents/addTags', { method: 'POST', body: tags(accounts.tagFor(user.id)) });
+    accounts.requestTorrent(spare.hash, user.id, neu.name, { restart: true });
+    recentlyAddedDownloads.set(spare.hash, Date.now());
+    const film = shows.filmDownload(c.hash), show = shows.showDownload(c.hash);
+    if (film) shows.rememberFilmDownload(spare.hash, film);
+    if (show) shows.rememberShowDownload(spare.hash, show, torrentIdentity(neu.name));
+    smart.raceSwapped(c.hash, spare.hash, { name: neu.name, link: spare.link, ref: spare.ref, uploader: spare.uploader });
+    const order = episodeOrder.get(c.hash);
+    if (order) orderEpisodes(spare.hash, order.key, order.season);
+    if (/^(paused|stopped)/.test(neu.state || '')) await setPaused(spare.hash, false);
+    if (c.fileIndex != null && spare.fileIndex != null) partAliases.set(`${c.hash}-${c.fileIndex}`, { to: `${spare.hash}-${spare.fileIndex}`, at: Date.now() });
+    for (const [k, v] of partAliases) if (Date.now() - v.at > PART_ALIAS_MS) partAliases.delete(k);
+    // The old pick goes, unless someone else wants it too.
+    if (old) {
+      const others = accounts.torrentWanters(c.hash).filter((id) => id !== user.id);
+      accounts.leaveTorrent(c.hash, user.id);
+      if (!others.length) await removeDownloadWithFiles(old).catch((e) => console.warn(`[cold] couldn’t remove ${old.name}: ${e.message}`));
+    }
+    torrentInventory.at = 0;
+    if (why === 'faster') activity.record(SYSTEM, 'slow', `${String(old?.name || c.name).slice(0, 200)} (${(c.rate / 1024 ** 2).toFixed(1)} of ${(c.need / 1024 ** 2).toFixed(1)} MB/s)`, { user: user.email || 'Lilin' });
+    return true;
+  },
+  removeSpare: async (hash) => {
+    deletingDownloads.add(hash);
+    try { await qbitRequest('/api/v2/torrents/delete', { method: 'POST', body: new URLSearchParams({ hashes: hash, deleteFiles: 'true' }) }); }
+    finally { deletingDownloads.delete(hash); }
+    torrentFilesCache.delete(hash);
+    torrentInventory.at = 0;
+  },
+  fakeFound: async (c, hash, name, why, { primary, retry = false }) => {
+    if (primary && retry) {
+      const [t] = await qbit(`/api/v2/torrents/info?hashes=${hash}`);
+      if (t) await blockFake(t, why, c.userId);
+      return;
+    }
+    const spare = !primary && c.spares.find((x) => x.hash === hash);
+    await blockFake({ hash, name }, why, c.userId, { retry: false, removed: true, ref: spare?.ref || null });
+  },
+  followUp: async (c) => {
+    const user = accounts.userById(c.userId);
+    const show = shows.showDownload(c.hash);
+    if (!user || !show?.id || c.season == null || c.episode == null || !user.canDownload) return;
+    const episodes = Array.from({ length: FOLLOW_EPISODES }, (_, i) => c.episode + 1 + i);
+    await startSmartFor(user, { type: 'tv', tmdbId: show.id, season: c.season, episodes, range: true },
+      { background: true, onAdded: (hash) => followUps.set(String(hash).toLowerCase(), Date.now()) });
+    console.log(`[cold] ${show.name || c.title} S${String(c.season).padStart(2, '0')}: the episodes after ${c.episode} are on their way too`);
+  },
+  background: async () => {
+    for (const [h, at] of followUps) if (Date.now() - at > 24 * 3600e3) followUps.delete(h);
+    const list = await qbit('/api/v2/torrents/info?filter=downloading');
+    return list.filter((t) => isPickTorrent(t) || upgrades.has(t.hash.toLowerCase()) || followUps.has(t.hash.toLowerCase())).map((t) => t.hash);
+  },
+  // Someone is watching a download that has fallen behind: background downloads wait for it too.
+  behind: () => [...partialStreams.entries.values()].some((e) => {
+    if (!e.opened || !e.started || Date.now() - e.last > 60_000) return false;
+    const st = partialStreams.status(e);
+    return !st.done && st.keepsUp === false;
+  }),
+  setLimit: (hashes, limit) => qbitRequest('/api/v2/torrents/setDownloadLimit', { method: 'POST', body: new URLSearchParams({ hashes: hashes.join('|'), limit: String(limit) }) }),
+  log: { info: (m) => console.log(m), warn: (m) => console.warn(m) },
+}) : null;
+if (coldStarts) setInterval(() => coldStarts.round().catch(() => {}), 2000).unref();
+// Leftovers from before a restart: spares that never took over, and background downloads still held back.
+async function coldLeftovers() {
+  if (!coldStarts) return;
+  try {
+    const list = await qbit('/api/v2/torrents/info');
+    for (const t of list) {
+      const hash = t.hash.toLowerCase();
+      if (isRaceTorrent(t) && !coldStarts.owns(hash) && t.progress < 1) {
+        await qbitRequest('/api/v2/torrents/delete', { method: 'POST', body: new URLSearchParams({ hashes: t.hash, deleteFiles: 'true' }) }).catch(() => {});
+        console.log(`[cold] removed a spare left over from before a restart: ${t.name}`);
+      } else if (t.dl_limit === THROTTLE_BPS && !coldStarts.throttled.has(hash)) {
+        await qbitRequest('/api/v2/torrents/setDownloadLimit', { method: 'POST', body: new URLSearchParams({ hashes: t.hash, limit: '0' }) }).catch(() => {});
+      }
+    }
+  } catch { /* qBittorrent down: next time */ }
+}
+setTimeout(() => coldLeftovers(), 20_000).unref();
+setInterval(() => coldLeftovers(), 10 * 60_000).unref();
 // Play now is for downloads in this person's library: their own, their group's, or ones they asked for too.
 async function partialAccess(user, id) {
   if (!PARTIAL_ENABLED) throw new HttpError(404, 'Not found.');
@@ -4639,7 +4792,7 @@ async function handleApi(req, res, url) {
   // ---- casting ----
   // Play now: asks for the download to run for playback; polled until the start of the video has arrived.
   if (p === '/api/part/open' || p === '/api/part/status') {
-    const id = url.searchParams.get('id') || '';
+    const id = resolvePartId(url.searchParams.get('id') || ''); // (a first-time watch may have moved to a spare)
     await partialAccess(user, id);
     if (p === '/api/part/open') {
       const link = await partialLink(req, id);

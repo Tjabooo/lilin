@@ -95,7 +95,7 @@ const hashOf = (r) => /btih:([a-z0-9]+)/i.exec(r.magnet || '')?.[1]?.toLowerCase
 // A pack whose file list arrived but no file in it could be read (no episode numbers Lilin knows):
 // its name already matched the season, so it's kept whole instead of being thrown away.
 const unreadable = (trim) => Boolean(trim?.covered && !trim.covered.size && !trim.allOwned);
-const usable = (r) => !isFake(r) && !isSlow(r) && (!rejected.has(r.magnet || r.ref) || Date.now() - rejected.get(r.magnet || r.ref) > REJECTED_TTL);
+const usable = (r) => !isFake(r) && !isSlow(r) && !fakeUploaders.has(uploaderOf(r)) && (!rejected.has(r.magnet || r.ref) || Date.now() - rejected.get(r.magnet || r.ref) > REJECTED_TTL);
 
 // ---- fake releases (fake-release.js) ----
 // A torrent found to hold a program instead of a video is never picked again (by info hash, or by
@@ -103,6 +103,11 @@ const usable = (r) => !isFake(r) && !isSlow(r) && (!rejected.has(r.magnet || r.r
 // alone never counts. origins: which job added each torrent, so a removed fake can be replaced.
 const fakes = new Set();
 const origins = new Map();       // info hash -> { spec, deps, ref, at }
+// Fakes come from throwaway uploader accounts: once one of their uploads held a program, the rest of that account's
+// uploads on that site are skipped too, before anything is downloaded. Shared names ("Anonymous") never count.
+const fakeUploaders = new Set();  // "site:uploader"
+const GENERIC_UPLOADER = /^(anonymous|unknown|n\/?a|-|)$/i;
+export const uploaderOf = (r) => (r?.uploader && !GENERIC_UPLOADER.test(String(r.uploader).trim()) ? `${r.source || ''}:${String(r.uploader).trim().toLowerCase()}` : null);
 const ORIGIN_TTL = 24 * 60 * 60 * 1000;
 const hashOfLink = (link) => /btih:([a-z0-9]+)/i.exec(String(link || ''))?.[1]?.toLowerCase() || null;
 function isFake(r) {
@@ -128,6 +133,7 @@ export function loadFakes(list) {
   for (const f of list || []) {
     if (f.notFilm) { wrongFilmMark(f.hash && String(f.hash).toLowerCase(), f.notFilm); if (f.ref) wrongFilmMark(`ref:${f.ref}`, f.notFilm); continue; }
     if (f.hash) fakes.add(String(f.hash).toLowerCase()); if (f.ref) fakes.add(`ref:${f.ref}`);
+    if (f.uploader) fakeUploaders.add(f.uploader);
   }
 }
 // The server removed this torrent as a fake: block it, and run the job that added it again. The new
@@ -135,17 +141,36 @@ export function loadFakes(list) {
 // Returns { ref, retried } (ref: to remember with the hash), or null when Lilin's search didn't add it.
 // notFilm: the TMDB id of the film it was taken for, when it's really another film of the same name
 // (blocked for that film only).
-export function fakeFound(hash, { notFilm = null } = {}) {
+// retry false: something else already took its place (a spare, cold-start.js), so nothing runs again.
+export function fakeFound(hash, { notFilm = null, retry = true, ref = null, uploader = null } = {}) {
   hash = String(hash || '').toLowerCase();
   const origin = origins.get(hash);
   origins.delete(hash);
-  if (notFilm) { wrongFilmMark(hash, notFilm); if (origin?.ref) wrongFilmMark(`ref:${origin.ref}`, notFilm); } else {
+  ref ||= origin?.ref || null;
+  uploader ||= origin?.uploader || null;
+  if (notFilm) { wrongFilmMark(hash, notFilm); if (ref) wrongFilmMark(`ref:${ref}`, notFilm); } else {
     fakes.add(hash);
-    if (origin?.ref) fakes.add(`ref:${origin.ref}`);
+    if (ref) fakes.add(`ref:${ref}`);
+    if (uploader) fakeUploaders.add(uploader);
   }
-  if (!origin || Date.now() - origin.at > ORIGIN_TTL) return origin ? { ref: origin.ref || null, retried: null } : null;
+  if (!retry || !origin || Date.now() - origin.at > ORIGIN_TTL) return origin || ref || uploader ? { ref, uploader: notFilm ? null : uploader, retried: null } : null;
   const { only, ...spec } = origin.spec;
-  return { ref: origin.ref || null, retried: startSmartJob(spec, origin.deps) };
+  return { ref, uploader: notFilm ? null : uploader, retried: startSmartJob(spec, origin.deps) };
+}
+
+// A first-time watch switched to a spare release (cold-start.js): the new download takes over the old one's place,
+// so a fake or slow verdict on it later runs the same Download again, and the job shows the release it now uses.
+export function raceSwapped(oldHash, newHash, { name, link = null, ref = null, uploader = null } = {}) {
+  oldHash = String(oldHash || '').toLowerCase();
+  newHash = String(newHash || '').toLowerCase();
+  const origin = origins.get(oldHash);
+  origins.delete(oldHash);
+  if (origin) {
+    origins.set(newHash, { ...origin, ref: ref || null, uploader, at: Date.now(), need: null });
+    if (origin.spec.subs?.length && link) origin.deps.wantSubtitles?.(link, origin.spec.subs, name);
+  }
+  for (const j of jobs.values()) for (const a of j.added) if (a.hash === oldHash) Object.assign(a, { hash: newHash, name });
+  return Boolean(origin);
 }
 
 // ---- slow swarms (server.js measures them) ----
@@ -203,15 +228,35 @@ async function add(r, mediaType, spec, deps, need = null) {
     const hash = hashOfLink(link);
     if (hash && !result?.existing) {
       origins.set(hash, { spec, deps: deps.undubbed || deps, ref: r.magnet ? null : r.ref || null, at: Date.now(),
-        need, guess: swarmSpeed(r.seeders), seeders: r.seeders });
+        need, guess: swarmSpeed(r.seeders), seeders: r.seeders, uploader: uploaderOf(r) });
       for (const [h, o] of origins) if (Date.now() - o.at > ORIGIN_TTL) origins.delete(h);
     }
     if (spec.subs?.length) deps.wantSubtitles?.(link, spec.subs, r.name);
-    return { link, ...(result || {}) };
+    return { link, hash, ...(result || {}) };
   } catch (e) {
     rejected.set(r.magnet || r.ref, Date.now());
     throw e;
   }
+}
+
+// The releases that would have been picked next (best first), for a first-time watch's spares (cold-start.js).
+function nextPicks(pool, pick, choosePick, n = 2) {
+  const out = [];
+  const same = (a, b) => a === b || a.name === b.name || (hashOf(a) && hashOf(a) === hashOf(b));
+  let left = pool.filter((r) => !same(r, pick));
+  for (let i = 0; i < n && left.length; i++) {
+    const next = choosePick(left).pick;
+    if (!next) break;
+    out.push(next);
+    left = left.filter((r) => !same(r, next));
+  }
+  return out;
+}
+// Someone is about to watch what was just added (not a background job, not someone else's download): watch-ready
+// from the start, with spares in case the pick can't deliver.
+function coldStart(added, pick, alternatives, spec, deps, where) {
+  if (spec.requester == null || spec.background || spec.upgrade || added.existing || !added.hash || !deps.coldStart) return;
+  try { deps.coldStart({ hash: added.hash, name: pick.name, alternatives, ...where }); } catch (e) { deps.log?.(`[smart] ${spec.title}: ${e.message}`); }
 }
 
 const done = (job, outcome, message) => {
@@ -272,8 +317,10 @@ async function runFilm(job, spec, deps) {
     return done(job, 'none', best.why || 'Couldn’t find a good copy of this yet.');
   }
   job.step = 'Starting download…';
-  await add(best.pick, 'movie', spec, deps, needOf(best.pick, want, 'movie'));
-  job.added.push({ name: best.pick.name, quality: best.pick.quality, size: best.pick.size || null, seeders: best.pick.seeders });
+  const added = await add(best.pick, 'movie', spec, deps, needOf(best.pick, want, 'movie'));
+  job.added.push({ name: best.pick.name, quality: best.pick.quality, size: best.pick.size || null, seeders: best.pick.seeders, hash: added.hash || null });
+  const pool = results.filter((r) => usable(r) && !isWrongFilm(r, spec.tmdbId));
+  coldStart(added, best.pick, deps.coldStart ? nextPicks(pool, best.pick, (list) => pickBest(list, want, deps.parseName)) : [], spec, deps, { kind: 'movie' });
   done(job, 'started', 'On its way. It’ll be ready to watch soon.');
 }
 
@@ -438,7 +485,9 @@ async function runSeason(job, spec, deps) {
       deps.inOrder?.(added, season);
       const eps = episodesIn(found.pick.name, season, ctx);
       eps.forEach((e) => covered.add(e));
-      job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null });
+      job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null, hash: added.hash || null });
+      // One episode asked for: someone wants to watch it now.
+      if (list.length === 1) coldStart(added, found.pick, deps.coldStart ? nextPicks(found.fits, found.pick, (l) => pickEpisode(l, { ...want, freeBytes, episode: ep })) : [], spec, deps, { kind: 'episode', season, episode: ep });
       if (Number.isFinite(freeBytes) && found.pick.size) freeBytes -= found.pick.size;
     } catch (e) {
       if (e.status === 503) throw e;
@@ -541,5 +590,5 @@ async function findEpisode(title, season, episode, want, deps, ctx = null) {
     if (fits.length) break;
   }
   const best = pickEpisode(fits, { ...want, episode });
-  return { pick: best.pick, why: best.pick ? null : fits.length ? best.why : error ? 'The torrent sites didn’t answer.' : NOTHING };
+  return { pick: best.pick, fits, why: best.pick ? null : fits.length ? best.why : error ? 'The torrent sites didn’t answer.' : NOTHING };
 }

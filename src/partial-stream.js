@@ -41,6 +41,11 @@ const SHORT_READ_MS = 30_000;    // a verified piece that isn't readable yet (st
 const ASSIST_LEAD = { min: 8, goal: 20, graceMs: 8_000 };
 const START_LEAD_BYTES = 64 * 1024 * 1024;
 const ASSIST_WAIT_MS = 5_000;    // how long the first open waits for playhead, so the probe reads through it
+// A download bringing the picture this many times faster than it plays: the minimum lead is enough, it only grows.
+const FAST_MARGIN = 2;
+// A first-time watch (prewarm): Play now's download mode from the moment the file list is known, kept this long
+// unless someone starts watching (then the usual idle rule applies).
+export const PREWARM_MS = 10 * 60_000;
 
 export const partialId = (hash, index) => `${String(hash).toLowerCase()}-${index}`;
 export function parsePartialId(id) {
@@ -85,9 +90,11 @@ export function fileProgress(layout, states) {
 // Enough in order to start: the first seconds at this video's bitrate, or all of a small file.
 export const startBytes = (size, bitrate, seconds = START_SECONDS) => Math.min(size, Math.max(MIN_START_BYTES, Math.ceil(((bitrate || 0) / 8) * seconds)));
 
-// Start with the full lead, or with the minimum once it has had a while to grow. `enoughSince` = when the minimum was there.
-export function readyToStart(readable, size, bitrate, enoughSince, now = Date.now(), lead = null) {
+// Start with the full lead, or with the minimum once it has had a while to grow, or right away with the minimum when
+// the download brings the picture well ahead of playback (`speed` in bytes/s). `enoughSince` = when the minimum was there.
+export function readyToStart(readable, size, bitrate, enoughSince, now = Date.now(), lead = null, speed = 0) {
   if (readable >= startBytes(size, bitrate, lead?.goal ?? START_GOAL_SECONDS)) return true;
+  if (enoughSince != null && bitrate > 0 && speed * 8 >= bitrate * FAST_MARGIN) return true;
   return enoughSince != null && now - enoughSince >= (lead?.graceMs ?? START_GRACE_MS);
 }
 
@@ -310,21 +317,25 @@ export class PartialStreams {
   // A video being watched whose download has finished and left qBittorrent.
   finished(id) { const e = this.entries.get(id); return Boolean(e?.gone && this.complete(e)); }
 
-  // Waits until something can be read at `from`; resolves with how many bytes in a row.
+  // Waits until something can be read at `from` from qBittorrent's own file; resolves with how many bytes in a row.
+  // Pieces only playhead has are not in that file (it would read holes), so they never count here. Resolves 0 when
+  // playhead has come up meanwhile: the caller reads through it instead.
   async waitReadable(e, from, signal) {
     let waitingSince = null;
+    const own = () => readableBytes(e.layout, e.pieceSize, e.states, from);
     for (;;) {
       if (signal?.aborted) throw failure(499, 'Stopped.');
       e.last = Date.now();
-      const n = this.readable(e, from);
+      const n = own();
       if (n > 0) {
         if (waitingSince != null && e.started) { e.holds += 1; e.heldMs += Date.now() - waitingSince; }
         return n;
       }
+      if (e.assist && this.assist) return 0;
       waitingSince ??= Date.now();
       await this.refresh(e);
       if (e.gone) throw failure(410, 'That download no longer exists.');
-      if (this.readable(e, from) > 0) continue;
+      if (own() > 0 || (e.assist && this.assist)) continue;
       await sleep(POLL_MS, signal);
     }
   }
@@ -352,16 +363,18 @@ export class PartialStreams {
     let handle = null;
     try {
       let at = start;
-      if (e.assist && this.assist) {
-        const pos = { at };
-        try { await this.proxyAssist(e, res, pos, end, stop.signal); }
-        catch (error) { if (stop.signal.aborted) return; this.dropAssist(e, error); }
-        at = pos.at;
-        if (stop.signal.aborted) return;
-        if (at > end) { res.end(); return; }
-      }
       while (at <= end) {
+        // Through playhead whenever it's there (also when it comes up in the middle of a read).
+        if (e.assist && this.assist) {
+          const pos = { at };
+          try { await this.proxyAssist(e, res, pos, end, stop.signal); }
+          catch (error) { if (stop.signal.aborted) return; this.dropAssist(e, error); }
+          at = pos.at;
+          if (stop.signal.aborted) return;
+          continue;
+        }
         const ready = await this.waitReadable(e, at, stop.signal);
+        if (!ready) continue;
         handle ||= await this.openWhenWritten([e.file, e.finalFile], stop.signal);
         const buffer = Buffer.allocUnsafe(Math.min(ready, READ_BYTES, end - at + 1));
         const { bytesRead } = await this.readFully(handle, buffer, at, stop.signal);
@@ -434,6 +447,7 @@ export class PartialStreams {
   async open(id) {
     const e = await this.entry(id);
     e.last = Date.now();
+    e.opened = true;
     await this.boost(e);
     await this.refresh(e);
     // Finished torrents leave qBittorrent; the file is all there, so someone watching just carries on.
@@ -441,20 +455,68 @@ export class PartialStreams {
     if (e.probeFailures >= MAX_PROBE_FAILURES) throw failure(422, e.probeError || 'Couldn’t read this video.');
     // The first time, give playhead a moment to start, so the probe (start and end of the file) reads through it.
     if (!e.info && !e.probing && e.assisting) await Promise.race([e.assisting, sleep(ASSIST_WAIT_MS)]);
-    if (!e.info && !e.probing) {
-      const input = await this.inputUrl(e);
-      e.probing = this.probe(input, { size: e.size, timeout: PROBE_MS })
-        .then((info) => { e.info = info; })
-        .catch((error) => { e.probeFailures += 1; e.probeError = error.message; })
-        .finally(() => { e.probing = null; });
-    }
-    if (e.info && !e.started) {
-      const readable = this.readable(e, 0);
-      const lead = e.assist ? ASSIST_LEAD : null;
-      if (readable >= startBytes(e.size, e.info.bitrate, lead?.min)) e.enoughSince ??= Date.now();
-      e.started = readyToStart(readable, e.size, e.info.bitrate, e.enoughSince, Date.now(), lead);
-    }
+    await this.startProbe(e);
+    this.checkStart(e);
     return { ready: Boolean(e.info) && e.started, entry: e };
+  }
+
+  // Reads the video's length and bitrate (ffprobe through the loopback server, so it waits for the pieces it needs).
+  async startProbe(e) {
+    if (e.info || e.probing || e.probeFailures >= MAX_PROBE_FAILURES) return;
+    const input = await this.inputUrl(e);
+    if (e.info || e.probing) return;
+    e.probing = this.probe(input, { size: e.size, timeout: PROBE_MS })
+      .then((info) => { e.info = info; })
+      .catch((error) => { e.probeFailures += 1; e.probeError = error.message; })
+      .finally(() => { e.probing = null; });
+  }
+
+  // Enough of the start in a row to begin playback?
+  checkStart(e) {
+    if (!e.info || e.started) return e.started;
+    const readable = this.readable(e, 0);
+    const lead = e.assist ? ASSIST_LEAD : null;
+    if (readable >= startBytes(e.size, e.info.bitrate, lead?.min)) e.enoughSince ??= Date.now();
+    const speed = (Number(e.torrent?.dlspeed) || 0) + (e.assist?.rate || 0);
+    e.started = readyToStart(readable, e.size, e.info.bitrate, e.enoughSince, Date.now(), lead, speed);
+    return e.started;
+  }
+
+  // A first-time watch, before anyone presses Play: the same download mode as watching (in order, start and end first,
+  // playhead fetching the start), and the probe, so that pressing Play finds the start there and the video read.
+  // Lasts until `until` (or PREWARM_MS) even when nobody is watching. Call again to keep it up; returns the entry.
+  async prewarm(id, { until = Date.now() + PREWARM_MS } = {}) {
+    const e = await this.entry(id);
+    e.keepUntil = Math.max(e.keepUntil || 0, until);
+    e.prewarmed ??= Date.now();
+    await this.boost(e);
+    await this.refresh(e);
+    if (e.gone) { this.entries.delete(id); throw failure(404, 'That download no longer exists.'); }
+    // The probe reads through playhead when it's coming up (the next call starts it), else straight away.
+    if (!e.assisting) await this.startProbe(e);
+    this.checkStart(e);
+    return e;
+  }
+
+  // Ends a prewarm nobody used (the download was replaced or removed): restores the torrent like an idle viewer.
+  async drop(id) {
+    const e = this.entries.get(id);
+    if (!e) return;
+    this.entries.delete(id);
+    await this.restore(e).catch((error) => this.log.warn?.(`[play now] ${error.message}`));
+  }
+
+  // playhead's own pieces for a torrent ('' when it isn't helping): listed downloads count them as there.
+  assistOwn(hash) {
+    hash = String(hash || '').toLowerCase();
+    for (const e of this.entries.values()) if (e.hash === hash && e.assist?.own) return e.assist.own;
+    return '';
+  }
+
+  // The watched (or prewarmed) entries of one torrent.
+  entriesOf(hash) {
+    hash = String(hash || '').toLowerCase();
+    return [...this.entries.values()].filter((e) => e.hash === hash);
   }
 
   startStatus(e, speed) {
@@ -486,7 +548,7 @@ export class PartialStreams {
   // Nobody has asked for a while: the download carries on the way it was before.
   async sweep(now = Date.now()) {
     for (const e of [...this.entries.values()]) {
-      if (now - e.last < IDLE_MS) continue;
+      if (now - e.last < IDLE_MS || (e.keepUntil || 0) > now) continue;
       this.entries.delete(e.id);
       await this.restore(e).catch((error) => this.log.warn?.(`[play now] ${error.message}`));
     }
@@ -494,7 +556,7 @@ export class PartialStreams {
 
   async restore(e) {
     if (e.assist) { const id = e.assist.id; e.assist = null; await this.assist?.close(id).catch(() => {}); }
-    if (e.started) {
+    if (e.started && e.opened) {
       const mbit = ((e.info?.bitrate || 0) / 1e6).toFixed(1);
       this.log.info?.(`[play now] ${e.name}: ${mbit} Mbit/s, the stream waited for the download ${e.holds} times, ${Math.round(e.heldMs / 1000)} s in all`);
     }
