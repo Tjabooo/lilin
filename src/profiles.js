@@ -314,9 +314,10 @@ export function reviewsBy(userId, { offset = 0, limit = 3 } = {}) {
   return { reviews: rows.slice(0, limit).map((r) => ({ key: r.title_key, stars: r.stars, text: r.text, spoiler: Boolean(r.spoiler), title: r.title, created: r.created_at })), more };
 }
 
-// Titles they gave a thumbs up, newest first.
-export function likedBy(userId, limit = 12) {
-  return db().prepare('SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1 ORDER BY updated_at DESC LIMIT ?').all(userId, limit);
+// Titles they gave a thumbs up, newest first (offset: the next page, for You → Liked).
+export function likedBy(userId, limit = 12, offset = 0) {
+  return db().prepare('SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?')
+    .all(userId, limit, Math.max(0, Number(offset) || 0));
 }
 
 // Their friends (faces on the profile), never restricted people.

@@ -177,6 +177,16 @@ export const SCENES = [
   { name: 'settings', path: '/#settings', ready: '#you-rows .lrow', full: true, after: 1200 },
   { name: 'you-watching', path: '/#you/watching', ready: '#you-page .set-row', full: true, after: 1200 },
   { name: 'you-devices', path: '/#you/devices', ready: '#you-page .set-group', full: true, after: 1500 },
+  // You: the list with For you on top (wide screens: Overview beside it), your own lists, friends, moments
+  { name: 'you-root', path: '/#you', ready: '#you-rows .set-group .set-hint', full: true, after: 1800 },
+  { name: 'you-history', path: '/#you/history', ready: '#you-page .you-own', full: true, after: 1500 },
+  { name: 'you-ratings', path: '/#you/ratings', ready: '#you-page .you-own', full: true, after: 1500 },
+  { name: 'you-liked', path: '/#you/liked', ready: '#you-page .you-own', after: 1500 },
+  { name: 'you-friends', path: '/#you/friends', ready: '#you-page .friends', full: true, after: 1500 },
+  { name: 'you-moments', path: '/#you/moments', ready: '#you-page .set-group', full: true, after: 1500 },
+  { name: 'you-account', path: '/#you/account', ready: '#you-page .set-group', after: 1200 },
+  { name: 'you-friend-popup', path: '/#library', ready: '#picker .friend-asks', after: 1000, probe: "return 'You dot ' + document.querySelector('.tab[data-view=you] .tab-dot, #me-btn .tab-dot').textContent;" },
+  { name: 'you-edit-profile', path: '/#you', ready: '#you-rows .set-group .set-hint', steps: ["await __clickText('Edit profile', '#view-you button'); await __waitFor('.pf-editor'); await __sleep(900);"] },
   // Navigation checks (the note in report.json): tab stacks, Back from a page, old addresses
   { name: 'nav-stack', path: '/#you/watching', ready: '#you-page .set-row', steps: ["document.querySelector('.tab[data-view=discover]').click(); await __sleep(500); document.querySelector(innerWidth < 900 ? '.tab[data-view=you]' : '#me-btn').click(); await __sleep(600); window.__a = location.hash; document.querySelector(innerWidth < 900 ? '.tab[data-view=you]' : '#me-btn').click(); await __sleep(600);"],
     probe: "return 'tab back to ' + __a + ', again ' + location.hash + ' (want #you/watching, #you)';" },

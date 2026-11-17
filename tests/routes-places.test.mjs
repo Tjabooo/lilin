@@ -80,12 +80,13 @@ test('a place is only offered to people who may open it', () => {
 
 test('You pages per role keep today’s rules', () => {
   const pages = (role) => pagesOf('you', ROLES[role].me, ROLES[role].status).map((id) => ROUTES[id].sub);
-  assert.deepEqual(pages('home'), ['account', 'look', 'watching', 'devices', 'download-settings', 'ideas']);
-  assert.deepEqual(pages('member'), ['friends', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('memberAct'), ['activity', 'friends', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('memberInv'), ['friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('restricted'), ['moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('owner'), ['activity', 'friends', 'moments', 'account', 'look', 'watching', 'devices', 'download-settings']);
+  const watching = ['history', 'ratings', 'liked'];
+  assert.deepEqual(pages('home'), [...watching, 'moments', 'account', 'look', 'watching', 'devices', 'download-settings', 'ideas']);
+  assert.deepEqual(pages('member'), [...watching, 'friends', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('memberAct'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('memberInv'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('restricted'), ['history', 'liked', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'download-settings']);
   assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'people', 'ideas', 'rules', 'screen-time']);
   assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
 });
@@ -113,7 +114,7 @@ test('old addresses and notification links land on their new homes, or the start
   assert.equal(linkRoute(q('friends=1'), member.me, member.status), 'you/friends');
   assert.equal(linkRoute(q('ideas=1'), member.me, member.status), 'you/ideas');
   assert.equal(linkRoute(q('ideas=1'), owner.me, owner.status), 'house/ideas');
-  assert.equal(linkRoute(q('moment=abc'), home.me, home.status), null, 'no Moments page without an email (yet)');
+  assert.equal(linkRoute(q('moment=abc'), home.me, home.status), 'you/moments', 'the shared home account has its own moments');
   assert.equal(linkRoute(q('travel=1'), home.me, home.status), 'library/downloads');
   assert.equal(linkRoute(q('watch=x'), member.me, member.status), null);
   for (const key of Object.keys(LINK_PARAMS)) each((name, me, status) => { const r = linkRoute(q(`${key}=1`), me, status); if (r) assert.ok(allowedRoute(r, me, status)); });

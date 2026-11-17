@@ -3950,7 +3950,8 @@ async function handleApi(req, res, url) {
       if (changed && idea.userId !== user.id) {
         const title = { planned: 'Your idea is planned', added: 'Your idea is in Lilin now', notnow: 'An answer to your idea' }[idea.status]
           || (idea.reply ? 'An answer to your idea' : null);
-        if (title) notify([idea.userId], 'update', { title, body: idea.reply || idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
+        // 'idea': the sender's own switch (Answers to your ideas), apart from Lilin updates (release notes only)
+        if (title) notify([idea.userId], 'idea', { title, body: idea.reply || idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
       }
       return sendJson(res, 200, { idea });
     }
@@ -4002,7 +4003,7 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, await profileView(user, user));
       }
       if (p === '/api/profiles/me') return sendJson(res, 200, await profileView(user, user));
-      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews))?$/)) && req.method === 'GET') {
+      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked))?$/)) && req.method === 'GET') {
         const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
         const target = id ? accounts.userById(id) : null;
         if (!target) throw new HttpError(404, 'No such profile.');
@@ -4014,6 +4015,11 @@ async function handleApi(req, res, url) {
           if (!shown('recent')) throw new HttpError(403, 'This diary is private.');
           const d = profiles.diary(target.id, { offset });
           return sendJson(res, 200, { ...d, entries: await withCards(d.entries) });
+        }
+        if (m[3] === 'liked') { // You → Liked: 24 at a time
+          if (!shown('liked')) throw new HttpError(403, 'These likes are private.');
+          const page = profiles.likedBy(target.id, 25, offset);
+          return sendJson(res, 200, { liked: await withCards(page.slice(0, 24)), more: page.length > 24 });
         }
         if (!shown('reviews')) throw new HttpError(403, 'These reviews are private.');
         const r = profiles.reviewsBy(target.id, { offset, limit: 20 });

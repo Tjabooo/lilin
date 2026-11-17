@@ -32,7 +32,7 @@ const small = (url, size = 'w185') => (url ? String(url).replace(/\/t\/p\/(w\d+|
 const big = (url) => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w1280/') : null);
 
 export function createProfiles({ h, api, jsonPost, toast, icon, people, me, openTitle, overlay, picker, copyText, friendsChanged = () => {},
-  changePicture, removePicture, saveName }) {
+  changePicture, removePicture, saveName, mineChanged = () => {} }) {
   const locale = () => appLocale;
   const nestedNow = () => ['#sheet', '#picker'].some((s) => document.querySelector(s)?.classList.contains('open'))
     || Boolean(document.querySelector('.pf.pf-nested.open'));
@@ -64,7 +64,13 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     load(ctx);
     return ctx;
   }
-  const openMine = (opener) => { const m = me(); if (m) open({ id: m.id, name: m.name, avatar: m.avatar }, opener); };
+  // Your own page; edit: straight into the editor, over the page it previews on (You's Edit profile).
+  const openMine = (opener, { edit = false } = {}) => {
+    const m = me();
+    if (!m) return;
+    const ctx = open({ id: m.id, name: m.name, avatar: m.avatar }, opener);
+    if (edit && ctx) ctx.editOnLoad = opener;
+  };
   // A link to a profile (/#@ebicat) opens it once Lilin has started.
   function fromHash(hash = location.hash) {
     const m = /^#@([A-Za-z0-9._]{1,24})$/.exec(hash);
@@ -86,11 +92,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     ctx.page.dataset.handle = ctx.data.person.handle;
     if (top === ctx.page) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
     paint(ctx);
+    if (ctx.data.me) { own.data = ctx.data; own.at = Date.now(); }
+    if (ctx.editOnLoad !== undefined) { const opener = ctx.editOnLoad; delete ctx.editOnLoad; openEditor(ctx, opener); }
   }
 
   // ---------- the page ----------
   function paint(ctx) {
     if (ctx.closed) return;
+    if (ctx.repaint) { ctx.repaint(); return; } // one of You's own lists (privateList)
     const d = ctx.draft ? previewOf(ctx.data, ctx.draft) : ctx.data;
     const look = d.look || {};
     const accent = look.accent || tintOf(d.person.name);
@@ -388,6 +397,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           look: { accent: draft.look.accent, banner: draft.look.banner, gradient: draft.look.gradient, bannerKey: draft.look.bannerKey, font: draft.look.font,
             posters: draft.look.posters, background: draft.look.background, align: draft.look.align } };
         ctx.data = await api('/api/profiles/me', jsonPost(payload));
+        own.data = ctx.data; own.at = Date.now();
+        mineChanged();
         saved = true;
         ctx.draft = null;
         ctx.diary = null; ctx.allReviews = null;
@@ -561,5 +572,64 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       visibility: draft.visibility, look, sections: draft.sections, favorites: draft.favorites, banner };
   }
 
-  return { open, openMine, fromHash };
+  // ---------- You: your own numbers and lists, privately ----------
+  // /api/profiles/me is always your own full view ('self', the home network's shared account too), whatever the
+  // public page shows. mine() keeps it a minute for You's list (its meta lines), Overview and pages.
+  const own = { data: null, at: 0, loading: null, lists: {} };
+  function mine({ fresh = false } = {}) {
+    if (!fresh && own.data && Date.now() - own.at < 60000) return Promise.resolve(own.data);
+    own.loading ??= api('/api/profiles/me').then((d) => { own.data = d; own.at = Date.now(); own.lists = {}; return d; }).finally(() => { own.loading = null; });
+    return own.loading;
+  }
+  const mineNow = () => own.data;
+  const forgetMine = () => { own.at = 0; };
+  const numbers = (d = own.data) => (d?.stats ? statsRow(d.stats) : null);
+
+  // The latest few things you watched, as diary lines (You's Overview). more: opens History.
+  function recentLines(d = own.data, limit = 5) {
+    const list = (d?.recent || []).slice(0, limit);
+    if (!list.length) return null;
+    return diaryList({ nested: false, data: d, diary: { entries: list, more: false } });
+  }
+
+  // You → History / Ratings and reviews / Liked: the full lists, drawn into the open You page. redraw(): app.js
+  // draws the page again (after Older, More reviews or loading).
+  function privateList(kind, redraw) {
+    const d = own.data;
+    if (!d) {
+      mine().then(redraw, (err) => toast(err.message));
+      return [h('p', { class: 'muted' }, T('Loading…'))];
+    }
+    const ctx = own.lists[kind] ||= { nested: false, data: d, diary: null, allReviews: null, likedAll: null, page: h('div') };
+    ctx.repaint = redraw;
+    const wrap = (...kids) => h('div', { class: 'you-own' }, ...kids);
+    if (kind === 'history') {
+      if (!ctx.diary) { openDiary(ctx); return [wrap(h('p', { class: 'muted' }, T('Loading…')))]; }
+      if (!ctx.diary.entries.length) return [wrap(h('p', { class: 'pf-empty' }, T('Films and episodes you watch show up here.')))];
+      return [wrap(diaryList(ctx))];
+    }
+    if (kind === 'ratings') {
+      return [wrap(SECTION.ratings(ctx, d)), wrap(SECTION.reviews(ctx, d))];
+    }
+    if (kind === 'liked') {
+      if (!ctx.likedAll) { loadLiked(ctx); return [wrap(h('p', { class: 'muted' }, T('Loading…')))]; }
+      const list = ctx.likedAll.liked;
+      if (!list.length) return [wrap(h('p', { class: 'pf-empty' }, T('Titles you give a thumbs up show up here.')))];
+      return [wrap(h('ul', { class: 'pf-grid4' }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))),
+        ctx.likedAll.more && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadLiked(ctx, e.currentTarget) }, h('span', {}, T('More')), icon('chevron')))];
+    }
+    return [];
+  }
+  // 24 at a time; titles TMDB can't name keep their own title (no poster).
+  async function loadLiked(ctx, btn = null) {
+    if (btn) btn.disabled = true;
+    try {
+      const have = ctx.likedAll?.liked || [];
+      const r = await api(`/api/profiles/${ctx.data.person.id}/liked?offset=${have.length}`);
+      ctx.likedAll = { liked: [...have, ...r.liked], more: r.more };
+      paint(ctx);
+    } catch (err) { toast(err.message); if (btn) btn.disabled = false; else ctx.likedAll = { liked: [], more: false }; }
+  }
+
+  return { open, openMine, fromHash, mine, mineNow, forgetMine, numbers, recentLines, privateList };
 }
