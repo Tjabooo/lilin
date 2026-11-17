@@ -48,7 +48,7 @@ test('Library shows state and progress only; details carry speed and ETA', () =>
   const card = between('function makeUnifiedCard(', 'function openUnifiedTitle(');
   assert.doesNotMatch(card, /transfer-stats|fmtEta|entry\.speed/);
   assert.doesNotMatch(css, /\.transfer-stats/);
-  assert.match(css, /\.library-transfer \{ min-height: 42px;/);
+  assert.match(css, /\.poster-progress\.is-transfer \{/); // a slim bar on the card; Downloads has the rest
   assert.match(show, /showDownload\(\{ id: show\.tmdbId, title: show\.title, type: 'tv' \}, \{ season: open\?\.number \?\? null, onAdded: renderShow \}\)/);
   assert.match(show, /episodeDownload\(tvId, open\.number, number\)/);
 });
