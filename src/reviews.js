@@ -1,11 +1,11 @@
-// Reviews: stars (1-5) and a short personal review on a film or a show, readable by everyone on the
+// Reviews: stars (½ to 5, in half stars) and a short personal review on a film or a show, readable by everyone on the
 // server. One review per person per title; editing replaces it. Reviews are per title, not per
 // season or episode: thumbs, Popular and the title pages all work per title, and a small household
 // would spread its few reviews over too many episode pages to be worth reading.
 //
 // Stars live next to the thumbs (social.js `ratings`), which stay the one quick rating. The two always
 // agree, so Popular, "Liked by", Discover's hidden dislikes, Live TV picks and Wrapped keep working:
-//   - giving stars sets the thumb: 4-5 stars = thumbs up, 1-2 stars = thumbs down, 3 stars = no thumb;
+//   - giving stars sets the thumb: 3½-5 stars = thumbs up, ½-2 stars = thumbs down, 2½-3 stars = no thumb;
 //   - tapping a thumb the stars disagree with (or clearing the thumb) clears the stars, never the text.
 // Privacy: stars without text are only counted in the title's average (shown once two or more people
 // gave stars); a written review shows its writer's name, picture and stars to everyone. A thumbs down
@@ -34,7 +34,7 @@ export function initReviews() {
     CREATE TABLE IF NOT EXISTS reviews (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       title_key TEXT NOT NULL,
-      stars INTEGER CHECK (stars IS NULL OR stars BETWEEN 1 AND 5),
+      stars REAL CHECK (stars IS NULL OR (stars BETWEEN 0.5 AND 5 AND stars * 2 = CAST(stars * 2 AS INTEGER))),
       text TEXT NOT NULL DEFAULT '',
       spoiler INTEGER NOT NULL DEFAULT 0,
       title TEXT,
@@ -45,6 +45,37 @@ export function initReviews() {
     );
     CREATE INDEX IF NOT EXISTS reviews_title ON reviews(title_key);
   `);
+  halfStars();
+}
+
+// Reviews made before half stars allowed whole stars only (CHECK 1-5): SQLite can't change a CHECK, so the
+// table is rebuilt once with the new one. Every old value is still valid.
+function halfStars() {
+  const sql = db().prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'reviews'").get()?.sql || '';
+  if (!/BETWEEN 1 AND 5/.test(sql)) return;
+  db().exec('BEGIN');
+  try {
+    db().exec(`
+      CREATE TABLE reviews_half (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title_key TEXT NOT NULL,
+        stars REAL CHECK (stars IS NULL OR (stars BETWEEN 0.5 AND 5 AND stars * 2 = CAST(stars * 2 AS INTEGER))),
+        text TEXT NOT NULL DEFAULT '',
+        spoiler INTEGER NOT NULL DEFAULT 0,
+        title TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        text_at INTEGER,
+        PRIMARY KEY (user_id, title_key)
+      );
+      INSERT INTO reviews_half (user_id, title_key, stars, text, spoiler, title, created_at, updated_at, text_at)
+        SELECT user_id, title_key, stars, text, spoiler, title, created_at, updated_at, text_at FROM reviews;
+      DROP TABLE reviews;
+      ALTER TABLE reviews_half RENAME TO reviews;
+      CREATE INDEX IF NOT EXISTS reviews_title ON reviews(title_key);
+    `);
+    db().exec('COMMIT');
+  } catch (e) { db().exec('ROLLBACK'); throw e; }
 }
 
 // Plain text only: control characters out, line breaks kept (at most one empty line in a row).
@@ -53,12 +84,12 @@ export const cleanText = (s) => String(s ?? '').replace(/\r\n?/g, '\n').replace(
   .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 
 // The thumb a number of stars stands for: 1 up, -1 down, 0 none.
-export const thumbFor = (stars) => (stars >= 4 ? 1 : stars <= 2 ? -1 : 0);
+export const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0);
 
 const starsOf = (v) => {
   if (v == null || v === '' || v === 0 || v === '0') return null;
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1 || n > 5) throw fail(400, 'Pick 1 to 5 stars.');
+  if (!Number.isInteger(n * 2) || n < 0.5 || n > 5) throw fail(400, 'Pick ½ to 5 stars.');
   return n;
 };
 

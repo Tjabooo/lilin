@@ -310,8 +310,9 @@ export function store(userId, entries, now = Date.now()) {
   return added;
 }
 
-export const starsFor = (r) => (r == null ? null : Math.min(5, Math.max(1, Math.round(r))));
-const thumbFor = (stars) => (stars >= 4 ? 1 : stars <= 2 ? -1 : 0); // reviews.js thumbFor
+// Letterboxd's stars as they are (Lilin has half stars too), just kept in range.
+export const starsFor = (r) => (r == null ? null : Math.min(5, Math.max(0.5, Math.round(r * 2) / 2)));
+const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0); // reviews.js thumbFor
 
 // Per title, the newest rating, like and review from Letterboxd go into Lilin's own reviews and thumbs,
 // where the person hasn't put their own (see the top of this file).

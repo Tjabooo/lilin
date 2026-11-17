@@ -1,4 +1,13 @@
 {
+  "2026-11-17-half-stars": {
+    "title": "Halva stjärnor",
+    "items": {
+      "Rate in half stars": {
+        "title": "Betygsätt med halva stjärnor",
+        "text": "Tryck på vänstra halvan av en stjärna för en halv stjärna, så nu går det att ge 3½. Profiler visar dem som ★★★½, och betyg från Letterboxd följer med precis som du gav dem. 3½ stjärnor och uppåt räknas som tummen upp."
+      }
+    }
+  },
   "2026-11-17-letterboxd": {
     "title": "Ta med ditt Letterboxd",
     "items": {

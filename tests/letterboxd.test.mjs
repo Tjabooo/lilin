@@ -55,7 +55,7 @@ test('letterboxd: a feed fills the diary, stars and thumbs, never over Lilin’s
     item({ n: 2, title: 'The Matrix', year: 1999, tmdb: 603, day: '2026-10-03', rating: '5.0' }),
     item({ n: 3, title: 'Alien', year: 1979, tmdb: 348, day: '2026-10-01', like: 'Yes' }));
   await lb.sync(anna.id, { fetchFeed: async () => xml });
-  assert.equal(reviews.reviewOf(anna.id, 'movie:949').stars, 4, '3½ rounds to 4');
+  assert.equal(reviews.reviewOf(anna.id, 'movie:949').stars, 3.5, 'half stars kept');
   assert.equal(reviews.reviewOf(anna.id, 'movie:603').text, 'Mine.', 'own review kept');
   assert.equal(reviews.reviewOf(anna.id, 'movie:603').stars, 1);
   const thumbs = Object.fromEntries(accounts.database().prepare('SELECT title_key, value FROM ratings WHERE user_id = ?').all(anna.id).map((r) => [r.title_key, r.value]));

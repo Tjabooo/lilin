@@ -1,13 +1,15 @@
 // Reviews in the web app: the "Review" button beside the thumbs, the Rate sheet (thumbs + optional
 // stars + optional review), the quiet Reviews section on a title page and the full list behind
-// "See all". The server (src/reviews.js) keeps stars and thumbs in agreement: 4-5 stars = thumbs up,
-// 1-2 = thumbs down, 3 = no thumb. Review text is always put on the page as text, never as HTML.
+// "See all". The server (src/reviews.js) keeps stars and thumbs in agreement: 3½-5 stars = thumbs up,
+// ½-2 = thumbs down, 2½-3 = no thumb. Stars go in halves: tap the left half of a star for a half. Review text is always put on the page as text, never as HTML.
 // app.js passes in its helpers; restricted people get neither the button nor the section.
 import { T, locale } from './i18n.js';
 
 export const MAX_TEXT = 2000;
-export const thumbFor = (stars) => (stars >= 4 ? 1 : stars <= 2 ? -1 : 0);
-export const starsLabel = (n) => (n === 1 ? T('1 star') : T('{0} stars', n));
+export const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0);
+// "3.5" in English, "3,5" in Swedish; whole stars without a decimal.
+export const starsNumber = (n) => Number(n).toLocaleString(locale, { maximumFractionDigits: 1 });
+export const starsLabel = (n) => (n === 1 ? T('1 star') : T('{0} stars', starsNumber(n)));
 // "4.5" in English, "4,5" in Swedish.
 export const averageText = (n) => Number(n).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -65,9 +67,9 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
   };
   const forget = (key) => { loading.delete(`${key}|0`); loading.delete(`${key}|1`); };
 
-  // Five stars as text: filled ones lit, the rest dim. Read out as "4 stars".
+  // Five stars as text: filled ones lit, a half star half lit, the rest dim. Read out as "3.5 stars".
   const starRow = (n, cls = 'review-stars') => h('span', { class: cls, role: 'img', 'aria-label': starsLabel(n) },
-    [1, 2, 3, 4, 5].map((i) => h('i', { class: i <= n ? 'on' : null, 'aria-hidden': 'true' }, '★')));
+    [1, 2, 3, 4, 5].map((i) => h('i', { class: i <= n ? 'on' : i - 0.5 === n ? 'half' : null, 'aria-hidden': 'true' }, '★')));
 
   // ---------- the button beside the thumbs ----------
   // hooks: { thumb() -> the thumb on screen, repaint(rating) -> repaints the thumbs row }
@@ -82,7 +84,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
       btn.hidden = false;
       const mine = data.mine;
       btn.classList.toggle('has-stars', Boolean(mine?.stars));
-      label.textContent = mine?.stars ? String(mine.stars) : mine?.text ? T('Your review') : T('Review');
+      label.textContent = mine?.stars ? starsNumber(mine.stars) : mine?.text ? T('Your review') : T('Review');
       btn.title = mine ? T('Edit your review') : T('Stars and a review, if you like');
     };
     btn.hidden = !cache.has(key);
@@ -104,8 +106,24 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
       sync();
     } }, thumbIcon(value === -1), text);
     const up = thumbBtn(1, T('I like it')), down = thumbBtn(-1, T('Not for me'));
+    // The left half of a star gives a half star; tapping what's already picked clears it. Arrow keys step by halves.
+    const pick = (n) => { stars = stars === n ? 0 : n; if (stars) thumb = thumbFor(stars); sync(); };
     const starBtns = [1, 2, 3, 4, 5].map((n) => h('button', { type: 'button', class: 'compose-star', role: 'radio', 'aria-checked': 'false',
-      'aria-label': starsLabel(n), onclick: () => { stars = stars === n ? 0 : n; if (stars) thumb = thumbFor(stars); sync(); } }, h('span', { 'aria-hidden': 'true' }, '★')));
+      'aria-label': starsLabel(n), onclick: (e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        const half = e.detail > 0 && e.clientX && e.clientX < r.left + r.width / 2;
+        pick(half ? n - 0.5 : n);
+      } }, h('span', { 'aria-hidden': 'true' }, '★')));
+    const starGroup = h('div', { class: 'compose-stars', role: 'radiogroup', 'aria-label': T('Stars') }, starBtns);
+    starGroup.addEventListener('keydown', (e) => {
+      const step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 0.5 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -0.5 : 0;
+      if (!step) return;
+      e.preventDefault();
+      stars = Math.min(5, Math.max(0, stars + step));
+      if (stars) thumb = thumbFor(stars);
+      sync();
+      starBtns[Math.max(0, Math.ceil(stars) - 1)].focus();
+    });
     const starHint = h('p', { class: 'compose-hint', 'aria-live': 'polite' });
     const text = h('textarea', { class: 'idea-text compose-text', maxlength: String(MAX_TEXT), rows: '5',
       placeholder: T('What did you think? (optional)'), 'aria-label': T('Your review') });
@@ -124,9 +142,13 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
     const sync = () => {
       up.setAttribute('aria-pressed', String(thumb === 1));
       down.setAttribute('aria-pressed', String(thumb === -1));
-      starBtns.forEach((b, i) => { b.setAttribute('aria-checked', String(stars === i + 1)); b.classList.toggle('on', i < stars); });
-      starHint.textContent = stars ? `${starsLabel(stars)} · ${stars >= 4 ? T('counts as a thumbs up') : stars <= 2 ? T('counts as a thumbs down') : T('no thumb either way')}`
-        : T('Optional. Tap a star again to clear it.');
+      starBtns.forEach((b, i) => {
+        b.setAttribute('aria-checked', String(Math.ceil(stars) === i + 1));
+        b.classList.toggle('on', i + 1 <= stars);
+        b.classList.toggle('half', i + 0.5 === stars);
+      });
+      starHint.textContent = stars ? `${starsLabel(stars)} · ${stars >= 3.5 ? T('counts as a thumbs up') : stars <= 2 ? T('counts as a thumbs down') : T('no thumb either way')}`
+        : T('Optional. Tap the left half of a star for a half star.');
       const words = text.value.trim();
       spoiler.hidden = !words;
       count.textContent = text.value.length > MAX_TEXT - 300 ? `${text.value.length} / ${MAX_TEXT}` : '';
@@ -158,7 +180,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
       h('h2', { id: 'picker-title' }, mine ? T('Your review') : T('Rate it')),
       h('p', { class: 'muted picker-sub' }, title),
       h('div', { class: 'compose-thumbs', role: 'group', 'aria-label': T('Thumbs') }, up, down),
-      h('div', { class: 'compose-stars', role: 'radiogroup', 'aria-label': T('Stars') }, starBtns),
+      starGroup,
       starHint,
       text,
       h('div', { class: 'compose-row' }, spoiler, count),

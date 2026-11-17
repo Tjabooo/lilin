@@ -76,6 +76,10 @@
 }
 .compose-star:hover { color: color-mix(in srgb, var(--bulb) 45%, var(--line)); }
 .compose-star.on { color: var(--bulb); }
+.compose-star.half span, .review-stars i.half {
+  color: transparent; background: linear-gradient(90deg, var(--bulb) 50%, color-mix(in srgb, var(--dust) 30%, var(--line)) 50%);
+  -webkit-background-clip: text; background-clip: text;
+}
 .compose-star:active { transform: scale(0.88); }
 .compose-hint { margin: 0 0 14px; font-size: 13px; color: var(--text-3); }
 .compose-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; margin: 6px 0 0; }

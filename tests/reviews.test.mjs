@@ -59,7 +59,8 @@ test('reviews: plain text, limits and validation', () => {
   assert.equal(reviews.reviewOf(anna.id, 'movie:1').spoiler, 0, 'no text, nothing to spoil');
   assert.throws(() => reviews.save(anna.id, 'movie:1', { text: 'x'.repeat(reviews.MAX_TEXT + 1) }), { status: 400 });
   assert.throws(() => reviews.save(anna.id, 'movie:1', { stars: 6 }), { status: 400 });
-  assert.throws(() => reviews.save(anna.id, 'movie:1', { stars: 2.5 }), { status: 400 });
+  assert.throws(() => reviews.save(anna.id, 'movie:1', { stars: 2.25 }), { status: 400 });
+  assert.throws(() => reviews.save(anna.id, 'movie:1', { stars: 0.25 }), { status: 400 });
   assert.throws(() => reviews.save(anna.id, 'season:1', { stars: 4 }), { status: 400 });
   reviews.resetLimits();
   const now = Date.now();
@@ -115,4 +116,26 @@ test('reviews: what people see, restricted people and the owner', () => {
   assert.deepEqual(reviews.forTitle(viewer(ben), 'tv:5', { nameOf }).reviews.map((r) => r.name), ['Ben']);
   assert.equal(topicFor('/api/reviews').topic, 'reviews');
   assert.equal(topicFor('/api/reviews/delete').topic, 'reviews');
+});
+
+test('reviews: half stars, and an old whole-star table is rebuilt for them', () => {
+  const { anna, nameOf } = setup();
+  const thumb = () => social.ratingFor(anna.id, 'movie:603', nameOf).mine;
+  reviews.save(anna.id, 'movie:603', { stars: 3.5 });
+  assert.equal(reviews.reviewOf(anna.id, 'movie:603').stars, 3.5);
+  assert.equal(thumb(), 1, '3½ stars = thumbs up');
+  reviews.save(anna.id, 'movie:603', { stars: 0.5 });
+  assert.equal(thumb(), -1);
+  reviews.save(anna.id, 'movie:603', { stars: 2.5 });
+  assert.equal(thumb(), 0, '2½ = no thumb');
+  // A database from before half stars: CHECK 1-5 on an INTEGER column.
+  const db = accounts.database();
+  db.exec(`DROP TABLE reviews; CREATE TABLE reviews (user_id INTEGER NOT NULL, title_key TEXT NOT NULL,
+    stars INTEGER CHECK (stars IS NULL OR stars BETWEEN 1 AND 5), text TEXT NOT NULL DEFAULT '', spoiler INTEGER NOT NULL DEFAULT 0, title TEXT,
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, text_at INTEGER, PRIMARY KEY (user_id, title_key));
+    INSERT INTO reviews VALUES (${anna.id}, 'movie:1', 4, 'Old.', 0, 'Old', 1, 1, 1);`);
+  reviews.initReviews();
+  assert.equal(reviews.reviewOf(anna.id, 'movie:1').text, 'Old.', 'kept through the rebuild');
+  reviews.save(anna.id, 'movie:1', { stars: 4.5, text: 'Old.' });
+  assert.equal(reviews.reviewOf(anna.id, 'movie:1').stars, 4.5);
 });

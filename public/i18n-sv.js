@@ -2603,4 +2603,5 @@ export default {
   "Unlinking takes the Letterboxd films out of your diary, and the stars and reviews it brought over that you haven’t changed.": "Kopplar du bort försvinner Letterboxd-filmerna från din dagbok, och de stjärnor och recensioner som följde med och som du inte har ändrat.",
   "Uploading…": "Laddar upp…",
   "Your Letterboxd username": "Ditt användarnamn på Letterboxd",
+  "Optional. Tap the left half of a star for a half star.": "Valfritt. Tryck på vänstra halvan av en stjärna för en halv stjärna.",
 };

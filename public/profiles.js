@@ -229,7 +229,9 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
 
   function stars(n, cls = 'pf-stars') {
     if (!n) return null;
-    return h('span', { class: cls, role: 'img', 'aria-label': n === 1 ? T('1 star') : T('{0} stars', n) }, '★'.repeat(n));
+    // Letterboxd style: ★★★½
+    const label = n === 1 ? T('1 star') : T('{0} stars', Number(n).toLocaleString(locale(), { maximumFractionDigits: 1 }));
+    return h('span', { class: cls, role: 'img', 'aria-label': label }, '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : ''));
   }
 
   function posterButton(ctx, card, fallback, { size = 'w342', label } = {}) {
@@ -271,11 +273,11 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       const likes = d.stats?.likes ?? null;
       if (!r || (!r.total && !d.me)) return null;
       const max = Math.max(1, ...r.counts);
-      const bars = h('div', { class: 'pf-hist', role: 'img', 'aria-label': r.counts.map((n, i) => `${i + 1}★ ${n}`).join(', ') },
+      const bars = h('div', { class: 'pf-hist', role: 'img', 'aria-label': r.counts.map((n, i) => `${Number((i + 1) / 2).toLocaleString(locale(), { maximumFractionDigits: 1 })}★ ${n}`).join(', ') },
         r.counts.map((n) => h('span', { class: 'pf-bar-col', style: `--h:${Math.max(n ? 6 : 2, Math.round((n / max) * 100))}%` })));
       return sectionBox('ratings', T('Ratings'), h('span', { class: 'pf-sec-note' }, r.total === 1 ? T('1 rating') : T('{0} ratings', r.total)),
         r.total ? h('div', { class: 'pf-hist-row' },
-          h('span', { class: 'pf-hist-end', 'aria-hidden': 'true' }, '★'), bars, h('span', { class: 'pf-hist-end', 'aria-hidden': 'true' }, '★★★★★'),
+          h('span', { class: 'pf-hist-end', 'aria-hidden': 'true' }, '½'), bars, h('span', { class: 'pf-hist-end', 'aria-hidden': 'true' }, '★★★★★'),
           h('div', { class: 'pf-avg' }, h('strong', {}, Number(r.average).toLocaleString(locale(), { maximumFractionDigits: 1 })), h('span', {}, '★'), likes != null && h('small', {}, `♥ ${likes}`)))
           : h('p', { class: 'pf-empty' }, T('Stars you give films and shows show up here.')));
     },

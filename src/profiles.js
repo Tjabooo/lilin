@@ -309,14 +309,15 @@ export function stats(userId, now = Date.now()) {
   return { films: films.size, filmsThisYear: filmsThisYear.size, shows: shows.size, episodes: episodes.size, hours: Math.round(seconds / 3600), reviews, likes };
 }
 
-// How they give stars: counts for 1-5 (index 0 = one star), with the average.
+// How they give stars: counts for ½ to 5 in half stars (index 0 = ½, index 9 = 5), with the average.
 export function ratings(userId) {
-  const counts = [0, 0, 0, 0, 0];
+  const counts = Array(10).fill(0);
   for (const r of db().prepare('SELECT stars, COUNT(*) AS n FROM reviews WHERE user_id = ? AND stars IS NOT NULL GROUP BY stars').all(userId)) {
-    if (r.stars >= 1 && r.stars <= 5) counts[r.stars - 1] = r.n;
+    const i = Math.round(r.stars * 2) - 1;
+    if (i >= 0 && i < 10) counts[i] += r.n;
   }
   const total = counts.reduce((a, b) => a + b, 0);
-  const average = total ? Math.round((counts.reduce((s, n, i) => s + n * (i + 1), 0) / total) * 10) / 10 : null;
+  const average = total ? Math.round((counts.reduce((s, n, i) => s + n * (i + 1) / 2, 0) / total) * 10) / 10 : null;
   return { counts, total, average };
 }
 
