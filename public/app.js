@@ -10251,11 +10251,25 @@ const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'
       icon('search'), T('Search torrents for “{0}”', q)),
     state.status.notes && h('button', { type: 'button', class: 'chip', onclick: async () => { endSearch(); await setView('house/notes'); clearFilter('notes', q); await notesView.load(); } },
       icon('search'), T('Search notes for “{0}”', q)),
-  ].filter(Boolean) });
+  ].filter(Boolean),
+  // People: anyone on Lilin by name (friends search; nobody for restricted people or the shared home account).
+  findPeople: async (q, signal) => {
+    if (!state.me?.email || state.me.restricted) return [];
+    const { people: found = [] } = await api(`/api/friends/search?q=${encodeURIComponent(q)}`, { signal });
+    const hint = { friend: T('Friends'), sent: T('Asked'), received: T('Asked to be your friend') };
+    return found.slice(0, 4).map((p) => ({ name: p.name, hint: hint[p.state] || '', face: people.face(p, { size: 32 }), open: (opener) => profiles.open(p, opener) }));
+  },
+  // Live: a channel by its name or what's on it now (the guide is fetched when search opens).
+  findChannels: (q) => {
+    const n = norm(q);
+    return liveView.channels().map((c) => ({ c, now: liveView.onNow(c)?.title || '' }))
+      .filter(({ c, now }) => norm(`${channelName(c, state.me)} ${now}`).includes(n)).slice(0, 4)
+      .map(({ c, now }) => ({ number: c.number, name: channelName(c, state.me), now, tune: () => tuneIn(c.id) }));
+  } });
 function setSearching(on) {
   document.body.classList.toggle('searching', on);
   searchToggle.setAttribute('aria-expanded', String(on));
-  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); } else searchUi.close();
+  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); liveView.load(); } else searchUi.close(); // the channels, for search's Live group
 }
 function endSearch() { input.value = ''; $('#q-clear').hidden = true; setSearching(false); }
 // Go to: a place opens its page, or runs its action (places.js ACTIONS).

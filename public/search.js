@@ -1,14 +1,16 @@
 // Search: one box that finds titles, plus Go to (places.js) for screens and settings by name. Results open in a
 // layer over the page (#search-layer): the page underneath stays as it was, and Escape or Cancel closes the layer.
 // Filtering a page (Library, Activity, Machines, Game clips, Notes) is a small field on that page, not this box.
+// People (findPeople: by name, opens their profile) and Live (findChannels: a channel by name or what's on now,
+// tunes in) show as groups of their own when something matches.
 import { matchPlaces, defaultPlaces, placeLabel } from './places.js';
 import { ROUTES } from './routes.js';
 
 const RECENT_KEY = 'lilin:recent-search';
 
 export function createSearch({ h, T, lang, api, input, layer, me, status, onLilin, openPlace, titleGrid, titleCard, carousel,
-  skeletonGrid, emptyState, notice, footer, onChange }) {
-  let ctrl = null, timer = 0;
+  skeletonGrid, emptyState, notice, footer, onChange, findPeople = null, findChannels = null }) {
+  let ctrl = null, timer = 0, peopleCtrl = null;
   const recent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } };
   function remember(text = input.value) {
     const q = String(text || '').trim();
@@ -22,7 +24,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     render(); onChange?.(true);
   }
   function close() {
-    clearTimeout(timer); ctrl?.abort();
+    clearTimeout(timer); ctrl?.abort(); peopleCtrl?.abort();
     if (!isOpen()) return;
     layer.hidden = true; layer.replaceChildren(); input.setAttribute('aria-expanded', 'false');
     onChange?.(false);
@@ -52,14 +54,31 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     }
     const places = matchPlaces(q, { me: me(), status: status(), T, lang });
     const owned = onLilin(q);
+    const channels = findChannels?.(q) || [];
     const titles = h('div', { class: 'sr-titles' }, status().search ? skeletonGrid(6) : null);
+    const folks = h('div', { class: 'sr-people' });
     layer.replaceChildren(h('div', { class: 'sr-body' },
       places.length > 0 && group(T('Go to'), h('div', { class: 'set-stack' }, places.map(placeRow))),
       owned.length > 0 && group(T('On Lilin'), h('div', { class: 'set-stack' }, owned)),
+      channels.length > 0 && group(T('Live'), h('div', { class: 'set-stack' }, channels.map((c) => h('button', { type: 'button', class: 'sr-row', onclick: () => { remember(); close(); c.tune(); } },
+        h('span', { class: 'guide-number', 'aria-hidden': 'true' }, String(c.number)),
+        h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, c.name), c.now && h('span', { class: 'set-hint' }, T('Now: {0}', c.now))))))),
+      folks,
       titles,
       h('div', { class: 'sr-more' }, footer(q))));
-    if (status().search) timer = setTimeout(() => findTitles(q, titles), 250);
-    else if (!places.length && !owned.length) titles.replaceChildren(emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')));
+    timer = setTimeout(() => { if (status().search) findTitles(q, titles); if (findPeople && q.length >= 2) findSomeone(q, folks); }, 250);
+    if (!status().search && !places.length && !owned.length && !channels.length) titles.replaceChildren(emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')));
+  }
+
+  // People by name: a face and a name; tapping opens their profile over the results.
+  async function findSomeone(q, slot) {
+    peopleCtrl?.abort();
+    peopleCtrl = new AbortController();
+    try {
+      const found = await findPeople(q, peopleCtrl.signal);
+      slot.replaceChildren(...(found.length ? [group(T('People'), h('div', { class: 'set-stack' }, found.map((p) => h('button', { type: 'button', class: 'sr-row', onclick: (e) => { remember(); p.open(e.currentTarget); } },
+        p.face, h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, p.name), p.hint && h('span', { class: 'set-hint' }, p.hint))))))] : []));
+    } catch { slot.replaceChildren(); }
   }
 
   async function findTitles(q, slot) {

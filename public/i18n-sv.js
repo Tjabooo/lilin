@@ -2422,6 +2422,7 @@ export default {
   "Search results": "Sökresultat",
   "Recent searches": "Senaste sökningar",
   "Go to": "Gå till",
+  "Now: {0}": "Nu: {0}",
   "On Lilin": "På Lilin",
   "Films and shows": "Filmer och serier",
   "Search torrents for “{0}”": "Sök torrents efter ”{0}”",
