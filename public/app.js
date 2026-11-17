@@ -15,6 +15,8 @@ import { comingUp, newEpisodes, watchStatus, todayIso } from './watchlist.js';
 import { travelTitle, sizeWords, stateWords, travelSummary, travelOrder } from './travel.js';
 import { libraryUnion, libraryAvailability, filterLibrary, transferState, transferAttention, transferPaused, packScope } from './library-downloads.js';
 import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesText, fmtHours } from './social.js';
+import { createReviews } from './reviews.js'; // reviews: stars + written reviews
+import { rateHooks } from './social.js'; // reviews: the Review button beside the thumbs
 import { createDocumentaries } from './documentaries.js';
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
@@ -1849,6 +1851,7 @@ function renderFilm() {
       f.overview && h('p', { class: 'overview' }, f.overview),
       keepBar([f], renderFilm),
       f.season == null && (castRail('movie', f.tmdbId) || castLine('movie', f.tmdbId)),
+      reviews.section(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title), // reviews
       moreLike('movie', tmdbFilm)));
 }
 
@@ -2005,7 +2008,9 @@ function renderShow() {
       h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
       show.overview && h('p', { class: 'overview' }, show.overview), files.length > 0 && keepBar(files, renderShow),
       h('section', { class: 'page-section show-episodes' }, ...content),
-      castRail('tv', show.tmdbId) || castLine('tv', show.tmdbId), moreLike('tv', show.tmdbId)));
+      castRail('tv', show.tmdbId) || castLine('tv', show.tmdbId),
+      show.tmdbId && reviews.section(`tv:${show.tmdbId}`, show.title), // reviews
+      moreLike('tv', show.tmdbId)));
   if (open && show.tmdbId && state.status.search) fillEpisodeDetails(show.tmdbId, open.number);
   showStructure = JSON.stringify([showView.id, showView.season, entry.files, entry.transfers.map(d => [d.hash, d.season, (d.episodes || []).map(ep => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])])]);
 }
@@ -2382,6 +2387,7 @@ async function applyLive() {
   if (has('friends') || has('people')) { friendsUI.invalidate(); if (view === 'settings') jobs.push(friendsUI.load().then(renderSettingsWhenStill)); } // friends
   if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
+  if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if (has('avatars') && view === 'library') jobs.push(loadParties());
   if (has('parties') && view === 'library') jobs.push(loadParties());
   if (has('me') || has('people') || has('avatars')) {
@@ -2788,6 +2794,7 @@ function renderDetails(t) {
       isTv && files.length > 0 && seasonGroups(files),
       versions && h('h3', {}, T('Your versions')),
       versions && h('ul', { class: 'rows' }, versionFiles.map((v) => fileRow(libraryFile({ ...v, versionOf: true })))),
+      reviews.section(titleKeyOf(t), t.title), // reviews
       moreLike(t.type, t.id)));
   detailsView.t = t;
 }
@@ -3463,6 +3470,18 @@ const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () 
 const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
   openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
+// reviews: stars + written reviews (reviews.js); its sheets open in the picker
+const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state.me, sheet: {
+  open: (nodes, opener, onClosed) => {
+    $('#picker-body').replaceChildren(...nodes.filter(Boolean));
+    if ($('#picker').hidden || !$('#picker').classList.contains('open')) {
+      pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { onClosed?.(); opener?.focus({ preventScroll: true }); }));
+    }
+  },
+  draw: (nodes) => $('#picker-body').replaceChildren(...nodes.filter(Boolean)),
+  close: () => closeTopOverlay(),
+} });
+rateHooks.extra = (key, title, hooks) => reviews.rateButton(key, title, hooks);
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed

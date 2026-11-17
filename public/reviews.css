@@ -1,0 +1,88 @@
+/* Reviews (reviews.js): the Review button beside the thumbs, the Rate sheet, the Reviews section on a
+   title page and the full list. Quiet by default: the bulb colour only lights stars that are given. */
+
+/* Beside the thumbs: a pill the same height as them */
+.rate-review {
+  height: 40px; padding: 0 14px 0 11px; flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600; color: var(--dust);
+  background: none; border: 1px solid var(--line); border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.rate-review:hover { color: var(--paper); border-color: var(--dust); }
+.rate-review:active { transform: scale(0.95); }
+.rate-review-star { font-size: 16px; line-height: 1; }
+.rate-review.has-stars { color: var(--paper); border-color: color-mix(in srgb, var(--bulb) 55%, var(--line)); }
+.rate-review.has-stars .rate-review-star { color: var(--bulb); }
+.rate-review span:last-child { font-variant-numeric: tabular-nums; }
+
+/* The Reviews section on a title page */
+.reviews-section { display: grid; gap: var(--s3); }
+.reviews-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); }
+.reviews-head h3 { margin: 0 !important; font: 700 var(--t-h2)/1.2 var(--display); }
+.reviews-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.reviews-average { display: inline-flex; align-items: baseline; gap: 5px; font: 800 26px/1 var(--display); color: var(--paper); font-variant-numeric: tabular-nums; }
+.reviews-average-star { color: var(--bulb); font-size: 20px; }
+.reviews-all { justify-self: start; }
+.review-link {
+  min-height: 32px; padding: 0 2px; font-size: 14px; font-weight: 600; color: var(--text-2);
+  background: none; border: 0; text-decoration: underline; text-decoration-color: var(--hairline-2); text-underline-offset: 3px;
+}
+.review-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.review-link.armed, .chip.armed { color: var(--alert); }
+
+/* One review */
+.review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.review {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 14px 16px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md);
+}
+.review.mine { border-color: color-mix(in srgb, var(--bulb) 26%, var(--hairline)); }
+.review-face { margin-top: 1px; }
+.review-body { min-width: 0; }
+.review-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-who strong { font-size: 15px; }
+.review-friend { padding: 1px 8px; font: 700 11px/18px var(--body); color: var(--text-2); background: var(--surface-2); border-radius: 999px; }
+.review-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 13px; color: var(--text-3); }
+.review-meta .dot { opacity: 0.7; }
+.review-stars { display: inline-flex; gap: 1px; font-size: 13px; line-height: 1; }
+.review-stars i { font-style: normal; color: color-mix(in srgb, var(--dust) 30%, var(--line)); }
+.review-stars i.on { color: var(--bulb); }
+.review-text { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.5; font-size: 15px; }
+.review-text.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+.review-spoiler {
+  width: 100%; margin-top: 8px; padding: 10px 12px; display: grid; gap: 2px; text-align: left;
+  font-size: 13px; color: var(--text-2);
+  background: repeating-linear-gradient(-45deg, var(--surface-2) 0 8px, color-mix(in srgb, var(--surface-2) 70%, var(--velvet)) 8px 16px);
+  border: 1px dashed var(--hairline-2); border-radius: var(--r-sm);
+}
+.review-spoiler strong { font-size: 14px; color: var(--text); }
+.review-spoiler:hover { border-color: var(--dust); }
+.review-actions { display: flex; gap: 14px; margin-top: 6px; }
+.review-list.full .review { background: var(--surface-2); }
+/* Wide screens: the preview's reviews side by side, so a line of text stays readable */
+@media (min-width: 900px) { .reviews-section .review-list { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); } }
+
+/* The Rate sheet */
+.compose-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.compose-thumb svg { width: 18px; height: 18px; }
+.compose-thumb[aria-pressed="true"] { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
+.compose-thumb[aria-pressed="true"] svg { fill: currentColor; fill-opacity: 0.25; }
+.compose-stars { display: flex; gap: 2px; margin: 18px 0 2px -6px; }
+.compose-star {
+  width: 50px; height: 50px; display: grid; place-items: center; padding: 0;
+  font-size: 34px; line-height: 1; color: color-mix(in srgb, var(--dust) 30%, var(--line)); background: none; border: 0; border-radius: 50%;
+  transition: color 0.12s, transform 0.15s var(--ease-pop);
+}
+.compose-star:hover { color: color-mix(in srgb, var(--bulb) 45%, var(--line)); }
+.compose-star.on { color: var(--bulb); }
+.compose-star:active { transform: scale(0.88); }
+.compose-hint { margin: 0 0 14px; font-size: 13px; color: var(--text-3); }
+.compose-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; margin: 6px 0 0; }
+.compose-spoiler { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; }
+.compose-spoiler input { width: 18px; height: 18px; margin: 0; accent-color: var(--bulb); }
+.compose-note { margin: 4px 0 0; font-size: 13px; }
+.compose-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.compose-delete { min-height: 48px; }
+#picker-body .reviews-summary { margin-bottom: 12px; }
+.reviews-write-chip { margin-bottom: 14px; }

@@ -26,6 +26,7 @@ import * as invites from './invites.js';
 import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
+import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -161,6 +162,7 @@ const TV_PICK_TAG = 'lilin-tv';
 const FRESH_DAYS = 14;                 // the Fresh channel: picks, plus anything that arrived this recently
 activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail });
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR });
+reviews.initReviews(); // reviews: own table in the accounts database
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
 const push = new PushStore(DATA_DIR);
 // Sends `kind` to each person who has it switched on, in the background.
@@ -3580,9 +3582,28 @@ async function handleApi(req, res, url) {
   if (p === '/api/social/rate' && req.method === 'POST') {
     const { key, value, title } = await readJson(req);
     social.rate(user.id, String(key || ''), value, title);
+    if (reviews.onThumb(user.id, String(key), value)) live.publish('reviews'); // reviews: stars follow the thumb
     return sendJson(res, 200, social.ratingFor(user.id, String(key), personName, avatarOf, socialSight(user)));
   }
   if (p === '/api/social/title') return sendJson(res, 200, social.ratingFor(user.id, String(url.searchParams.get('key') || ''), personName, avatarOf, socialSight(user)));
+  // reviews: stars + written reviews on a title (reviews.js). Restricted people neither write nor see them, and theirs are hidden.
+  if (p === '/api/reviews' || p === '/api/reviews/delete') {
+    const viewer = { id: user.id, isOwner: Boolean(user.isOwner), restricted: accounts.isRestricted(user) };
+    const reviewsFor = (key, all = false) => {
+      const hide = accounts.restrictedIds();
+      return reviews.forTitle(viewer, key, { all, friends: new Set(friends.friendIds(user.id)), nameOf: personName, avatarOf, hidden: (id) => hide.has(id) });
+    };
+    if (req.method === 'GET') return sendJson(res, 200, reviewsFor(String(url.searchParams.get('key') || ''), url.searchParams.get('all') === '1'));
+    const body = await readJson(req, 16000);
+    const key = String(body.key || '');
+    if (p === '/api/reviews/delete') reviews.remove(viewer, key, body.userId ?? user.id);
+    else {
+      if (viewer.restricted) throw new HttpError(403, 'Reviews aren’t available on your account.');
+      reviews.save(user.id, key, body);
+      live.publish('social'); // the thumb may have changed with the stars
+    }
+    return sendJson(res, 200, { ...reviewsFor(key, Boolean(body.all)), rating: social.ratingFor(user.id, key, personName, avatarOf, socialSight(user)) });
+  }
   if (p === '/api/social/ratings') {
     const keys = String(url.searchParams.get('keys') || '').split(',').slice(0, 500);
     return sendJson(res, 200, { ratings: social.ratingsFor(user.id, keys) });
@@ -4811,7 +4832,7 @@ async function handleRequest(req, res) {
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
         || /^\/api\/live\/(?:channels|[\w-]{1,40}\/tune)$/.test(url.pathname)
         || /^\/api\/watch(?:\/plan|\/[A-Za-z0-9_-]{24}\/(join|heartbeat|control|leave|switch|invite|chat|react|schedule|cancel))?$/.test(url.pathname)
-        || url.pathname === '/api/social/rate' || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname)
+        || url.pathname === '/api/social/rate' || /^\/api\/reviews(?:\/delete)?$/.test(url.pathname) || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname)
         || /^\/c\/jf\/v1\/(pair\/start|progress|disconnect)$/.test(url.pathname) || /^\/api\/jellyfin\/(approve|[\w-]+\/remove)$/.test(url.pathname)));
     if (!allowed) throw new HttpError(405, 'Method not allowed.');
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);

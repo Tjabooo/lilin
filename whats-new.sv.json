@@ -1,4 +1,17 @@
 {
+  "2026-11-17-reviews": {
+    "title": "Recensioner",
+    "items": {
+      "Rate with stars and write a review": {
+        "title": "Ge stjärnor och skriv en recension",
+        "text": "Bredvid tummarna på en film eller serie finns nu en Recensera-knapp. Ge 1 till 5 stjärnor och skriv, om du vill, vad du tyckte. Alla på Lilin kan läsa din recension, och avslöjar den något kan du kryssa i Innehåller spoilers så att andra måste trycka för att se den. Stjärnor och tummar hänger ihop: 4 eller 5 stjärnor räknas som tumme upp, 1 eller 2 som tumme ner."
+      },
+      "See what others thought": {
+        "title": "Se vad andra tyckte",
+        "text": "Längre ner på en titels sida visar Recensioner snittbetyget och ett par recensioner. Se alla öppnar resten. Du kan ändra eller radera din egen recension när du vill."
+      }
+    }
+  },
   "2026-11-17-scout": {
     "title": "En idéscout för ägaren",
     "items": {

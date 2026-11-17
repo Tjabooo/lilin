@@ -1,5 +1,20 @@
 [
 {
+  "id": "2026-11-17-reviews",
+  "date": "2026-11-17",
+  "title": "Reviews",
+  "items": [
+    {
+      "title": "Rate with stars and write a review",
+      "text": "Next to the thumbs on a film or show there is now a Review button. Give it 1 to 5 stars and, if you like, write what you thought. Everyone on Lilin can read your review, and if it gives something away, tick Contains spoilers so others have to tap to see it. Stars and thumbs go together: 4 or 5 stars counts as a thumbs up, 1 or 2 as a thumbs down."
+    },
+    {
+      "title": "See what others thought",
+      "text": "Further down a title's page, Reviews shows the average stars and a couple of reviews. See all opens the rest. You can change or delete your own review whenever you like."
+    }
+  ]
+},
+{
   "id": "2026-11-17-scout",
   "date": "2026-11-17",
   "title": "An idea scout for the owner",

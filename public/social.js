@@ -71,6 +71,9 @@ export const fmtHours = (seconds) => {
   return T('{0} minutes', Math.max(1, Math.round(seconds / 60)));
 };
 
+// reviews: app.js sets rateHooks.extra(key, title, { thumb, repaint }) -> the Review button beside the thumbs (reviews.js)
+export const rateHooks = { extra: null };
+
 export function createSocial({ h, api, jsonPost, toast, icon, people }) {
   const faces = (list, opts) => people?.faces(list, opts) || null;
   const face = (p, opts) => people?.face(p, opts) || null;
@@ -92,8 +95,9 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
     const whoFaces = h('span', { class: 'liked-faces' });
     const whoText = h('span', { class: 'liked-text', 'aria-live': 'polite' });
     const who = h('span', { class: 'liked-by' }, whoFaces, whoText);
-    const el = h('div', { class: 'rate-row', role: 'group', 'aria-label': T('Rate this title') }, up, down, who);
     let current = { key, mine: 0, likedBy: [] };
+    const extra = rateHooks.extra?.(key, title, { thumb: () => current.mine, repaint: (r) => paint(r) }); // reviews
+    const el = h('div', { class: 'rate-row', role: 'group', 'aria-label': T('Rate this title') }, up, down, extra, who);
     const paint = (r) => {
       current = r; cache.set(key, r);
       up.setAttribute('aria-pressed', String(r.mine === 1));

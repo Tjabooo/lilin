@@ -172,6 +172,7 @@ src/
   shows.js, episode-order.js, credits.js, previews.js
   notes*.js, note-share.js  Notes, attachments, OCR, shared previews
   house.js, load.js, screentime.js, clips.js, invites.js, activity.js, live.js, network.js
+  social.js, reviews.js thumbs, Popular, Wrapped, watch parties; stars + written reviews
   setup/             wizard, detection, integrations, services, packages, backups
 public/              the web app (plain JavaScript and CSS, no build step)
 agents/              lilin-house reporter for Linux machines (bash + systemd units), lilin-scout idea scout (Python + Claude Code)
@@ -243,6 +244,9 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/social/rate` | Thumbs `{ key: "movie:<tmdb id>" \| "tv:<tmdb id>", value: 1 \| -1 \| 0, title }` |
 | `GET` | `/api/social/title?key=`, `/api/social/ratings?keys=` | Your thumb and who else liked a title (dislikes are never shown to others); bulk `{ mine, likes }` |
 | `GET` | `/api/social/popular?type=` | Popular on Lilin: last 60 days of likes, viewers and hours, as TMDB cards |
+| `GET` | `/api/reviews?key=[&all=1]` | A title's reviews (reviews.js): `{ average, ratings, count, thumb, mine, reviews: [{ userId, name, avatar, stars, text, spoiler, created, edited, mine, friend, canRemove }] }`; two reviews without `all`. Average only from 2 people's stars. Restricted people get `{ restricted: true }` and nobody sees theirs |
+| `POST` | `/api/reviews` | Your review `{ key, title, stars: 1-5 \| null, text (plain, ≤ 2000), spoiler, thumb? }`; stars set your thumb (4-5 up, 1-2 down, 3 none). 403 for restricted people, 429 past 20 writes in 10 min. Live topic `reviews` |
+| `POST` | `/api/reviews/delete` | `{ key, userId? }`: your own review, or anyone's for the owner (the thumb stays) |
 | `GET`, `POST` | `/api/admin/settings` | Auto-delete rules and defaults (`ADMIN_EMAILS` only) |
 | `GET` | `/api/admin/users` | Everyone who has used Lilin, with their library size (`ADMIN_EMAILS` only) |
 | `POST` | `/api/admin/users/<id>` | `{ canDownload?, canInvite?, restricted?, keep?, libraryWith? }` (`ADMIN_EMAILS` only) |
