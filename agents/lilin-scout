@@ -1,0 +1,499 @@
+#!/usr/bin/env python3
+"""lilin-scout: the idea scout for Lilin. Finds features people have loved or wished for in streaming
+services and media servers over the years, brings the best ones to the owner's idea inbox with the
+evidence, answers the owner's comments, and builds the ideas the owner accepts.
+
+    lilin-scout run [--dry-run] [--force]   research: post 3-5 new ideas, answer open comments (weekly timer)
+    lilin-scout watch [--dry-run]           answer comments, then build the oldest accepted idea (frequent timer)
+    lilin-scout answer [--dry-run]          only answer the owner's comments
+    lilin-scout build ID [--dry-run]        build one accepted idea now
+    lilin-scout status                      the scout's ideas and the current build
+
+Everything runs `claude -p` (Claude Code, headless) on this machine. Ideas reach Lilin through
+/api/scout/ideas with SCOUT_TOKEN. Config: ~/.config/lilin-scout.env (KEY=value lines, see
+docs/integrations.md#idea-scout); environment variables override it. Needs Python 3.9+, git and claude.
+
+Builds: one at a time, each in its own git worktree, never while a "busy" process (a game) runs, and a
+usage limit means waiting for the reset and resuming the same Claude session, not starting over.
+"""
+import argparse, datetime as dt, fcntl, json, os, re, shlex, shutil, subprocess, sys, time, urllib.error, urllib.request
+from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+HOME = Path.home()
+HERE = Path(__file__).resolve().parent
+CONF_PATH = Path(os.environ.get('LILIN_SCOUT_CONF', HOME / '.config' / 'lilin-scout.env'))
+STATE = Path(os.environ.get('XDG_STATE_HOME', HOME / '.local' / 'state')) / 'lilin-scout'
+DEFAULTS = {
+    'LILIN_URL': '', 'SCOUT_TOKEN': '',
+    'SCOUT_REPO': '',                 # a clone of Lilin: docs are read from origin/master, builds branch from it
+    'SCOUT_BRANCH': 'master',
+    'SCOUT_WORKTREES': '~/lilin-builds',
+    'SCOUT_PROMPTS': '',              # folder with research.md / answer.md / build.md (default: next to this script)
+    'SCOUT_CONTEXT': '',              # extra files the research reads to avoid duplicates (":"-separated)
+    'SCOUT_RULES': '',                # a file with house rules for build agents (ship, deploy, handover)
+    'SCOUT_NOTIFY': '',               # a command that gets one text argument (a chat message, a push)
+    'SCOUT_BUSY': 'cs2',              # process names (space-separated): no builds or research while one runs
+    'SCOUT_IDEAS': '4',
+    'SCOUT_MODEL': '', 'SCOUT_EFFORT': 'high', 'SCOUT_BUILD_EFFORT': 'xhigh',
+    'SCOUT_PERMISSION_MODE': 'auto',
+    'SCOUT_BUILD_HOURS': '8',         # give up on a build after this long (waiting for limits included)
+    'SCOUT_WAIT_HOURS': '6',          # how long research waits for a busy process before skipping this time
+    'CLAUDE': '',
+}
+CLOUDFLARE = 'API Error: 403'
+
+
+def load_conf():
+    conf = dict(DEFAULTS)
+    if CONF_PATH.exists():
+        for line in CONF_PATH.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            k, v = line.split('=', 1)
+            v = v.strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in '"\'':
+                v = v[1:-1]
+            conf[k.strip()] = v
+    for k in DEFAULTS:
+        if os.environ.get(k):
+            conf[k] = os.environ[k]
+    return conf
+
+
+C = load_conf()
+expand = lambda p: Path(os.path.expanduser(p)) if p else None
+PROMPTS = expand(C['SCOUT_PROMPTS']) or HERE / 'lilin-scout-prompts'
+if not PROMPTS.exists():
+    PROMPTS = HERE.parent / 'share' / 'lilin-scout'  # installed copy
+CLAUDE = C['CLAUDE'] or shutil.which('claude') or str(HOME / '.local' / 'bin' / 'claude')
+
+
+def log(*a):
+    print(dt.datetime.now().strftime('%H:%M:%S'), *a, flush=True)
+
+
+def now_iso():
+    return dt.datetime.now().astimezone().isoformat(timespec='seconds')
+
+
+# ---------- Lilin ----------
+def api(method, path, body=None):
+    if not C['LILIN_URL'] or not C['SCOUT_TOKEN']:
+        sys.exit(f'Set LILIN_URL and SCOUT_TOKEN in {CONF_PATH}.')
+    req = urllib.request.Request(C['LILIN_URL'].rstrip('/') + path, method=method,
+                                 data=None if body is None else json.dumps(body).encode(),
+                                 headers={'Authorization': f'Bearer {C["SCOUT_TOKEN"]}', 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.load(e).get('error', '')
+        except Exception:
+            msg = ''
+        raise RuntimeError(f'{method} {path}: {e.code} {msg}'.strip()) from None
+
+
+def inbox():
+    return api('GET', '/api/scout/ideas')
+
+
+def update(idea_id, **body):
+    return api('POST', f'/api/scout/ideas/{idea_id}', body)['idea']
+
+
+def notify(text):
+    log('notify:', text)
+    cmd = C['SCOUT_NOTIFY']
+    if not cmd:
+        return
+    try:
+        subprocess.run([*map(os.path.expanduser, shlex.split(cmd)), text[:1800]], timeout=60, capture_output=True)
+    except Exception as e:
+        log('notify failed:', e)
+
+
+# ---------- the machine ----------
+def busy():
+    for name in C['SCOUT_BUSY'].split():
+        if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
+            return name
+    return None
+
+
+def lock(name):
+    STATE.mkdir(parents=True, exist_ok=True)
+    f = open(STATE / f'{name}.lock', 'w')
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close()
+        return None
+    return f
+
+
+def git(*args, cwd=None, check=True):
+    r = subprocess.run(['git', *args], cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode:
+        raise RuntimeError(f'git {" ".join(args)}: {r.stderr.strip()}')
+    return r.stdout
+
+
+def repo():
+    path = expand(C['SCOUT_REPO'])
+    if not path or not (path / '.git').exists():
+        sys.exit(f'Set SCOUT_REPO in {CONF_PATH} to a clone of Lilin.')
+    return path
+
+
+# ---------- Claude ----------
+def limit_delay(text):
+    """Seconds until a usage limit resets (+2 min), from Claude Code's message; None if it isn't one."""
+    m = re.search(r"hit your [\w\s-]*limit\W+resets\s+(?:([A-Z][a-z]{2})\s+(\d{1,2}),?\s+(?:at\s+)?)?(\d{1,2}(?::\d{2})?\s*[ap]m)\s*\(([^)]+)\)", text or '')
+    if not m:
+        return 1800 if re.search(r"hit your [\w\s-]*limit|usage limit reached", text or '', re.I) else None
+    mon, day, clock, zone = m.groups()
+    try:
+        tz = ZoneInfo(zone)
+        t = dt.datetime.strptime(clock.replace(' ', ''), '%I:%M%p' if ':' in clock else '%I%p')
+    except (ValueError, ZoneInfoNotFoundError):
+        return 1800
+    now = dt.datetime.now(tz)
+    reset = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+    if mon:
+        try:
+            month = dt.datetime.strptime(mon, '%b').month
+            reset = reset.replace(month=month, day=int(day))
+            if reset < now - dt.timedelta(days=1):
+                reset = reset.replace(year=reset.year + 1)
+        except ValueError:
+            pass
+    while reset <= now:
+        reset += dt.timedelta(days=1)
+    return (reset - now).total_seconds() + 120
+
+
+def claude_env():
+    env = {k: v for k, v in os.environ.items() if not (k == 'CLAUDECODE' or k.startswith('CLAUDE_CODE_'))}
+    env.pop('CLAUDE_CONFIG_DIR', None)  # the machine's normal account, not whatever session started this
+    if C.get('SCOUT_CLAUDE_CONFIG_DIR'):
+        env['CLAUDE_CONFIG_DIR'] = os.path.expanduser(C['SCOUT_CLAUDE_CONFIG_DIR'])
+    return env
+
+
+def claude_once(prompt, cwd, logfile, effort, tools=None, session=None, timeout=None, on_session=None):
+    """One claude -p call. Returns (result_text, session_id, ok)."""
+    cmd = [CLAUDE, '-p', prompt, '--permission-mode', C['SCOUT_PERMISSION_MODE'], '--effort', effort,
+           '--output-format', 'stream-json', '--verbose']
+    if C['SCOUT_MODEL']:
+        cmd += ['--model', C['SCOUT_MODEL']]
+    if tools:
+        cmd += ['--allowedTools', *tools]
+    if session:
+        cmd += ['--resume', session]
+    result, sid, ok = '', session, False
+    with open(logfile, 'a', encoding='utf-8', errors='replace') as out:
+        out.write(f'\n--- claude {now_iso()} (resume {session or "-"}) ---\n')
+        out.flush()
+        p = subprocess.Popen(cmd, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=claude_env())
+        started = time.monotonic()
+        tail = []
+        for line in p.stdout:
+            out.write(line)
+            out.flush()
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                tail = (tail + [line.strip()])[-5:]
+                continue
+            if ev.get('session_id') and ev['session_id'] != sid:
+                sid = ev['session_id']
+                if on_session:
+                    on_session(sid)
+            if ev.get('type') == 'result':
+                result = str(ev.get('result') or '')
+                ok = not ev.get('is_error') and ev.get('subtype') == 'success'
+            if timeout and time.monotonic() - started > timeout:
+                p.kill()
+                result = 'timed out'
+                break
+        p.wait()
+    if not result and tail:
+        result = ' '.join(tail)
+    return result, sid, ok and p.returncode == 0
+
+
+def claude(prompt, cwd, logfile, effort, tools=None, session=None, deadline=None, done=lambda: False, on_session=None):
+    """claude -p with waiting: usage limits (until the reset, then resume the same session),
+    Cloudflare hiccups (twice), and busy processes before each attempt. Stops when done() is true."""
+    cloudflare = iter((60, 300))
+    while True:
+        while (game := busy()):
+            if deadline and time.time() > deadline:
+                return 'gave up waiting for ' + game, session, False
+            log(f'{game} is running, waiting')
+            time.sleep(300)
+        text = prompt if not session else ('Carry on where you stopped (a usage limit or a hiccup interrupted you). '
+                                                     'Finish the task from the first message.')
+        remaining = (deadline - time.time()) if deadline else None
+        result, session, ok = claude_once(text, cwd, logfile, effort, tools, session, timeout=remaining, on_session=on_session)
+        if ok or done():
+            return result, session, True
+        delay = limit_delay(result)
+        if delay is None and CLOUDFLARE in result:
+            delay = next(cloudflare, None)
+        if delay is None or (deadline and time.time() + delay > deadline):
+            return result, session, False
+        log(f'{result[:160]!r}: retrying at {dt.datetime.fromtimestamp(time.time() + delay).strftime("%a %H:%M")}')
+        time.sleep(delay)
+
+
+def template(name, **values):
+    text = (PROMPTS / name).read_text()
+    for k, v in values.items():
+        text = text.replace('{{' + k + '}}', str(v))
+    return text
+
+
+# ---------- research ----------
+def snapshot(run_dir):
+    """What Lilin already does, from origin/master (not someone's working copy), plus the inbox."""
+    r = repo()
+    git('fetch', '-q', 'origin', cwd=r, check=False)
+    for src, dst in (('docs/features.md', 'features.md'), ('whats-new.json', 'whats-new.json'), ('README.md', 'README.md')):
+        try:
+            (run_dir / dst).write_text(git('show', f'origin/{C["SCOUT_BRANCH"]}:{src}', cwd=r))
+        except RuntimeError:
+            pass
+    data = inbox()
+    (run_dir / 'inbox.json').write_text(json.dumps(data, indent=1, ensure_ascii=False))
+    extra = [str(expand(p)) for p in C['SCOUT_CONTEXT'].split(':') if p and expand(p).exists()]
+    return data, extra
+
+
+def clean_idea(i):
+    ev = [e for e in (i.get('evidence') or []) if isinstance(e, dict) and str(e.get('url', '')).startswith('http') and e.get('text')]
+    if not i.get('title') or not i.get('pitch') or len(ev) < 2:
+        return None
+    return {'title': str(i['title']), 'pitch': str(i['pitch']), 'evidence': ev, 'fit': str(i.get('fit') or ''),
+            'size': i.get('size') if i.get('size') in ('small', 'medium', 'large') else 'medium'}
+
+
+def post_answers(answers, open_ids, dry):
+    n = 0
+    for a in answers or []:
+        if not isinstance(a, dict) or a.get('id') not in open_ids or not str(a.get('comment', '')).strip():
+            continue
+        body = {k: a[k] for k in ('comment', 'title', 'pitch', 'fit', 'size', 'evidence') if a.get(k)}
+        body['status'] = 'new'
+        if dry:
+            log('would answer', a['id'], json.dumps(body, ensure_ascii=False)[:300])
+        else:
+            update(a['id'], **body)
+        n += 1
+    return n
+
+
+def do_answer(args, data=None):
+    data = data or inbox()
+    open_ = [i for i in data['ideas'] if i['status'] == 'discuss']
+    if not open_:
+        return 0
+    run_dir = STATE / 'runs' / dt.datetime.now().strftime('%Y-%m-%d-%H%M-answer')
+    run_dir.mkdir(parents=True, exist_ok=True)
+    out = run_dir / 'answers.json'
+    (run_dir / 'discuss.json').write_text(json.dumps(open_, indent=1, ensure_ascii=False))
+    prompt = template('answer.md', DISCUSS=run_dir / 'discuss.json', OUT=out)
+    if args.dry_run:
+        print(prompt)
+        return 0
+    claude(prompt, run_dir, run_dir / 'claude.log', 'medium', tools=['WebSearch', 'WebFetch', 'Read', 'Write'],
+           deadline=time.time() + 3 * 3600, done=out.exists)
+    if not out.exists():
+        log('no answers written; see', run_dir / 'claude.log')
+        return 0
+    n = post_answers(json.loads(out.read_text()).get('answers'), {i['id'] for i in open_}, args.dry_run)
+    if n:
+        notify(f'Lilin scout: answered {n} comment{"s" if n > 1 else ""} in the idea inbox (Settings → Ideas).')
+    return n
+
+
+def do_run(args):
+    held = lock('research')
+    if not held:
+        return log('another research run is going')
+    if not args.dry_run and not args.force:
+        deadline = time.time() + float(C['SCOUT_WAIT_HOURS']) * 3600
+        while (game := busy()):
+            if time.time() > deadline:
+                return log(f'{game} kept running; skipping this week')
+            log(f'{game} is running, waiting')
+            time.sleep(600)
+    run_dir = STATE / 'runs' / dt.datetime.now().strftime('%Y-%m-%d-%H%M')
+    run_dir.mkdir(parents=True, exist_ok=True)
+    data, extra = snapshot(run_dir)
+    out = run_dir / 'ideas.json'
+    count = max(1, min(6, int(C['SCOUT_IDEAS'] or 4)))
+    prompt = template('research.md', DIR=run_dir, OUT=out, COUNT=count, DATE=dt.date.today().isoformat(),
+                      EXTRA='\n'.join(f'- {p}' for p in extra) or '- (none)')
+    if args.dry_run:
+        print(prompt)
+        log(f'inbox: {len(data["ideas"])} scout ideas, {len(data["member"])} member ideas; files in {run_dir}')
+        return
+    result, _, ok = claude(prompt, run_dir, run_dir / 'claude.log', C['SCOUT_EFFORT'],
+                           tools=['WebSearch', 'WebFetch', 'Read', 'Grep', 'Glob', 'Write'],
+                           deadline=time.time() + 6 * 3600, done=out.exists)
+    if not out.exists():
+        notify(f'Lilin scout: the research run wrote no ideas ({result[:200]}). Log: {run_dir}/claude.log')
+        sys.exit(1)
+    found = json.loads(out.read_text())
+    posted = []
+    for raw in found.get('ideas') or []:
+        idea = clean_idea(raw) if isinstance(raw, dict) else None
+        if not idea:
+            log('skipped a malformed idea:', str(raw)[:120])
+            continue
+        try:
+            posted.append(api('POST', '/api/scout/ideas', idea)['idea']['title'])
+        except RuntimeError as e:
+            log('not posted:', idea['title'], e)
+    answered = post_answers(found.get('answers'), {i['id'] for i in data['ideas'] if i['status'] == 'discuss'}, False)
+    if posted:
+        notify(f'Lilin scout: {len(posted)} new idea{"s" if len(posted) > 1 else ""} waiting in Lilin (Settings → Ideas): '
+               + '; '.join(posted) + (f'. Also answered {answered} comment(s).' if answered else ''))
+    elif answered:
+        notify(f'Lilin scout: answered {answered} comment(s) in the idea inbox.')
+    log(f'posted {len(posted)}, answered {answered}')
+
+
+# ---------- builds ----------
+def slug(text):
+    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')[:32].strip('-') or 'idea'
+
+
+def do_build(args, idea_id=None):
+    held = lock('build')
+    if not held:
+        return log('a build is running already')
+    state_file = STATE / 'build.json'
+    data = inbox()
+    ideas = {i['id']: i for i in data['ideas']}
+    st = json.loads(state_file.read_text()) if state_file.exists() else None
+    if st and st['id'] not in ideas:
+        state_file.unlink()
+        st = None
+    if st:  # an interrupted build (reboot, crash): pick it up where it stopped
+        idea = ideas[st['id']]
+        log('resuming the build of', idea['title'])
+    else:
+        idea_id = idea_id or next((i['id'] for i in sorted(data['ideas'], key=lambda i: i.get('decided') or 0) if i['status'] == 'approved'), None)
+        if not idea_id:
+            return log('nothing accepted')
+        idea = ideas.get(idea_id)
+        if not idea or idea['status'] not in ('approved', 'building'):
+            sys.exit(f'{idea_id} is not an accepted idea')
+    if (game := busy()) and not args.dry_run:
+        return log(f'{game} is running; the build waits')
+    r = repo()
+    name = f'idea-{slug(idea["title"])}'
+    worktree = expand(C['SCOUT_WORKTREES']) / name
+    branch = f'idea/{idea["id"]}-{slug(idea["title"])}'
+    result_file = STATE / 'results' / f'{idea["id"]}.json'
+    rules = expand(C['SCOUT_RULES'])
+    prompt = template('build.md', IDEA=json.dumps({k: idea[k] for k in ('id', 'title', 'pitch', 'evidence', 'fit', 'size', 'thread')}, indent=1, ensure_ascii=False),
+                      WORKTREE=worktree, BRANCH=branch, BASE=f'origin/{C["SCOUT_BRANCH"]}', RESULT=result_file,
+                      RULES=rules.read_text() if rules and rules.exists() else '(none: commit on your branch and push the branch; do not merge or deploy)')
+    if args.dry_run:
+        print(prompt)
+        return log(f'would build {idea["id"]} in {worktree}')
+    if not st:
+        try:
+            git('fetch', '-q', 'origin', cwd=r)
+            if not worktree.exists():
+                worktree.parent.mkdir(parents=True, exist_ok=True)
+                exists = subprocess.run(['git', 'rev-parse', '--verify', '-q', branch], cwd=r, capture_output=True).returncode == 0
+                git('worktree', 'add', str(worktree), *([branch] if exists else ['-b', branch, f'origin/{C["SCOUT_BRANCH"]}']), cwd=r)
+        except RuntimeError as e:  # don't retry every 5 minutes: tell the owner once
+            update(idea['id'], status='building')
+            update(idea['id'], status='failed', build={'note': f'Couldn\'t set up the worktree: {e}'[:600]})
+            notify(f'Lilin scout: couldn\'t start building "{idea["title"]}": {e}'[:600])
+            return
+        result_file.parent.mkdir(parents=True, exist_ok=True)
+        result_file.unlink(missing_ok=True)
+        st = {'id': idea['id'], 'session': None, 'worktree': str(worktree), 'started': time.time()}
+        state_file.write_text(json.dumps(st))
+        if idea['status'] != 'building':
+            update(idea['id'], status='building', build={'branch': branch, 'note': ''})
+        notify(f'Lilin scout: building "{idea["title"]}" (accepted idea) in {worktree}, branch {branch}.')
+    logfile = STATE / 'logs' / f'{idea["id"]}.log'
+    logfile.parent.mkdir(parents=True, exist_ok=True)
+    deadline = st['started'] + float(C['SCOUT_BUILD_HOURS']) * 3600
+
+    # Save the session id as soon as Claude reports it, so a reboot can resume this exact conversation.
+    def remember(sid):
+        st['session'] = sid
+        state_file.write_text(json.dumps(st))
+    result, session, ok = claude(prompt, worktree, logfile, C['SCOUT_BUILD_EFFORT'], session=st.get('session'),
+                                 deadline=deadline, done=result_file.exists, on_session=remember)
+    outcome = {}
+    if result_file.exists():
+        try:
+            outcome = json.loads(result_file.read_text())
+        except ValueError:
+            outcome = {}
+    status = 'added' if outcome.get('status') == 'added' else 'failed'
+    note = str(outcome.get('note') or (result if status == 'failed' else ''))[:600]
+    if status == 'failed' and not result_file.exists():
+        note = f'The build agent stopped without a result ({result[:300] or "no output"}). Log on the build machine: {logfile}'
+    update(idea['id'], status=status, comment=str(outcome.get('comment') or '')[:1500] or None,
+           build={'commit': str(outcome.get('commit') or ''), 'note': note})
+    state_file.unlink(missing_ok=True)
+    mins = round((time.time() - st['started']) / 60)
+    if status == 'added':
+        notify(f'Lilin scout: "{idea["title"]}" is built ({str(outcome.get("commit") or "")[:7]}, {mins} min). {note}'.strip())
+    else:
+        notify(f'Lilin scout: building "{idea["title"]}" didn\'t work out after {mins} min. {note}'.strip())
+
+
+def do_watch(args):
+    data = inbox()
+    if any(i['status'] == 'discuss' for i in data['ideas']) and not busy():
+        held = lock('research')  # a weekly run answers comments itself
+        if held:
+            do_answer(args, data)
+            held.close()
+    if args.dry_run or (STATE / 'build.json').exists() or any(i['status'] == 'approved' for i in data['ideas']):
+        do_build(args)
+
+
+def do_status(args):
+    data = inbox()
+    for i in data['ideas']:
+        print(f'{i["id"]}  {i["status"]:9} {i["size"]:6} {i["title"]}')
+    if (STATE / 'build.json').exists():
+        print('building:', (STATE / 'build.json').read_text())
+
+
+def main():
+    ap = argparse.ArgumentParser(description='The idea scout for Lilin.')
+    ap.add_argument('command', choices=['run', 'watch', 'answer', 'build', 'status'])
+    ap.add_argument('id', nargs='?')
+    ap.add_argument('--dry-run', action='store_true', help='print the prompt and what would happen; change nothing')
+    ap.add_argument('--force', action='store_true', help='research even while a busy process runs')
+    args = ap.parse_args()
+    if args.command == 'run':
+        do_run(args)
+    elif args.command == 'watch':
+        do_watch(args)
+    elif args.command == 'answer':
+        do_answer(args)
+    elif args.command == 'build':
+        do_build(args, args.id)
+    else:
+        do_status(args)
+
+
+if __name__ == '__main__':
+    main()

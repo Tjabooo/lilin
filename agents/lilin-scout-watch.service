@@ -1,0 +1,11 @@
+[Unit]
+Description=Lilin idea scout: answer the owner's comments and build accepted ideas
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/lilin-scout watch
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+# A build can wait for a usage-limit reset; the runner stops it after SCOUT_BUILD_HOURS.
+TimeoutStartSec=14h
+Nice=10

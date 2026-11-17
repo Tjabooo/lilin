@@ -23,6 +23,7 @@ import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
 import { createPeek } from './peek.js';
 import { createComingSoon as createComingSoonView } from './coming-soon.js'; // comingsoon
+import { createScout, scoutWaiting } from './scout.js'; // scout: the idea scout's cards in the owner's inbox
 
 translatePage();
 saveLanguage(lang);
@@ -7871,6 +7872,7 @@ const IDEA_STATUS = () => ({ new: T('Sent'), planned: T('Planned'), added: T('Ad
 function loadIdeas() {
   ideasView.loading ||= api('/api/ideas').then((r) => {
     ideasView.mine = r.mine || []; ideasView.all = r.all || null; ideasView.loaded = true;
+    ideasView.scout = r.scout || []; // scout
   }).catch(() => { ideasView.loaded = true; }).finally(() => { ideasView.loading = null; });
   return ideasView.loading;
 }
@@ -7879,6 +7881,8 @@ function ideasNeeded() {
   loadIdeas().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); });
   return true;
 }
+// scout: the idea scout's ideas sit at the top of the owner's inbox (public/scout.js)
+const scoutView = createScout({ h, api, toast, jsonPost, fmtAgo, rerender: () => renderSettings() });
 const ideaStatusPill = (status) => h('span', { class: `idea-status idea-${status}` }, IDEA_STATUS()[status] || status);
 
 function ideaBox() {
@@ -7941,7 +7945,7 @@ async function takeBackIdea(idea) {
 // The owner's way in from the top of Settings: how many ideas wait, and a jump to the inbox.
 function ideaInboxRow() {
   if (ideasNeeded()) return null;
-  const waiting = (ideasView.all || []).filter((i) => i.status === 'new').length;
+  const waiting = (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout); // scout
   const go = h('button', { class: `chip whats-new-open${waiting ? ' has-new' : ''}`, type: 'button',
     onclick: () => $('[data-anchor="idea-inbox"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
   waiting ? (waiting === 1 ? T('1 new') : T('{0} new', waiting)) : T('Open'));
@@ -7950,6 +7954,7 @@ function ideaInboxRow() {
 function ideaInbox() {
   const out = [h('h3', { class: 'set-head', 'data-anchor': 'idea-inbox' }, T('Ideas'))];
   if (!ideasView.loaded) { ideasNeeded(); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
+  out.push(...scoutView.section(ideasView.scout, (list) => { ideasView.scout = list; })); // scout
   const all = ideasView.all || [];
   const counts = { new: 0, planned: 0, added: 0, notnow: 0 };
   for (const i of all) counts[i.status] = (counts[i.status] || 0) + 1;

@@ -1,0 +1,10 @@
+[Unit]
+Description=Check the Lilin idea inbox for comments and accepted ideas every 5 minutes
+
+[Timer]
+OnBootSec=4min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

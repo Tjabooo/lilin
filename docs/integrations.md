@@ -150,6 +150,28 @@ For a status-bar dot, `lilin-house status` prints waybar JSON (`"return-type": "
 
 The same token reads House → Sharing as JSON from the home network: `curl -H "X-Lilin-Token: $HOUSE_TOKEN" http://<server-ip>:8080/api/house/load` (add `?hours=24` for a day of history). Archfleet's server view uses it.
 
+## Idea scout
+
+`agents/lilin-scout` is an agent for the owner, run on a Linux machine with [Claude Code](https://docs.claude.com/en/docs/claude-code) signed in (Python 3.9+, git, `claude`). Once a week it researches what people have loved or wished for in streaming services and media servers over the years (Reddit, Hacker News, the Plex/Jellyfin/Kodi forums, reviews, retrospectives on dead services), drops what Lilin already does (docs/features.md, whats-new.json, every earlier idea including declined ones) and posts the best few to **Settings → Ideas**, each with linked evidence, how it would fit Lilin and a rough size.
+
+On each card the owner presses **Accept** (a comment goes along to the build), **Comment** (the scout answers within a few minutes, or on its next run) or **Not now**. Every 5 minutes the watcher answers comments and picks up the oldest accepted idea: it marks it *Being built*, makes a git worktree on a new branch, and runs a headless Claude Code build agent there with the idea, the owner's comments and Lilin's rules (own module, tests, Swedish, What's new) plus your own house rules (`SCOUT_RULES`: how to ship and deploy; without them it only pushes the branch). When the agent finishes, the card says *Added* (with the commit) or *Didn't work out* (with the reason; **Try again** re-queues it).
+
+- One build at a time. Nothing starts while a process named in `SCOUT_BUSY` runs (a game, say).
+- Usage limits: the runner waits for the reset and resumes the same Claude session; a reboot mid-build resumes it too.
+- The server only accepts the runner's posts with `SCOUT_TOKEN` (Bearer). The token can't read anything but the idea inbox, and the runner can't accept its own ideas: only the owner moves an idea to accepted.
+
+```bash
+# on the machine that runs it (SCOUT_TOKEN = the same value as in the server's .env)
+install -m755 agents/lilin-scout ~/.local/bin/
+mkdir -p ~/.local/share/lilin-scout && cp agents/lilin-scout-prompts/*.md ~/.local/share/lilin-scout/
+install -m644 agents/lilin-scout{,-watch}.{service,timer} ~/.config/systemd/user/
+install -m600 agents/lilin-scout.env.example ~/.config/lilin-scout.env   # then fill it in
+lilin-scout run --dry-run      # prints the research prompt and checks the token
+systemctl --user enable --now lilin-scout.timer lilin-scout-watch.timer
+```
+
+`lilin-scout run` researches now, `lilin-scout status` lists the ideas, `lilin-scout build ID --dry-run` prints a build prompt. Logs: `journalctl --user -u lilin-scout -u lilin-scout-watch`, Claude's own output in `~/.local/state/lilin-scout/`.
+
 ## House: turn the PC on, and pick Linux or Windows
 
 The **Power** section of the House tab wakes a dual-boot (GRUB) PC with Wake-on-LAN and boots it into the system you tap, or restarts it into another one while it's on.

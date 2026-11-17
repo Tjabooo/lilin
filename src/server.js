@@ -25,6 +25,7 @@ import * as clips from './clips.js';
 import * as invites from './invites.js';
 import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
+import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -319,6 +320,7 @@ screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
 ideas.initIdeas({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
+scout.initScout({ dataDir: DATA_DIR }); // scout
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
@@ -3251,6 +3253,19 @@ async function handleApi(req, res, url) {
     if (!house.agentAllowed(req) && !activity.isAdmin(req)) throw new HttpError(403, 'Not allowed.');
     return sendJson(res, 200, load.loadReport({ hours: url.searchParams.get('hours') === '24' ? 24 : 1 }));
   }
+  // scout: the idea scout runner (agents/lilin-scout, SCOUT_TOKEN) reads the inbox, posts ideas and reports builds (scout.js).
+  if (p === '/api/scout/ideas' || p.startsWith('/api/scout/ideas/')) {
+    if (!scout.tokenAllowed(req)) throw new HttpError(scout.scoutConfigured() ? 403 : 404, scout.scoutConfigured() ? 'Wrong token.' : 'Set SCOUT_TOKEN in .env first.');
+    if (p === '/api/scout/ideas' && req.method === 'GET') {
+      return sendJson(res, 200, { ideas: scout.all(), member: ideas.all().map(({ id, kind, text, status, reply, created }) => ({ id, kind, text, status, reply, created })) });
+    }
+    let idea = null;
+    if (p === '/api/scout/ideas' && req.method === 'POST') idea = scout.add(await readJson(req, 100_000), { taken: (id) => Boolean(ideas.byId(id)) });
+    else if ((m = p.match(/^\/api\/scout\/ideas\/([a-f0-9]{8})$/)) && req.method === 'POST') idea = scout.update(m[1], await readJson(req, 100_000));
+    else throw new HttpError(404, 'Not found.');
+    live.publish('ideas', { audience: 'admin' });
+    return sendJson(res, 200, { idea });
+  }
   // Daily summaries from the screentime daemon on each machine (screentime.js). Its own token, so
   // a laptop can catch up on queued days; handled here so machines don't show up in Activity.
   if (p === '/api/screentime' && req.method === 'POST') {
@@ -3709,7 +3724,7 @@ async function handleApi(req, res, url) {
   // The idea box (ideas.js): anyone sends the owner an idea for Lilin; the owner answers in Settings.
   if (p === '/api/ideas' || p.startsWith('/api/ideas/')) {
     if (p === '/api/ideas' && req.method === 'GET') {
-      return sendJson(res, 200, { mine: ideas.mine(user.id), all: user.isOwner ? ideas.all() : undefined });
+      return sendJson(res, 200, { mine: ideas.mine(user.id), all: user.isOwner ? ideas.all() : undefined, scout: user.isOwner ? scout.all() : undefined /* scout */ });
     }
     if (p === '/api/ideas' && req.method === 'POST') {
       const idea = ideas.add(user, await readJson(req));
@@ -3722,6 +3737,8 @@ async function handleApi(req, res, url) {
     }
     if ((m = p.match(/^\/api\/ideas\/([a-f0-9]{8})$/)) && req.method === 'POST') {
       if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can answer ideas.');
+      // scout: accept / comment / not now on one of the scout's ideas
+      if (scout.byId(m[1])) return sendJson(res, 200, { idea: scout.act(m[1], await readJson(req)) });
       const { idea, changed } = ideas.answer(m[1], await readJson(req));
       if (changed && idea.userId !== user.id) {
         const title = { planned: 'Your idea is planned', added: 'Your idea is in Lilin now', notnow: 'An answer to your idea' }[idea.status]
@@ -3731,6 +3748,8 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { idea });
     }
     if ((m = p.match(/^\/api\/ideas\/([a-f0-9]{8})\/delete$/)) && req.method === 'POST') {
+      // scout: the owner removes one of the scout's ideas
+      if (user.isOwner && scout.byId(m[1])) { scout.remove(m[1]); return sendJson(res, 200, { ok: true, mine: ideas.mine(user.id) }); }
       ideas.remove(m[1], user);
       return sendJson(res, 200, { ok: true, mine: ideas.mine(user.id) });
     }
@@ -4676,6 +4695,7 @@ function publicPath(req, url) {
   const p = url.pathname;
   if (p.startsWith('/api/auth/') || p === '/c' || p.startsWith('/c/') || p.startsWith('/play/')) return true;
   if (/^\/api\/(house\/(report|summary|load|boot)|screentime|agent\/notify)$/.test(p)) return true;
+  if (/^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(p)) return true; // scout: the runner's token routes
   if (/^\/api\/tv\/pair\/(start|poll)$/.test(p)) return true; // home network only (checked in the route)
   if (isAndroidPath(p)) return !req.auth.remote || Boolean(req.tvGateway); // the Android TV app's steps and file (android-tv.js)
   if (p.startsWith('/api/subs/file/') && !req.auth.remote) return true;
@@ -4783,6 +4803,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

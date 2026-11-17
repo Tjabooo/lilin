@@ -1,4 +1,13 @@
 {
+  "2026-11-17-scout": {
+    "title": "En idéscout för ägaren",
+    "items": {
+      "Ideas with the evidence, in your inbox": {
+        "title": "Idéer med belägg, i din inkorg",
+        "text": "En gång i veckan läser en agent vad folk har älskat eller önskat sig i streamingtjänster genom åren och lägger de bästa i Inställningar → Idéer, var och en med länkar till var folk bad om det och hur det skulle passa i Lilin. Tryck på Godkänn (lägg gärna till en kommentar) så bygger en agent det; Kommentera så svarar scouten; Inte nu lägger den åt sidan."
+      }
+    }
+  },
   "2026-11-17-activity-revamp": {
     "title": "En tydligare Aktivitet-sida",
     "items": {

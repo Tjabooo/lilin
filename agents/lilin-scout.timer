@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Lilin idea scout research run (Sunday late morning; catches up after the machine was off)
+
+[Timer]
+OnCalendar=Sun 11:00
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

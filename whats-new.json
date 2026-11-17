@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-17-scout",
+  "date": "2026-11-17",
+  "title": "An idea scout for the owner",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "Ideas with the evidence, in your inbox",
+      "text": "Once a week an agent reads what people have loved or wished for in streaming services over the years and brings the best few to Settings → Ideas, each with links to where people asked for it and how it would fit Lilin. Press Accept (add a comment if you like) and an agent builds it; Comment and the scout answers; Not now puts it aside."
+    }
+  ]
+},
+{
   "id": "2026-11-17-activity-revamp",
   "date": "2026-11-17",
   "title": "A clearer Activity page",

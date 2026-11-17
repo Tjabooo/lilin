@@ -3864,3 +3864,58 @@ html.wrapped-on { overflow: hidden; }
 .idea-reply-input { height: 38px; }
 .idea-filter { overflow-x: auto; scrollbar-width: none; }
 .idea-empty { margin: 4px 2px; }
+
+/* scout: the idea scout's cards at the top of the owner's inbox (public/scout.js). A spyglass lens instead of the bulb. */
+.scout {
+  margin: 4px 0 18px; padding: 16px 18px 14px; display: grid; gap: 12px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: radial-gradient(120% 120% at 100% 0%, var(--bulb-dim), transparent 50%), var(--surface-1);
+}
+.scout-head { display: flex; align-items: center; gap: 14px; }
+.scout-lens {
+  flex: none; width: 16px; height: 16px; margin: 0 4px; border-radius: 50%; position: relative;
+  border: 3px solid var(--bulb); box-shadow: 0 0 0 4px var(--bulb-dim);
+}
+.scout-lens::after {
+  content: ""; position: absolute; right: -7px; bottom: -6px; width: 8px; height: 3px; border-radius: 2px;
+  background: var(--bulb); transform: rotate(45deg);
+}
+.scout-count { color: var(--text-2); font: 600 14px/1 var(--body); }
+.scout-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.scout-card { padding: 14px 14px 12px; background: var(--surface-2); border-radius: var(--r-sm); display: grid; gap: 8px; min-width: 0; }
+.scout-card.scout-new { box-shadow: inset 3px 0 0 var(--bulb); }
+.scout-age { margin-left: auto; }
+.scout-title { margin: 0; font: 800 17px/1.25 var(--display); color: var(--text); overflow-wrap: anywhere; }
+.scout-why summary { cursor: pointer; font-size: 14px; font-weight: 700; color: var(--bulb); padding: 2px 0; }
+.scout-why ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.scout-why li { display: grid; gap: 2px; padding-left: 12px; border-left: 2px solid var(--hairline-2); font-size: 14px; line-height: 1.45; }
+.scout-why q { color: var(--text); overflow-wrap: anywhere; }
+.scout-src { font-size: 12.5px; color: var(--text-3); }
+.scout-src a { color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
+.scout-src a:hover { color: var(--bulb); }
+.scout-fit { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-2); }
+.scout-fit strong { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
+.scout-thread { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.scout-say { padding: 8px 12px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--r-xs); }
+.scout-say-you { background: var(--surface-1); margin-left: 18px; }
+.scout-say-scout { background: var(--bulb-dim); border-left: 3px solid var(--bulb); margin-right: 18px; }
+.scout-when { margin-left: 6px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.scout-state { margin: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 14px; color: var(--text-2); }
+.scout-state code { font-size: 12.5px; color: var(--text); }
+.scout-note { flex-basis: 100%; font-size: 13px; color: var(--text-3); white-space: pre-wrap; }
+.scout-bad { color: var(--alert); }
+.scout-pulse { align-self: center; width: 8px; height: 8px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 8px var(--bulb); }
+.scout-actions { display: grid; gap: 8px; }
+.scout-comment { min-height: 56px; }
+.scout-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scout-buttons .idea-send { padding: 0 18px; }
+.scout-buttons .chip { min-height: 38px; background: var(--surface-1); }
+.scout-buttons button:disabled { opacity: 0.5; }
+.scout-status-new { color: var(--on-bulb); background: var(--bulb); }
+.scout-status-approved, .scout-status-building { color: var(--bulb); background: var(--bulb-dim); }
+.scout-status-added { color: var(--on-bulb); background: var(--bulb); }
+.scout-status-failed { color: var(--alert); }
+.scout-status-notnow { color: var(--text-3); }
+.scout-earlier summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-2); padding: 2px 0; }
+.scout-earlier[open] summary { margin-bottom: 8px; }
+.scout-empty { margin: 0; }

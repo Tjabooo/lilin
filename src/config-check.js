@@ -68,7 +68,7 @@ export function checkConfig(env = process.env, { tools = true } = {}) {
   else if (oidc.length === 3 && !/^https?:\/\//.test(String(env.PUBLIC_URL || ''))) add('error', 'PUBLIC_URL', 'Lilin sign-in for Access needs PUBLIC_URL (its sign-in addresses live there), so it is off', 'Set PUBLIC_URL to the address people open, e.g. https://lilin.example.com.');
   if (env.CONTENT_FILTER && !['on', 'members', 'off'].includes(String(env.CONTENT_FILTER).trim().toLowerCase())) add('warn', 'CONTENT_FILTER', `CONTENT_FILTER="${env.CONTENT_FILTER}" isn't on, members or off, so on is used`, 'Set it to on, members or off.');
   if (env.CF_API_TOKEN && !(env.CF_ACCOUNT_ID && env.CF_ACCESS_LIST_ID)) add('warn', 'CF_ACCESS_LIST_ID', 'Invites need CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_LIST_ID together', 'See docs/remote-access.md#invites.');
-  for (const key of ['HOUSE_TOKEN', 'SCREENTIME_TOKEN']) {
+  for (const key of ['HOUSE_TOKEN', 'SCREENTIME_TOKEN', 'SCOUT_TOKEN' /* scout */]) {
     if (env[key] && env[key].length < 24) add('warn', key, `${key} is shorter than 24 characters`, 'Generate a new one: node setup.js --yes regenerates missing tokens; or openssl rand -hex 24.');
   }
   if (!env.ADMIN_EMAILS) add('info', 'ADMIN_EMAILS', 'No owner set (ADMIN_EMAILS): Activity, House, Clips and server settings are hidden', 'Only accounts signed in through Cloudflare Access can be owners; see docs/remote-access.md.');

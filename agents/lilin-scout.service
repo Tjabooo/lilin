@@ -1,0 +1,10 @@
+[Unit]
+Description=Lilin idea scout: research new feature ideas and post them to the owner's idea inbox
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/lilin-scout run
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+TimeoutStartSec=12h
+Nice=10

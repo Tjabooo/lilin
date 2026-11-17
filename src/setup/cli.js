@@ -341,7 +341,7 @@ async function setup(opts) {
   ], cur('HOME_NETWORK_ACCESS', 'shared'));
 
   // Secrets for the optional agents: generated once, never shown.
-  for (const key of ['HOUSE_TOKEN', 'SCREENTIME_TOKEN']) {
+  for (const key of ['HOUSE_TOKEN', 'SCREENTIME_TOKEN', 'SCOUT_TOKEN' /* scout */]) {
     if (!cur(key)) { set[key] = newSecret(); done.push(`Generated ${key}`); }
   }
   for (const [k, v] of Object.entries(answers)) if (/^[A-Z][A-Z0-9_]*$/.test(k) && !(k in set)) set[k] = String(v ?? '');

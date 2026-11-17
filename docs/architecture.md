@@ -174,7 +174,7 @@ src/
   house.js, load.js, screentime.js, clips.js, invites.js, activity.js, live.js, network.js
   setup/             wizard, detection, integrations, services, packages, backups
 public/              the web app (plain JavaScript and CSS, no build step)
-agents/              lilin-house reporter for Linux machines (bash + systemd units)
+agents/              lilin-house reporter for Linux machines (bash + systemd units), lilin-scout idea scout (Python + Claude Code)
 scripts/windows/     Task Scheduler service and restart scripts; setup-wizard.ps1 (WPF setup wizard,
                      drives setup.js through `setup.js wizard` JSON) and LilinSetup.cs (its .exe launcher)
 start-lilin.cmd    Windows launcher the scheduled task runs
@@ -208,6 +208,11 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/push/subscribe` | Turn notifications on for a device (`{ subscription, label?, replaces? }`, the browser's `PushSubscription.toJSON()`) |
 | `POST` | `/api/push/unsubscribe` | Turn them off (`{ endpoint }` for this device or `{ id }` from the list) |
 | `POST` | `/api/push/test` | Send a test notification to your devices |
+| `GET` | `/api/ideas` | The idea box: your own ideas (`mine`); for the owner also everyone's (`all`) and the idea scout's (`scout`) |
+| `POST` | `/api/ideas`, `/api/ideas/<id>`, `/api/ideas/<id>/delete` | Send an idea (`{ text, kind }`); owner: answer a member's idea (`{ status, reply }`) or decide on a scout idea (`{ action: accept\|comment\|notnow, comment }`); take back or delete |
+| `GET` | `/api/scout/ideas` | The idea scout runner (`Authorization: Bearer SCOUT_TOKEN`): its ideas with status, thread and build, plus the members' ideas (text and status only) for de-duplication |
+| `POST` | `/api/scout/ideas` | Runner: post an idea `{ title, pitch, evidence: [{ text, url, where, year }], fit, size: small\|medium\|large }`; same title twice → 409, 12 a day |
+| `POST` | `/api/scout/ideas/<id>` | Runner: answer a comment (`{ comment, status: "new", pitch?, … }`) or report a build (`status: building\|added\|failed\|approved`, `build: { branch, commit, note }`); other moves → 409 |
 | `POST` | `/api/agent/notify` | An agent on the home network (`X-Lilin-Token: HOUSE_TOKEN`) sends the owner a notification `{title, body, url}`; 1 per 20 s, 30 a day |
 | `POST` | `/api/watch/<token>/chat`, `/react` | Room chat (`{ text }`, last 50 kept for late joiners) and emoji reactions (`{ emoji }`); both arrive on the room's event stream |
 | `POST` | `/api/watch/<token>/schedule` | Host only: `{ startsAt }` (ms) starts playback by itself at that time, `null` clears it |
