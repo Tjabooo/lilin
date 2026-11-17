@@ -237,9 +237,10 @@ export class ColdStarts {
   }
 
   // Stopping and starting the torrent drops the stuck request (and every connection, which come back in seconds).
-  // Only while it's starting, when playhead isn't there to fetch that piece itself, and twice at most.
+  // Only while it's starting, when playhead isn't there to fetch that piece itself (or has hardly any peers), and
+  // twice at most.
   async unstick(c, entry, now) {
-    if (!isCold(c, now) || entry.assist || !this.deps.kick) return;
+    if (!isCold(c, now) || (entry.assist && entry.assist.peers >= 3) || !this.deps.kick) return;
     const edge = edgePiece(entry.layout, entry.states);
     if (c.edge?.piece !== edge) { c.edge = { piece: edge, since: now }; return; }
     if ((c.kicks || 0) >= MAX_KICKS || !stuckEdge(entry.layout, entry.states, edge, c.edge.since, now)) return;
