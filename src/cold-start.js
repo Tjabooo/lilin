@@ -230,7 +230,7 @@ export class ColdStarts {
         s.running = true;
         s.startedAt = now;
         await this.deps.startSpare(s.hash);
-        this.deps.log?.info?.(`[cold] ${c.name}: ${mb(c.rate)} of ${mb(c.need)} MB/s, trying ${s.name} next to it`);
+        this.deps.log?.info?.(`[cold] ${c.name}: ${mb(Math.min(c.rate, c.orderRate ?? c.rate))} of ${mb(c.need)} MB/s in order (${mb(c.rate)} in all), trying ${s.name} next to it`);
       } else if (act?.settle) {
         await this.settle(c);
         // A fake with no spare to take over: the usual way (removed, and its Download runs again).
