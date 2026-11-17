@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-livechat",
+  "date": "2026-11-17",
+  "title": "Chat on live channels",
+  "items": [
+    {
+      "title": "Talk while you watch a channel",
+      "text": "Channels in Live now have a chat. Press Chat under what's on to open it: beside the picture on a computer or a phone held sideways, under it on a phone held upright. Everyone on the same channel sees what you write, and messages stay with the channel, so whoever tunes in later can read what was said. With the chat closed, new messages pop up briefly over the picture and a dot appears on Chat."
+    }
+  ]
+},
+{
   "id": "2026-11-17-reviews",
   "date": "2026-11-17",
   "title": "Reviews",

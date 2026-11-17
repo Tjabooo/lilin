@@ -27,6 +27,7 @@ const RULES = [
   [/^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/, 'ideas', 'admin'], // scout: the idea scout's posts (published in the route too)
   [/^\/api\/house\/power$/, 'house', 'admin'],
   [/^\/api\/cast\/(play|[\w-]+\/(control|subtitles))$/, 'sessions', 'all'],
+  [/^\/api\/live\/[\w-]{1,40}\/chat\/delete$/, 'livechat', 'admin'], // livechat: players hear it on the room's own stream
 ];
 
 export function topicFor(pathname) {

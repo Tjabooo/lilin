@@ -40,7 +40,8 @@ Docker, and installs as a web app on your phone's home screen.
 - **Live TV**: always-on channels made from the library (Anime, Sitcoms, Films, Documentaries, Fresh, Drama, Sci-Fi & Fantasy, Action & Adventure, each person's picks and
   channels the owner makes), with a guide on the web and the TV apps. Everyone on a channel sees the same frame; the name is
   yours to pick (`LIVE_TV_NAME`, default Lilin TV). Optionally the server keeps the channels growing with popular films and shows
-  it downloads by itself, within a size cap (`LIVE_TV_PICKS_GB`).
+  it downloads by itself, within a size cap (`LIVE_TV_PICKS_GB`). Each channel has a chat beside the picture that stays with the
+  channel, so people tuning in later see what was said; the owner can remove messages.
 - **Notifications** on phones and computers (Web Push, nothing to sign up for): downloads ready, new
   episodes and Watch Together invites, each switchable.
 - **Personal accounts** through Cloudflare Access: everyone gets their own library, progress and

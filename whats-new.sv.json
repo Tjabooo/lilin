@@ -1,4 +1,13 @@
 {
+  "2026-11-17-livechat": {
+    "title": "Chatt på kanalerna",
+    "items": {
+      "Talk while you watch a channel": {
+        "title": "Prata medan du tittar på en kanal",
+        "text": "Kanalerna under Live har nu en chatt. Tryck på Chatt under det som visas för att öppna den: bredvid bilden på en dator eller en mobil som hålls på tvären, under bilden på en mobil som hålls upprätt. Alla på samma kanal ser det du skriver, och meddelandena stannar kvar på kanalen, så den som slår på kanalen senare kan läsa vad som har sagts. När chatten är stängd dyker nya meddelanden upp en kort stund över bilden och en prick syns på Chatt."
+      }
+    }
+  },
   "2026-11-17-reviews": {
     "title": "Recensioner",
     "items": {

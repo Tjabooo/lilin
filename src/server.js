@@ -59,6 +59,8 @@ import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
 import { creditsFor, introFor, initCredits, knownTimes } from './credits.js';
 import { createLiveTv } from './live-tv.js';
+import { LiveChat } from './live-chat.js'; // livechat
+import { liveToken } from './channels.js'; // livechat
 import { createTvPicks, MAX_BYTES as PICK_MAX_BYTES } from './tv-picks.js';
 import * as whatsNew from './whats-new.js';
 import { languageOf, inLanguage, currentLanguage, translate, tr } from './i18n.js';
@@ -141,8 +143,12 @@ setInterval(() => watchRooms.cleanup(), 3000).unref();
 // Live TV (live-tv.js, channels.js): always-on channels from the library, played in Watch Together rooms.
 const LIVE_TV_NAME = String(process.env.LIVE_TV_NAME || '').trim().slice(0, 30) || 'Lilin TV';
 const liveTvName = () => accounts.serverSettings().liveName || LIVE_TV_NAME;
+// livechat: each channel's chat, kept past its room; closed to restricted people (live-chat.js)
+const liveChat = new LiveChat({ file: path.join(DATA_DIR, '.lilin-live-chat.json'), userById: (id) => accounts.userById(id),
+  isRestricted: accounts.isRestricted,
+  rooms: watchRooms, tokenOf: liveToken });
 const liveTv = createLiveTv({
-  file: path.join(DATA_DIR, '.lilin-channels.json'), watchRooms, accounts, social,
+  file: path.join(DATA_DIR, '.lilin-channels.json'), watchRooms, accounts, social, chat: liveChat,
   library: liveLibrary, genres: () => genres(), name: liveTvName,
   timesOf: async (item) => {
     const file = converter.originalFor(item.file) || item.file;
@@ -3384,6 +3390,13 @@ async function handleApi(req, res, url) {
     try { return sendJson(res, 200, await liveTv.tune(user, m[1], String(body.clientId || ''))); }
     catch (e) { throw new HttpError(e.status || 500, e.message); }
   }
+  // livechat: the owner takes a message out of a channel's chat
+  if ((m = p.match(/^\/api\/live\/([\w-]{1,40})\/chat\/delete$/)) && req.method === 'POST') {
+    if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can remove messages.');
+    const body = await readJson(req);
+    try { liveChat.remove(m[1], Number(body.id)); } catch (e) { throw new HttpError(e.status || 500, e.message); }
+    return sendJson(res, 200, { ok: true });
+  }
   if (p === '/api/live/channels') {
     if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can make channels.');
     if (req.method === 'POST') {
@@ -4830,7 +4843,7 @@ async function handleRequest(req, res) {
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
         || /^\/api\/admin\/notes(?:\/import|\/\d+(?:\/(?:trash|restore|share|unshare))?)?$/.test(url.pathname)
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
-        || /^\/api\/live\/(?:channels|[\w-]{1,40}\/tune)$/.test(url.pathname)
+        || /^\/api\/live\/(?:channels|[\w-]{1,40}\/(?:tune|chat\/delete))$/.test(url.pathname)
         || /^\/api\/watch(?:\/plan|\/[A-Za-z0-9_-]{24}\/(join|heartbeat|control|leave|switch|invite|chat|react|schedule|cancel))?$/.test(url.pathname)
         || url.pathname === '/api/social/rate' || /^\/api\/reviews(?:\/delete)?$/.test(url.pathname) || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname)
         || /^\/c\/jf\/v1\/(pair\/start|progress|disconnect)$/.test(url.pathname) || /^\/api\/jellyfin\/(approve|[\w-]+\/remove)$/.test(url.pathname)));

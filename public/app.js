@@ -3,6 +3,7 @@ import { T, lang, langTag, locale, LANGUAGES, saveLanguage, translatePage } from
 import { WatchSession, offsetCues } from './watch-sync.js';
 import { createNotesView } from './notes-view.js';
 import { createLiveView, channelName, clock as liveClock, programmeLine } from './live.js';
+import { createLiveChat } from './live-chat.js'; // livechat
 import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
@@ -4537,6 +4538,10 @@ function followRoom(session) {
 const liveView = createLiveView({ h, icon, api, jsonPost, toast, people, episodeLabel, me: () => state.me, tune: (id) => tuneIn(id),
   overlay: { push: pushOverlay }, sheet: (onClosed) => showSheet($('#picker'), $('#picker-backdrop'), onClosed), emptyState });
 liveView.onChanged(() => { if (state.view === 'live') liveView.load(true).then(renderLive); });
+// livechat: the chat panel on a channel (live-chat.js)
+const liveChat = createLiveChat({ h, api, jsonPost, toast, people, social, reactions: REACTIONS, me: () => state.me, client: watchClient,
+  player: $('#player'), floats: $('#chat-layer'), bursts: $('#reaction-layer'), channelName: (ch) => channelName(ch, state.me),
+  say: (text) => party.say(text), react: (emoji) => party?.react(emoji), layout: () => requestAnimationFrame(layoutSubs) });
 function enableLiveTab() {
   addAdminTab('live', T('Live'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>');
   $('.tabs').insertBefore($('.tab[data-view="live"]'), $('.tab[data-view="library"]'));
@@ -4630,6 +4635,7 @@ async function leaveLive(fromStart) {
 }
 
 function renderLiveStrip() {
+  liveChat.update(party); // livechat: the channel's chat panel follows the strip
   const strip = $('#live-strip');
   const info = party?.state.live;
   if (strip.hidden !== !info) requestAnimationFrame(layoutSubs);
@@ -4660,6 +4666,7 @@ function renderLiveStrip() {
         next ? h('span', {}, T('Next: {0} at {1}', [next.title, programmeLine(next, episodeLabel)].filter(Boolean).join(' · '), liveClock(next.s))) : null)) : null,
     h('div', { class: 'live-strip-actions' },
       button(T('Guide'), openGuide),
+      liveChat.toggle, // livechat
       current?.id ? button(T('Watch from start'), () => leaveLive(true)) : null,
       current?.id ? button(T('Keep watching'), () => leaveLive(false)) : null));
 }
@@ -4750,7 +4757,8 @@ function renderChatLog() {
   $('#chat-empty').hidden = Boolean(log.childElementCount);
   if (nearBottom || chat.at(-1)?.from === watchClient) log.scrollTop = log.scrollHeight;
 }
-function partyChat(message) {
+function partyChat(message, session) {
+  if (session?.state.live) { liveChat.message(message, session); return; } // livechat
   renderChatLog();
   if (!message || message.from === watchClient) return;
   if (!watchPanelOpen) {
@@ -6909,7 +6917,7 @@ const PLAYER_KEYS = {
 };
 // Keys typed into a menu or a text field are left alone.
 const playerKeyTarget = (e) => !playerEl.hidden && !e.ctrlKey && !e.metaKey && !e.altKey
-  && !e.target.closest?.('.cc-menu, #up-next, #part-popup, #watch-bar') && !e.target.matches?.('input:not([type="range"]), textarea, select');
+  && !e.target.closest?.('.cc-menu, #up-next, #part-popup, #watch-bar, #live-chat') && !e.target.matches?.('input:not([type="range"]), textarea, select');
 document.addEventListener('keydown', (e) => {
   if (!playerKeyTarget(e)) return;
   if (e.key === 'Tab') { showPlayerUi(); return; } // hidden controls can't take focus

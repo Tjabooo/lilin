@@ -216,6 +216,8 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/scout/ideas/<id>` | Runner: answer a comment (`{ comment, status: "new", pitch?, … }`) or report a build (`status: building\|added\|failed\|approved`, `build: { branch, commit, note }`); other moves → 409 |
 | `POST` | `/api/agent/notify` | An agent on the home network (`X-Lilin-Token: HOUSE_TOKEN`) sends the owner a notification `{title, body, url}`; 1 per 20 s, 30 a day |
 | `POST` | `/api/watch/<token>/chat`, `/react` | Room chat (`{ text }`, last 50 kept for late joiners) and emoji reactions (`{ emoji }`); both arrive on the room's event stream |
+| `POST` | `/api/watch/<token>/chat` on a Live TV channel | Channel chat (src/live-chat.js): the same route and stream, but the last 50 messages (14 days at most) belong to the channel and are kept in `.lilin-live-chat.json`, so they outlive the room; messages carry `uid`; 8 per 15 s per person across devices, no repeats within 30 s. Restricted people get 403 and the stream sends them no messages, history or reactions |
+| `POST` | `/api/live/<channel>/chat/delete` | Owner only: `{ id }` removes a channel chat message; everyone tuned in gets the new `chatLog` on the room's stream |
 | `POST` | `/api/watch/<token>/schedule` | Host only: `{ startsAt }` (ms) starts playback by itself at that time, `null` clears it |
 | `POST` | `/api/watch/plan` | Plan a party for later (`{ id, startsAt }`, up to two weeks ahead); saved in `watch_parties` so it survives a restart |
 | `GET` | `/api/friends` | Your friends, requests you got (`incoming`) and sent (`outgoing`) |

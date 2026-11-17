@@ -10,7 +10,7 @@ const SERIES = new Set(['fresh', 'drama', 'scifi', 'action']); // a show's episo
 
 // deps: { file, watchRooms, accounts, social, library() -> items (see channels.js poolFor), timesOf(item),
 //   mediaFor(key) -> room media | null, genres() -> [{ name, movie, tv }], name() -> display name, now,
-//   picks() -> the TV picks for the owner's editor (tv-picks.js summary) | null }
+//   picks() -> the TV picks for the owner's editor (tv-picks.js summary) | null, chat -> LiveChat (live-chat.js) | null }
 export function createLiveTv(deps) {
   const now = deps.now || Date.now;
   const channels = deps.channels || new Channels({ file: deps.file, now });
@@ -119,7 +119,8 @@ export function createLiveTv(deps) {
     await ensure(found.def, found.pool, now() + 3 * HOUR);
     const token = liveToken(id);
     const def = found.def;
-    watchRooms.openLive(token, { channel: id, allows: (u) => allows(def, u), timeline: timeline(def) });
+    watchRooms.openLive(token, { channel: id, allows: (u) => allows(def, u), timeline: timeline(def),
+      chat: deps.chat ? deps.chat.forChannel(id) : null }); // livechat: the channel's own chat (live-chat.js)
     return watchRooms.join(token, user, clientId);
   }
 
@@ -150,6 +151,7 @@ export function createLiveTv(deps) {
     channels.removeCustom(id);
     const room = watchRooms.rooms.get(liveToken(id));
     if (room) watchRooms.end(room);
+    deps.chat?.forget(id); // livechat
   }
 
   // Titles (a show counts once) on each automatic channel: where Live TV picks are needed most.

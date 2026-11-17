@@ -264,7 +264,8 @@ export class WatchRooms {
     const member = this.member(room, user, client);
     member.streams.add(send); member.seen = this.now();
     this.changed(room);
-    if (room.chat.length) send({ chatLog: room.chat });
+    const log = room.live?.chat ? room.live.chat.log() : room.chat; // livechat: a channel's history outlives its room (live-chat.js)
+    if (log.length && this.hears(room, member)) send({ chatLog: log });
     return () => {
       member.streams.delete(send);
       if (this.rooms.has(token) && room.members.has(client)) this.changed(room);
@@ -353,17 +354,26 @@ export class WatchRooms {
     return true;
   }
 
-  broadcast(room, message) { for (const m of room.members.values()) for (const send of m.streams) send(message); }
+  broadcast(room, message) { for (const m of room.members.values()) if (this.hears(room, m)) for (const send of m.streams) send(message); }
+  // livechat: a channel's chat (and its reactions) never reaches someone it's closed to (Restrict, live-chat.js)
+  hears(room, member) { return !room.live?.chat || room.live.chat.reads(member.userId); }
 
   chat(token, user, client, text) {
     const room = this.room(token);
     const member = this.member(room, user, client);
     const body = String(text ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!body) throw fail(400, 'Write a message first.');
+    // livechat: a channel's chat belongs to the channel (live-chat.js): who may post, the numbering, the kept history
+    const channel = room.live?.chat || null;
+    channel?.admit(user, body);
     if (!this.allow(member, 'chatTimes', 6, 10000)) throw fail(429, 'Slow down a little: too many messages.');
-    const message = { id: ++room.chatSeq, from: client, name: member.name, avatar: member.avatar || null, text: body, at: this.now() };
-    room.chat.push(message);
-    if (room.chat.length > CHAT_KEEP) room.chat.splice(0, room.chat.length - CHAT_KEEP);
+    const message = { id: channel ? channel.nextId() : ++room.chatSeq, from: client, name: member.name, avatar: member.avatar || null, text: body, at: this.now(),
+      ...(channel ? { uid: user.id } : {}) };
+    if (channel) channel.add(message);
+    else {
+      room.chat.push(message);
+      if (room.chat.length > CHAT_KEEP) room.chat.splice(0, room.chat.length - CHAT_KEEP);
+    }
     room.touched = this.now();
     this.broadcast(room, { chat: message });
     return message;
@@ -373,6 +383,7 @@ export class WatchRooms {
     const room = this.room(token);
     const member = this.member(room, user, client);
     if (!REACTIONS.includes(emoji)) throw fail(400, 'Unknown reaction.');
+    room.live?.chat?.admitReaction(user); // livechat
     if (!this.allow(member, 'reactTimes', 12, 5000)) return false; // dropped quietly: it's only confetti
     this.broadcast(room, { reaction: { emoji, from: client, name: member.name, avatar: member.avatar || null, at: this.now() } });
     return true;

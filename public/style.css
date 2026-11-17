@@ -3799,6 +3799,57 @@ html.wrapped-on { overflow: hidden; }
   .live-strip { bottom: calc(var(--safe-bottom) + 60px); }
 }
 
+/* livechat: the chat on a channel (live-chat.js). A sheet under the picture on phones held upright, a panel on the
+   right on wide or landscape screens; either way the picture moves over instead of being covered. */
+.player { --lc-w: clamp(300px, 26vw, 380px); --lc-h: min(46dvh, 440px); }
+.live-chat-toggle { position: relative; display: inline-flex; align-items: center; gap: 7px; }
+.live-chat-toggle svg { width: 17px; height: 17px; }
+.live-strip-actions .live-chat-toggle.is-on { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
+.live-chat-toggle[hidden], .live-chat-dot[hidden], .live-chat[hidden] { display: none; }
+.live-chat-dot { position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px #000; }
+.live-chat {
+  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; height: var(--lc-h);
+  display: flex; flex-direction: column; gap: 8px; min-height: 0; padding-bottom: var(--safe-bottom);
+  color: var(--paper); cursor: auto; --ring: var(--curtain);
+  background: var(--curtain); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0;
+  box-shadow: 0 -18px 50px rgb(0 0 0 / .5); animation: room-up .26s cubic-bezier(.2, .8, .2, 1);
+}
+.live-chat-head { display: flex; align-items: center; gap: 10px; padding: 10px 6px 8px 16px; border-bottom: 1px solid var(--line); }
+.live-chat-heading { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.live-chat-heading b { font: 800 16px/1.2 var(--display); }
+.live-chat-where { font-size: 12px; color: var(--dust); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-chat-faces { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); white-space: nowrap; }
+.live-chat-close { flex: none; width: 38px; height: 38px; background: none; }
+.live-chat-close svg { width: 18px; height: 18px; }
+.live-chat-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 10px 0 14px; }
+.live-chat .reaction-bar { padding: 0 10px; }
+.live-chat .reaction-btn { min-width: 0; font-size: 20px; }
+@media (max-height: 430px) { .live-chat .reaction-btn { font-size: 17px; } .live-chat-head { padding-block: 6px; } }
+.live-chat .chat-form { margin: 0 12px 10px; }
+.live-chat-remove {
+  flex: none; align-self: center; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  color: var(--dust); background: none; border: 0; border-radius: 50%; opacity: 0; transition: opacity .15s, color .15s;
+}
+.live-chat-remove svg { width: 14px; height: 14px; }
+.chat-line:hover .live-chat-remove, .live-chat-remove:focus-visible { opacity: 1; }
+.live-chat-remove:hover { color: var(--alert); }
+.chat-line.mine .live-chat-remove { order: -1; }
+@media (hover: none) { .live-chat-remove { opacity: .5; } }
+@media (max-width: 1099.98px) and (orientation: portrait), (max-width: 559.98px) {
+  .player.live-chat-open .player-stage { bottom: var(--lc-h); }
+  .player.live-chat-open .player-controls { bottom: var(--lc-h); padding-bottom: 10px; }
+  .player.live-chat-open .live-strip { bottom: calc(var(--lc-h) + 60px); }
+}
+@media (min-width: 1100px), (orientation: landscape) and (min-width: 560px) {
+  .live-chat { top: 0; left: auto; width: var(--lc-w); height: auto; padding-top: var(--safe-top);
+    border-top: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; animation-name: room-in; }
+  .player.live-chat-open :is(.player-stage, .player-bar, .player-controls, .player-center) { right: var(--lc-w); }
+  .player.live-chat-open .live-strip { right: calc(var(--lc-w) + var(--pad-x)); }
+}
+/* With the controls up, the channel strip fills the bottom: new lines wait for the dot on Chat instead */
+.player.is-live.ui-visible .chat-layer { opacity: 0; transition: opacity .2s; }
+@media (prefers-reduced-motion: reduce) { .live-chat { animation: none; } }
+
 /* The idea box (Settings): a lit marquee bulb, a note to the owner, and your ideas with answers. */
 .idea-box {
   margin: 12px 0 4px; padding: 16px 18px 14px; display: grid; gap: 12px;
