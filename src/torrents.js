@@ -366,6 +366,7 @@ export const plainQuery = (q) => String(q).normalize('NFD').replace(/[\u0300-\u0
 // is good, the slower sites get up to `wait` ms instead: a thin swarm or the wrong episode is all the fast sites had.
 export const QUICK_GRACE_MS = 2500;
 export const QUICK_WAIT_MS = 15_000;
+export const QUICK_EMPTY_MS = 5000;
 // hurry: a promise; once it settles, nothing more is waited for than the plain grace (the caller found what it needed elsewhere).
 export async function searchTorrents(rawQuery, rawType, { adult = false, documentary = false, quick = false, good = null, wait = QUICK_WAIT_MS, hurry = null } = {}) {
   const data = await searchAll(rawQuery, rawType, documentary, quick && { good, wait, hurry });
@@ -373,24 +374,29 @@ export async function searchTorrents(rawQuery, rawType, { adult = false, documen
 }
 
 // Like Promise.allSettled, but done `grace` ms after the first answer with results; still busy = rejected.
-// With good(): only when something good is among the answers; else `wait` ms after the first answer.
-// (A number instead of options is the grace alone.)
+// With good(): only when something good is among the answers; else at most max(wait, QUICK_EMPTY_MS) after the start,
+// found or not (the slower sites' answers still reach the cache). hurry settled: `grace` after the start is enough.
+// (A number instead of options is the grace alone: then a search that finds nothing waits for every site.)
 export function settleQuickly(promises, options = QUICK_GRACE_MS) {
-  const { grace = QUICK_GRACE_MS, wait = QUICK_WAIT_MS, good = null, hurry = null } = typeof options === 'number' ? { grace: options } : options || {};
+  const { grace = QUICK_GRACE_MS, wait = QUICK_WAIT_MS, good = null, hurry = null, empty = QUICK_EMPTY_MS } = typeof options === 'number' ? { grace: options } : options || {};
   return new Promise((resolve) => {
     const out = new Array(promises.length).fill(null);
+    const startAt = Date.now();
     let left = promises.length, timer = null, firstAt = null, settled = false, deadline = Infinity, hurried = false;
     const finish = () => { if (settled) return; settled = true; clearTimeout(timer); resolve(out.map((o) => o || { status: 'rejected', reason: new Error('still searching') })); };
     const goodSoFar = () => !good || hurried || out.some((o) => o?.status === 'fulfilled' && Array.isArray(o.value) && o.value.some((r) => { try { return good(r); } catch { return false; } }));
     const plan = () => {
-      if (firstAt == null || settled) return;
-      const at = firstAt + (goodSoFar() ? grace : Math.max(grace, wait));
+      if (settled) return;
+      const at = firstAt != null ? firstAt + (goodSoFar() ? grace : Math.max(grace, wait))
+        : !good ? Infinity                                        // plain: the first answer with results starts the grace
+        : hurried ? startAt + grace : startAt + Math.max(empty, wait);
       if (at >= deadline) return;
       deadline = at;
       clearTimeout(timer);
       timer = setTimeout(finish, Math.max(0, at - Date.now()));
     };
     if (!left) finish();
+    plan();
     Promise.resolve(hurry).then(() => { if (hurry) { hurried = true; plan(); } }, () => { hurried = true; plan(); });
     promises.forEach((p, i) => p.then(
       (value) => { out[i] = { status: 'fulfilled', value }; if (value?.length) { firstAt ??= Date.now(); plan(); } },

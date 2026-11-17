@@ -625,9 +625,12 @@ async function findEpisode(job, season, episode, want, deps, ctx = null, hurry =
     ? ((eps) => eps.includes(episode) && eps.length <= 3)(episodesIn(r.name, season, ctx)) // not a whole batch
     : sameShow(deps.parseName(r.name).title, title) && episodesIn(r.name, season).includes(episode));
   const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && fits1(r);
-  let fits = [], error = null;
+  let fits = [], error = null, hurried = false;
+  Promise.resolve(hurry).then(() => { hurried = Boolean(hurry); }, () => { hurried = true; });
   const queries = ctx ? episodeQueriesAnime(ctx, season, episode).slice(0, 5) : episodeQueries(title, season, episode);
-  for (const query of queries) {
+  for (const [i, query] of queries.entries()) {
+    // A lively pack is already there: other spellings of the episode's number won't find anything livelier.
+    if (hurried && i > 0) break;
     for (const type of ctx ? ['all'] : ['tv', 'all']) {
       try { fits = (await search(query, type, deps, { ...patience(job, good), ...(hurry ? { hurry } : {}) })).filter(fits1); } catch (e) { if (e.status === 503) throw e; error = e; continue; }
       if (fits.length) break;

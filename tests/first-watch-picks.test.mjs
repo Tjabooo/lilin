@@ -180,12 +180,24 @@ test('a quick search waits for the slower sites while nothing good has turned up
   t0 = Date.now();
   got = await settleQuickly([later(5, [{ seeders: 2 }]), later(5000, [])], { grace: 20, wait: 3000, good, hurry: later(60) });
   assert.ok(Date.now() - t0 < 1000, 'hurried: what was needed turned up elsewhere');
+  // Nothing at all from the quick sites: not for ever either (1337x may be queued behind other searches).
+  t0 = Date.now();
+  got = await settleQuickly([later(5, []), later(5000, [{ seeders: 900 }])], { grace: 20, wait: 100, empty: 150, good });
+  assert.ok(Date.now() - t0 >= 140 && Date.now() - t0 < 1500, 'an empty search ends at its patience');
+  assert.equal(got[1].reason.message, 'still searching');
+  t0 = Date.now();
+  await settleQuickly([later(5, []), later(5000, [])], { grace: 20, wait: 3000, good, hurry: later(40) });
+  assert.ok(Date.now() - t0 < 1000, 'an empty search that is hurried ends soon after');
+  const plain = await settleQuickly([later(5, []), later(80, [{ seeders: 1 }])], 10);
+  assert.deepEqual(plain[1].value, [{ seeders: 1 }], 'without good(): nothing found yet means waiting for the others, as before');
 });
 
 test('the Download says what settles each search; names lose their apostrophes for the sites', async () => {
   assert.equal(plainQuery('Grey\'s Anatomy S23E05'), 'Greys Anatomy S23E05');
   assert.equal(plainQuery('Grey’s Anatomy'), 'Greys Anatomy');
   const { deps, log } = friendsDeps();
+  const pack = deps.searchTorrents;
+  deps.searchTorrents = async (q, type, opts) => { if (/E08|5x08/.test(q)) await later(20); return pack(q, type, opts); }; // (sites take a moment)
   await wait(startSmartJob({ type: 'tv', title: 'Friends', season: 5, episodes: [8], requester: 1, want: {} }, deps));
   const [, epOpts] = log.queries.find(([q]) => /S05E08/.test(q));
   assert.equal(typeof epOpts.good, 'function');
@@ -194,6 +206,7 @@ test('the Download says what settles each search; names lose their apostrophes f
   const [single] = results([['Friends.S05E08.1080p.BluRay.x264-GRP', 40, 1 * GB]]);
   assert.equal(epOpts.good(single), true);
   assert.equal(epOpts.good(notFriends[0]), false, 'another show is no good');
+  assert.ok(!log.queries.some(([q]) => /5x08/.test(q)), 'with a lively pack found, other spellings of the number aren’t searched');
   const [, packOpts] = log.queries.find(([q]) => q === 'Friends S05');
   assert.equal(packOpts.good(friendsPacks[0]), true);
   assert.equal(packOpts.good(single), false, 'an episode isn’t a pack');
