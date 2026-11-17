@@ -1,4 +1,25 @@
 {
+  "2026-11-17-play-first": {
+    "title": "Tryck bara på Spela upp",
+    "items": {
+      "No more Library": {
+        "title": "Inget bibliotek längre",
+        "text": "Hitta något på Upptäck eller i sökningen och tryck Spela upp. Mer än så behövs inte nu: inget att lägga till, inga nedladdningar att vänta på, ingen lista att hålla ordning på. Fliken Bibliotek är borta, och flikarna är Upptäck, Live och Du."
+      },
+      "Getting it ready": {
+        "title": "Görs i ordning",
+        "text": "När en film eller ett avsnitt inte finns på Lilin än öppnas spelaren direkt och berättar vad som händer, till exempel \"Startar om ungefär 30 s\". Den börjar spela av sig själv när den är klar, oftast inom en minut. Tryck Avbryt om du ångrar dig."
+      },
+      "The lightning mark plays at once": {
+        "title": "Blixten spelas direkt",
+        "text": "Titlar med en liten blixt finns redan här och startar direkt. Tryck på Direkt på Upptäck för att bara se dem."
+      },
+      "Your things are on Discover": {
+        "title": "Dina saker finns på Upptäck",
+        "text": "Fortsätt titta, nya avsnitt av serier du tittar på och det du sparat till senare ligger nu överst på Upptäck. Trycker du på ett avsnitt spelas det, och nästa avsnitt kommer av sig själva."
+      }
+    }
+  },
   "2026-11-17-episodes-from-packs": {
     "title": "Fler saker spelas direkt första gången",
     "items": {
