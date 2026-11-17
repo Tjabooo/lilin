@@ -1,4 +1,17 @@
 {
+  "2026-11-17-profile-reload-clips-live": {
+    "title": "Profiler stannar kvar, klipp kommer av sig själva",
+    "items": {
+      "Reloading keeps your profile open": {
+        "title": "Omladdning behåller profilen",
+        "text": "Laddar du om sidan medan en profil är öppen kommer du nu tillbaka till den profilen, även efter att du redigerat den eller öppnat en film från den. Förut hamnade du i Inställningar."
+      },
+      "New clips appear on their own": {
+        "title": "Nya klipp dyker upp av sig själva",
+        "text": "Fliken Klipp uppdateras nu av sig själv när ett nytt klipp kommer in, så du behöver inte ladda om för att se det."
+      }
+    }
+  },
   "2026-11-17-fleet-fixes": {
     "title": "En omgång rättningar",
     "items": {

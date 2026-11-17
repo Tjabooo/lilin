@@ -1,5 +1,21 @@
 [
 {
+  "id": "2026-11-17-profile-reload-clips-live",
+  "date": "2026-11-17",
+  "title": "Profiles stay put, clips arrive by themselves",
+  "items": [
+    {
+      "title": "Reloading keeps your profile open",
+      "text": "Reloading the page while a profile is open now brings you back to that profile, even after you've edited it or opened a film from it. Before, you landed in Settings."
+    },
+    {
+      "title": "New clips appear on their own",
+      "text": "The Clips tab now updates by itself when a new clip arrives, so there's no need to reload to see it.",
+      "audience": "owner"
+    }
+  ]
+},
+{
   "id": "2026-11-17-fleet-fixes",
   "date": "2026-11-17",
   "title": "A round of fixes",

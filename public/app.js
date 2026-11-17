@@ -10301,8 +10301,13 @@ function rememberView(view) {
   if (!view || location.hash === `#${view}`) return;
   history.replaceState(history.state, '', `${location.pathname}${location.search}#${view}`);
 }
-// Closing a sheet restores the address it opened on; keep the tab shown now in it.
-window.addEventListener('popstate', () => rememberView(state.view));
+// Closing a sheet restores the address it opened on; keep what's shown now in it: the profile
+// still open on top (#@ebicat, so a reload comes back to it), else the tab.
+window.addEventListener('popstate', () => {
+  const handle = [...document.querySelectorAll('.pf.open')].pop()?.dataset.handle;
+  if (!handle) { rememberView(state.view); return; }
+  if (location.hash !== `#@${handle}`) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${handle}`);
+});
 function linkedView() {
   const view = decodeURIComponent(location.hash.slice(1));
   return view && [...document.querySelectorAll('.tab')].some((t) => t.dataset.view === view) ? view : null;

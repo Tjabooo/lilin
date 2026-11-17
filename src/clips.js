@@ -147,6 +147,41 @@ export async function scan(force = false) {
   return scanned.list;
 }
 
+// Tells `onChange` when clips appear, vanish or change on disk (ember-clip moving a save over, a
+// trim finishing), so an open Clips tab updates without a reload. Bursts settle for 1.5 s first;
+// a copy in progress ("x.mp4.part") isn't a clip yet. Without a working watcher it checks every minute.
+const listSignature = (list) => list.map((c) => `${c.id}:${c.size}:${Math.round(c.mtime)}:${c.cam ? 1 : 0}`).join('|');
+export function watchClips(onChange) {
+  if (!CLIPS_DIR) return () => {};
+  let watcher = null, timer = null, retry = null, poll = null, stopped = false;
+  let last = listSignature(scanned.list);
+  const check = async () => {
+    timer = null;
+    if (stopped) return;
+    try {
+      const sig = listSignature(await scan(true));
+      if (sig !== last) { last = sig; onChange(); }
+    } catch { /* unreadable for a moment (share reconnecting); the next event or poll tries again */ }
+  };
+  const soon = () => { if (!timer && !stopped) { timer = setTimeout(check, 1500); timer.unref?.(); } };
+  const start = () => {
+    retry = null;
+    if (stopped) return;
+    try {
+      watcher = fs.watch(CLIPS_DIR, { recursive: true }, (_event, name) => {
+        if (name && /\.part$/i.test(String(name))) return;
+        soon();
+      });
+      watcher.unref?.();
+      watcher.on('error', () => { try { watcher.close(); } catch { /* gone */ } watcher = null; retry = setTimeout(start, 30000); retry.unref?.(); });
+    } catch { watcher = null; retry = setTimeout(start, 60000); retry.unref?.(); }
+  };
+  scan(true).then((list) => { last = listSignature(list); }).catch(() => {}).finally(start);
+  poll = setInterval(() => { if (!watcher) soon(); }, 60000);
+  poll.unref?.();
+  return () => { stopped = true; clearTimeout(timer); clearTimeout(retry); clearInterval(poll); try { watcher?.close(); } catch { /* gone */ } };
+}
+
 async function byId(id) {
   const c = (await scan()).find((x) => x.id === id) || (await scan(true)).find((x) => x.id === id);
   if (!c) throw Object.assign(new Error('That clip is no longer on the server.'), { status: 404 });

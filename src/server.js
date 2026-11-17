@@ -334,6 +334,7 @@ const androidTv = createAndroidTv({ port: () => PORT }); // the Android TV app's
 const webBuildFor = (req) => (preview.inPreview(req, PREVIEW_DIR) ? preview.previewBuild(PREVIEW_DIR) : WEB_BUILD);
 screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
+clips.watchClips(() => live.publish('clips', { audience: 'admin' })); // a new clip shows up in open Clips tabs
 ideas.initIdeas({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
 profiles.initProfiles(); // profiles: profiles in .lilin.db
