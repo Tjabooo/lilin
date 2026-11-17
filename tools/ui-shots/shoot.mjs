@@ -5,15 +5,18 @@
 //     [--scenes discover,library] [--sizes phone,tablet,desktop,tv] [--langs en,sv]
 //     [--overlay public] [--preview] [--theme paper] [--reduced-motion] [--allow-writes]
 //
-// Every request that isn't GET/HEAD is refused unless --allow-writes is given, so pointing this at a
-// live server changes nothing. --overlay serves static files from a local folder instead of the
+// Every request that isn't GET/HEAD is refused unless --allow-writes is given, and so are the GETs that would
+// start an encode (guard.mjs: the player's /audio probe, audio-track and phone-quality play links), so pointing
+// this at a live server changes nothing. --overlay serves static files from a local folder instead of the
 // server's (the API stays the server's), which previews a UI branch against real data. --preview
 // sets the lilin_preview cookie. Scenes live in scenes.mjs; each can mock API answers.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { SCENES } from './scenes.mjs';
+import { guardRequest, patchAudio, themeKey } from './guard.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => {
   if (a.startsWith('--')) acc.push([a.slice(2), all[i + 1] && !all[i + 1].startsWith('--') ? all[i + 1] : true]);
@@ -33,6 +36,16 @@ const langs = String(args.langs || 'en,sv').split(',');
 const wanted = args.scenes ? new Set(String(args.scenes).split(',')) : null;
 const scenes = SCENES.filter((s) => !wanted || wanted.has(s.name) || [...wanted].some((w) => w.endsWith('*') && s.name.startsWith(w.slice(0, -1))));
 const overlay = args.overlay ? path.resolve(String(args.overlay)) : null;
+// --theme takes the preset keys from public/app.js (synthwave = synth); an unknown one stops here instead of
+// quietly shooting Lilin.
+let THEME = null;
+if (args.theme) {
+  let appJs = '';
+  for (const dir of [overlay, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public')].filter(Boolean)) {
+    try { appJs = fs.readFileSync(path.join(dir, 'app.js'), 'utf8'); break; } catch { /* next */ }
+  }
+  try { THEME = themeKey(args.theme, appJs); } catch (err) { console.error(err.message); process.exit(2); }
+}
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 
@@ -84,14 +97,15 @@ async function newPage(size, lang, scene) {
   const s = (m, p) => send(m, p, sessionId);
   const errors = [];
   const quiet = new Set(); // URLs the harness refused or mocked: their failures aren't the app's
+  const asked = new Map(); // request id -> the URL the harness asked instead (guard.mjs), for the answer's patch
   const mocks = scene.mocks || {};
   const patches = { ...(scene.patch || {}) };
   { // the What's new sheet pops up on its own for accounts with unseen notes: only where a scene asks for it
     const prev = patches['^/api/status$'];
     patches['^/api/status$'] = (j) => { j = prev ? prev(j) ?? j : j; if (!scene.whatsNew && j.whatsNew) j.whatsNew.unseen = []; return j; };
   }
-  if (args.theme && args.theme !== 'lilin') {
-    const preset = String(args.theme);
+  if (THEME && THEME !== 'lilin') {
+    const preset = THEME;
     const prev = patches['^/api/status$'];
     patches['^/api/status$'] = (j) => { j = prev ? prev(j) ?? j : j; j.me.settings.theme = { preset }; return j; };
   }
@@ -107,6 +121,7 @@ async function newPage(size, lang, scene) {
       try {
         if (responseStatusCode != null) { // response stage: patch a JSON answer from the server
           const fns = Object.entries(patches).filter(([re]) => new RegExp(re).test(u.pathname)).map(([, f]) => f);
+          if (asked.has(requestId)) { const was = new URL(asked.get(requestId)); asked.delete(requestId); fns.unshift((j) => patchAudio(j, was)); }
           const { body, base64Encoded } = await s('Fetch.getResponseBody', { requestId });
           let json = JSON.parse(base64Encoded ? Buffer.from(body, 'base64').toString() : body);
           for (const f of fns) json = f(json, u) ?? json;
@@ -120,6 +135,12 @@ async function newPage(size, lang, scene) {
             quiet.add(request.url);
             const body = typeof v === 'string' ? v : JSON.stringify(v?.__status ? { error: 'Mocked failure' } : v);
             return await s('Fetch.fulfillRequest', { requestId, responseCode: status, responseHeaders: [{ name: 'Content-Type', value: typeof v === 'string' ? 'text/plain' : 'application/json' }], body: Buffer.from(body).toString('base64') });
+          }
+          const guard = guardRequest(u, { allowWrites: Boolean(args['allow-writes']) });
+          if (guard?.url) { if (guard.audio) asked.set(requestId, guard.url); return await s('Fetch.continueRequest', { requestId, url: guard.url }); }
+          if (guard?.block) {
+            quiet.add(request.url);
+            return await s('Fetch.fulfillRequest', { requestId, responseCode: 403, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify({ error: guard.block })).toString('base64') });
           }
           const allowedWrite = args['allow-writes-to'] && new RegExp(String(args['allow-writes-to'])).test(u.pathname);
           if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !args['allow-writes'] && !allowedWrite) {
@@ -140,7 +161,7 @@ async function newPage(size, lang, scene) {
   };
   listeners.add(onMsg);
   await s('Runtime.enable'); await s('Log.enable'); await s('Page.enable');
-  await s('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' },
+  await s('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }, { urlPattern: '*/api/media/*/audio?*', requestStage: 'Response' },
     ...Object.keys(patches).map((re) => ({ urlPattern: `*${re.replace(/[\^$]/g, '').replace(/\\/g, '')}*`, requestStage: 'Response' }))] });
   await s('Emulation.setDeviceMetricsOverride', { width: size.width, height: size.height, deviceScaleFactor: size.scale, mobile: size.mobile });
   if (size.mobile) await s('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -169,7 +190,7 @@ for (const scene of scenes) {
     if (scene.sizes && !scene.sizes.includes(sizeName)) continue;
     for (const lang of langs) {
       const size = SIZES[sizeName];
-      const name = `${scene.name}--${sizeName}--${lang}${args.theme ? `--${args.theme}` : ''}${args['reduced-motion'] ? '--rm' : ''}`;
+      const name = `${scene.name}--${sizeName}--${lang}${THEME ? `--${THEME}` : ''}${args['reduced-motion'] ? '--rm' : ''}`;
       const page = await newPage(size, lang, scene);
       let note = '';
       try {

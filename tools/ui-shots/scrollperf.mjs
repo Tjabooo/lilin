@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Scroll smoothness benchmark: headless Chromium scrolls a page with real wheel input and reports
-// frame times and how much paint work the scroll caused. Read-only (non-GET requests are refused).
+// frame times and how much paint work the scroll caused. Read-only: non-GET requests are refused, and so are the
+// GETs that would start an encode (guard.mjs; the /audio probe is answered "unknown" here).
 //
 //   node tools/ui-shots/scrollperf.mjs --base http://SERVER:8080 [--overlay public] [--path /]
 //     [--ready '#discover-body .shelf'] [--size desktop|phone] [--cpu 4] [--runs 3] [--gpu] [--shot out.png --shot-y 400]
@@ -11,6 +12,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { guardRequest } from './guard.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => {
   if (a.startsWith('--')) acc.push([a.slice(2), all[i + 1] && !all[i + 1].startsWith('--') ? all[i + 1] : true]);
@@ -55,6 +57,12 @@ async function measure() {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       return s('Fetch.fulfillRequest', { requestId, responseCode: 403, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
         body: Buffer.from(JSON.stringify({ error: 'Blocked by the scroll benchmark.' })).toString('base64') }).catch(() => {});
+    }
+    const guard = guardRequest(u);
+    if (guard?.url && !guard.audio) return s('Fetch.continueRequest', { requestId, url: guard.url }).catch(() => {});
+    if (guard) { // nothing here needs the real /audio answer
+      return s('Fetch.fulfillRequest', { requestId, responseCode: guard.block ? 403 : 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+        body: Buffer.from(JSON.stringify(guard.block ? { error: guard.block } : { known: false })).toString('base64') }).catch(() => {});
     }
     if (overlay && u.origin === BASE && !/^\/(api|play|c)\//.test(u.pathname)) {
       const file = path.join(overlay, u.pathname === '/' ? 'index.html' : decodeURIComponent(u.pathname));
