@@ -1,4 +1,17 @@
 {
+  "2026-11-17-letterboxd": {
+    "title": "Ta med ditt Letterboxd",
+    "items": {
+      "Link your Letterboxd account": {
+        "title": "Koppla ditt Letterboxd-konto",
+        "text": "Redigera profil → Letterboxd: skriv ditt användarnamn på Letterboxd så syns det du loggar där på din Lilin-profil. Filmer hamnar i din dagbok, och dina stjärnor och recensioner syns på titlarnas sidor. Lilin kollar efter nya med några timmars mellanrum. Det du själv har betygsatt eller recenserat i Lilin lämnas som det är."
+      },
+      "Your whole history and top four": {
+        "title": "Hela din historik och dina fyra favoriter",
+        "text": "Letterboxd delar bara dina senaste inlägg på det här sättet. För allt: exportera din data på letterboxd.com (Settings → Data) och välj zip-filen på samma ställe. Då följer hela din dagbok, dina betyg, recensioner och dina fyra favoriter med."
+      }
+    }
+  },
   "2026-11-17-faster-first-watch": {
     "title": "Det som inte finns här än startar snabbare",
     "items": {

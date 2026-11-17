@@ -170,6 +170,17 @@
 .pf-heart { color: #ff7a8a; font-size: 13px; }
 .pf-rewatch { display: inline-grid; color: var(--text-2); }
 .pf-rewatch svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+/* Letterboxd: a quiet link under the name, a small mark on films logged there, the editor's link box */
+.pf-lb-link { color: var(--text-2); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
+.pf-lb-link:hover { color: var(--paper); }
+.pf-lb-mark { padding: 1px 4px; border: 1px solid var(--line, rgba(255,255,255,.18)); border-radius: 4px; color: var(--text-2); font-size: 9px; font-weight: 800; letter-spacing: .06em; line-height: 1.3; }
+.pf-lb { display: grid; gap: var(--s2, 8px); }
+.pf-lb .set-hint { margin: 0; }
+.pf-lb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pf-lb-row .invite-note { flex: 1 1 12em; min-width: 0; }
+.pf-lb-row .chip { min-height: 38px; }
+.pf-lb-who { margin: 0; font-weight: 600; }
+.pf-lb-who a { color: var(--pf-accent); }
 .pf-eps { font-weight: 600; color: var(--text-3); white-space: nowrap; }
 .pf-more { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: var(--s5); padding: 15px 2px;
   font: 600 17px/1.2 var(--body); color: var(--text); text-align: left; background: none;

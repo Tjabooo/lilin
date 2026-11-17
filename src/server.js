@@ -29,6 +29,7 @@ import * as invites from './invites.js';
 import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
+import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
 import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
@@ -346,6 +347,9 @@ clips.watchClips(() => live.publish('clips', { audience: 'admin' })); // a new c
 ideas.initIdeas({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
 profiles.initProfiles(); // profiles: profiles in .lilin.db
+letterboxd.initLetterboxd(); // letterboxd: linked accounts and what was imported from them
+// Linked Letterboxd feeds are read again every few hours (letterboxd.SYNC_EVERY); checked every 20 minutes.
+setInterval(() => letterboxd.syncRound().catch((e) => console.log(`[letterboxd] ${e.message || e}`)), 20 * 60 * 1000).unref();
 scout.initScout({ dataDir: DATA_DIR }); // scout
 moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, // friends: Moments
   resolve: async (key) => { const i = key && (await scanLibrary())?.find((x) => accounts.mediaKey(x.full) === key); return i ? converter.preferConverted(i.full) : null; },
@@ -1780,6 +1784,38 @@ async function withCards(list) {
   const cards = await Promise.all(list.map((x) => profileCard(x.key)));
   return list.map((x, i) => ({ ...x, card: cards[i] }));
 }
+// Letterboxd export imports run in the background (hundreds of films to look up on TMDB): userId → progress.
+const letterboxdImports = new Map();
+async function letterboxdFilm({ title, year }) {
+  if (!title) return null;
+  const search = async (params) => (await cachedTmdb('/search/movie', { query: title, include_adult: 'false', ...params }, 7 * 24 * 3600 * 1000)).results || [];
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  let list = year ? await search({ year }) : [];
+  if (!list.length) list = await search({});
+  const yearOf = (r) => Number(String(r.release_date || '').slice(0, 4)) || null;
+  const pick = list.find((r) => norm(r.title) === norm(title) && (!year || yearOf(r) === year))
+    || list.find((r) => !year || Math.abs((yearOf(r) || 0) - year) <= 1) || null;
+  return pick ? `movie:${pick.id}` : null;
+}
+function startLetterboxdImport(user, buf) {
+  const job = { state: 'running', done: 0, total: 0, started: Date.now(), result: null, error: null };
+  letterboxdImports.set(user.id, job);
+  (async () => {
+    try {
+      const out = await letterboxd.importExport(user.id, buf, { findFilm: letterboxdFilm, progress: (done, total) => { job.done = done; job.total = total; } });
+      // The export knows the username: link it so new diary entries keep coming from the feed.
+      if (out.username && !letterboxd.linkOf(user.id)) {
+        letterboxd.setLink(user.id, out.username);
+        try { await letterboxd.sync(user.id); } catch { /* kept as the link's error */ }
+      }
+      if (out.favorites.length) await profiles.save(user, { favorites: out.favorites }, { resolve: profileCard });
+      job.result = { films: out.films, missed: out.missed, favorites: out.favorites.length };
+      job.state = 'done';
+    } catch (e) { job.error = e.status ? e.message : 'The import failed. Try again.'; job.state = 'failed'; console.log(`[letterboxd] import for ${user.id}: ${e.message || e}`); }
+    live.publish('profile', { audience: 'user', userId: user.id });
+  })();
+}
+
 async function profileView(viewer, target) {
   const v = profiles.view(viewer, target);
   if (v.locked) return v;
@@ -4207,6 +4243,37 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, await profileView(user, user));
       }
       if (p === '/api/profiles/me') return sendJson(res, 200, await profileView(user, user));
+      // Letterboxd (letterboxd.js): { username } links and reads the feed now, { username: '' } unlinks, /sync reads it
+      // again, /import takes the export zip (runs in the background; GET /import says how far it got).
+      if (p.startsWith('/api/profiles/me/letterboxd')) {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        if (p === '/api/profiles/me/letterboxd' && req.method === 'POST') {
+          const body = await readJson(req, 4 * 1024);
+          if (!String(body.username ?? '').trim()) letterboxd.unlink(user.id);
+          else {
+            const had = letterboxd.linkOf(user.id);
+            letterboxd.setLink(user.id, body.username);
+            try { await letterboxd.sync(user.id); } catch (e) {
+              if (!had) letterboxd.unlink(user.id); // a typo shouldn't stay linked
+              throw e;
+            }
+          }
+          return sendJson(res, 200, await profileView(user, user));
+        }
+        if (p === '/api/profiles/me/letterboxd/sync' && req.method === 'POST') {
+          await letterboxd.sync(user.id);
+          return sendJson(res, 200, await profileView(user, user));
+        }
+        if (p === '/api/profiles/me/letterboxd/import' && req.method === 'POST') {
+          if (letterboxdImports.get(user.id)?.state === 'running') throw new HttpError(409, 'An import is already running.');
+          const buf = await readRaw(req, 25 * 1024 * 1024, 'That file is too large for a Letterboxd export.');
+          letterboxd.parseExport(buf); // a wrong file fails here, before anything starts
+          startLetterboxdImport(user, buf);
+          return sendJson(res, 202, letterboxdImports.get(user.id));
+        }
+        if (p === '/api/profiles/me/letterboxd/import' && req.method === 'GET') return sendJson(res, 200, letterboxdImports.get(user.id) || { state: 'none' });
+        throw new HttpError(404, 'Not found.');
+      }
       if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked))?$/)) && req.method === 'GET') {
         const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
         const target = id ? accounts.userById(id) : null;
@@ -5370,7 +5437,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/letterboxd(?:\/sync|\/import)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

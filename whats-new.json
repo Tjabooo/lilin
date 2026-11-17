@@ -1,5 +1,20 @@
 [
   {
+    "id": "2026-11-17-letterboxd",
+    "date": "2026-11-17",
+    "title": "Bring your Letterboxd",
+    "items": [
+      {
+        "title": "Link your Letterboxd account",
+        "text": "Edit profile → Letterboxd: type your Letterboxd username and what you log there shows up on your Lilin profile. Films land in your diary, and your stars and reviews show on the title pages. Lilin checks for new ones every few hours. Anything you rated or reviewed in Lilin yourself stays as you left it."
+      },
+      {
+        "title": "Your whole history and top four",
+        "text": "Letterboxd only shares your newest entries this way. For everything, export your data on letterboxd.com (Settings → Data) and pick the zip in the same place. It brings your full diary, ratings, reviews and your four favourites."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-faster-first-watch",
     "date": "2026-11-17",
     "title": "Things that aren't here yet start sooner",

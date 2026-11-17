@@ -16,9 +16,13 @@
 // Activity comes from the watch log (social.js logWatch): a film counts once it was finished or played for 40
 // minutes that day, an episode once finished or played for 15. One diary line per title per day; a line is a
 // rewatch when the film (or one of the episodes) was already watched on an earlier day.
+// A linked Letterboxd account (letterboxd.js) adds its diary: films watched elsewhere, with Letterboxd's own rewatch
+// mark. They count in the diary and the film numbers, not in hours (Letterboxd doesn't know how long). Films its
+// export only marks as watched (no day) count as watched but stay out of the diary.
 import { database, userById, isRestricted } from './accounts.js';
 import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey } from './social.js';
+import * as letterboxd from './letterboxd.js';
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
@@ -141,6 +145,8 @@ export function idForHandle(handle) {
 }
 
 const social = (user) => Boolean(user) && user.email !== HOME && user.email !== null;
+// Who can have a page (and link a Letterboxd account to it): a signed-in account that isn't restricted.
+export const canHaveProfile = (user) => social(user) && !isRestricted(user);
 
 // What the viewer may see of target's profile: 'self', 'full' or 'locked'. Throws 404 for nobody, and for the Home
 // network's shared account to anyone but itself (it sees its own history in You; it can't publish a page).
@@ -207,12 +213,18 @@ const img = (u) => (TMDB_IMAGE.test(String(u || '')) ? u : null);
 const snapshot = (key, c) => ({ key, id: Number(key.split(':')[1]), type: key.split(':')[0], title: line(c.title, 200) || 'Untitled', year: Number.isInteger(c.year) ? c.year : null, poster: img(c.poster), backdrop: img(c.backdrop) });
 
 // ---------- what they watched ----------
-// Every qualifying watch, oldest first: { key, type, title, day, at, season, episode, rewatch }.
+// Every qualifying watch, oldest first: { key, type, title, day, at, season, episode, rewatch, letterboxd }.
 function watches(userId) {
   const rows = db().prepare(`SELECT title_key, title, day, ref, season, episode, finished, seconds, COALESCE(finished_at, last_at) AS at
     FROM watch_log WHERE user_id = ? AND title_key IS NOT NULL
       AND (finished = 1 OR seconds >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END)
     ORDER BY at`).all(userId, FILM_SECONDS, EPISODE_SECONDS);
+  for (const l of letterboxd.watchesOf(userId)) {
+    if (!l.day) continue;
+    // Letterboxd only has the day: noon that day keeps it in order next to what was watched here.
+    rows.push({ title_key: l.key, title: l.title, day: l.day, ref: `lb:${l.key}`, season: null, episode: null, at: new Date(`${l.day}T12:00:00`).getTime(), lbRewatch: l.rewatch, letterboxd: true });
+  }
+  rows.sort((a, b) => a.at - b.at);
   const firstDay = new Map(); // what was watched → the first day it was
   const out = [];
   for (const r of rows) {
@@ -221,22 +233,23 @@ function watches(userId) {
     const what = type === 'movie' ? r.title_key : r.season != null && r.episode != null ? `${r.title_key}|${r.season}|${r.episode}` : `${r.title_key}|${r.ref}`;
     const first = firstDay.get(what);
     if (first == null) firstDay.set(what, r.day);
-    out.push({ key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode, rewatch: first != null && first !== r.day });
+    out.push({ key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode, rewatch: (first != null && first !== r.day) || Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) });
   }
   return out;
 }
 
 // Diary lines, newest first: one per title per day. { key, type, title, day, at, episodes: [[s, e]], rewatch,
-// stars, liked }. offset/limit page through them; more says whether there are older ones.
+// stars, liked, letterboxd }. offset/limit page through them; more says whether there are older ones.
 export function diary(userId, { offset = 0, limit = DIARY_PAGE } = {}) {
   const lines = new Map();
   for (const w of watches(userId)) {
     const id = `${w.key}|${w.day}`;
     let l = lines.get(id);
-    if (!l) { l = { key: w.key, type: w.type, title: w.title, day: w.day, at: w.at, episodes: [], rewatch: false }; lines.set(id, l); }
+    if (!l) { l = { key: w.key, type: w.type, title: w.title, day: w.day, at: w.at, episodes: [], rewatch: false, letterboxd: true }; lines.set(id, l); }
     l.at = Math.max(l.at, w.at);
     l.title = w.title || l.title;
     if (w.rewatch) l.rewatch = true;
+    if (!w.letterboxd) l.letterboxd = false; // watched here too that day: it's a Lilin line
     if (w.type === 'tv' && w.season != null && w.episode != null && !l.episodes.some(([s, e]) => s === w.season && e === w.episode)) l.episodes.push([w.season, w.episode]);
   }
   const all = [...lines.values()].sort((a, b) => b.at - a.at);
@@ -286,6 +299,7 @@ export function stats(userId, now = Date.now()) {
   const w = watches(userId);
   const year = String(new Date(now).getFullYear());
   const films = new Set(w.filter((x) => x.type === 'movie').map((x) => x.key));
+  for (const l of letterboxd.watchesOf(userId)) if (l.type === 'movie') films.add(l.key); // also the ones without a day
   const filmsThisYear = new Set(w.filter((x) => x.type === 'movie' && x.day.startsWith(year)).map((x) => x.key));
   const shows = new Set(w.filter((x) => x.type === 'tv').map((x) => x.key));
   const episodes = new Set(w.filter((x) => x.type === 'tv' && x.season != null).map((x) => `${x.key}|${x.season}|${x.episode}`));
@@ -335,6 +349,7 @@ export function view(viewer, target) {
   const friend = self ? null : isRestricted(viewer) || isRestricted(target) ? 'unavailable' : stateBetween(viewer.id, target.id);
   if (sight === 'locked') return { person, me: false, locked: true, visibility: p.visibility, friend, look: p.look, sections: [] };
   const on = (id) => self || p.sections.some((s) => s.id === id && s.on);
+  const lb = letterboxd.status(target.id);
   return {
     person: { ...person, pronouns: p.pronouns, bio: p.bio, since: target.createdAt },
     me: self, locked: false, visibility: p.visibility, friend, look: p.look, sections: p.sections,
@@ -345,5 +360,7 @@ export function view(viewer, target) {
     reviews: on('reviews') ? reviewsBy(target.id) : { reviews: [], more: false },
     liked: on('liked') ? likedBy(target.id) : [],
     friends: on('friends') ? friendsOf(target.id) : [],
+    // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.
+    letterboxd: !lb.linked ? (self ? { linked: false } : null) : self ? lb : { linked: true, username: lb.username, url: lb.url },
   };
 }

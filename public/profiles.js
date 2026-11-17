@@ -155,7 +155,9 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
 
   function head(ctx, d) {
     const p = d.person;
-    const sub = [h('span', { class: 'pf-handle' }, `@${p.handle}`), p.pronouns && h('span', { class: 'pf-pronouns' }, p.pronouns)].filter(Boolean);
+    const lb = !d.locked && d.letterboxd?.linked && d.letterboxd;
+    const sub = [h('span', { class: 'pf-handle' }, `@${p.handle}`), p.pronouns && h('span', { class: 'pf-pronouns' }, p.pronouns),
+      lb && h('a', { class: 'pf-lb-link', href: lb.url, target: '_blank', rel: 'noopener noreferrer', title: T('{0} on Letterboxd', lb.username) }, T('Letterboxd'))].filter(Boolean);
     return h('header', { class: 'pf-head' },
       d.me && changePicture
         ? h('button', { type: 'button', class: 'pf-face pf-face-mine', 'aria-label': p.avatar ? T('Change your picture') : T('Add a picture'),
@@ -258,6 +260,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         posterButton(ctx, e.card, e, { label: `${e.card?.title || e.title}${e.type === 'tv' ? ` · ${episodesText(e.episodes)}` : ''}` }),
         h('div', { class: 'pf-under' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
           e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
+              e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB'),
           e.type === 'tv' && e.episodes?.length ? h('span', { class: 'pf-eps' }, episodesShort(e.episodes)) : null)));
       const box = sectionBox('recent', T('Recent activity'), null, h('ul', { class: 'pf-grid4' }, items));
       box.append(ctx.diary ? diaryList(ctx) : h('button', { type: 'button', class: 'pf-more', onclick: () => openDiary(ctx) }, h('span', {}, T('More activity')), icon('chevron')));
@@ -352,7 +355,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
               h('strong', {}, card?.title || e.title, card?.year && e.type === 'movie' ? h('span', { class: 'muted' }, ` ${card.year}`) : null),
               e.type === 'tv' && e.episodes?.length ? h('small', {}, episodesText(e.episodes)) : null),
             h('span', { class: 'pf-entry-marks' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
-              e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch'))));
+              e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
+              e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')));
           return h('li', {}, row);
         })));
     }
@@ -414,6 +418,79 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (focus) requestAnimationFrame(() => body.querySelector(`[data-part="${focus}"]`)?.scrollIntoView({ block: 'start' }));
   }
 
+  // Letterboxd (letterboxd.js). Linking happens right away, not on Save: it reads their feed, and a typo should say so
+  // here. The export (a zip from Letterboxd's settings) brings the whole history and the top four; it's looked up film
+  // by film in the background, so the editor polls how far it got.
+  function letterboxdEditor(ctx, { repaint, redraw }) {
+    const lb = ctx.data.letterboxd || { linked: false };
+    const done = (data) => { ctx.data = { ...ctx.data, ...data }; own.data = ctx.data; own.at = Date.now(); ctx.diary = null; ctx.allReviews = null; mineChanged(); repaint(); redraw(); };
+    const run = async (btn, url, body, ok) => {
+      btn.disabled = true;
+      try { done(await api(url, jsonPost(body))); if (ok) toast(ok); } catch (err) { toast(err.message); btn.disabled = false; }
+    };
+    const progress = h('p', { class: 'set-hint pf-lb-progress', role: 'status' });
+    const file = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true });
+    const upload = h('button', { type: 'button', class: 'chip', onclick: () => file.click() }, icon('plus'), T('Import Letterboxd export'));
+    const follow = async () => {
+      upload.disabled = true;
+      for (;;) {
+        let job;
+        try { job = await api('/api/profiles/me/letterboxd/import'); } catch { job = null; }
+        if (!progress.isConnected && job?.state === 'running') { await new Promise((r) => setTimeout(r, 2000)); continue; }
+        if (job?.state === 'running') {
+          progress.textContent = job.total ? T('Finding your films… {0} of {1}', job.done, job.total) : T('Reading your export…');
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
+        }
+        upload.disabled = false;
+        if (job?.state === 'done') {
+          progress.textContent = '';
+          const r = job.result;
+          toast(r.missed ? T('Imported {0} films ({1} couldn’t be found)', r.films, r.missed) : T('Imported {0} films', r.films));
+          try { done(await api('/api/profiles/me')); } catch { /* the page catches up on its next load */ }
+        } else if (job?.state === 'failed') { progress.textContent = ''; toast(job.error); }
+        return;
+      }
+    };
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      file.value = '';
+      if (!f) return;
+      upload.disabled = true;
+      progress.textContent = T('Uploading…');
+      try {
+        await api('/api/profiles/me/letterboxd/import', { method: 'POST', body: f, headers: { 'Content-Type': 'application/zip' } });
+        follow();
+      } catch (err) { toast(err.message); upload.disabled = false; progress.textContent = ''; }
+    });
+    // An import that's still running (the sheet was closed and opened again) keeps showing.
+    api('/api/profiles/me/letterboxd/import').then((j) => { if (j?.state === 'running') follow(); }).catch(() => {});
+    const exportPart = h('div', { class: 'pf-lb' },
+      h('p', { class: 'set-hint' }, lb.importedAt
+        ? T('Export imported {0}. Import a newer one any time.', new Date(lb.importedAt).toLocaleDateString(locale(), { dateStyle: 'medium' }))
+        : T('For your whole history and your top four: on letterboxd.com go to Settings → Data → Export your data, then pick the zip here.')),
+      h('div', { class: 'pf-lb-row' }, upload, file), progress);
+    if (!lb.linked) {
+      const input = h('input', { type: 'text', class: 'invite-note', maxlength: '80', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false',
+        placeholder: T('Your Letterboxd username'), 'aria-label': T('Letterboxd username') });
+      const go = h('button', { type: 'button', class: 'chip', onclick: (e) => input.value.trim() && run(e.currentTarget, '/api/profiles/me/letterboxd', { username: input.value }, T('Letterboxd linked')) }, T('Link'));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+      return h('div', { class: 'pf-lb' },
+        h('p', { class: 'set-hint' }, T('Link your Letterboxd account and what you log there shows up here: films in your diary, your stars and your reviews. Lilin checks for new ones every few hours. Anything you rated or reviewed in Lilin yourself is never overwritten.')),
+        h('div', { class: 'pf-lb-row' }, input, go),
+        exportPart);
+    }
+    const when = lb.syncedAt ? new Date(lb.syncedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : null;
+    return h('div', { class: 'pf-lb' },
+      h('p', { class: 'pf-lb-who' }, T('Linked to'), ' ', h('a', { href: lb.url, target: '_blank', rel: 'noopener noreferrer' }, lb.username)),
+      h('p', { class: 'set-hint' }, lb.error ? T('Last check failed: {0}', lb.error) : when ? T('{0} films · last checked {1}', lb.films, when) : T('{0} films', lb.films)),
+      h('div', { class: 'pf-lb-row' },
+        h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/letterboxd/sync', {}, T('Checked Letterboxd')) }, icon('rewatch'), T('Check now')),
+        h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/letterboxd', { username: '' }, T('Letterboxd unlinked')) }, T('Unlink'))),
+      exportPart,
+      h('p', { class: 'set-hint' }, T('Unlinking takes the Letterboxd films out of your diary, and the stars and reviews it brought over that you haven’t changed.')));
+  }
+
   function editorNodes(ctx, draft, { repaint, redraw, save }) {
     const look = draft.look;
     const setLook = (patch) => { Object.assign(look, patch); repaint(); redraw(); };
@@ -446,6 +523,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         field(T('Pronouns'), pronouns),
         field(T('Bio'), bio, count)),
       part('favorites', T('Favourites'), favoritesEditor(draft, { repaint, redraw })),
+      part('letterboxd', T('Letterboxd'), letterboxdEditor(ctx, { repaint, redraw })),
       part('look', T('Look'),
         h('p', { class: 'pf-field-label' }, T('Accent')),
         h('div', { class: 'pf-swatches' },
