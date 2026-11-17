@@ -1,4 +1,13 @@
 {
+  "2026-11-17-password-private": {
+    "title": "Ditt lösenord är bara ditt",
+    "items": {
+      "A note where you pick your password": {
+        "title": "En notis där du väljer lösenord",
+        "text": "När du går med i Lilin eller väljer lösenord står det nu en liten notis om något som alltid har gällt: ditt lösenord görs om innan det sparas, så ingen kan se det, inte ens de som driver Lilin."
+      }
+    }
+  },
   "2026-11-17-revamp-2": {
     "title": "Lilin har städats upp",
     "items": {
