@@ -10,15 +10,15 @@
 const owner = (me, s) => Boolean(s?.admin);
 const social = (me) => Boolean(me?.email && !me.restricted);
 
-// Tab order in the bar. House only shows for owners (and members with owner rights).
-export const TABS = ['discover', 'live', 'library', 'house', 'you'];
+// Tab order in the bar. House only shows for owners (and members with owner rights). There is no Library: Play is
+// the only action (think of something, find it, press Play), so what's here is a filter on Discover (Instant).
+export const TABS = ['discover', 'live', 'house', 'you'];
 
 export const ROUTES = {
   discover: { view: 'discover', tab: 'discover', label: 'Discover' },
+  // Discover's Instant filter: everything on the server, which plays at once (the old Library's titles for everyone).
+  'discover/instant': { view: 'discover', tab: 'discover', sub: 'instant', label: 'Plays instantly' },
   live: { view: 'live', tab: 'live', label: 'Live' },
-  library: { view: 'library', tab: 'library', label: 'Library' },
-  'library/watchlist': { view: 'library', tab: 'library', sub: 'watchlist', label: 'Watchlist' },
-  'library/downloads': { view: 'library', tab: 'library', sub: 'downloads', label: 'Downloads' },
 
   // You: the person's own hub (replaces Settings). The root list is the phone's index; each row opens a page.
   // Your watching is private (always your own view, also for the home network's shared account).
@@ -35,12 +35,16 @@ export const ROUTES = {
   'you/look': { view: 'you', tab: 'you', sub: 'look', group: 'settings', label: 'Language and look' },
   'you/watching': { view: 'you', tab: 'you', sub: 'watching', group: 'settings', label: 'Watching' },
   'you/devices': { view: 'you', tab: 'you', sub: 'devices', group: 'settings', label: 'Devices and notifications' },
-  'you/download-settings': { view: 'you', tab: 'you', sub: 'download-settings', group: 'settings', label: 'Download settings', allowed: (me, s) => Boolean(s?.downloads && me?.canDownload !== false) },
+  // How Play picks a copy it fetches (quality, size, audio language); the address keeps its old name.
+  'you/download-settings': { view: 'you', tab: 'you', sub: 'download-settings', group: 'settings', label: 'Picture and sound', allowed: (me, s) => Boolean(s?.downloads && me?.canDownload !== false) },
   'you/ideas': { view: 'you', tab: 'you', sub: 'ideas', group: 'ideas', label: 'Ideas and bugs', allowed: (me) => Boolean(me && !me.isOwner) },
 
   // House: the owner's tools, one tile each (the machines page used to be called House).
   house: { view: 'house', tab: 'house', label: 'House', allowed: owner },
   'house/machines': { view: 'house', tab: 'house', sub: 'machines', group: 'tools', label: 'Machines' },
+  // Transfers are the owner's business: what's downloading, what needs a look, what leaves soon, copies for phones.
+  // It draws in the old Library view (#view-library), so its polling and live updates carry on as they were.
+  'house/downloads': { view: 'library', tab: 'house', sub: 'downloads', group: 'tools', label: 'Downloads' },
   'house/activity': { view: 'activity', tab: 'house', sub: 'activity', group: 'tools', label: 'Activity' },
   'house/notes': { view: 'notes', tab: 'house', sub: 'notes', group: 'tools', label: 'Notes', allowed: (me, s) => Boolean(s?.notes) },
   'house/clips': { view: 'clips', tab: 'house', sub: 'clips', group: 'tools', label: 'Game clips', allowed: (me, s) => Boolean(s?.clips) },
@@ -51,10 +55,16 @@ export const ROUTES = {
 };
 
 // Old addresses (bookmarks, reloads, notification links) and the route they open now.
+// The Library tab's addresses: its titles are Discover's Instant filter, its watchlist the personal rows on Discover,
+// its downloads House › Downloads (members, who don't see downloads, land on Discover).
 export const LEGACY = {
   settings: 'you',
-  downloads: 'library/downloads',
-  watchlist: 'library/watchlist',
+  library: 'discover/instant',
+  'library/titles': 'discover/instant',
+  'library/watchlist': 'discover',
+  watchlist: 'discover',
+  'library/downloads': 'house/downloads',
+  downloads: 'house/downloads',
   activity: 'you/activity', // owners: MOVED sends it on to House
   notes: 'house/notes',
   clips: 'house/clips',
@@ -63,6 +73,7 @@ export const LEGACY = {
 // Pages that moved for some people: an old address they can't open falls through to the new one.
 export const MOVED = {
   'you/activity': 'house/activity',
+  'house/downloads': 'discover',
 };
 
 // Notification links carry a query (?friends=1#settings): the route each one lands on. Anything else in the
@@ -71,7 +82,7 @@ export const LINK_PARAMS = {
   friends: () => 'you/friends',
   moment: () => 'you/moments',
   ideas: (me) => (me?.isOwner ? 'house/ideas' : 'you/ideas'), // the inbox is the owner's; everyone else sends ideas
-  travel: () => 'library/downloads',
+  travel: (me, s) => (s?.admin ? 'house/downloads' : 'discover'), // app.js opens the phone copies over it
   note: () => 'house/notes',
 };
 
@@ -94,7 +105,7 @@ export function resolve(hash, me, status) {
   try { id = decodeURIComponent(id); } catch { return null; }
   id = id.trim().replace(/\/+$/, '');
   if (!id || id.startsWith('@')) return null; // #@handle: a profile, opened over the start view
-  id = LEGACY[id] || id;
+  id = LEGACY[id] || (id.startsWith('library/') ? 'discover' : id);
   if (!allowedRoute(id, me, status) && MOVED[id]) id = MOVED[id];
   return allowedRoute(id, me, status) ? id : null;
 }
@@ -109,5 +120,6 @@ export function linkRoute(params, me, status) {
   return null;
 }
 
-// The saved start view ("Open Lilin on"), checked like any link.
-export const startRoute = (startView, me, status) => resolve(startView || 'discover', me, status) || 'discover';
+// The saved start view ("Open Lilin on"), checked like any link. A Library start opens Discover (Continue watching
+// is at its top), not the Instant filter an old #library link lands on.
+export const startRoute = (startView, me, status) => resolve(startView === 'library' ? 'discover' : startView || 'discover', me, status) || 'discover';

@@ -6,16 +6,15 @@
 import { ROUTES, allowedRoute } from './routes.js';
 
 // Things a place can do instead of opening a route (handled by PLACE_ACTIONS in app.js).
-export const ACTIONS = ['whats-new', 'wrapped', 'pick', 'profile', 'manage-downloads', 'channels', 'torrents'];
+export const ACTIONS = ['whats-new', 'wrapped', 'pick', 'profile', 'manage-downloads', 'channels', 'torrents', 'phone-copies'];
 
 const syn = (en, sv) => ({ en, sv });
 
 export const PLACES = [
   { id: 'discover', route: 'discover', syn: syn(['home', 'browse', 'trending', 'films', 'shows', 'genres'], ['hem', 'bläddra', 'trendar', 'filmer', 'serier', 'genrer']) },
   { id: 'live', route: 'live', syn: syn(['tv', 'seele tv', 'channels', 'guide', 'live tv'], ['tv', 'kanaler', 'tablå']) },
-  { id: 'library', route: 'library', syn: syn(['my titles', 'my films', 'my shows', 'collection', 'library order', 'sort', 'leaving soon'], ['mina titlar', 'mina filmer', 'mina serier', 'samling', 'ordning i biblioteket', 'sortera', 'försvinner snart']) },
-  { id: 'watchlist', route: 'library/watchlist', syn: syn(['saved', 'saved for later', 'following', 'coming up', 'follow a show'], ['sparat', 'sparad till senare', 'följer', 'på gång', 'bevakat']) },
-  { id: 'downloads', route: 'library/downloads', syn: syn(['transfers', 'on its way', 'downloading'], ['nedladdningar', 'på väg', 'laddar ner']) },
+  { id: 'instant', route: 'discover/instant', syn: syn(['instant', 'on lilin', 'on the server', 'ready to watch', 'library', 'my titles', 'collection'], ['direkt', 'på lilin', 'på servern', 'redo att se', 'bibliotek', 'mina titlar', 'samling']) },
+  { id: 'saved', route: 'discover', label: 'Saved for later', syn: syn(['saved', 'watchlist', 'following', 'new episodes', 'continue watching'], ['sparat', 'sparad till senare', 'följer', 'nya avsnitt', 'fortsätt titta']) },
   { id: 'you', route: 'you', syn: syn(['settings', 'preferences', 'me', 'my account'], ['inställningar', 'jag', 'mitt konto']) },
   { id: 'history', route: 'you/history', syn: syn(['diary', 'watched', 'what i watched', 'recently watched', 'watch history'], ['historik', 'dagbok', 'sett', 'vad jag sett', 'tittarhistorik']) },
   { id: 'ratings', route: 'you/ratings', syn: syn(['reviews', 'my reviews', 'stars', 'my ratings'], ['betyg', 'recensioner', 'mina recensioner', 'stjärnor']) },
@@ -29,9 +28,10 @@ export const PLACES = [
   { id: 'look', route: 'you/look', syn: syn(['language', 'theme', 'colours', 'colors', 'appearance', 'swedish', 'english'], ['språk', 'tema', 'färger', 'utseende', 'svenska', 'engelska']) },
   { id: 'watching', route: 'you/watching', syn: syn(['subtitles', 'intros', 'skip intro', 'theme music', 'start page', 'open lilin on'], ['undertexter', 'intron', 'hoppa över intro', 'ledmotiv', 'startsida', 'öppna lilin på']) },
   { id: 'devices', route: 'you/devices', syn: syn(['notifications', 'push', 'tv code', 'sign in on a tv', 'sign in a computer', 'qr code', 'scan', 'android tv', 'jellyfin'], ['aviseringar', 'notiser', 'tv-kod', 'logga in på en tv', 'logga in en dator', 'qr-kod', 'skanna']) },
-  { id: 'download-settings', route: 'you/download-settings', syn: syn(['quality', 'download quality', 'largest download', 'audio language', '4k'], ['kvalitet', 'största nedladdning', 'ljudspråk']) },
+  { id: 'download-settings', route: 'you/download-settings', syn: syn(['quality', 'download settings', 'download quality', 'largest download', 'audio language', '4k'], ['kvalitet', 'nedladdningar', 'största nedladdning', 'ljudspråk']) },
   { id: 'ideas', route: 'you/ideas', syn: syn(['idea box', 'bug', 'feedback', 'suggestion', 'something is off'], ['idélåda', 'bugg', 'förslag', 'något är fel']) },
   { id: 'house', route: 'house', syn: syn(['owner', 'admin', 'server', 'tools'], ['ägare', 'server', 'verktyg']) },
+  { id: 'downloads', route: 'house/downloads', syn: syn(['transfers', 'downloading', 'leaving soon', 'keep longer', 'copies for phones'], ['nedladdningar', 'laddar ner', 'försvinner snart', 'behåll längre', 'kopior till telefonen']) },
   { id: 'machines', route: 'house/machines', syn: syn(['vpn', 'power', 'disks', 'status', 'sharing', 'overview', 'uptime'], ['maskiner', 'ström', 'diskar', 'översikt', 'delning']) },
   { id: 'notes', route: 'house/notes', syn: syn(['note', 'notebook'], ['anteckningar', 'anteckning']) },
   { id: 'clips', route: 'house/clips', syn: syn(['clips', 'game clips', 'trim', 'share a clip'], ['klipp', 'spelklipp', 'trimma']) },
@@ -46,7 +46,8 @@ export const PLACES = [
   { id: 'profile', action: 'profile', label: 'Your profile', who: (me) => Boolean(me?.email), syn: syn(['public page', 'my page', 'username', 'bio'], ['profil', 'din sida', 'användarnamn']) },
   { id: 'manage-downloads', action: 'manage-downloads', label: 'Manage downloads', who: (me, s) => Boolean(s?.admin), syn: syn(['server downloads', 'qbittorrent', 'transfers'], ['hantera nedladdningar', 'serverns nedladdningar']) },
   { id: 'channels', action: 'channels', label: 'Your channels', who: (me, s) => Boolean(s?.admin), syn: syn(['edit channels', 'seele tv channels'], ['dina kanaler', 'ändra kanaler']) },
-  { id: 'torrents', action: 'torrents', label: 'Find torrents', who: (me, s) => Boolean(s?.torrents && s.downloads && me?.canDownload !== false), syn: syn(['torrent', 'search torrents'], ['sök torrents']) },
+  { id: 'torrents', action: 'torrents', label: 'Find torrents', who: (me, s) => Boolean(s?.admin && s.torrents && s.downloads), syn: syn(['torrent', 'search torrents'], ['sök torrents']) },
+  { id: 'phone-copies', action: 'phone-copies', label: 'Copies on this phone', who: (me) => Boolean(me), syn: syn(['offline', 'to phone', 'download to phone', 'watch offline'], ['offline', 'till telefonen', 'titta offline']) },
 ];
 
 export const placeLabel = (p) => p.label || ROUTES[p.route]?.label || p.id;
@@ -75,6 +76,6 @@ export function matchPlaces(query, { me, status, T = (s) => s, lang = 'en', limi
 }
 
 // Shortcuts shown under the empty search field: a few useful places for this person.
-const DEFAULTS = ['downloads', 'watching', 'devices', 'friends', 'pick', 'look', 'machines', 'people', 'account'];
+const DEFAULTS = ['instant', 'watching', 'devices', 'friends', 'pick', 'downloads', 'look', 'machines', 'people', 'account'];
 export const defaultPlaces = (me, status, limit = 6) => DEFAULTS.map((id) => PLACES.find((p) => p.id === id))
   .filter((p) => p && placeShown(p, me, status)).slice(0, limit);
