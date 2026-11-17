@@ -2465,9 +2465,10 @@ async function applyLive() {
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (settingsOpen() && !editingSettings()) jobs.push(loadPush().then(renderSettings)); }
   if (has('match')) pickUi.onLive(); // pick: Pick together
-  if (has('moments')) { momentsUI.invalidate(); if (settingsOpen()) jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
-  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(settingsOpen() ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
-  if (has('ideas')) { ideasView.loaded = false; if (settingsOpen()) jobs.push(loadIdeas().then(() => { if (!editingSettings()) renderSettingsWhenStill(); })); }
+  // friends, Moments and answers to your ideas: You's For you and its tab dot (+ the friend request popup elsewhere)
+  if (has('moments')) { momentsUI.invalidate(); jobs.push(momentsUI.load().then(() => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); })); }
+  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(() => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); else maybeAskFriends(); })); }
+  if (has('ideas')) { ideasView.loaded = false; if (settingsOpen() || !state.me?.isOwner) jobs.push(loadIdeas().then(() => { updateYouDot(); if (settingsOpen() && !editingSettings()) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if (has('avatars') && view === 'library') jobs.push(loadParties());
@@ -3535,8 +3536,9 @@ function episodeDownload(t, seasonNo, episode) {
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
-// friends: Settings → Friends (friends.js)
-const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), rerender: () => { if (settingsOpen()) renderSettingsWhenStill(); } });
+// friends: You → Friends (friends.js); requests are also For you cards and light the You tab's dot
+const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), invite: friendsInvite,
+  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); } });
 // friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
 // while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
 // stays away from the You tab, where the requests are already on screen.
@@ -3592,7 +3594,8 @@ const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () 
   // your name and picture live on your profile (Settings no longer edits them)
   changePicture: ({ opener, over, done }) => editPicture({ person: state.me, opener, over, done }),
   removePicture: () => removePicture({ person: state.me }),
-  saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); } });
+  saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); },
+  mineChanged: () => { if (settingsOpen()) renderSettingsWhenStill(); } }); // You's card and lines show the saved profile
 // A poster on a profile. Profiles opened over a title page close first, and the title opens in that page (Back
 // returns to the title it was on).
 async function openTitleFromProfile(card, opener, nested) {
@@ -6514,7 +6517,7 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
   },
   closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
-  rerender: () => { if (settingsOpen()) renderSettingsWhenStill(); } });
+  rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
 const muteBtn = $('#pc-mute');
 const volInput = $('#pc-vol');
@@ -7908,49 +7911,137 @@ const AUDIO_LANGUAGES = [['', T('Original language')], ['en', T('English')], ['s
   ['de', T('German')], ['fr', T('French')], ['es', T('Spanish')], ['it', T('Italian')], ['pt', T('Portuguese')], ['nl', T('Dutch')], ['pl', T('Polish')],
   ['ru', T('Russian')], ['tr', T('Turkish')], ['hi', T('Hindi')], ['ja', T('Japanese')], ['ko', T('Korean')], ['zh', T('Chinese')]];
 // ---------- you (was Settings) ----------
-// The You tab: your own pages. The root list is the phone's index (each row opens one page, #you/<page>); wide
-// screens show the list beside the open page. Pages are routes in routes.js ('you/…'); YOU_PAGES draws each one
-// from what used to be a Settings group. Above the list: #you-id (who you are) and #you-foryou (things waiting for
-// you), and setYouDot(n) lights the tab. renderSettings() redraws whichever settings page is open: a You page, or
-// an owner page in House (People, Ideas, Server rules).
+// The You tab: your own pages. The root list is the phone's index: each row opens one page (#you/<page>) and says on
+// a quiet line what's in it, so most questions are answered without opening anything. Wide screens show the list
+// beside the open page; there the root's page is Overview (who you are, For you, your numbers, what you watched
+// last). Pages are routes in routes.js ('you/…'); YOU_PAGES draws each one. Above the list: #you-id (who you are)
+// and #you-foryou (what's waiting for you: friend requests, moments sent to you, answers to your ideas), which
+// also lights the tab's dot (updateYouDot). renderSettings() redraws whichever settings page is open: a You page,
+// or an owner page in House (People, Ideas, Server rules).
 function renderSettings() {
   if (state.view === 'house') { renderHouse(); return; }
   if (!state.me) { $('#you-rows').replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
   renderMeButton();
+  loadYouData();
   renderYouIdentity();
   renderForYou();
   renderYouRows();
   renderYouPage();
+  updateYouDot();
 }
 function settingsOpen() { return state.view === 'you' || (state.view === 'house' && ['people', 'ideas', 'rules'].includes(state.sub)); }
 function editingSettings() { return editingIn(state.view === 'house' ? '#house-body' : '#you-body'); }
 
 const YOU_PAGES = {
-  friends: () => friendsUI.settings(), // friends
-  moments: () => momentsUI.settings(), // friends: Moments
+  history: () => profiles.privateList('history', redrawYouPage),
+  ratings: () => profiles.privateList('ratings', redrawYouPage),
+  liked: () => profiles.privateList('liked', redrawYouPage),
+  friends: () => friendsUI.page(), // friends
+  moments: () => momentsUI.page(), // friends: Moments
   invite: () => memberInviteSettings(),
   account: () => accountPage(),
   look: () => appearanceSection(),
   watching: () => watchingPage(),
   devices: () => devicesPage(),
   'download-settings': () => downloadPrefsPage(),
-  ideas: () => [ideaBox()],
+  ideas: () => { markIdeaAnswersSeen(); return [ideaBox()]; },
 };
-const YOU_GROUPS = () => [['people', T('People')], ['settings', T('Settings')]];
-
-// Who you are (name and picture are edited on your profile).
-function renderYouIdentity() {
+const YOU_GROUPS = () => [['watching', T('Your watching')], ['people', T('People')], ['settings', T('Settings')], ['ideas', null]];
+const sharesSocial = (me = state.me) => Boolean(me?.email && !me.restricted); // friends, a public page
+// Friends → Invite someone to Lilin, for people who may invite: the one Invite sheet once it exists (openInvite),
+// else the page that invites today (members: You → Invite people; owners: House → People). null: no button.
+function friendsInvite() {
   const me = state.me;
-  $('#you-id').replaceChildren(h('div', { class: 'profile' },
-    h('div', { class: 'profile-text' },
-      h('div', { class: 'profile-who' }, people.face(me, { size: 40 }), h('strong', {}, me.name)),
-      h('div', { class: 'set-hint' }, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
-        : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email)),
-      h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))),
-      me.email && h('button', { type: 'button', class: 'chip profile-open', onclick: (e) => profiles.openMine(e.currentTarget) }, icon('pencil'), T('Your profile')))));
+  if (!me?.canInvite && !me?.isOwner) return null;
+  if (typeof openInvite === 'function') return (opener) => openInvite('lilin', opener); // eslint-disable-line no-undef
+  const to = ['you/invite', 'house/people'].find((id) => allowedRoute(id, me, state.status));
+  return to ? () => setView(to) : null;
 }
-// Friend requests, moments sent to you and answers to your ideas go here (empty until that's built), and the tab's dot counts them.
-function renderForYou() { $('#you-foryou').hidden = !$('#you-foryou').childElementCount; }
+
+// What the list's lines and For you need: your profile's numbers, friends, moments, your ideas. Fetched when You
+// opens (again after half a minute); live updates refresh them on their own.
+const youView = { asked: 0 };
+function loadYouData() {
+  if (Date.now() - youView.asked < 30000) return;
+  youView.asked = Date.now();
+  const jobs = [profiles.mine().catch(() => null)];
+  if (sharesSocial() && !friendsUI.summary().loaded) jobs.push(friendsUI.load());
+  if (!momentsUI.summary().loaded) jobs.push(momentsUI.load());
+  if (!state.me.isOwner && !ideasView.loaded) jobs.push(loadIdeas());
+  Promise.allSettled(jobs).then(() => { updateYouDot(); if (state.view === 'you') renderSettingsWhenStill(); });
+}
+// The tab's dot, from anywhere: Lilin opening, a live update, an answer in the friend popup.
+async function loadForYou() {
+  if (!state.me) return;
+  await Promise.allSettled([sharesSocial() && friendsUI.load(), momentsUI.load(), !state.me.isOwner && loadIdeas()].filter(Boolean));
+  updateYouDot();
+}
+
+// Answers to your ideas you haven't looked at: answered after you last opened Ideas and bugs on this device (two
+// weeks back at most, so a new device doesn't dig up old ones).
+const ideaSeenKey = () => `lilin:idea-answers-seen:${state.me?.id}`;
+function newIdeaAnswers() {
+  if (!state.me || state.me.isOwner) return [];
+  let seen = 0;
+  try { seen = Number(localStorage.getItem(ideaSeenKey())) || 0; } catch { /* storage blocked: two weeks back */ }
+  const since = Math.max(seen, Date.now() - 14 * 86400000);
+  return ideasView.mine.filter((i) => i.answered && i.answered > since);
+}
+function markIdeaAnswersSeen() {
+  const last = Math.max(0, ...ideasView.mine.map((i) => i.answered || 0));
+  if (!last || !newIdeaAnswers().length) return;
+  try { localStorage.setItem(ideaSeenKey(), String(last)); } catch { /* storage blocked */ }
+  requestAnimationFrame(() => { updateYouDot(); if (state.view === 'you') { renderForYou(); renderYouRows(); } });
+}
+const IDEA_ANSWER_TITLE = () => ({ planned: T('Your idea is planned'), added: T('Your idea is in Lilin now') });
+const forYouCount = () => (sharesSocial() ? friendsUI.incomingCount() : 0) + momentsUI.unseenCount() + newIdeaAnswers().length;
+function updateYouDot() { if (state.me) setYouDot(forYouCount()); }
+
+// Who you are: picture, name, @username and who sees your page; Edit profile and your public page (Overview: your
+// numbers too). The home network's shared account has no page: it's everyone at home.
+function youIdentity({ numbers = false } = {}) {
+  const me = state.me;
+  const d = profiles.mineNow();
+  const stats = numbers && d?.stats && h('div', { class: 'you-id-actions you-own' }, profiles.numbers(d));
+  if (!me.email) {
+    return h('div', { class: 'you-id' }, people.face(me, { size: 56 }),
+      h('div', { class: 'you-id-text' }, h('strong', { class: 'you-id-name' }, T('Home network')),
+        h('span', { class: 'set-hint' }, T('Shared by everyone at home who opens the server’s local address.'))), stats);
+  }
+  const vis = { public: T('Everyone'), friends: T('Friends'), private: T('Only me') }[d?.visibility];
+  return h('div', { class: 'you-id' },
+    people.face(me, { size: 56 }),
+    h('div', { class: 'you-id-text' },
+      h('strong', { class: 'you-id-name' }, me.name),
+      h('span', { class: 'you-id-text set-hint' }, d?.person?.handle && h('span', {}, `@${d.person.handle}`),
+        sharesSocial() && vis && h('span', { class: 'pf-vis' }, icon(d.visibility === 'public' ? 'globe' : 'lock'), T('Visible to: {0}', vis)),
+        me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download')))),
+    h('div', { class: 'you-id-text you-id-actions' },
+      h('button', { type: 'button', class: 'chip', onclick: (e) => profiles.openMine(e.currentTarget, { edit: true }) }, icon('pencil'), T('Edit profile')),
+      h('button', { type: 'button', class: 'chip', onclick: (e) => profiles.openMine(e.currentTarget) }, T('View public page'), icon('chevron'))),
+    stats);
+}
+function renderYouIdentity() { $('#you-id').replaceChildren(h('div', { class: 'set-stack' }, youIdentity())); }
+
+// For you: 0-3 cards for what's waiting (requests first: they need an answer), each handled right there. Empty: gone.
+function forYouCards() {
+  const answers = newIdeaAnswers().map((i) => h('li', { class: 'friend' },
+    h('button', { type: 'button', class: 'friend-open', onclick: () => setView('you/ideas') },
+      h('span', { class: 'idea-bulb', 'aria-hidden': 'true' }, icon('bulb')),
+      h('span', { class: 'lrow-text' },
+        h('span', { class: 'set-label' }, IDEA_ANSWER_TITLE()[i.status] || T('An answer to your idea')),
+        h('span', { class: 'set-hint' }, i.reply || i.text)),
+      ideaStatusPill(i.status))));
+  const cards = [...friendsUI.forYou(3), ...momentsUI.forYou(3), ...answers].slice(0, 3);
+  return cards.length ? h('section', { class: 'set-group' },
+    h('h3', { class: 'set-head' }, T('For you')), h('ul', { class: 'set-stack friend-list foryou-list' }, cards)) : null;
+}
+function renderForYou() {
+  const box = $('#you-foryou');
+  const cards = forYouCards();
+  box.replaceChildren(...[cards].filter(Boolean));
+  box.hidden = !cards;
+}
 function setYouDot(n) {
   for (const dot of document.querySelectorAll('.tab[data-view="you"] .tab-dot, #me-btn .tab-dot')) { dot.hidden = !n; dot.textContent = n > 9 ? '9+' : n ? String(n) : ''; }
   const label = n ? T('You: {0} new for you', n) : T('You');
@@ -7958,37 +8049,105 @@ function setYouDot(n) {
 }
 
 // One row of a list that opens something: a label, a quiet line under it, an optional count, and a chevron.
-function navRow({ label, meta, count, current, run, route }) {
+function navRow({ label, meta, count, current, run, route, lead }) {
   return h('button', { type: 'button', class: 'lrow', 'aria-current': current ? 'page' : null, 'data-route': route, onclick: run },
+    lead || null,
     h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, label), meta && h('span', { class: 'set-hint' }, meta)),
-    count ? h('b', { class: 'tab-badge' }, String(count)) : null,
+    count ? h('b', { class: 'tag' }, String(count)) : null,
     h('i', { class: 'lrow-chev', 'aria-hidden': 'true' }));
+}
+// The line under each row: what's in the page, or its current setting. null while it's still loading.
+function youRowMeta(sub) {
+  const me = state.me;
+  const p = prefs();
+  const d = profiles.mineNow();
+  const st = d?.stats;
+  const n1 = (n, one, many) => (n === 1 ? one : many);
+  switch (sub) {
+    case 'history': return st && ([st.films && plural(st.films, 'film'), st.episodes && plural(st.episodes, 'episode')].filter(Boolean).join(' · ') || T('Nothing yet'));
+    case 'ratings': {
+      if (!st) return null;
+      const rated = d.ratings?.total || 0;
+      return rated || st.reviews ? `${n1(rated, T('1 rating'), T('{0} ratings', rated))} · ${n1(st.reviews, T('1 review'), T('{0} reviews', st.reviews))}` : T('Nothing yet');
+    }
+    case 'liked': return st && (st.likes ? n1(st.likes, T('1 title'), T('{0} titles', st.likes)) : T('Nothing yet'));
+    case 'friends': {
+      const f = friendsUI.summary();
+      if (!f.loaded) return null;
+      return [n1(f.friends, T('1 friend'), T('{0} friends', f.friends)), f.requests && n1(f.requests, T('1 request'), T('{0} requests', f.requests))].filter(Boolean).join(' · ');
+    }
+    case 'moments': {
+      const m = momentsUI.summary();
+      if (!m.loaded) return null;
+      if (m.unseen) return n1(m.unseen, T('1 new from a friend'), T('{0} new from friends', m.unseen));
+      const all = m.mine + m.shared;
+      return all ? n1(all, T('1 moment'), T('{0} moments', all)) : T('Clip one from the player’s ⋯ menu');
+    }
+    case 'activity': return T('Who watched what, and when');
+    case 'account': return me.email || T('Home network');
+    case 'look': {
+      const key = p.theme?.preset || state.rules?.defaultTheme || 'lilin';
+      return [LANGUAGES.find((l) => l.code === lang)?.name, key === 'custom' ? T('Your own') : THEMES[key]?.name].filter(Boolean).join(' · ');
+    }
+    case 'watching': {
+      const subs = (state.status.subLangs || []).find((l) => l.code === p.subLang);
+      return [subs ? T('Subtitles: {0}', subs.name) : T('No subtitles'), p.skipIntro === 'auto' ? T('Skip intros automatically') : T('Skip intro button')].join(' · ');
+    }
+    case 'devices': return pushView.loaded ? (pushView.deviceId ? T('Notifications on here') : T('Notifications off here')) : T('Notifications, TVs, Jellyfin');
+    case 'download-settings': return [PROFILE_OPTIONS.find(([k]) => k === savedProfile())?.[1], p.maxSize ? T('Up to {0} GB', p.maxSize) : null].filter(Boolean).join(' · ');
+    case 'ideas': {
+      const fresh = newIdeaAnswers().length, sent = ideasView.mine.length;
+      return fresh ? n1(fresh, T('1 new answer'), T('{0} new answers', fresh)) : sent ? n1(sent, T('1 idea sent'), T('{0} ideas sent', sent)) : T('Tell the owner what you wish Lilin did');
+    }
+    default: return null;
+  }
 }
 function renderYouRows() {
   const pages = pagesOf('you', state.me, state.status);
+  const restricted = state.me.restricted;
+  const label = (id) => (id === 'you/ratings' && restricted ? T('Ratings') : T(ROUTES[id].label));
   const season = state.status?.wrapped?.year;
   const year = season || new Date().getFullYear();
-  const top = h('div', { class: 'set-stack' }, navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'),
-    run: (e) => openWrapped(year, e.currentTarget) }));
+  const wrapped = navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'), run: (e) => openWrapped(year, e.currentTarget) });
+  // Wide screens: the list starts with you, which opens Overview (phones have the full card above the list).
+  const me = navRow({ label: state.me.email ? state.me.name : T('Home network'), meta: T('Overview'), current: state.route === 'you', run: () => setView('you'),
+    lead: people.face(state.me, { size: 36 }) });
   const groups = YOU_GROUPS().map(([key, title]) => {
-    const ids = pages.filter((id) => ROUTES[id].group === key);
-    return ids.length && h('section', { class: 'set-group' }, h('h3', { class: 'set-head' }, title),
-      h('div', { class: 'set-stack' }, ids.map((id) => navRow({ label: T(ROUTES[id].label), route: id, current: state.route === id, run: () => setView(id) }))));
+    const rows = pages.filter((id) => ROUTES[id].group === key).map((id) => {
+      const sub = ROUTES[id].sub;
+      return navRow({ label: label(id), meta: youRowMeta(sub), route: id, current: state.route === id, run: () => setView(id),
+        count: sub === 'friends' && sharesSocial() ? friendsUI.incomingCount() : sub === 'moments' ? momentsUI.unseenCount() : sub === 'ideas' ? newIdeaAnswers().length : 0 });
+    });
+    if (key === 'watching') rows.push(wrapped);
+    return rows.length && h('section', { class: 'set-group' }, title && h('h3', { class: 'set-head' }, title), h('div', { class: 'set-stack' }, rows));
   });
-  $('#you-rows').replaceChildren(top, ...groups.filter(Boolean));
+  $('#you-rows').replaceChildren(h('div', { class: 'set-stack you-me' }, me), ...groups.filter(Boolean));
 }
-// The open page: its rows in cards, one per group, as Settings had them.
+// The open page: its rows in cards, one per group, as Settings had them. The root's page is Overview (wide screens).
 function renderYouPage() {
   const page = $('#you-page');
   const sub = state.view === 'you' ? state.sub : null;
   $('#view-you').classList.toggle('on-page', Boolean(sub));
-  if (!sub || !YOU_PAGES[sub]) { page.replaceChildren(); return; }
-  const title = T(ROUTES[`you/${sub}`].label);
+  if (!sub || !YOU_PAGES[sub]) { page.replaceChildren(...youOverview()); return; }
+  const title = sub === 'ratings' && state.me.restricted ? T('Ratings') : T(ROUTES[`you/${sub}`].label);
   const nodes = YOU_PAGES[sub]().filter(Boolean);
   page.replaceChildren(h('button', { type: 'button', class: 'back-link you-back', onclick: goUp }, `‹ ${T('You')}`),
     h('h3', { class: 'you-page-title' }, title),
     ...(nodes.length ? settingsGroups(nodes, title) : [h('p', { class: 'muted' }, T('Nothing here yet.'))]));
   if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('#idea-box')?.scrollIntoView({ block: 'start' })); }
+}
+// Only the open page (its own lists loading more): the list beside it stays as it is.
+function redrawYouPage() { if (state.view === 'you' && YOU_PAGES[state.sub] && !editingSettings()) renderYouPage(); }
+// Overview: the private view of you (wide screens; on phones its card and For you sit on top of the list).
+function youOverview() {
+  const d = profiles.mineNow();
+  const recent = profiles.recentLines(d, 5);
+  return [
+    h('h3', { class: 'you-page-title' }, T('Overview')),
+    h('div', { class: 'set-stack' }, youIdentity({ numbers: true })),
+    forYouCards(),
+    recent && h('div', { class: 'set-stack' }, h('div', { class: 'you-own' }, recent), navRow({ label: T('See all'), route: 'you/history', run: () => setView('you/history') })),
+  ].filter(Boolean);
 }
 
 function accountPage() {
@@ -8371,8 +8530,10 @@ function notificationSettings() {
       toggle(p.pushEpisode !== false, (v) => saveMe({ pushEpisode: v }), T('Notify about new episodes'))));
     out.push(settingsRow(T('Watch Together invites'), T('When someone asks you to join their room. Off: nobody can invite you this way.'),
       toggle(p.pushWatch !== false, (v) => saveMe({ pushWatch: v }), T('Notify about Watch Together invites'))));
-    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new, or the owner answers an idea you sent.'),
+    out.push(settingsRow(T('Lilin updates'), T('When Lilin gets something new.'),
       toggle(p.pushUpdate !== false, (v) => saveMe({ pushUpdate: v }), T('Notify about Lilin updates'))));
+    if (!state.me?.isOwner) out.push(settingsRow(T('Answers to your ideas'), T('When the owner answers an idea or bug you sent.'),
+      toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about answers to your ideas'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Friends'), T('When someone asks to be your friend, or says yes.'), // friends
       toggle(p.pushFriend !== false, (v) => saveMe({ pushFriend: v }), T('Notify about friend requests'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Moments'), T('When a friend sends you a moment from a film or episode.'), // friends
@@ -10624,5 +10785,6 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   connectLive();
   pushDevice.registerWorker();
   setTimeout(maybeShowWhatsNew, 1200); // let the first screen settle before showing update notes
-  if (state.me?.email && !state.me?.restricted) setTimeout(() => friendsUI.load().then(maybeAskFriends), 1600); // friends: requests waiting for an answer
+  // For you (the You tab's dot) and friend requests waiting for an answer (their popup)
+  setTimeout(() => loadForYou().then(() => { if (sharesSocial()) maybeAskFriends(); }), 1600);
 })();

@@ -20,17 +20,21 @@ export const ROUTES = {
   'library/downloads': { view: 'library', tab: 'library', sub: 'downloads', label: 'Downloads' },
 
   // You: the person's own hub (replaces Settings). The root list is the phone's index; each row opens a page.
+  // Your watching is private (always your own view, also for the home network's shared account).
   you: { view: 'you', tab: 'you', label: 'You' },
-  'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(s?.admin || me?.canSeeActivity) },
+  'you/history': { view: 'you', tab: 'you', sub: 'history', group: 'watching', label: 'History', allowed: (me) => Boolean(me) },
+  'you/ratings': { view: 'you', tab: 'you', sub: 'ratings', group: 'watching', label: 'Ratings and reviews', allowed: (me) => Boolean(me && !me.restricted) }, // restricted people can't give stars
+  'you/liked': { view: 'you', tab: 'you', sub: 'liked', group: 'watching', label: 'Liked', allowed: (me) => Boolean(me) },
   'you/friends': { view: 'you', tab: 'you', sub: 'friends', group: 'people', label: 'Friends', allowed: social },
-  'you/moments': { view: 'you', tab: 'you', sub: 'moments', group: 'people', label: 'Moments', allowed: (me) => Boolean(me?.email) },
+  'you/moments': { view: 'you', tab: 'you', sub: 'moments', group: 'people', label: 'Moments', allowed: (me) => Boolean(me) },
+  'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(s?.admin || me?.canSeeActivity) },
   'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite people', allowed: (me) => Boolean(me?.canInvite && !me.isOwner) },
   'you/account': { view: 'you', tab: 'you', sub: 'account', group: 'settings', label: 'Account' },
   'you/look': { view: 'you', tab: 'you', sub: 'look', group: 'settings', label: 'Language and look' },
   'you/watching': { view: 'you', tab: 'you', sub: 'watching', group: 'settings', label: 'Watching' },
   'you/devices': { view: 'you', tab: 'you', sub: 'devices', group: 'settings', label: 'Devices and notifications' },
   'you/download-settings': { view: 'you', tab: 'you', sub: 'download-settings', group: 'settings', label: 'Download settings', allowed: (me, s) => Boolean(s?.downloads && me?.canDownload !== false) },
-  'you/ideas': { view: 'you', tab: 'you', sub: 'ideas', group: 'settings', label: 'Ideas and bugs', allowed: (me) => Boolean(me && !me.isOwner) },
+  'you/ideas': { view: 'you', tab: 'you', sub: 'ideas', group: 'ideas', label: 'Ideas and bugs', allowed: (me) => Boolean(me && !me.isOwner) },
 
   // House: the owner's tools, one tile each (the machines page used to be called House).
   house: { view: 'house', tab: 'house', label: 'House', allowed: owner },
@@ -57,7 +61,7 @@ export const LEGACY = {
 export const LINK_PARAMS = {
   friends: () => 'you/friends',
   moment: () => 'you/moments',
-  ideas: (me, s) => (s?.admin ? 'house/ideas' : 'you/ideas'),
+  ideas: (me) => (me?.isOwner ? 'house/ideas' : 'you/ideas'), // the inbox is the owner's; everyone else sends ideas
   travel: () => 'library/downloads',
   note: () => 'house/notes',
 };
