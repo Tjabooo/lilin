@@ -165,6 +165,8 @@ export const SCENES = [
   { name: 'owner-machines', path: '/#house/machines', ready: '#house-body', full: true, after: 2000 },
   { name: 'owner-activity', path: '/#activity', ready: '#activity-body', full: true, after: 1500 },
   { name: 'owner-house', path: '/#house', ready: '#house-body', full: true, after: 2000 },
+  { name: 'owner-house-needs', path: '/#house', ready: '#house-body .tool-grid', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, full: true, after: 2000,
+    probe: "return 'needs ' + document.querySelectorAll('#house-body .house-needs .lrow').length + ', dot ' + !document.querySelector('.tab[data-view=house] .tab-dot').hidden;" },
   { name: 'owner-clips', path: '/#clips', ready: '#clips-body', after: 1500 },
   { name: 'owner-notes', path: '/#notes', ready: '#notes-body', after: 1500 },
   { name: 'owner-notes-click', path: '/#notes', ready: '#notes-body .note-message', steps: ["document.querySelector('.note-draft')?.focus(); await __sleep(1200); document.querySelector('.note-draft')?.blur(); await __sleep(800);"],
