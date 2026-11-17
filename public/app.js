@@ -1936,8 +1936,8 @@ const TITLE_ACTIONS = {
   }, 'stroke-icon title-add'),
   save: (c) => c.watch?.save,
   follow: (c) => c.watch?.follow,
-  playOnTv: (c) => titleChip('playOnTv', false, 'tv', T('Play on TV'), (e) => openPicker(c.file(), e.currentTarget)),
-  toPhone: (c) => [icon('phone'), T('To phone'), (o) => openTravel(c.file(), o)],
+  playOnTv: (c) => c.file() && titleChip('playOnTv', false, 'tv', T('Play on TV'), (e) => openPicker(c.file(), e.currentTarget)),
+  toPhone: (c) => c.file() && [icon('phone'), T('To phone'), (o) => openTravel(c.file(), o)],
   keep: (c) => {
     const eligible = c.stateOf().ready.filter((f) => f.kind === 'lib' && canExtend(f));
     return [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
@@ -1946,9 +1946,9 @@ const TITLE_ACTIONS = {
   getVersion: (c) => [icon('plus'), T('Get another version'), () => c.fa?.revealAdvanced()],
   advanced: (c) => [icon('search'), T('Advanced options'), () => c.fa?.revealAdvanced()],
   dubbed: (c) => [icon('plus'), T('Dubbed'), () => (c.fa ? c.fa.chooseDub() : c.tvd?.dubBtn.click()), 'title-dubbed'],
-  identify: (c) => [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
+  identify: (c) => c.file() && [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
   delete: (c) => {
-    if (!c.tv) return [icon('trash'), T('Delete'), (o) => openDelete(c.file(), o), 'is-danger'];
+    if (!c.tv) return c.file() && [icon('trash'), T('Delete'), (o) => openDelete(c.file(), o), 'is-danger'];
     const files = c.stateOf().ready.filter((f) => f.kind === 'lib');
     // Downloads you're on, finished or not: with nothing ready yet the show is still in your library.
     const leaving = c.stateOf().transfers.filter((d) => d.mine !== false && !d.done && d.others !== undefined);
