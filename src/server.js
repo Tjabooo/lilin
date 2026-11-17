@@ -5022,7 +5022,8 @@ async function handleRequest(req, res) {
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
         && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))
         && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
-        && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))) throw new HttpError(404, 'Not found.');
+        && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))
+        && !(['GET', 'HEAD'].includes(req.method) && clips.sendDeadLink(req, res))) throw new HttpError(404, 'Not found.');
     }
     else if (isAndroidPath(url.pathname)) androidTv.handle(req, res, url, { home: !req.auth.remote, gateway: Boolean(req.tvGateway) });
     else if (!(req.method === 'GET' && preview.previewRoute(req, res, url.pathname, PREVIEW_DIR))) await serveStatic(req, res, url.pathname);
