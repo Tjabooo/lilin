@@ -1,5 +1,21 @@
 [
 {
+  "id": "2026-11-17-idea-box-look",
+  "date": "2026-11-17",
+  "title": "A nicer idea box",
+  "items": [
+    {
+      "title": "Write it like a message",
+      "text": "The idea box in Settings has a new look. Pick Idea, Something's off or Other at the top of the note, write, and press Send. Your ideas below show where each one stands (Sent, Planned, Added or Not now) with the owner's answer underneath."
+    },
+    {
+      "audience": "owner",
+      "title": "A tidier inbox",
+      "text": "Settings → Ideas now shows each idea with the sender's face, a status light and Planned / Added / Not now right under it. Answer opens a reply box only when you need it, and the scout's cards got the same cleaner look."
+    }
+  ]
+},
+{
   "id": "2026-11-17-no-side-scroll",
   "date": "2026-11-17",
   "title": "Steadier scrolling on phones",

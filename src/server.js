@@ -3865,7 +3865,7 @@ async function handleApi(req, res, url) {
   // The idea box (ideas.js): anyone sends the owner an idea for Lilin; the owner answers in Settings.
   if (p === '/api/ideas' || p.startsWith('/api/ideas/')) {
     if (p === '/api/ideas' && req.method === 'GET') {
-      return sendJson(res, 200, { mine: ideas.mine(user.id), all: user.isOwner ? ideas.all() : undefined, scout: user.isOwner ? scout.all() : undefined /* scout */ });
+      return sendJson(res, 200, { mine: ideas.mine(user.id), all: user.isOwner ? ideas.all().map((i) => ({ ...i, avatar: accounts.userById(i.userId)?.avatar || null })) : undefined, scout: user.isOwner ? scout.all() : undefined /* scout */ });
     }
     if (p === '/api/ideas' && req.method === 'POST') {
       const idea = ideas.add(user, await readJson(req));

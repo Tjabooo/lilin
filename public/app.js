@@ -76,6 +76,7 @@ const ICONS = {
   bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4M12 2V1"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  bulb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/></svg>',
   send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   upgrade: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>',
@@ -7918,7 +7919,7 @@ async function loadPush() {
 // ---- the idea box (/api/ideas, src/ideas.js) ----
 // Everyone gets a little box in Settings to send the owner ideas, with their own ideas and the
 // owner's answers under it. The owner gets the inbox instead, in the Server part of Settings.
-const ideasView = { loaded: false, loading: null, mine: [], all: null, kind: 'feature', draft: '', sending: false, filter: 'new', jump: false };
+const ideasView = { loaded: false, loading: null, mine: [], all: null, kind: 'feature', draft: '', sending: false, filter: 'new', jump: false, answering: null };
 const IDEA_KINDS = () => [['feature', T('Idea')], ['fix', T('Something’s off')], ['other', T('Other')]];
 const IDEA_STATUS = () => ({ new: T('Sent'), planned: T('Planned'), added: T('Added'), notnow: T('Not now') });
 function loadIdeas() {
@@ -7935,28 +7936,35 @@ function ideasNeeded() {
 }
 // scout: the idea scout's ideas sit at the top of the owner's inbox (public/scout.js)
 const scoutView = createScout({ h, api, toast, jsonPost, fmtAgo, rerender: () => renderSettings() });
-const ideaStatusPill = (status) => h('span', { class: `idea-status idea-${status}` }, IDEA_STATUS()[status] || status);
+// A status with a little light: Sent (dim), Planned (ring), Added (lit), Not now (out).
+const ideaStatusPill = (status) => h('span', { class: `idea-status idea-${status}` }, h('i', { 'aria-hidden': 'true' }), IDEA_STATUS()[status] || status);
+const IDEA_PLACEHOLDER = () => ({ feature: T('I wish Lilin could…'), fix: T('What’s off, and where?'), other: T('Anything you’d like to tell the owner…') });
+// The owner's answer under an idea, as a reply in a thread.
+const ideaReply = (text) => h('div', { class: 'idea-reply' }, h('span', { class: 'idea-reply-who' }, T('Owner')), h('p', {}, text));
 
 function ideaBox() {
   ideasNeeded();
-  const text = h('textarea', { class: 'idea-text', rows: '3', maxlength: '1000', placeholder: T('I wish Lilin could…'), 'aria-label': T('Your idea') });
+  const text = h('textarea', { class: 'idea-text', rows: '3', maxlength: '1000', placeholder: IDEA_PLACEHOLDER()[ideasView.kind], 'aria-label': T('Your idea') });
   text.value = ideasView.draft;
   const count = h('span', { class: 'idea-count', 'aria-hidden': 'true' });
   const send = h('button', { class: 'idea-send', type: 'submit', disabled: ideasView.sending || ideasView.draft.trim().length < 3 },
-    icon('send'), h('span', {}, T('Send')));
+    h('span', {}, T('Send')), icon('send'));
   const showCount = () => { const n = text.value.length; count.textContent = n > 800 ? `${n}/1000` : ''; };
   showCount();
   text.addEventListener('input', () => { ideasView.draft = text.value; send.disabled = ideasView.sending || text.value.trim().length < 3; showCount(); });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } });
   const kinds = h('div', { class: 'idea-kinds', role: 'radiogroup', 'aria-label': T('What kind of idea') },
     IDEA_KINDS().map(([key, label]) => {
       const b = h('button', { type: 'button', role: 'radio', class: 'idea-kind', 'aria-checked': String(ideasView.kind === key) }, label);
       b.addEventListener('click', () => {
         ideasView.kind = key;
         kinds.querySelectorAll('.idea-kind').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        text.placeholder = IDEA_PLACEHOLDER()[key];
+        text.focus();
       });
       return b;
     }));
-  const form = h('form', { class: 'idea-form' }, text, h('div', { class: 'idea-actions' }, kinds, count, send));
+  const form = h('form', { class: 'idea-form' }, kinds, text, h('div', { class: 'idea-actions' }, count, send));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (ideasView.sending || text.value.trim().length < 3) return;
@@ -7970,20 +7978,22 @@ function ideaBox() {
     finally { ideasView.sending = false; renderSettings(); }
   });
   const mine = ideasView.mine;
+  const kindNames = Object.fromEntries(IDEA_KINDS());
   return h('section', { class: 'idea-box', id: 'idea-box', 'aria-labelledby': 'idea-box-title' },
     h('div', { class: 'idea-head' },
-      h('span', { class: 'idea-bulb', 'aria-hidden': 'true' }),
+      h('span', { class: 'idea-bulb' }, icon('bulb')),
       h('div', {},
         h('h4', { class: 'idea-title', id: 'idea-box-title' }, T('Idea box')),
         h('p', { class: 'idea-sub' }, T('Something you wish Lilin did? It goes straight to the owner.')))),
     form,
     mine.length > 0 && h('details', { class: 'idea-mine', open: mine.some((i) => i.answered && Date.now() - i.answered < 7 * 86400000) || mine.length <= 3 },
-      h('summary', {}, mine.length === 1 ? T('Your idea') : T('Your ideas ({0})', mine.length)),
-      h('ul', { class: 'idea-list' }, mine.map((i) => h('li', { class: 'idea-item' },
-        h('div', { class: 'idea-meta' }, ideaStatusPill(i.status), h('span', {}, fmtAgo(i.created)),
+      h('summary', {}, h('span', {}, mine.length === 1 ? T('Your idea') : T('Your ideas')), h('span', { class: 'idea-n' }, String(mine.length))),
+      h('ul', { class: 'idea-list' }, mine.map((i) => h('li', { class: `idea-item idea-is-${i.status}` },
+        h('div', { class: 'idea-meta' }, ideaStatusPill(i.status),
+          i.kind !== 'feature' && h('span', {}, kindNames[i.kind] || i.kind), h('span', {}, fmtAgo(i.created)),
           i.status === 'new' && !i.reply && h('button', { type: 'button', class: 'idea-link', onclick: () => takeBackIdea(i) }, T('Take back'))),
         h('p', { class: 'idea-body' }, i.text),
-        i.reply && h('p', { class: 'idea-reply' }, h('span', { class: 'idea-reply-who' }, T('Owner')), i.reply))))));
+        i.reply && ideaReply(i.reply))))));
 }
 async function takeBackIdea(idea) {
   try {
@@ -8008,47 +8018,67 @@ function ideaInbox() {
   if (!ideasView.loaded) { ideasNeeded(); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
   out.push(...scoutView.section(ideasView.scout, (list) => { ideasView.scout = list; })); // scout
   const all = ideasView.all || [];
-  const counts = { new: 0, planned: 0, added: 0, notnow: 0 };
+  const counts = { new: 0, planned: 0, added: 0, notnow: 0, all: all.length };
   for (const i of all) counts[i.status] = (counts[i.status] || 0) + 1;
   const labels = IDEA_STATUS();
-  const filters = [['new', T('New')], ['planned', labels.planned], ['added', labels.added], ['notnow', labels.notnow], ['all', T('All')]]
-    .map(([key, label]) => [key, key === 'all' ? `${label} ${all.length}` : `${label} ${counts[key] || 0}`]);
-  const filterBar = segmented(filters, ideasView.filter, (v) => { ideasView.filter = v; renderSettings(); }, T('Show ideas'));
-  filterBar.classList.add('idea-filter');
-  out.push(filterBar);
+  const filters = [['new', T('New')], ['planned', labels.planned], ['added', labels.added], ['notnow', labels.notnow], ['all', T('All')]];
+  out.push(h('div', { class: 'idea-filters', role: 'group', 'aria-label': T('Show ideas') }, filters.map(([key, label]) =>
+    h('button', { type: 'button', class: 'idea-filter', 'aria-pressed': String(ideasView.filter === key),
+      onclick: () => { ideasView.filter = key; ideasView.answering = null; renderSettings(); } },
+    label, h('span', { class: 'idea-n' }, String(counts[key] || 0))))));
   const shown = ideasView.filter === 'all' ? all : all.filter((i) => i.status === ideasView.filter);
   if (!shown.length) {
-    out.push(h('p', { class: 'muted idea-empty' }, all.length ? T('Nothing here.') : T('No ideas yet. They show up here when someone uses the idea box in their Settings.')));
+    out.push(h('p', { class: 'idea-empty' }, all.length ? T('Nothing here.') : T('No ideas yet. They show up here when someone uses the idea box in their Settings.')));
     return out;
   }
   const kinds = Object.fromEntries(IDEA_KINDS());
   out.push(h('ul', { class: 'idea-list idea-inbox' }, shown.map((i) => {
-    const reply = h('input', { type: 'text', class: 'invite-note idea-reply-input', maxlength: '500', value: i.reply || '',
-      placeholder: i.name ? T('Answer {0}', i.name) : T('Answer'), 'aria-label': i.name ? T('Answer {0}', i.name) : T('Answer'), enterkeyhint: 'send' });
-    const sendReply = () => { if (reply.value.trim() !== (i.reply || '')) answerIdea(i, { reply: reply.value }); };
-    reply.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); reply.blur(); } });
-    reply.addEventListener('change', sendReply);
-    return h('li', { class: 'idea-item' },
-      h('div', { class: 'idea-meta' },
-        h('strong', {}, i.name || T('Someone')), h('span', {}, fmtAgo(i.created)),
-        i.kind !== 'feature' && h('span', { class: 'tag' }, kinds[i.kind] || i.kind)),
+    const who = i.name || T('Someone');
+    const answering = ideasView.answering === i.id;
+    let answer = null;
+    if (answering) {
+      const field = h('textarea', { class: 'idea-text', rows: '2', maxlength: '500', placeholder: T('Answer {0}', who), 'aria-label': T('Answer {0}', who) });
+      field.value = i.reply || '';
+      const save = () => answerIdea(i, { reply: field.value });
+      field.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { ideasView.answering = null; renderSettings(); }
+      });
+      answer = h('div', { class: 'idea-form idea-answer' }, field,
+        h('div', { class: 'idea-actions' },
+          h('button', { type: 'button', class: 'idea-link', onclick: () => { ideasView.answering = null; renderSettings(); } }, T('Cancel')),
+          h('button', { type: 'button', class: 'idea-send', onclick: save }, h('span', {}, T('Send')), icon('send'))));
+      requestAnimationFrame(() => { field.focus(); field.setSelectionRange(field.value.length, field.value.length); });
+    }
+    return h('li', { class: `idea-item idea-is-${i.status}` },
+      h('div', { class: 'idea-from' },
+        people.face({ name: who, avatar: i.avatar }, { size: 32 }),
+        h('div', { class: 'idea-from-text' },
+          h('strong', {}, who),
+          h('span', {}, [i.kind !== 'feature' ? kinds[i.kind] || i.kind : null, fmtAgo(i.created)].filter(Boolean).join(' · '))),
+        ideaStatusPill(i.status),
+        h('button', { type: 'button', class: 'idea-delete', 'aria-label': T('Delete'), title: T('Delete'), onclick: () => deleteIdea(i) }, icon('trash'))),
       h('p', { class: 'idea-body' }, i.text),
-      h('div', { class: 'idea-owner' },
-        segmented([['planned', labels.planned], ['added', labels.added], ['notnow', labels.notnow]], i.status,
-          (v) => answerIdea(i, { status: v === i.status ? 'new' : v }), T('Mark idea')),
-        h('button', { type: 'button', class: 'idea-link', onclick: () => deleteIdea(i) }, T('Delete'))),
-      reply);
+      !answering && i.reply && ideaReply(i.reply),
+      answer,
+      !answering && h('div', { class: 'idea-owner' },
+        h('div', { class: 'idea-marks', role: 'group', 'aria-label': T('Mark idea') },
+          ['planned', 'added', 'notnow'].map((key) => h('button', { type: 'button', class: `idea-mark idea-mark-${key}`, 'aria-pressed': String(i.status === key),
+            onclick: () => answerIdea(i, { status: i.status === key ? 'new' : key }) }, labels[key]))),
+        h('button', { type: 'button', class: 'idea-answer-open', onclick: () => { ideasView.answering = i.id; renderSettings(); } },
+          i.reply ? T('Edit answer') : T('Answer'))));
   })));
   return out;
 }
 async function answerIdea(idea, change) {
   try {
     const r = await api(`/api/ideas/${idea.id}`, jsonPost(change));
-    ideasView.all = (ideasView.all || []).map((i) => (i.id === idea.id ? r.idea : i));
+    ideasView.all = (ideasView.all || []).map((i) => (i.id === idea.id ? { ...r.idea, avatar: i.avatar } : i));
     ideasView.mine = ideasView.mine.map((i) => (i.id === idea.id ? r.idea : i));
-    if ('reply' in change) toast(r.idea.reply ? T('Answer sent') : T('Answer removed'));
-  } catch (err) { toast(err.message); }
-  renderSettings();
+    if ('reply' in change) { ideasView.answering = null; toast(r.idea.reply ? T('Answer sent') : T('Answer removed')); }
+    return true;
+  } catch (err) { toast(err.message); return false; }
+  finally { renderSettings(); }
 }
 async function deleteIdea(idea) {
   if (!confirm(T('Delete this idea?'))) return;

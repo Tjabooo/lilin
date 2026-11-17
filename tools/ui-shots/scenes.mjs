@@ -85,6 +85,7 @@ export const SCENES = [
     "document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true })); await __sleep(500);"] },
 
   // ---- Settings ----
+  { name: 'ideas', path: '/#settings', ready: '#idea-box', steps: ["document.querySelector('#idea-box').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(700);"] },
   { name: 'settings', path: '/#settings', ready: '#settings-body .settings-group, #settings-body section, #settings-body h3', full: true, after: 1200 },
   { name: 'whats-new', path: '/', ready: '#discover-body .shelf', whatsNew: true, after: 2500 },
 
@@ -105,6 +106,9 @@ export const SCENES = [
   { name: 'owner-downloads-only', path: '/#library', ready: '.unified-library', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
     steps: ["const s = document.querySelector('.library-availability select'); s.value = 'downloading'; s.dispatchEvent(new Event('change')); await __sleep(800);"] },
   { name: 'owner-library-empty', path: '/#library', ready: '.unified-library', mocks: { '^/api/library': { items: [], server: [], shows: [] }, '^/api/downloads': { items: [] } }, after: 1200 },
+  { name: 'owner-ideas', path: '/#settings', ready: '[data-anchor="idea-inbox"]', steps: ["document.querySelector('[data-anchor=\"idea-inbox\"]').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(700);"] },
+  { name: 'owner-ideas-inbox', path: '/#settings', ready: '.idea-filters', steps: ["document.querySelector('.idea-filters').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); await __sleep(700);"] },
+  { name: 'owner-ideas-answer', path: '/#settings', ready: '.idea-answer-open', steps: ["document.querySelector('.idea-answer-open').click(); await __sleep(400); document.querySelector('.idea-answer').scrollIntoView({ block: 'center' }); await __sleep(500);"] },
   { name: 'owner-settings', path: '/#settings', ready: '#settings-body h3', full: true, after: 1500 },
   { name: 'owner-activity', path: '/#activity', ready: '#activity-body', full: true, after: 1500 },
   { name: 'owner-house', path: '/#house', ready: '#house-body', full: true, after: 2000 },

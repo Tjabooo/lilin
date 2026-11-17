@@ -1,4 +1,35 @@
 {
+  "2026-11-17-idea-box-look": {
+    "title": "En snyggare idélåda",
+    "items": {
+      "Write it like a message": {
+        "title": "Skriv som ett meddelande",
+        "text": "Idélådan i Inställningar har fått ett nytt utseende. Välj Idé, Något är fel eller Annat överst i lappen, skriv och tryck på Skicka. Under den ser du var dina idéer står (Skickad, Planerad, Tillagd eller Inte nu) med ägarens svar under."
+      },
+      "A tidier inbox": {
+        "title": "En snyggare inkorg",
+        "text": "Inställningar → Idéer visar nu varje idé med avsändarens ansikte, en statuslampa och Planerad / Tillagd / Inte nu direkt under. Svara öppnar en svarsruta bara när du behöver den, och scoutens kort fick samma renare utseende."
+      }
+    }
+  },
+  "2026-11-17-no-side-scroll": {
+    "title": "Stadigare scrollning på telefoner",
+    "items": {
+      "No more sliding sideways": {
+        "title": "Ingen mer glidning i sidled",
+        "text": "På en telefon kunde hela sidan glida lite åt sidan när du scrollade ner i Aktivitet. Nu står sidan still och scrollar bara upp och ner."
+      }
+    }
+  },
+  "2026-11-17-likes-phone": {
+    "title": "Gillningar på telefoner",
+    "items": {
+      "Tidier Liked by line": {
+        "title": "Snyggare Gillas av-rad",
+        "text": "När många gillar en titel hamnar ansiktena och namnen nu på en egen rad under tummarna i stället för att trängas i en smal kolumn på telefonen."
+      }
+    }
+  },
   "2026-11-17-moments": {
     "title": "Ögonblick",
     "items": {
