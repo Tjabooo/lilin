@@ -5,6 +5,10 @@
   "title": "A round of fixes",
   "items": [
     {
+      "title": "Tidier bio box",
+      "text": "The Bio field on your profile is now a normal rounded box instead of a stretched pill, so longer bios no longer run into the curved edges."
+    },
+    {
       "title": "No Add on films that aren't out yet",
       "text": "Films that are only in cinemas and shows that haven't started airing no longer offer Add to library on their cards. Save or Follow them instead, and Lilin adds them once they're out."
     },
