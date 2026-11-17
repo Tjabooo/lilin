@@ -65,7 +65,9 @@ export function videoFilter(video, height, { tonemap = true } = {}) {
 }
 
 // ffmpeg arguments for pieces `start`… of one stream.
-export function streamArgs({ input, dir, video, audio, quality, start = 0, encoder = 'nvenc', tonemap = true }) {
+// linear: read the input from its start without seeking (a file still downloading whose end isn't there yet, see
+// partial-stream.js linearStart); only for a run from the very beginning.
+export function streamArgs({ input, dir, video, audio, quality, start = 0, encoder = 'nvenc', tonemap = true, linear = false }) {
   const q = QUALITIES[quality];
   const at = start * SEGMENT;
   const args = ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y'];
@@ -73,6 +75,7 @@ export function streamArgs({ input, dir, video, audio, quality, start = 0, encod
   // the server, same picture). A GPU that can't do it ends in the x264 fallback below, without this.
   if (encoder === 'nvenc' && tonemap && isHdr(video)) args.push('-hwaccel', 'cuda');
   if (at > 0) args.push('-ss', String(at));
+  else if (linear) args.push('-seekable', '0');
   args.push('-i', input, '-map', `0:${video.index}`);
   if (audio) args.push('-map', `0:${audio.index}`);
   args.push('-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1', '-vf', videoFilter(video, q.height, { tonemap }));
@@ -90,9 +93,9 @@ export function streamArgs({ input, dir, video, audio, quality, start = 0, encod
 }
 
 const probeCache = new Map();
-function runProbe(input, { size, timeout = 60000 }) {
+function runProbe(input, { size, timeout = 60000, linear = false }) {
   return new Promise((resolve, reject) => {
-    execFile(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', input],
+    execFile(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', ...(linear ? ['-seekable', '0'] : []), input],
       { timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
         if (error) return reject(new Error('Couldn’t read this video.'));
         try {
@@ -150,7 +153,8 @@ export class PhoneStreams {
 
   // One session per play link (its signature). Same link = same session, also across pieces.
   // `info` = already probed (a file still downloading is read over HTTP, see partial-stream.js).
-  async open(key, { file, quality, audioIndex = null, label = '', info: known = null }) {
+  // linear(): true while a run from the beginning should read the input without seeking (streamArgs).
+  async open(key, { file, quality, audioIndex = null, label = '', info: known = null, linear = null }) {
     let s = this.sessions.get(key);
     if (s) { s.last = Date.now(); return s; }
     if (!validQuality(quality)) throw Object.assign(new Error('Unknown quality.'), { status: 400 });
@@ -159,7 +163,7 @@ export class PhoneStreams {
     if (s) return s;
     const safe = key.replace(/[^\w-]/g, '').slice(0, 40);
     s = {
-      key, file, quality: String(quality), label, info, audio: pickAudio(info.audios, audioIndex),
+      key, file, quality: String(quality), label, info, audio: pickAudio(info.audios, audioIndex), linear,
       dir: path.join(this.dir, safe), proc: null, start: 0, next: 0, last: Date.now(), want: 0, error: null,
     };
     fs.mkdirSync(s.dir, { recursive: true });
@@ -229,7 +233,8 @@ export class PhoneStreams {
     if (running.length >= MAX_RUNNING) this.stop(running.sort((a, b) => a.last - b.last)[0]);
     const caps = await this.capabilities();
     const encoder = caps.nvenc && !this.nvencBroken ? 'nvenc' : 'x264';
-    const args = streamArgs({ input: s.file, dir: s.dir, video: s.info.video, audio: s.audio, quality: s.quality, start: n, encoder, tonemap: caps.zscale });
+    const args = streamArgs({ input: s.file, dir: s.dir, video: s.info.video, audio: s.audio, quality: s.quality, start: n, encoder, tonemap: caps.zscale,
+      linear: n === 0 && Boolean(s.linear?.()) });
     let child;
     try { child = this.spawnFn(this.ffmpeg, args, { windowsHide: true }); } catch (e) { s.error = e.message; return; }
     s.proc = child;

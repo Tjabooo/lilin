@@ -277,9 +277,10 @@ export class ColdStarts {
 
   // Stopping and starting the torrent drops the stuck request (and every connection, which come back in seconds on a
   // lively swarm). Only while it's starting, on a fast download, when playhead isn't there to fetch that piece itself
-  // (or has hardly any peers), and once.
+  // from other peers (playhead 0.2.5+ takes over a piece qBittorrent has been stuck on for 8 s), and once.
   async unstick(c, entry, now) {
-    if (!isCold(c, now) || (entry.assist && entry.assist.peers >= 3) || !this.deps.kick) return;
+    const helping = this.deps.partial.helping ? this.deps.partial.helping(entry) : Boolean(entry.assist);
+    if (!isCold(c, now) || (helping && entry.assist.peers >= 1) || !this.deps.kick) return;
     const edge = edgePiece(entry.layout, entry.states);
     if (c.edge?.piece !== edge) { c.edge = { piece: edge, since: now }; return; }
     if ((c.kicks || 0) >= MAX_KICKS || !stuckEdge(entry.layout, entry.states, edge, c.edge.since, now)) return;

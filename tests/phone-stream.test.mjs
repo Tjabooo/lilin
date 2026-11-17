@@ -64,6 +64,12 @@ test('ffmpeg args start at a piece, keep its timeline and force keyframes on pie
   assert.ok(!plain.includes('-ss'));
   assert.equal(plain[plain.indexOf('-c:v') + 1], 'libx264');
   assert.ok(!plain.includes('-c:a'));
+  assert.ok(!plain.includes('-seekable'));
+  // A Matroska file whose end isn't downloaded yet: read from the start without seeking to its end (only from 0).
+  const linear = streamArgs({ input: 'in.mkv', dir: 'D', video: { index: 0 }, audio: null, quality: '720', start: 0, linear: true });
+  assert.equal(linear[linear.indexOf('-seekable') + 1], '0');
+  assert.ok(linear.indexOf('-seekable') < linear.indexOf('-i'));
+  assert.ok(!streamArgs({ input: 'in.mkv', dir: 'D', video: { index: 0 }, audio: null, quality: '720', start: 3, linear: true }).includes('-seekable'), 'a seek needs a seekable input');
   assert.equal(videoFilter({}, 720), "scale='trunc(min(720,ih)*dar/2+0.5)*2':'trunc(min(720,ih)/2)*2':flags=bicubic,setsar=1,format=yuv420p");
 });
 

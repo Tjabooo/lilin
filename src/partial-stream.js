@@ -41,6 +41,18 @@ const SHORT_READ_MS = 30_000;    // a verified piece that isn't readable yet (st
 const ASSIST_LEAD = { min: 8, goal: 20, graceMs: 8_000 };
 const START_LEAD_BYTES = 64 * 1024 * 1024;
 const ASSIST_WAIT_MS = 5_000;    // how long the first open waits for playhead, so the probe reads through it
+// playhead not answering (3 calls in a row): reads go to qBittorrent's file meanwhile, and playhead keeps its stream (and
+// its peers) for when it answers again. Only after this long is it closed and started afresh a minute later.
+const ASSIST_QUIET_MAX_MS = 90_000;
+// A read through playhead that has brought nothing for this long while qBittorrent has those bytes: that part comes
+// from qBittorrent's file instead (up to RESCUE_BYTES), then reads go through playhead again.
+const RESCUE_MS = 4_000;
+const RESCUE_BYTES = 32 * 1024 * 1024;
+// Matroska keeps optional parts (tags, cues) at the end, and ffmpeg reads them before the first picture when it can
+// seek. Read straight from the start instead, nothing there is needed to play from the beginning, so the start doesn't
+// wait for the file's last piece (tested 2026-11-17: same streams, duration and bitrate; MP4 is left alone, its index
+// can be at the end).
+const LINEAR_START = /\.(mkv|webm)$/i;
 // A download bringing the picture this many times faster than it plays: the minimum lead is enough, it only grows.
 const FAST_MARGIN = 2;
 // A first-time watch (prewarm): Play now's download mode from the moment the file list is known, kept this long
@@ -239,7 +251,17 @@ export class PartialStreams {
   }
 
   // Readable from qBittorrent's file or playhead's pieces.
-  readable(e, from = 0) { return readableBytes(e.layout, e.pieceSize, e.merged || e.states, from); }
+  readable(e, from = 0) { return readableBytes(e.layout, e.pieceSize, this.helping(e) ? e.merged || e.states : e.states, from); }
+
+  // playhead is there for this video and answering.
+  helping(e) { return Boolean(e.assist && this.assist && !e.assistQuiet); }
+
+  // ffmpeg may read this video from the start without seeking to its end first (see LINEAR_START): a Matroska file
+  // whose last piece isn't there yet.
+  linearStart(e) {
+    if (!LINEAR_START.test(e.name || '')) return false;
+    return this.readable(e, e.size - 1) === 0;
+  }
 
   // ---- playhead next to qBittorrent ----
   // Starts playhead on this torrent (once at a time; after a failure, again a minute later).
@@ -272,8 +294,14 @@ export class PartialStreams {
       a.peers = Number(st?.peers_connected) || 0;
       e.merged = mergeStates(e.states, a.own);
       e.assistFailures = 0;
+      if (e.assistQuiet) { this.log.info?.(`[play now] ${e.name}: playhead answers again`); e.assistQuiet = null; }
     } catch (error) {
-      if (++e.assistFailures >= 3) this.dropAssist(e, error);
+      if (error?.status === 404) return this.dropAssist(e, error); // its stream is gone (playhead started again)
+      if (++e.assistFailures < 3) return;
+      if (!e.assistQuiet) {
+        e.assistQuiet = Date.now();
+        this.log.warn?.(`[play now] ${e.name}: playhead isn’t answering (${error?.message || error}); reading from qBittorrent meanwhile`);
+      } else if (Date.now() - e.assistQuiet > ASSIST_QUIET_MAX_MS) this.dropAssist(e, error);
     }
   }
 
@@ -283,6 +311,7 @@ export class PartialStreams {
     const id = e.assist.id;
     e.assist = null;
     e.merged = null;
+    e.assistQuiet = null;
     e.assistTriedAt = Date.now();
     this.assist?.close(id).catch(() => {});
   }
@@ -292,13 +321,22 @@ export class PartialStreams {
     // Fresh piece states first (so playhead doesn't fetch what qBittorrent just got), and every second
     // while the read lasts: nothing else asks for them while playback is reading through playhead.
     await this.refresh(e);
-    const tick = setInterval(() => { this.refresh(e).catch(() => {}); }, POLL_MS);
+    let last = Date.now(), rescued = false;
+    // Rescue: nothing from playhead for a while, but qBittorrent has the next bytes. (Also when playhead hangs.)
+    const own = new AbortController();
+    const stop = () => own.abort();
+    signal.addEventListener('abort', stop, { once: true });
+    const tick = setInterval(() => {
+      this.refresh(e).catch(() => {});
+      if (Date.now() - last >= RESCUE_MS && readableBytes(e.layout, e.pieceSize, e.states, pos.at) > 0) { rescued = true; own.abort(); }
+    }, POLL_MS);
     tick.unref?.();
-    const r = await this.assist.fetchRange(e.assist.url, pos.at, end, signal).catch((error) => { clearInterval(tick); throw error; });
-    if (r.status !== 206 && r.status !== 200) { clearInterval(tick); throw new Error(`playhead answered ${r.status}`); }
-    const reader = r.body.getReader();
-    let last = Date.now();
+    const rescue = () => Object.assign(new Error('playhead stalled on bytes qBittorrent has'), { rescue: true });
+    let reader = null;
     try {
+      const r = await this.assist.fetchRange(e.assist.url, pos.at, end, own.signal);
+      if (r.status !== 206 && r.status !== 200) throw new Error(`playhead answered ${r.status}`);
+      reader = r.body.getReader();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -310,7 +348,10 @@ export class PartialStreams {
         if (!res.write(value)) await waitDrain(res, signal);
         if (signal.aborted) return;
       }
-    } finally { clearInterval(tick); reader.releaseLock?.(); }
+    } catch (error) {
+      if (rescued && !signal.aborted) throw rescue();
+      throw error;
+    } finally { clearInterval(tick); signal.removeEventListener('abort', stop); reader?.releaseLock?.(); }
     if (pos.at <= end) throw new Error('playhead’s stream ended early');
   }
 
@@ -333,11 +374,11 @@ export class PartialStreams {
         if (waitingSince != null && e.started) { e.holds += 1; e.heldMs += Date.now() - waitingSince; }
         return n;
       }
-      if (e.assist && this.assist) return 0;
+      if (this.helping(e)) return 0;
       waitingSince ??= Date.now();
       await this.refresh(e);
       if (e.gone) throw failure(410, 'That download no longer exists.');
-      if (own() > 0 || (e.assist && this.assist)) continue;
+      if (own() > 0 || this.helping(e)) continue;
       await sleep(POLL_MS, signal);
     }
   }
@@ -365,18 +406,23 @@ export class PartialStreams {
     let handle = null;
     try {
       let at = start;
+      let direct = -1; // up to here, straight from qBittorrent's file (playhead stalled on bytes it has: rescue)
       while (at <= end) {
         // Through playhead whenever it's there (also when it comes up in the middle of a read).
-        if (e.assist && this.assist) {
+        if (at >= direct && this.helping(e)) {
           const pos = { at };
           try { await this.proxyAssist(e, res, pos, end, stop.signal); }
-          catch (error) { if (stop.signal.aborted) return; this.dropAssist(e, error); }
+          catch (error) {
+            if (stop.signal.aborted) return;
+            if (error.rescue) direct = pos.at + RESCUE_BYTES;
+            else this.dropAssist(e, error);
+          }
           at = pos.at;
           if (stop.signal.aborted) return;
           continue;
         }
-        const ready = await this.waitReadable(e, at, stop.signal);
-        if (!ready) continue;
+        const ready = at < direct && this.helping(e) ? readableBytes(e.layout, e.pieceSize, e.states, at) : await this.waitReadable(e, at, stop.signal);
+        if (!ready) { direct = -1; continue; }
         handle ||= await this.openWhenWritten([e.file, e.finalFile], stop.signal);
         const buffer = Buffer.allocUnsafe(Math.min(ready, READ_BYTES, end - at + 1));
         const { bytesRead } = await this.readFully(handle, buffer, at, stop.signal);
@@ -467,7 +513,10 @@ export class PartialStreams {
     if (e.info || e.probing || e.probeFailures >= MAX_PROBE_FAILURES) return;
     const input = await this.inputUrl(e);
     if (e.info || e.probing) return;
-    e.probing = this.probe(input, { size: e.size, timeout: PROBE_MS })
+    const linear = this.linearStart(e);
+    e.probing = this.probe(input, { size: e.size, timeout: PROBE_MS, linear })
+      // (Read from the start only, a file that needs its end after all gets the usual probe.)
+      .catch((error) => (linear ? this.probe(input, { size: e.size, timeout: PROBE_MS }) : Promise.reject(error)))
       .then((info) => { e.info = info; })
       .catch((error) => { e.probeFailures += 1; e.probeError = error.message; })
       .finally(() => { e.probing = null; });
@@ -477,9 +526,9 @@ export class PartialStreams {
   checkStart(e) {
     if (!e.info || e.started) return e.started;
     const readable = this.readable(e, 0);
-    const lead = e.assist ? ASSIST_LEAD : null;
+    const lead = this.helping(e) ? ASSIST_LEAD : null;
     if (readable >= startBytes(e.size, e.info.bitrate, lead?.min)) e.enoughSince ??= Date.now();
-    const speed = (Number(e.torrent?.dlspeed) || 0) + (e.assist?.rate || 0);
+    const speed = (Number(e.torrent?.dlspeed) || 0) + (this.helping(e) ? e.assist.rate || 0 : 0);
     e.started = readyToStart(readable, e.size, e.info.bitrate, e.enoughSince, Date.now(), lead, speed);
     return e.started;
   }
@@ -511,7 +560,7 @@ export class PartialStreams {
   // playhead's own pieces for a torrent ('' when it isn't helping): listed downloads count them as there.
   assistOwn(hash) {
     hash = String(hash || '').toLowerCase();
-    for (const e of this.entries.values()) if (e.hash === hash && e.assist?.own) return e.assist.own;
+    for (const e of this.entries.values()) if (e.hash === hash && this.helping(e) && e.assist.own) return e.assist.own;
     return '';
   }
 
@@ -523,7 +572,7 @@ export class PartialStreams {
 
   startStatus(e, speed) {
     if (e.started) return { startProgress: 1, startEta: 0 };
-    const need = startBytes(e.size, e.info?.bitrate || 0, e.assist ? ASSIST_LEAD.goal : START_GOAL_SECONDS);
+    const need = startBytes(e.size, e.info?.bitrate || 0, this.helping(e) ? ASSIST_LEAD.goal : START_GOAL_SECONDS);
     const have = Math.min(need, this.readable(e, 0));
     return { startProgress: need ? have / need : 1, startEta: speed > 0 ? Math.ceil((need - have) / speed) : null };
   }
@@ -532,14 +581,14 @@ export class PartialStreams {
   status(e) {
     const t = e.torrent || {};
     const progress = fileProgress(e.layout, e.states);
-    const speed = (Number(t.dlspeed) || 0) + (e.assist?.rate || 0);
+    const speed = (Number(t.dlspeed) || 0) + (this.helping(e) ? e.assist.rate || 0 : 0);
     const left = e.size * (1 - progress);
     const bitrate = e.info?.bitrate || 0;
     return { id: e.id, done: progress >= 1, progress, inOrder: e.size ? this.readable(e, 0) / e.size : 0, speed, eta: speed > 0 ? Math.round(left / speed) : null,
       state: t.state || '', paused: /^(paused|stopped)/.test(t.state || ''), seeds: Number.isFinite(t.num_seeds) ? t.num_seeds : null,
       keepsUp: bitrate > 0 ? speed * 8 >= bitrate * 1.1 : null, duration: e.info?.duration || null,
       // playhead is fetching what the player needs next (so a seek past the download doesn't wait for it).
-      assisted: Boolean(e.assist),
+      assisted: this.helping(e),
       // Before playback: how far along the start it waits for is (START_GOAL_SECONDS of video, or the
       // minimum until the video's bitrate is known), and roughly how long that takes at this speed.
       ...this.startStatus(e, speed) };

@@ -3275,7 +3275,7 @@ async function sendPartialPiece(req, res, url, { id, variant }) {
   if (!entry.info) throw new HttpError(503, 'This video is still starting.');
   const input = await partialStreams.inputUrl(entry);
   const label = `${streamLabel(entry.file)} · ${quality}p`;
-  const session = await phoneStreams.open(sig, { file: input, info: entry.info, quality, label });
+  const session = await phoneStreams.open(sig, { file: input, info: entry.info, quality, label, linear: () => partialStreams.linearStart(entry) });
   const headers = { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
   if (name === 'index.m3u8') {
     const body = phoneStreams.playlist(session);

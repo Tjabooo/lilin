@@ -71,18 +71,20 @@ function rig(t, { size, states }) {
   };
 }
 
-// A playhead stand-in serving `data`; `cutAfter` bytes into a response it drops the connection.
-async function fakePlayhead(t, data, { cutAfter = Infinity, own = '' } = {}) {
+// A playhead stand-in serving `data`; `cutAfter` bytes into a response it drops the connection, `stallAfter` bytes
+// into one it sends nothing more (and never ends it).
+async function fakePlayhead(t, data, { cutAfter = Infinity, stallAfter = Infinity, own = '' } = {}) {
   const calls = { open: [], update: [], close: [] };
   const server = http.createServer((req, res) => {
     const [, s, e] = /bytes=(\d+)-(\d+)/.exec(req.headers.range || '') || [];
     const start = Number(s || 0), end = Number(e || data.length - 1);
     res.writeHead(206, { 'Content-Length': end - start + 1 });
     const body = data.subarray(start, end + 1);
+    if (body.length > stallAfter) { res.write(body.subarray(0, stallAfter)); return; }
     if (body.length > cutAfter) { res.write(body.subarray(0, cutAfter)); setTimeout(() => res.destroy(), 50); } else res.end(body);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  t.after(() => server.close());
+  t.after(() => { server.closeAllConnections?.(); server.close(); });
   const port = server.address().port;
   const assist = {
     ready: async () => true,
@@ -147,6 +149,90 @@ test('if playhead fails mid-read, the read carries on from qBittorrent at the sa
   assert.ok(got.equals(real), 'no gap, no repeat at the switch-over');
   assert.equal(entry.assist, null, 'playhead was dropped');
   assert.deepEqual(calls.close, ['x1']);
+});
+
+// 2026-11-17: Blade Runner 2049 waited 168 s for its start while playhead was stuck (its API timing out); every such
+// timeout used to end playhead's stream for good. Now: a read stalled on bytes qBittorrent has comes from its file, and
+// playhead not answering means qBittorrent alone until it answers again, with its stream (and peers) kept.
+test('a read through playhead that stalls on bytes qBittorrent has comes from qBittorrent’s file; playhead stays', { timeout: 20000 }, async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-ph-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const real = crypto.randomBytes(8192);
+  const file = path.join(dir, 'Film.mkv');
+  await fs.writeFile(file, real); // qBittorrent has it all
+  const make = rig(t, { size: 8192, states: () => new Array(8).fill(2) });
+  const { assist, calls } = await fakePlayhead(t, real, { stallAfter: 1500 });
+  const streams = make(file, { assist, exportTorrent: async () => null });
+  const { entry } = await streams.open(`${HASH}-0`);
+  await entry.assisting;
+  assert.ok(entry.assist);
+  const url = await streams.inputUrl(entry);
+  const at = Date.now();
+  const got = Buffer.from(await (await fetch(url)).arrayBuffer());
+  assert.ok(got.equals(real), 'all of it, no gap, no repeat');
+  assert.ok(Date.now() - at < 9000, 'rescued within seconds');
+  assert.ok(entry.assist, 'playhead is still helping');
+  assert.deepEqual(calls.close, []);
+});
+
+test('playhead not answering: qBittorrent alone meanwhile, the same stream again once it answers; a lost stream is dropped', { timeout: 15000 }, async (t) => {
+  const real = crypto.randomBytes(8192);
+  const make = rig(t, { size: 8192, states: () => [2, 2, 0, 0, 0, 0, 0, 0] });
+  const { assist, calls } = await fakePlayhead(t, real, { own: '00000022' });
+  const streams = make('/nowhere/Film.mkv', { assist, exportTorrent: async () => null });
+  const { entry } = await streams.open(`${HASH}-0`);
+  await entry.assisting;
+  let fail = null;
+  assist.update = async () => { if (fail) throw fail; };
+  await streams.refresh(entry, { force: true });
+  assert.equal(streams.readable(entry, 6144), 2048, 'its pieces count while it answers');
+  fail = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  for (let i = 0; i < 3; i++) await streams.refresh(entry, { force: true });
+  assert.ok(entry.assist && entry.assistQuiet, 'quiet, not dropped');
+  assert.equal(streams.helping(entry), false);
+  assert.equal(streams.readable(entry, 6144), 0, 'its pieces don’t count while it doesn’t answer');
+  assert.equal(streams.status(entry).assisted, false);
+  fail = null;
+  await streams.refresh(entry, { force: true });
+  assert.equal(entry.assistQuiet, null);
+  assert.equal(streams.helping(entry), true, 'helping again, same stream');
+  assert.deepEqual(calls.close, []);
+  fail = Object.assign(new Error('playhead: no such stream'), { status: 404 });
+  await streams.refresh(entry, { force: true });
+  assert.equal(entry.assist, null, 'its stream is gone: dropped (started again later)');
+});
+
+// Matroska keeps tags and cues at its end, which ffmpeg reads first when it can seek: a start that doesn't wait for the
+// last piece reads the file from the start instead (MP4 is left alone: its index can be at the end).
+test('a Matroska start doesn’t wait for the last piece: probed from the start, the usual probe if that fails', async (t) => {
+  let states = [2, 2, 2, 0, 0, 0, 0, 0];
+  const make = rig(t, { size: 8192, states: () => states });
+  const asked = [];
+  let linearFails = false;
+  const probe = async (input, opts) => { asked.push(Boolean(opts.linear)); if (opts.linear && linearFails) throw new Error('no'); return { duration: 100, bitrate: 1000, height: 1080 }; };
+  const streams = make('/x/Film.mkv', { probe });
+  const { entry } = await streams.open(`${HASH}-0`);
+  await entry.probing;
+  assert.deepEqual(asked, [true]);
+  assert.equal(streams.linearStart(entry), true);
+  states = new Array(8).fill(2);
+  await streams.refresh(entry, { force: true });
+  assert.equal(streams.linearStart(entry), false, 'the end is there: the usual way');
+  const mp4 = make('/x/Film.mp4', { probe });
+  mp4.entries.clear();
+  const { entry: m } = await mp4.open(`${HASH}-0`);
+  m.name = 'Film.mp4';
+  assert.equal(mp4.linearStart(m), false);
+  // A file that needs its end after all (no duration up front): probed the usual way at once, not counted as a failure.
+  states = [2, 2, 2, 0, 0, 0, 0, 0];
+  linearFails = true;
+  asked.length = 0;
+  const again = make('/x/Film.mkv', { probe });
+  const { entry: e2 } = await again.open(`${HASH}-0`);
+  await e2.probing;
+  assert.deepEqual(asked, [true, false]);
+  assert.ok(e2.info);
+  assert.equal(e2.probeFailures, 0);
 });
 
 test('playhead can’t start without a safe binding, and a missing program just means qBittorrent alone', async (t) => {
