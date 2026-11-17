@@ -46,6 +46,7 @@ import { createSvtQueue, expectedSize } from './svt-queue.js';
 import { createDocumentaries } from './documentaries.js';
 import { createDetails, episodeCredits } from './details.js'; // details: More details on title pages
 import { createVibes } from './vibes.js'; // vibes: Discover's Moods
+import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { scratchPlan, liveRoot, usesScratch } from './scratch.js';
 import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
@@ -341,6 +342,26 @@ moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => con
     notify(ids, 'share', { title: `${from} sent you a moment`, body: m.note || [m.title, m.label].filter(Boolean).join(' · '), url: `/?moment=${m.id}`, tag: `moment-${m.id}` });
     for (const id of ids) live.publish('moments', { audience: 'user', userId: id });
   } });
+// pick: Pick together (match.js): everyone swipes the same posters; a title everyone says yes to is a match.
+const match = createMatch({
+  tmdb: (endpoint, params, lang) => (TMDB_LANGUAGES[lang] ? tmdb(endpoint, params, TMDB_LANGUAGES[lang]) : tmdb(endpoint, params)),
+  mapTitle, hasDevice: (id) => push.hasDevice(id), notify, publish: (userId) => live.publish('match', { audience: 'user', userId }),
+  serverKeys: async () => (await liveLibrary()).map((i) => i.titleKey).filter(Boolean),
+  // a match becomes a Watch Together room (or a planned party) on the server's copy of the film, added to your library
+  startRoom: async (user, card, { clientId, startsAt }) => {
+    const items = (await libraryVisibleItems(await scanLibrary(), user)) || [];
+    const ids = await shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), null);
+    const copies = items.filter((i) => i.season == null && Number(ids.get(i.id)?.tmdbId) === Number(card.id) && !ids.get(i.id)?.movieAmbiguous);
+    const mine = accounts.libraryOf(user.id);
+    const copy = copies.find((i) => mine.has(accounts.mediaKey(i.full))) || copies[0];
+    if (!copy) throw new HttpError(409, 'That film isn’t on the server yet. Open it to download it first.');
+    if (accounts.addEntry(user.id, accounts.mediaKey(copy.full), 'added')) live.publish('library', { audience: 'user', userId: user.id });
+    const media = roomLibraryMedia(copy.id);
+    const room = startsAt != null ? watchRooms.plan(user, media, startsAt) : watchRooms.create(user, media, String(clientId || ''), 0);
+    if (startsAt != null) live.publish('parties');
+    return room;
+  },
+});
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
@@ -4297,6 +4318,16 @@ async function handleApi(req, res, url) {
     if (!data) throw new HttpError(404, 'There’s no such mood.');
     return sendJson(res, 200, withoutDisliked(user, data));
   }
+  // pick: Pick together (match.js): start a pick, join one, swipe, invite, watch a match together
+  if (p === '/api/match' || p.startsWith('/api/match/')) {
+    if (!tmdbOn()) throw new HttpError(503, 'Picking together needs TMDB. Add TMDB_TOKEN to .env and restart.');
+    const body = req.method === 'POST' ? await readJson(req) : {};
+    let out;
+    try { out = await match.api(user, req.method, p, body, url.searchParams); }
+    catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+    if (!out) throw new HttpError(404, 'Not found.');
+    return sendJson(res, 200, out);
+  }
   if (p === '/api/svt/title') {
     const svtPath = url.searchParams.get('path') || '';
     if (!svt.validPath(svtPath)) throw new HttpError(400, 'That isn’t an SVT Play title.');
@@ -4997,7 +5028,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

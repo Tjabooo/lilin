@@ -1,4 +1,13 @@
 {
+  "2026-11-17-pick-together": {
+    "title": "Välj tillsammans",
+    "items": {
+      "Swipe until you all agree": {
+        "title": "Svep tills ni är överens",
+        "text": "Kan ni inte enas om kvällens film? Tryck på Kan ni inte enas om vad ni ska se? under Stämningar på Upptäck. Välj filmer eller serier, en genre och hur lång den får vara, bjud in de andra (eller kopiera en länk) och sätt igång. Alla sveper genom samma affischer: höger för ja, vänster för nej. Affischerna kommer från vad var och en av er gillar att titta på, inte bara från det som finns på servern, och inget som någon redan har sett. Den första ni alla säger ja till dyker upp som en match, med Titta tillsammans direkt eller senare om den finns på servern. Ingen ser hur du svepte."
+      }
+    }
+  },
   "2026-11-17-idea-box-look": {
     "title": "En snyggare idélåda",
     "items": {

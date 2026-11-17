@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-pick-together",
+  "date": "2026-11-17",
+  "title": "Pick together",
+  "items": [
+    {
+      "title": "Swipe until you all agree",
+      "text": "Can’t agree on tonight’s film? On Discover, under Moods, tap Can’t agree on what to watch? Choose films or shows, a genre and how long it may be, invite the others (or copy a link) and start. Everyone swipes through the same posters: right for yes, left for no. The posters come from what each of you likes to watch, not only from what’s on the server, and nothing anyone has already seen. The first one you all say yes to pops up as a match, with Watch together now or later if it’s on the server. Nobody sees how you swiped."
+    }
+  ]
+},
+{
   "id": "2026-11-17-friend-request-popup",
   "date": "2026-11-17",
   "title": "Friend requests find you",

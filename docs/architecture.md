@@ -142,7 +142,7 @@ People turn it on per device in **Settings → Notifications** and switch each k
 | --- | --- | --- |
 | Downloads ready | `pushDownload` | Something you downloaded (or asked for) landed in your library; a season pack's episodes replace each other's notification |
 | New episodes | `pushEpisode` | A show you follow got an episode downloaded for you, or an episode of a show in your library was downloaded by someone else; once per episode. Nothing about shows or films that aren't in your library |
-| Watch Together invites | `pushWatch` | Someone in a room taps **Invite** and picks you; opens the room's join screen. Off: you aren't offered as an invitee |
+| Watch Together invites | `pushWatch` | Someone in a room taps **Invite** and picks you; opens the room's join screen. Also Pick together: an invite to a pick (`/?pick=<id>`), a match while you're away from it, and a room someone started from a match. Off: you aren't offered as an invitee |
 | Moments | `pushShare` | A friend sent you a moment and it's ready to watch; opens and plays it (`/?moment=<id>`) |
 | Friends | `pushFriend` | Someone asks to be your friend, or says yes to your request; opens Settings → Friends (`/?friends=1`) |
 | Lilin updates | `pushUpdate` | A new update in `whats-new.json` that you haven't read yet: its title, a short summary and *Tap to read more*, which opens its notes (`/?update=<id>`). Sent once per update (`.lilin-update-pushes.json` in `DATA_DIR`), only for updates dated today or yesterday, after the file has sat unchanged for 90 s; several at once become one notification |
@@ -167,6 +167,14 @@ The server publishes a shared timeline over Server-Sent Events, with heartbeats 
 
 Only play/pause/seek and readiness enter room state. Caption tracks and manual offsets remain in each viewer's player; party offset buttons do not edit the shared SRT file. The host's departure pauses playback and hands control to a remaining viewer. Dropped viewers have a 20-second reconnect grace period. Rooms are in memory, expire within 24 hours and end when Lilin restarts. Active rooms protect their media against file deletion; normal retention cleanup retries later.
 
+## Pick together
+
+Swipe to match (src/match.js, public/match.js + match.css; tables `match_picks`, `match_members`, `match_cards`, `match_votes` and `match_hits` in `.lilin.db`). One person starts a pick with filters (films or shows, a genre, a longest running time for films, leave out what anyone in it has seen, server only) and invites people: the same people Watch Together offers (invites on, a device with notifications, not restricted; friends first), notified as *Watch Together invites* (`pushWatch`) with `/?pick=<id>`, or anyone with the link. The id is 22 random characters. Restricted people can start a pick and join by link, but aren’t offered as invitees and can’t invite.
+
+**The stack.** Cards are dealt 20 at a time, and everyone gets the same cards in the same order. Each person’s taste comes from their own history: `watch_log` titles of the pick’s type watched for a while or finished and thumbs-up titles in `ratings` (a thumbs up counts most, recent counts more), up to six seeds each, whose TMDB recommendations become candidates credited to that person. Invited people count from the start; people who join by link count from the next hand. Someone with fewer than three seeds borrows the household’s Popular on Lilin as seeds. Every pick also brings in TMDB `/discover` crowd-pleasers (by vote count, and popular from the last twelve years; rating and vote floors, the genre and running-time filters), the week’s trending titles and up to 40 titles from the server. A candidate’s score: the group’s average taste for it, the least keen person’s again, a lift when it was recommended from two or more people’s histories, each person’s genre leaning (the genres recommended for them, then what they said yes and no to in this pick), a vote-weighted rating, and a little for being on the server or popular in the house. Unreleased, obscure (under 80 votes for films, 30 for shows, unless on the server), disliked and (with the filter) seen titles are left out; news, reality, soap and talk shows too. The order avoids two cards of the same main genre in a row where it can. A new hand is dealt when someone has fewer than 8 cards left: it is scored again with everyone’s swipes so far and adds TMDB recommendations for titles that got a yes. Card details (running time, seasons, genres, the description in each member’s language) come from TMDB and are cached for six hours; films over the longest running time are dropped there. A pick deals at most 300 cards.
+
+**Swipes and matches.** A swipe is `1`, `-1`, or `0` to undo; only the person who swiped sees it, and swipes never become thumbs. When everyone in the pick (two or more) has said yes to the same card it’s a match, recorded once; someone leaving can complete one. Each person sees only their own reason on a card (*Because you watched …*). A match on a film that’s on the server offers **Watch together** (a room on the server’s copy, added to that person’s library, then the player opens in the room) or **Plan for later** (a planned party); the others in the pick see who started it and **Join**, and get a notification. Others in the pick hear about joins, new hands, finished stacks and matches on the live topic `match`; whoever hasn’t swiped in the last minute also gets a notification for a match. A pick is deleted 12 hours after its last swipe. One person can start 20 picks a day and have three going.
+
 # Project layout
 
 ```text
@@ -188,6 +196,7 @@ src/
   notes*.js, note-share.js  Notes, attachments, OCR, shared previews
   house.js, load.js, screentime.js, clips.js, invites.js, activity.js, live.js, network.js
   social.js, reviews.js thumbs, Popular, Wrapped, watch parties; stars + written reviews
+  match.js           Pick together (swipe to match)
   setup/             wizard, detection, integrations, services, packages, backups
 public/              the web app (plain JavaScript and CSS, no build step)
 agents/              lilin-house reporter for Linux machines (bash + systemd units), lilin-scout idea scout (Python + Claude Code)
@@ -242,6 +251,11 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/moments` | `{ kind: "lib" \| "dl", id, start, end, note?, title?, label?, subtitles?: [{ start, end, text }], to?: [userId] }`: cut a moment (and send it); returns `{ moment, link, sent }` |
 | `POST` | `/api/moments/<id>/send`, `/delete`, `/seen` | Send to friends (`{ userIds }`), delete (yours: for everyone; sent to you: off your list), mark as watched |
 | `GET` | `/c/m/<token>` | Public moment page; `/video.mp4`, `/thumb.jpg`, `/subs.vtt` |
+| `GET` | `/api/match` | Pick together: your picks still going and the ones you were invited to (`picks`), and who you can invite (`people`) |
+| `POST` | `/api/match` | Start a pick `{ type: "movie" \| "tv", genre?, maxMinutes?: 0 \| 100 \| 120 \| 150, unseen?, serverOnly?, invite?: [userId] }`; deals the first hand and returns the pick |
+| `GET` | `/api/match/<id>?from=` | The pick: `members` (with `swiped`, `done`), `invited`, `cards` from `from` on (`key`, `title`, `poster`, `runtime`, `seasons`, `genreNames`, `overview`, `onServer`, your own `why`), your swipes (`mine`), `matches`, `room`, `more`; before joining only who’s in it |
+| `GET` | `/api/match/<id>/invitees` | People you can invite to it |
+| `POST` | `/api/match/<id>/join`, `/vote`, `/more`, `/invite`, `/leave`, `/watch` | Join; swipe `{ key, vote: 1 \| -1 \| 0 }` (returns `match` and how many cards are `left`); deal the next hand when you have fewer than 8 left; invite `{ userIds }`; leave; Watch Together on a match `{ key, clientId }` or plan it `{ key, startsAt }` (returns `room`) |
 | `GET` | `/api/watch/parties` | Planned parties you made or joined |
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |

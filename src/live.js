@@ -26,6 +26,7 @@ const RULES = [
   [/^\/api\/friends\/(request|accept|remove)$/, 'friends', 'user'], // friends: the other person is told by the route
   [/^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/, 'ideas', 'admin'], // scout: the idea scout's posts (published in the route too)
   [/^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/, 'moments', 'user'], // friends: Moments; recipients are told by the route
+  [/^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/, 'match', 'user'], // pick: Pick together; the others in a pick are told by match.js
   [/^\/api\/house\/power$/, 'house', 'admin'],
   [/^\/api\/cast\/(play|[\w-]+\/(control|subtitles))$/, 'sessions', 'all'],
   [/^\/api\/live\/[\w-]{1,40}\/chat\/delete$/, 'livechat', 'admin'], // livechat: players hear it on the room's own stream
@@ -74,8 +75,8 @@ export function afterRequest(pathname, status, { userId, tab }) {
   if (status >= 400) return;
   const hit = topicFor(pathname);
   if (!hit) return;
-  // Your own page already shows its progress and settings; your other pages still hear about them.
-  const exceptTab = hit.topic === 'progress' || hit.topic === 'me' ? String(tab || '') : '';
+  // Your own page already shows its progress, settings and swipes; your other pages still hear about them.
+  const exceptTab = hit.topic === 'progress' || hit.topic === 'me' || hit.topic === 'match' ? String(tab || '') : '';
   publish(hit.topic, { audience: hit.audience, userId, exceptTab });
 }
 

@@ -23,6 +23,7 @@ import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pag
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
 import { createMoments } from './moments.js'; // friends: Moments
+import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { createBillboard } from './billboard.js';
 import { fitTrailer, HD_HINT } from './trailer-size.js';
 import { trailerSrc, trailerControls } from './trailer-controls.js';
@@ -1284,6 +1285,7 @@ async function renderDiscover() {
       because && rowSlot(becauseRow(because, signal), signal),
       r1,
       rowSlot(vibesUi.row(disc.type, signal), signal), // vibes: the Moods row, right after Trending
+      rowSlot(pickUi.entry(signal), signal), // pick: Pick together, one quiet line
       r2,
       moods[0] && rowSlot(moodRow(moods[0], signal), signal),
       newInLibraryRow(),
@@ -2396,6 +2398,7 @@ async function applyLive() {
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
   if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('match')) pickUi.onLive(); // pick: Pick together
   if (has('moments')) { momentsUI.invalidate(); if (view === 'settings') jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
   if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(view === 'settings' ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
   if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
@@ -6384,6 +6387,10 @@ const seekTip = $('#seek-tip');
 // The frame at the hovered time sits in the tip (seek-preview.js); a sheet arriving late re-places it.
 let seekTipX = null;
 const seekPreview = createSeekPreview(seekTip, () => { if (!seekTip.hidden && seekTipX != null) showSeekTip(seekTipX); });
+// pick: Pick together (match.js): everyone swipes the same posters; the first shared yes is a match.
+const pickUi = createMatch({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyWithToast, pushOverlay, closeTopOverlay,
+  openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(),
+  enterRoom: async (room) => { await openPlayer({ ...room.media, key: room.media.id, done: true }, { watchRoom: room }); setWatchPanel(true); } });
 // friends: Moments (moments.js): player ⋯ → Clip a moment, and Settings → Moments.
 const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, copyWithToast, fmtAgo, video, playerEl: $('#player'),
   current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
@@ -10214,6 +10221,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
   if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
+  if (url.searchParams.get('pick')) { pickUi.openPick(url.searchParams.get('pick')); return; } // pick: an invite or a match
   if (url.searchParams.get('moment')) { momentsUI.jumpTo(url.searchParams.get('moment')); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends: Moments
   if (url.searchParams.has('friends')) { friendsUI.jumpNext(); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends
   if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
@@ -10254,6 +10262,11 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (noteId) {
     const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     if (state.status.notes && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
+  }
+  // pick: a Pick together invite (or its link) opens Lilin as ?pick=<id>
+  if (new URL(location.href).searchParams.get('pick')) {
+    const url = new URL(location.href); const id = url.searchParams.get('pick'); url.searchParams.delete('pick'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    pickUi.openPick(id);
   }
   // friends: a "sent you a moment" notification opens Lilin as ?moment=<id>: Settings → Moments, and it plays.
   if (new URL(location.href).searchParams.get('moment')) {

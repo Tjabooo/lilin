@@ -32,11 +32,46 @@ const MOCK_DOWNLOADS = [
   dl({ hash: 'd'.repeat(40), name: 'Severance.S02.1080p.ATVP.WEB-DL', title: 'Severance', canonicalTitle: 'Severance', mediaType: 'tv', showKey: 'severance', showId: 'name-severance', season: 2, progress: 0.18, speed: 2.1e6, eta: 2400, seeds: 12, state: 'queuedDL' }),
 ];
 
+
+// pick: Pick together (public/match.js), with /api/match mocked
+const PICK_ID = 'Pk3x9QmZ2aBcDeFgHiJkLm';
+const pickCard = (id, title, year, poster, rating, genreNames, extra = {}) => ({ key: `movie:${id}`, type: 'movie', id, title, year,
+  poster: `https://image.tmdb.org/t/p/w500/${poster}.jpg`, backdrop: null, rating, genres: [], genreNames, runtime: 100 + (id % 50), seasons: null,
+  overview: 'Odysseus, the legendary King of Ithaca, embarks on a long and perilous journey home following the Trojan War, confronting monsters, gods and his own pride on the way.', onServer: false, why: null, ...extra });
+const PICK_CARDS = [
+  pickCard(1368337, 'The Odyssey', 2026, '5rhTDKUhPYvpdQIijFIs5VoWsON', 8, ['Adventure', 'Action', 'Fantasy'], { why: { title: 'Dune: Part Two', liked: true }, onServer: true }),
+  pickCard(1567605, 'Ebenezer', 2026, '6H2N59jJW1hZEzn2ZdrMvJw5vNI', 7.7, ['Fantasy', 'Comedy']),
+  pickCard(1300968, 'The Hunger Games: Sunrise on the Reaping', 2026, 'j1MNyNNgNQL6f27cb3m3uKaPKd6', 9.3, ['Science Fiction', 'Action']),
+  pickCard(1423191, 'Resident Evil', 2026, 'gAgWJhUSQWCgtKR8170nMkYlBda', 7.5, ['Horror', 'Science Fiction']),
+];
+const PICK_PEOPLE = [{ id: 2, name: 'Ebba', avatar: null }, { id: 3, name: 'Max', avatar: null }, { id: 4, name: 'Pappa', avatar: null }];
+const pickState = (o = {}) => ({ id: PICK_ID, joined: true, type: 'movie', filters: { genre: '', maxMinutes: 0, unseen: true, serverOnly: false },
+  host: { id: 1, name: 'Oliver', avatar: null }, created: Date.now() - 600e3,
+  members: [{ id: 1, name: 'Oliver', avatar: null, host: true, me: true, swiped: 3, done: false }, { id: 2, name: 'Ebba', avatar: null, host: false, me: false, swiped: 6, done: false }],
+  invited: [{ id: 3, name: 'Max', avatar: null }], total: PICK_CARDS.length, from: 0, more: false, cards: PICK_CARDS, mine: {}, matches: [], room: null, canInvite: true, ...o });
+const PICK_MOCKS = (o = {}, vote = { ok: true, match: null, left: 3 }) => ({
+  '^/api/match$': { picks: [], people: PICK_PEOPLE, canInvite: true },
+  '^/api/match/[A-Za-z0-9_-]{22}/invitees': { people: PICK_PEOPLE.slice(1) },
+  '^/api/match/[A-Za-z0-9_-]{22}/vote': vote,
+  '^/api/match/[A-Za-z0-9_-]{22}/more': { dealt: 0 },
+  '^/api/match/[A-Za-z0-9_-]{22}(\\?|$)': pickState(o),
+});
+
 export const SCENES = [
   // ---- Discover ----
   { name: 'discover', path: '/', ready: '#discover-body .shelf' },
   { name: 'discover-rows', path: '/', ready: '#discover-body .shelf', steps: ['window.scrollTo(0, innerHeight * 1.5); await __sleep(500);'] },
   { name: 'discover-films', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-filters .segmented button:nth-child(2)'); await __waitFor('#discover-body .shelf');"] },
+  // pick: Pick together: Discover's line, starting one, the stack, a drag, a match, joining from a link
+  { name: 'pick-entry', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["const s = await __waitFor('.pick-entry', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
+  { name: 'pick-setup', path: '/', ready: '#discover-body .shelf', mocks: PICK_MOCKS(), steps: ["await __click('.pick-entry', 20000); await __waitFor('.pick-setup'); await __sleep(700);"] },
+  { name: 'pick-swipe', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), after: 1500 },
+  { name: 'pick-drag', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), steps: ["const c = document.querySelector('.pick-card.is-top'); c.classList.add('is-dragging'); c.style.transform = 'translate(70px, 6px) rotate(4deg)'; c.style.setProperty('--yes', '0.9'); await __sleep(1500);"] },
+  { name: 'pick-about', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), steps: ["document.querySelector('.pick-card.is-top').classList.add('is-about'); await __sleep(1500);"] },
+  { name: 'pick-match', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS({ matches: [] }, { ok: true, match: 'movie:1368337', left: 3 }), steps: ["await __sleep(800); await __click('.pick-yes'); await __waitFor('.pick-pop.open'); await __sleep(1200);"] },
+  { name: 'pick-invite', path: `/?pick=${PICK_ID}`, ready: '.pick-card.is-top', mocks: PICK_MOCKS(), steps: ["await __sleep(600); await __click('.pick-invite'); await __waitFor('.pick-pop.open .room-invitee'); await __sleep(900);"] },
+  { name: 'pick-join', path: `/?pick=${PICK_ID}`, ready: '.pick-join', mocks: PICK_MOCKS({ joined: false, host: { id: 2, name: 'Ebba', avatar: null }, members: [{ id: 2, name: 'Ebba', avatar: null, host: true, me: false }, { id: 3, name: 'Max', avatar: null, host: false, me: false }] }), after: 1200 },
+  { name: 'pick-empty', path: `/?pick=${PICK_ID}`, ready: '.pick-empty', mocks: PICK_MOCKS({ mine: Object.fromEntries(PICK_CARDS.map((c) => [c.key, -1])), members: [{ id: 1, name: 'Oliver', avatar: null, host: true, me: true, swiped: 4, done: true }, { id: 2, name: 'Ebba', avatar: null, host: false, me: false, swiped: 2, done: false }] }), after: 1200 },
   // vibes: the Moods row and a mood's page
   { name: 'vibes-row', path: '/', ready: '#discover-body .shelf', steps: ["const s = await __waitFor('.vibes-shelf', 20000); s.scrollIntoView({ block: 'center' }); await __sleep(800);"] },
   { name: 'vibes-page', path: '/', ready: '#discover-body .shelf', full: true, steps: ["await __click('.vibe-tile', 20000); await __waitFor('.vibe-grid .title-card', 30000); await __sleep(2500);"] },

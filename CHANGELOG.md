@@ -6,6 +6,13 @@ All notable changes to Lilin. Versions follow [Semantic Versioning](https://semv
 
 ### Added
 
+- **Pick together.** Swipe to match on a film or show (`src/match.js`, `public/match.js`, `/api/match`): one person
+  starts a pick from Discover and invites people with the Watch Together tiles and push (or a `/?pick=<id>` link);
+  everyone swipes the same stack and the first title everyone says yes to is a match, with Watch together now or
+  as a planned party when the film is on the server. The stack comes from TMDB recommendations seeded by each
+  person's `watch_log` and thumbs (titles shared between people first), the household's Popular on Lilin and
+  crowd-pleasers when there's little history, and learns from the group's yes votes hand by hand. Filters: films
+  or shows, genre, longest running time, nothing anyone has seen, server only. Swipes stay private and aren't thumbs.
 - **Moods on Discover.** A row of mood tiles after Trending ("Slow-burn rainy day thriller", "90s indie nostalgia",
   about 28 in all) opens a page of films and shows built from TMDB keywords, genres, decades and vote floors plus
   hand-picked anchors (`src/vibes.js`, `GET /api/vibes`, `GET /api/vibes/<id>`). Your titles first, daily order,
