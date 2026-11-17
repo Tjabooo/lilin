@@ -1,4 +1,4 @@
-// Billboard banner pick (src/backdrop.js): textless, at least 1920 wide, average weighted by vote count.
+// Billboard banner pick (src/backdrop.js): textless, 2560+ wide (else 1920+), average weighted by vote count.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pickBackdrop } from '../src/backdrop.js';
@@ -14,6 +14,11 @@ test('The Odyssey (2026): the well-liked still beats the 3-vote fan upload TMDB 
     b('/default.jpg', 3840, null, 3, 3.334),
   ];
   assert.equal(pickBackdrop(list), '/liked.jpg');
+});
+
+test('1440p beats 1080p, however liked; 1080p only when nothing is 1440p', () => {
+  assert.equal(pickBackdrop([b('/fhd.jpg', 1920, null, 200, 9), b('/qhd.jpg', 2560, null, 2, 4)]), '/qhd.jpg');
+  assert.equal(pickBackdrop([b('/fhd.jpg', 1920, null, 200, 9), b('/fhd2.jpg', 1920, null, 2, 4), b('/hd.jpg', 1280, null, 500, 9)]), '/fhd.jpg');
 });
 
 test('below 1080p width never wins, however liked', () => {
