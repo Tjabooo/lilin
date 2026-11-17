@@ -288,8 +288,11 @@ export class ColdStarts {
     const off = [...this.throttled].filter((h) => !hold.has(h));
     if (on.length) await this.deps.setLimit(on, THROTTLE_BPS);
     if (off.length) await this.deps.setLimit(off, 0);
+    const before = this.throttled.size;
     for (const h of on) this.throttled.add(h);
     for (const h of off) this.throttled.delete(h);
+    if (!before && this.throttled.size) this.deps.log?.info?.(`[cold] holding back ${this.throttled.size} background download(s) while a video starts`);
+    if (before && !this.throttled.size) this.deps.log?.info?.('[cold] background downloads back to full speed');
   }
 }
 
