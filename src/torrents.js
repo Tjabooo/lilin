@@ -133,7 +133,16 @@ const X_PATH = /^\/torrent\/\d+\/[^/?#"<>\s]+\/?$/;
 let goodMirror = null;   // last mirror that answered, tried first
 let clearance = null;    // { host, cookie, ua } from FlareSolverr, reused until rejected
 
+// FlareSolverr opens a browser per request: at most FLARE_AT_ONCE at a time (searches for one Download run side by side).
+const FLARE_AT_ONCE = 2;
+let flareBusy = 0;
+const flareQueue = [];
 async function viaFlareSolverr(url) {
+  if (flareBusy >= FLARE_AT_ONCE) await new Promise((resolve) => flareQueue.push(resolve));
+  flareBusy++;
+  try { return await flareSolve(url); } finally { flareBusy--; flareQueue.shift()?.(); }
+}
+async function flareSolve(url) {
   let r;
   try {
     r = await fetch(`${FLARESOLVERR_URL}/v1`, {
@@ -344,34 +353,53 @@ async function searchKnaben(q) {
 // Adult releases (by category or by name, see content-filter.js) are left out unless `adult` is true.
 const withoutAdult = (data) => ({ ...data, results: data.results.filter((r) => !r.adult && !adultReason(r.name)) });
 
-// Release names are written without å, ä, ö ("Mordet.Pa.Olof.Palme"): the spelling sites actually have.
-export const plainQuery = (q) => String(q).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Release names are written without å, ä, ö ("Mordet.Pa.Olof.Palme") and without apostrophes ("Greys.Anatomy"):
+// the spelling sites actually have. (The Pirate Bay finds nothing at all for "Grey's Anatomy S23E05".)
+export const plainQuery = (q) => String(q).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’`]/g, '');
 
 // `documentary`: also search 1337x's Documentaries category (one more request through its mirrors, so
 // only for titles known to be documentaries).
 // quick: someone is waiting at a Play button. Once one site has found something, the others get QUICK_GRACE_MS more
-// and the search goes on without whichever is still busy (1337x behind Cloudflare takes ~15 s through FlareSolverr;
+// and the search goes on without whichever is still busy (1337x behind Cloudflare takes ~15-20 s through FlareSolverr;
 // Knaben indexes it anyway). What they find still lands in the cache for the next search.
+// good(result): a result that settles it (the caller's "clearly right, plenty of seeders"). While nothing found so far
+// is good, the slower sites get up to `wait` ms instead: a thin swarm or the wrong episode is all the fast sites had.
 export const QUICK_GRACE_MS = 2500;
-export async function searchTorrents(rawQuery, rawType, { adult = false, documentary = false, quick = false } = {}) {
-  const data = await searchAll(rawQuery, rawType, documentary, quick);
+export const QUICK_WAIT_MS = 15_000;
+// hurry: a promise; once it settles, nothing more is waited for than the plain grace (the caller found what it needed elsewhere).
+export async function searchTorrents(rawQuery, rawType, { adult = false, documentary = false, quick = false, good = null, wait = QUICK_WAIT_MS, hurry = null } = {}) {
+  const data = await searchAll(rawQuery, rawType, documentary, quick && { good, wait, hurry });
   return adult ? data : withoutAdult(data);
 }
 
-// Like Promise.allSettled, but done `graceMs` after the first answer with results; still busy = rejected.
-export function settleQuickly(promises, graceMs = QUICK_GRACE_MS) {
+// Like Promise.allSettled, but done `grace` ms after the first answer with results; still busy = rejected.
+// With good(): only when something good is among the answers; else `wait` ms after the first answer.
+// (A number instead of options is the grace alone.)
+export function settleQuickly(promises, options = QUICK_GRACE_MS) {
+  const { grace = QUICK_GRACE_MS, wait = QUICK_WAIT_MS, good = null, hurry = null } = typeof options === 'number' ? { grace: options } : options || {};
   return new Promise((resolve) => {
     const out = new Array(promises.length).fill(null);
-    let left = promises.length, timer = null;
-    const finish = () => { clearTimeout(timer); resolve(out.map((o) => o || { status: 'rejected', reason: new Error('still searching') })); };
+    let left = promises.length, timer = null, firstAt = null, settled = false, deadline = Infinity, hurried = false;
+    const finish = () => { if (settled) return; settled = true; clearTimeout(timer); resolve(out.map((o) => o || { status: 'rejected', reason: new Error('still searching') })); };
+    const goodSoFar = () => !good || hurried || out.some((o) => o?.status === 'fulfilled' && Array.isArray(o.value) && o.value.some((r) => { try { return good(r); } catch { return false; } }));
+    const plan = () => {
+      if (firstAt == null || settled) return;
+      const at = firstAt + (goodSoFar() ? grace : Math.max(grace, wait));
+      if (at >= deadline) return;
+      deadline = at;
+      clearTimeout(timer);
+      timer = setTimeout(finish, Math.max(0, at - Date.now()));
+    };
     if (!left) finish();
+    Promise.resolve(hurry).then(() => { if (hurry) { hurried = true; plan(); } }, () => { hurried = true; plan(); });
     promises.forEach((p, i) => p.then(
-      (value) => { out[i] = { status: 'fulfilled', value }; if (value?.length && !timer) timer = setTimeout(finish, graceMs); },
+      (value) => { out[i] = { status: 'fulfilled', value }; if (value?.length) { firstAt ??= Date.now(); plan(); } },
       (reason) => { out[i] = { status: 'rejected', reason }; },
     ).finally(() => { if (--left === 0) finish(); }));
   });
 }
 
+// quick: false, or { good, wait } (settleQuickly).
 async function searchAll(rawQuery, rawType, documentary = false, quick = false) {
   if (!ENABLED) throw new TorrentError(503, 'Torrent search is turned off (TORRENTS=off in .env).');
   const q = String(rawQuery || '').replace(/\s+/g, ' ').trim().slice(0, 100);
@@ -392,7 +420,7 @@ async function searchAll(rawQuery, rawType, documentary = false, quick = false) 
   }
   if (NYAA_URL) sources.push(['Nyaa', searchNyaa(q)]);
   const promises = sources.map((s) => s[1]);
-  const settled = quick ? await settleQuickly(promises) : await Promise.allSettled(promises);
+  const settled = quick ? await settleQuickly(promises, { grace: QUICK_GRACE_MS, wait: quick.wait ?? QUICK_WAIT_MS, good: quick.good || null, hurry: quick.hurry || null }) : await Promise.allSettled(promises);
   const data = mergeSources(sources, settled);
   if (!data.problems.length) cacheSearch(key, data); // cache complete results only
   else if (quick && settled.some((s) => s.reason?.message === 'still searching')) {
