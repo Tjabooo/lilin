@@ -980,6 +980,11 @@ const pageInfo = (type, id) => cachedFor(`/api/title/${type}/${id}/page`, 6 * 36
 // Films whose first release date (TMDB's, on cards) is still ahead. The title page knows more: page.release.
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const filmUnreleased = (t) => t.type === 'movie' && /^\d{4}-\d{2}-\d{2}/.test(t.date || t.releaseDate || '') && (t.date || t.releaseDate).slice(0, 10) > isoToday();
+// Nothing to add yet, from what a card knows: a future film, a film from the Coming soon row (the server
+// already ran filmOut on those: in cinemas but not out to stream counts as not out), or a new series whose
+// first episode hasn't aired. A new season of a running show still has its earlier seasons to add.
+const cardUnreleased = (t) => t.type === 'movie' ? filmUnreleased(t) || Boolean(t.soon)
+  : t.type === 'tv' && (t.soon?.kind === 'premiere' || (/^\d{4}-\d{2}-\d{2}/.test(t.date || '') && t.date.slice(0, 10) > isoToday()));
 // What the Coming soon button's line says, from page.release (server.js titlePage, watchlist.js filmOut).
 function comingSoonText(rel) {
   const day = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1000,6 +1005,7 @@ function quickAction(t) {
     const show = matchesFor(t).some((f) => f.done) && state.libraryShows.find((x) => x.tmdbId === t.id);
     if (show) return { icon: 'play', label: T('Watch'), run: (b) => openShow(show.id, b) };
     if (!canGet() && !serverMatchesFor(t).length) return null;
+    if (cardUnreleased(t) && !serverMatchesFor(t).length) return null; // not aired yet: the corner Follow is the action
     return { icon: 'plus', label: T('Add'), run: (b) => {
       openDetails(t, b);
       $('#sheet-body .title-actions .action-row button')?.click(); // the page's own Add: adds what's here, or opens the season panel
@@ -1019,8 +1025,13 @@ function quickAction(t) {
       patchUnifiedLibrary();
     } catch (err) { toast(err.message); } finally { b.disabled = false; }
   } };
-  if (!canGet() || filmUnreleased(t)) return null; // still to come: the page says Coming soon
-  return { icon: 'plus', label: T('Add to library'), run: async (b) => {
+  if (!canGet() || cardUnreleased(t)) return null; // still to come: the page says Coming soon
+  return { icon: 'plus', label: T('Add to library'),
+    // The card's dates can't see a film that's in cinemas but not out to stream (filmOut's 90 days):
+    // the title page's release info settles it, and the card drops its Add when it says not out.
+    stale: () => (state.status.search ? pageInfo('movie', t.id) : Promise.resolve(null))
+      .then((page) => Boolean(page?.release && !page.release.out)).catch(() => false),
+    run: async (b) => {
     b.disabled = true;
     const label = b.querySelector('span');
     if (label) label.textContent = T('Adding…');

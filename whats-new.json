@@ -5,6 +5,10 @@
   "title": "A round of fixes",
   "items": [
     {
+      "title": "No Add on films that aren't out yet",
+      "text": "Films that are only in cinemas and shows that haven't started airing no longer offer Add to library on their cards. Save or Follow them instead, and Lilin adds them once they're out."
+    },
+    {
       "title": "Watch Together fits the screen",
       "text": "On phones and upright tablets the room now sits under the picture instead of covering it, and turned sideways it docks on the right and leaves the controls free. The Audio button is back in rooms, so everyone can pick their own audio language."
     },

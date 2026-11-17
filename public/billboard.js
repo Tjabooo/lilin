@@ -30,6 +30,7 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
     const slideEls = slides.map((t, i) => {
       const quick = quickAction(t);
       const primary = quick && h('button', { type: 'button', class: quick.icon === 'plus' ? 'btn-primary stroke-icon' : 'btn-primary', onclick: (e) => quick.run(e.currentTarget) }, icon(quick.icon), h('span', {}, quick.label));
+      quick?.stale?.().then((gone) => { if (gone && slide._primary === primary) { primary.remove(); slide._primary = null; } });
       const more = h('button', { type: 'button', class: 'btn-glass', onclick: (e) => { stopTrailer(); openDetails(t, e.currentTarget); } },
         icon('info'), h('span', {}, T('More info')));
       const title = h('h3', { class: 'bb-title' }, t.title);
@@ -191,6 +192,7 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
         const q = quickAction(s._title);
         const actions = s.querySelector('.bb-actions');
         const btn = q && h('button', { type: 'button', class: q.icon === 'plus' ? 'btn-primary stroke-icon' : 'btn-primary', onclick: (e) => q.run(e.currentTarget) }, icon(q.icon), h('span', {}, q.label));
+        q?.stale?.().then((gone) => { if (gone && s._primary === btn) { btn.remove(); s._primary = null; } });
         if (s._primary) s._primary.replaceWith(btn || ''); else if (btn) actions.prepend(btn);
         s._primary = btn;
       }
