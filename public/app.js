@@ -8212,6 +8212,7 @@ function youRowMeta(sub) {
       return all ? n1(all, T('1 moment'), T('{0} moments', all)) : T('Clip one from the player’s ⋯ menu');
     }
     case 'activity': return T('Who watched what, and when');
+    case 'invite': return T('A one-time link for someone new');
     case 'account': return me.email || T('Home network');
     case 'look': {
       const key = p.theme?.preset || state.rules?.defaultTheme || 'lilin';

@@ -2502,6 +2502,7 @@ export default {
   "Your idea is in Lilin now": "Din idé finns i Lilin nu",
   "An answer to your idea": "Ett svar på din idé",
   "Wants to be your friend": "Vill bli din vän",
+  "A one-time link for someone new": "En engångslänk till någon ny",
   "Titles you give a thumbs up show up here.": "Titlar du ger tummen upp visas här.",
   "When Lilin gets something new.": "När Lilin får något nytt.",
   "Answers to your ideas": "Svar på dina idéer",
