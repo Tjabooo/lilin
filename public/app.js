@@ -2795,8 +2795,6 @@ function renderDetails(t) {
       isTv && episodeBrowser(t),
       // Without download rights, episodes someone else has here can still be added (no copy is made).
       isTv && !canGet() && onServer.length > 0 && serverOffer(t, onServer),
-      isTv && files.length > 0 && h('h3', {}, T('In your library')),
-      isTv && files.length > 0 && seasonGroups(files),
       versions && h('h3', {}, T('Your versions')),
       versions && h('ul', { class: 'rows' }, versionFiles.map((v) => fileRow(libraryFile({ ...v, versionOf: true })))),
       reviews.section(titleKeyOf(t), t.title), // reviews
@@ -2869,26 +2867,6 @@ function serverOffer(t, list) {
       : T('This is already here. Add it to your library and watch right away.')),
     h('ul', { class: 'rows' }, rows),
     status);
-}
-
-// Episodes on the server, one collapsible line per season (loose files and season packs first).
-function seasonGroups(files) {
-  const loose = files.filter((f) => f.season == null);
-  const bySeason = new Map();
-  for (const f of files.filter((x) => x.season != null).sort((a, b) => a.season - b.season || a.episode - b.episode)) {
-    if (!bySeason.has(f.season)) bySeason.set(f.season, []);
-    bySeason.get(f.season).push(f);
-  }
-  return h('div', { class: 'season-groups' },
-    loose.length > 0 && h('ul', { class: 'rows' }, loose.map(fileRow)),
-    [...bySeason].map(([n, eps]) => {
-      const busy = eps.filter((f) => !f.done).length;
-      return h('details', { class: 'season-group' },
-        h('summary', {},
-          h('span', { class: 'row-title' }, seasonName(n)),
-          h('span', { class: 'row-meta' }, h('span', {}, plural(episodeCount(eps), 'episode')), busy > 0 && h('span', {}, T('{0} downloading', busy)))),
-        h('ul', { class: 'rows' }, eps.map(fileRow)));
-    }));
 }
 
 // Requests worth repeating within a few minutes (re-rendering a sheet shouldn't search again).

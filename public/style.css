@@ -2408,19 +2408,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* Torrent search: whole season, episode by episode */
 
-/* Show sheets: season chips (get a season) and episodes folded per season */
-.season-groups { display: grid; gap: 8px; margin-bottom: 22px; }
-.season-group { border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--hairline); }
-.season-group > summary {
-  display: flex; align-items: baseline; gap: 12px; padding: 14px; cursor: pointer;
-  list-style: none;
-}
-.season-group > summary::-webkit-details-marker { display: none; }
-.season-group > summary::after { content: "›"; margin-left: auto; color: var(--dust); transition: transform 0.2s; }
-.season-group[open] > summary::after { transform: rotate(90deg); }
-.season-group > .rows { padding: 0 6px 6px; }
-.season-group .row { background: var(--curtain); }
-
 /* ---------- accounts: library sections, countdown, adding from the server ---------- */
 .lib-section { margin-bottom: 26px; }
 .lib-section-head { margin: 4px 0 10px; }
