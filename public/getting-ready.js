@@ -1,5 +1,6 @@
 // Getting it ready: Play on a title that isn't playable here yet. The player opens at once on a calm screen (the
-// title's picture, one line of plain words, a thin progress line, Cancel) while the server finds a copy and
+// title's picture, the title's logo art filling up as the progress, one line of plain words, Cancel; a thin progress
+// line instead when TMDB has no logo) while the server finds a copy and
 // fetches the start of the video (cold-start.js and partial-stream.js there); the picture takes over by itself.
 // readyWords() is pure (tests/getting-ready.test.mjs); createGettingReady() draws the screen inside the player.
 // No looping animation: the line moves when the words do (a timer nudges it twice a second while it waits).
@@ -41,7 +42,15 @@ export function readyWords({ phase, elapsed = 0, phaseElapsed = elapsed, startPr
 // ui: { h, icon, mount (the player element), onBack(), onCancel(), onRetry() }
 export function createGettingReady(ui) {
   const { h, icon } = ui;
-  let root = null, parts = null, run = null, timer = 0;
+  let root = null, parts = null, run = null, timer = 0, runs = 0;
+
+  // The title's logo, drawn three times: a faint grey ghost, the real colours revealed left to right up to the
+  // progress (--gr-p, a soft edge), and a bright band on that edge, so the lettering looks like it's being inked in.
+  function logoArt(url, title, dark) {
+    const layer = (cls, alt = '') => h('img', { class: cls, src: url, alt, decoding: 'async', draggable: 'false' });
+    return h('span', { class: `gr-logo${dark ? ' is-dark' : ''}` },
+      layer('gr-logo-ghost'), layer('gr-logo-fill', title), layer('gr-logo-edge'));
+  }
 
   function build() {
     parts = {
@@ -72,6 +81,7 @@ export function createGettingReady(ui) {
     run.progress = run.words.phase === 'failed' ? 0 : Math.max(run.progress, words.progress);
     const pct = Math.round(run.progress * 100);
     parts.bar.style.width = `${pct}%`;
+    root.style.setProperty('--gr-p', `${(run.progress * 100).toFixed(1)}%`);
     parts.track.setAttribute('aria-valuenow', String(pct));
     if (parts.line.textContent !== words.line) parts.line.textContent = words.line;
     if (parts.hint.textContent !== words.hint) parts.hint.textContent = words.hint;
@@ -86,8 +96,10 @@ export function createGettingReady(ui) {
     // { title, sub, art }: shows the screen over the player, starting at "Finding the best copy…".
     show({ title, sub = '', art = null }) {
       if (!root) build();
-      run = { since: Date.now(), phaseSince: Date.now(), words: { phase: 'finding' }, progress: 0, canRetry: false };
+      run = { id: ++runs, since: Date.now(), phaseSince: Date.now(), words: { phase: 'finding' }, progress: 0, canRetry: false };
       parts.title.textContent = title || '';
+      root.classList.remove('has-logo');
+      root.style.setProperty('--gr-p', '0%');
       parts.sub.textContent = sub;
       parts.sub.hidden = !sub;
       if (art) parts.art.src = art; else parts.art.removeAttribute('src');
@@ -98,6 +110,21 @@ export function createGettingReady(ui) {
       timer = setInterval(paint, 500);
       paint();
       parts.cancel.focus({ preventScroll: true });
+    },
+    // The logo art (TMDB, from the title page's extras): swaps in for the written title once it has loaded, and the
+    // progress line goes, since the logo fills up instead. dark: mostly dark lettering, drawn light on the dark picture.
+    logo(url, { dark = false } = {}) {
+      if (!run || !url) return;
+      const id = run.id, title = parts.title.textContent;
+      const art = logoArt(url, title, dark);
+      const fill = art.querySelector('.gr-logo-fill');
+      const place = () => {
+        if (!run || run.id !== id) return;
+        parts.title.replaceChildren(art);
+        root.classList.add('has-logo');
+      };
+      if (fill.complete && fill.naturalWidth) place();
+      else fill.addEventListener('load', place, { once: true });
     },
     // { phase, startProgress, startEta, message, canRetry }
     update(words) {
@@ -115,6 +142,7 @@ export function createGettingReady(ui) {
       run = null;
       if (now || !root) { if (root) root.hidden = true; return; }
       parts.bar.style.width = '100%';
+      root.style.setProperty('--gr-p', '100%');
       root.classList.add('is-leaving');
       setTimeout(() => { if (!run) root.hidden = true; }, 450);
     },

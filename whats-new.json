@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-17-logo-fill",
+    "date": "2026-11-17",
+    "title": "A nicer wait",
+    "items": [
+      {
+        "title": "The title fills in while it gets ready",
+        "text": "When a film or episode is getting ready to play, its title art now sits in the middle of the screen and fills in with colour as it loads, so you can see how far along it is."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-no-right-now",
     "date": "2026-11-17",
     "title": "A calmer Discover",

@@ -1838,9 +1838,22 @@ function getReady(x, body, opener) {
   openPlayerShell({ opener, title: x });
   const art = bigArt(x.t.backdrop, 1280) || x.t.poster || null;
   gettingReady.show({ title: x.t.title, sub: isEpisodeTarget(x) ? episodeLabel(x) : '', art });
+  readyLogo(x.t);
   readyRun = { x, body, since: Date.now(), before: new Set(targetTransfers(x).map((d) => d.hash)), handed: false, timer: 0, reads: 0 };
   if (body && !targetTransfers(x).length && !downloadCommands.get(commandKey(body))?.busy) runDownloadCommand(body);
   readyTick();
+}
+// The title's logo art for the Getting it ready screen (it fills up as the progress). A big screen gets TMDB's
+// original file (w500 is soft at the size it's drawn); dark lettering is drawn light over the dark picture.
+function readyLogo(t) {
+  if (!t?.id || !['movie', 'tv'].includes(t.type) || !state.status.search) return;
+  pageInfo(t.type, t.id).then(async (page) => {
+    if (!page?.logo?.url) return;
+    const big = innerWidth * (devicePixelRatio || 1) > 700;
+    const url = big ? page.logo.url.replace('/t/p/w500/', '/t/p/original/') : page.logo.url;
+    const tone = await logoTone(page.logo.url);
+    if (readyRun?.x.t === t) gettingReady.logo(url, { dark: tone !== null && tone < 0.3 });
+  }).catch(() => {});
 }
 function stopReady({ quiet = false } = {}) {
   const run = readyRun;
@@ -3076,9 +3089,11 @@ function pageTitle(title, type, id) {
   }).catch(() => {});
   return heading;
 }
-// Whether a logo is mostly light (white lettering): the average brightness of its visible pixels.
+// Whether a logo is mostly light (white lettering): the average brightness of its visible pixels (logoTone: 0-1,
+// null when it can't be read, e.g. an SVG logo).
 const logoTones = new Map();
-function logoIsLight(url) {
+const logoIsLight = (url) => logoTone(url).then((tone) => tone !== null && tone > 0.62);
+function logoTone(url) {
   if (!logoTones.has(url)) logoTones.set(url, new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -3089,12 +3104,12 @@ function logoIsLight(url) {
         const d = g.getImageData(0, 0, 48, 24).data;
         let sum = 0, n = 0;
         for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; n++; }
-        resolve(n > 0 && sum / n > 0.62);
-      } catch { resolve(false); }
+        resolve(n > 0 ? sum / n : null);
+      } catch { resolve(null); }
     };
-    img.onerror = () => resolve(false);
+    img.onerror = () => resolve(null);
     const small = new URL(String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w185/')).pathname;
-    if (!/\.png$/.test(small)) return resolve(false); // an SVG logo: leave it as it is
+    if (!/\.png$/.test(small)) return resolve(null); // an SVG logo: leave it as it is
     img.src = `/api/art?path=${encodeURIComponent(small)}`;
   }));
   return logoTones.get(url);

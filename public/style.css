@@ -3968,24 +3968,46 @@ html.wrapped-on { overflow: hidden; }
 .search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + 66px + var(--s2))); }
 .search-hero:not(:has(+ .billboard)) { color: var(--text-2); background: var(--surface-1); border-color: var(--hairline-2); }
 @media (min-width: 900px) { .search-hero { display: none; } .search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + var(--s2))); } }
-/* Getting it ready (getting-ready.js): the title's picture, dimmed; under the title one line of words, a thin bulb
-   line and Cancel. It fades out as the picture starts. */
-.getting-ready { position: absolute; inset: 0; z-index: 6; display: grid; align-content: end; padding: calc(var(--safe-top) + 72px) var(--gutter) calc(var(--safe-bottom) + 48px);
-  color: #fff; background: #000; transition: opacity .45s var(--ease-out); }
+/* Getting it ready (getting-ready.js): the title's picture, dimmed, and in the middle the title's logo art filling up
+   left to right as the progress (--gr-p): a faint grey ghost, the real colours up to the progress with a soft edge and
+   a bright band on that edge, like it's being inked in. No logo: the written title and a thin bulb line instead.
+   Under it one line of words and Cancel. It fades out as the picture starts. */
+@property --gr-p { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+.getting-ready { --gr-p: 0%; position: absolute; inset: 0; z-index: 6; display: grid; align-content: center; justify-items: center; text-align: center;
+  padding: calc(var(--safe-top) + 64px) var(--gutter) calc(var(--safe-bottom) + 40px);
+  color: #fff; background: #000; transition: opacity .45s var(--ease-out), --gr-p .7s var(--ease-out); }
 .getting-ready[hidden] { display: none; }
 .getting-ready.is-leaving { opacity: 0; pointer-events: none; }
-.gr-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .42; }
-.getting-ready::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, #000 10%, rgb(0 0 0 / .6) 48%, rgb(0 0 0 / .25)); }
+.gr-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .38; animation: gr-art-in 9s var(--ease-out) both; }
+@keyframes gr-art-in { from { opacity: 0; scale: 1.06; } 12% { opacity: .38; } }
+.getting-ready::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 55% at 50% 46%, rgb(0 0 0 / .2), rgb(0 0 0 / .78)), linear-gradient(to top, #000 4%, transparent 45%); }
 .gr-back { position: absolute; z-index: 1; top: calc(var(--safe-top) + 12px); left: 12px; color: #fff; background: rgb(255 255 255 / .1); }
-.gr-copy { position: relative; max-width: 560px; }
-.gr-kicker { margin: 0 0 8px; font: 800 var(--t-kicker)/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--bulb); }
+.gr-copy { position: relative; display: grid; justify-items: center; width: min(100%, 640px); }
+.gr-kicker { margin: 0 0 var(--s4); font: 800 var(--t-kicker)/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--bulb); }
 .gr-title { margin: 0; font: 800 var(--t-h1)/1.05 var(--display); letter-spacing: -.02em; text-wrap: balance; }
 .gr-sub, .gr-hint { margin: 4px 0 0; color: rgb(255 255 255 / .66); }
-.gr-track { height: 3px; margin: var(--s5) 0 var(--s3); border-radius: 2px; background: rgb(255 255 255 / .16); overflow: hidden; }
+.gr-track { width: min(100%, 420px); height: 3px; margin: var(--s5) 0 var(--s3); border-radius: 2px; background: rgb(255 255 255 / .16); overflow: hidden; }
 .gr-track i { display: block; width: 0; height: 100%; background: var(--bulb); box-shadow: 0 0 10px var(--glow-color); transition: width .6s var(--ease-out); }
+.has-logo .gr-track { display: none; }
+.has-logo .gr-sub { margin-top: var(--s4); }
+.has-logo .gr-line { margin-top: var(--s5); }
 .gr-line { margin: 0; font-weight: 650; }
-.gr-actions { display: flex; gap: 12px; margin-top: var(--s5); }
+.gr-actions { display: flex; justify-content: center; gap: 12px; margin-top: var(--s5); }
 .gr-cancel { min-height: 44px; padding: 0 20px; font: 700 15px/1 var(--body); color: #fff; background: rgb(255 255 255 / .1); border: 1px solid rgb(255 255 255 / .22); border-radius: 999px; }
-.is-failed :is(.gr-track) { visibility: hidden; }
+.is-failed :is(.gr-track, .gr-logo-fill, .gr-logo-edge) { visibility: hidden; }
 .is-failed .gr-line { color: var(--alert); }
-@media (min-width: 900px) { .getting-ready { align-content: center; padding-left: 8vw; } }
+/* The logo: three copies in one grid cell, so they size alike. */
+.gr-logo { display: inline-grid; animation: gr-logo-in .6s var(--ease-out) both; transition: scale .45s var(--ease-out); }
+.gr-logo img { grid-area: 1 / 1; display: block; width: auto; height: auto; max-width: min(78vw, 560px); max-height: clamp(84px, 20vh, 210px); object-fit: contain; }
+.gr-logo-ghost { opacity: .17; filter: grayscale(1) brightness(1.6); }
+.gr-logo-fill { filter: drop-shadow(0 2px 22px rgb(0 0 0 / .55));
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--gr-p) - 3%), transparent calc(var(--gr-p) + 3%));
+  mask-image: linear-gradient(90deg, #000 calc(var(--gr-p) - 3%), transparent calc(var(--gr-p) + 3%)); }
+.gr-logo-edge { opacity: .9; mix-blend-mode: screen; filter: brightness(0) invert(1) drop-shadow(0 0 6px var(--bulb));
+  -webkit-mask-image: linear-gradient(90deg, transparent calc(var(--gr-p) - 10%), #000 calc(var(--gr-p) - 1%), transparent calc(var(--gr-p) + 3%));
+  mask-image: linear-gradient(90deg, transparent calc(var(--gr-p) - 10%), #000 calc(var(--gr-p) - 1%), transparent calc(var(--gr-p) + 3%)); }
+.gr-logo.is-dark :is(.gr-logo-ghost, .gr-logo-fill) { filter: brightness(0) invert(1); }
+.is-leaving .gr-logo { scale: 1.04; }
+@keyframes gr-logo-in { from { opacity: 0; scale: .96; filter: blur(8px); } }
+@media (prefers-reduced-motion: reduce) { .getting-ready { transition: opacity .45s; } .gr-art, .gr-logo { animation: none; } .gr-logo { transition: none; } }
