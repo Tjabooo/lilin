@@ -297,7 +297,12 @@
 .pf-results.wide .pf-result img { aspect-ratio: 16 / 9; }
 .pf-result:hover img { box-shadow: 0 0 0 2px var(--bulb); }
 .pf-result-name { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.pf-save-bar { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; margin: var(--s4) calc(-1 * var(--gutter)) 0; padding: 12px var(--gutter) calc(12px + var(--safe-bottom) * 0);
-  background: linear-gradient(to bottom, transparent, var(--surface-1) 30%); }
+/* The sheet's own bottom padding would leave a gap under a sticky bar (sticky sticks to the content edge),
+   so the editor sheet drops it and the bar carries the safe area itself: nothing scrolls past below it. */
+.sheet:has(.pf-save-bar) { padding-bottom: 0; }
+.pf-save-bar { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; margin: var(--s4) calc(-1 * var(--gutter)) 0; padding: 12px var(--gutter) calc(12px + var(--safe-bottom));
+  background: var(--surface-1); border-top: 1px solid var(--hairline); }
+.pf-save-bar::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 20px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface-1)); }
 .pf-save-bar .play-btn { min-width: 140px; }
 @media (max-width: 599px) { .pf-save-bar .play-btn { width: 100%; } }

@@ -5,6 +5,10 @@
   "title": "A round of fixes",
   "items": [
     {
+      "title": "Save stays out of the way",
+      "text": "The Save button in Edit profile now sits on its own bar at the bottom of the sheet, so the poster and font choices no longer show through around it."
+    },
+    {
       "title": "Tidier bio box",
       "text": "The Bio field on your profile is now a normal rounded box instead of a stretched pill, so longer bios no longer run into the curved edges."
     },
