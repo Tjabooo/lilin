@@ -117,8 +117,10 @@ async function api(path, opts = {}) {
   try {
     r = await fetch(path, { ...opts, headers: { ...opts.headers, 'X-Lilin-Client': CLIENT_ID, 'X-Lilin-Tab': TAB_ID, 'X-Lilin-Lang': lang } });
   } catch (err) {
-    if (err.name !== 'AbortError' && await signedOut()) throw new Error(T('You’ve been signed out. Sign in again to carry on.'));
-    throw err;
+    if (err.name === 'AbortError') throw err;
+    if (await signedOut()) throw new Error(T('You’ve been signed out. Sign in again to carry on.'));
+    // The browser's own words ("Failed to fetch", "Load failed", …) mean nothing to anyone, and they're always English.
+    throw Object.assign(new Error(T('No connection to Lilin. Check your Wi-Fi and try again.')), { offline: true, cause: err });
   }
   let data = {};
   try { data = await r.json(); } catch { /* non-JSON */ }
@@ -10232,7 +10234,11 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   try {
     state.status = await api('/api/status');
   } catch {
-    $('#discover-body').replaceChildren(notice(T('Can’t reach the server'), T('Make sure server.js is running, then reload this page.'), () => location.reload()));
+    const heading = $('#discover-heading');
+    heading.textContent = T('Lilin isn’t answering'); heading.classList.add('sr-only');
+    $('#discover-body').replaceChildren(emptyState(T('Lilin isn’t answering'),
+      T('It’s probably restarting or updating. Give it a minute, then try again.'),
+      { label: T('Try again'), run: () => location.reload() }));
     return;
   }
   state.me = state.status.me;
