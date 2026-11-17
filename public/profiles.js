@@ -31,7 +31,8 @@ const keyOf = (c) => (c?.key || (c?.type && c?.id != null ? `${c.type}:${c.id}` 
 const small = (url, size = 'w185') => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, `/t/p/${size}/`) : null);
 const big = (url) => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w1280/') : null);
 
-export function createProfiles({ h, api, jsonPost, toast, icon, people, me, openTitle, overlay, picker, copyText, friendsChanged = () => {} }) {
+export function createProfiles({ h, api, jsonPost, toast, icon, people, me, openTitle, overlay, picker, copyText, friendsChanged = () => {},
+  changePicture, removePicture, saveName }) {
   const locale = () => appLocale;
   const nestedNow = () => ['#sheet', '#picker'].some((s) => document.querySelector(s)?.classList.contains('open'))
     || Boolean(document.querySelector('.pf.pf-nested.open'));
@@ -146,7 +147,12 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const p = d.person;
     const sub = [h('span', { class: 'pf-handle' }, `@${p.handle}`), p.pronouns && h('span', { class: 'pf-pronouns' }, p.pronouns)].filter(Boolean);
     return h('header', { class: 'pf-head' },
-      h('div', { class: 'pf-face' }, people.face(p, { size: 104 })),
+      d.me && changePicture
+        ? h('button', { type: 'button', class: 'pf-face pf-face-mine', 'aria-label': p.avatar ? T('Change your picture') : T('Add a picture'),
+          title: p.avatar ? T('Change your picture') : T('Add a picture'),
+          onclick: (e) => changePicture({ opener: e.currentTarget, over: ctx.nested, done: () => load(ctx) }) },
+        people.face(p, { size: 104 }), h('span', { class: 'pf-face-cam', 'aria-hidden': 'true' }, icon('camera')))
+        : h('div', { class: 'pf-face' }, people.face(p, { size: 104 })),
       h('h2', { class: 'pf-name' }, p.name),
       h('div', { class: 'pf-sub' }, ...sub.flatMap((x, i) => (i ? [h('span', { class: 'pf-dot', 'aria-hidden': 'true' }, '·'), x] : [x]))),
       !d.locked && p.bio && h('p', { class: 'pf-bio' }, p.bio),
@@ -363,7 +369,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const d = ctx.data;
     if (!d?.me) return;
     ctx.draft = {
-      handle: d.person.handle, pronouns: d.person.pronouns || '', bio: d.person.bio || '', visibility: d.visibility,
+      name: d.person.name || '', handle: d.person.handle, pronouns: d.person.pronouns || '', bio: d.person.bio || '', visibility: d.visibility,
       favorites: (d.favorites || []).map((f) => ({ ...f })), look: { ...d.look }, bannerCard: null, sections: d.sections.map((s) => ({ ...s })),
     };
     let saved = false;
@@ -374,6 +380,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     async function save(btn) {
       btn.disabled = true;
       try {
+        const name = draft.name.trim();
+        if (saveName && name && name !== ctx.data.person.name) await saveName(name);
         const payload = { handle: draft.handle, pronouns: draft.pronouns, bio: draft.bio, visibility: draft.visibility,
           favorites: draft.favorites.map(keyOf), sections: draft.sections,
           look: { accent: draft.look.accent, banner: draft.look.banner, gradient: draft.look.gradient, bannerKey: draft.look.bannerKey, font: draft.look.font,
@@ -399,6 +407,9 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const field = (label, input, hint) => h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, label), input, hint);
 
     // you
+    const name = h('input', { type: 'text', class: 'invite-note', value: draft.name, maxlength: '40', autocomplete: 'nickname', 'aria-label': T('Your name') });
+    name.addEventListener('input', () => { draft.name = name.value; repaint(); });
+    const avatar = ctx.data.person.avatar;
     const handle = h('input', { type: 'text', class: 'invite-note', value: draft.handle, maxlength: '21', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', 'aria-label': T('Username') });
     handle.addEventListener('input', () => { draft.handle = handle.value.trim().replace(/^@+/, '').toLowerCase(); repaint(); });
     const pronouns = h('input', { type: 'text', class: 'invite-note', value: draft.pronouns, maxlength: '24', placeholder: T('e.g. she/her'), 'aria-label': T('Pronouns') });
@@ -414,7 +425,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('h2', { id: 'picker-title' }, T('Edit profile')),
       h('p', { class: 'picker-sub muted' }, T('Changes show on your profile behind this sheet. Save to keep them.')),
       part('you', T('You'),
-        h('p', { class: 'set-hint' }, T('Your name and picture are the same everywhere in Lilin: change them in Settings.')),
+        field(T('Name'), name, h('span', { class: 'set-hint' }, T('Shown everywhere in Lilin.'))),
+        h('p', { class: 'set-hint pf-pic-hint' }, T('Tap your picture on your profile to change it.'),
+          avatar && removePicture && h('button', { type: 'button', class: 'pf-pic-remove',
+            onclick: async (e) => { e.currentTarget.disabled = true; await removePicture(); ctx.data.person.avatar = null; repaint(); redraw(); } }, T('Remove picture'))),
         field(T('Username'), h('span', { class: 'pf-at-field' }, h('span', { 'aria-hidden': 'true' }, '@'), handle), h('span', { class: 'set-hint' }, T('3 to 20 letters, numbers, dots or underscores.'))),
         field(T('Pronouns'), pronouns),
         field(T('Bio'), bio, count)),
@@ -541,7 +555,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       const auto = draft.favorites.find((f) => f.backdrop)?.backdrop || data.recent?.find((r) => r.card?.backdrop)?.card.backdrop || data.liked?.find((r) => r.card?.backdrop)?.card.backdrop;
       banner = auto ? big(auto) : null;
     }
-    return { ...data, person: { ...data.person, handle: draft.handle || data.person.handle, pronouns: draft.pronouns.trim(), bio: draft.bio.trim() },
+    return { ...data, person: { ...data.person, name: draft.name.trim() || data.person.name, handle: draft.handle || data.person.handle, pronouns: draft.pronouns.trim(), bio: draft.bio.trim() },
       visibility: draft.visibility, look, sections: draft.sections, favorites: draft.favorites, banner };
   }
 

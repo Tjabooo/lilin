@@ -3594,7 +3594,11 @@ const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () 
     },
     close: () => closeTopOverlay(),
   },
-  friendsChanged: () => { friendsUI.invalidate(); if (state.view === 'settings') renderSettingsWhenStill(); } });
+  friendsChanged: () => { friendsUI.invalidate(); if (state.view === 'settings') renderSettingsWhenStill(); },
+  // your name and picture live on your profile (Settings no longer edits them)
+  changePicture: ({ opener, over, done }) => editPicture({ person: state.me, opener, over, done }),
+  removePicture: () => removePicture({ person: state.me }),
+  saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); } });
 // A poster on a profile. Profiles opened over a title page close first, and the title opens in that page (Back
 // returns to the title it was on).
 async function openTitleFromProfile(card, opener, nested) {
@@ -7617,7 +7621,7 @@ function renderView() {
 // also gets the server's rules (auto-delete) and the people who use it. Changes save straight away.
 let saveMeTimer = null;
 // Profile pictures: yours (person = state.me) or, for the owner, anyone's in People (person.id).
-function editPicture({ person, opener }) {
+function editPicture({ person, opener, over = false, done = null }) {
   const mine = person.id === state.me?.id;
   people.choosePhoto(async (file) => {
     let body;
@@ -7631,9 +7635,12 @@ function editPicture({ person, opener }) {
       });
     } catch (err) { toast(err.message); return; }
     $('#picker-body').replaceChildren(...body);
+    for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.toggle('over-pf', Boolean(over));
     pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), async () => {
       if (!mine && state.me?.isOwner) await loadPeople();
       if (state.view === 'settings') renderSettings();
+      done?.();
+      if (over) setTimeout(() => { for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.remove('over-pf'); }, 320);
       opener?.isConnected && opener.focus({ preventScroll: true });
     }));
   });
@@ -7644,6 +7651,7 @@ async function removePicture({ person }) {
     if (mine) state.me = (await people.saveMine(null)).me;
     else { await people.saveFor(person.id, null); await loadPeople(); }
     toast(T('Picture removed'));
+    if (mine) renderMeButton();
     if (state.view === 'settings') renderSettings();
   } catch (err) { toast(err.message); }
 }
@@ -7911,29 +7919,16 @@ function renderSettings() {
   const p = prefs();
   const out = [];
 
-  // ---- you ----
-  const nameInput = h('input', { type: 'text', class: 'invite-note set-name', maxlength: '40', value: me.name, 'aria-label': T('Your name'), autocomplete: 'nickname' });
-  nameInput.addEventListener('change', () => saveMe({ name: nameInput.value }, T('Name saved')));
-  const pictureBtn = h('button', { type: 'button', class: 'profile-face', 'aria-label': me.avatar ? T('Change your picture') : T('Add a picture'),
-    title: me.avatar ? T('Change your picture') : T('Add a picture'), onclick: (e) => editPicture({ person: me, opener: e.currentTarget }) },
-    people.face(me, { size: 64 }), h('span', { class: 'profile-face-edit', 'aria-hidden': 'true' }, icon('camera')));
+  // ---- you ---- (name and picture are edited on your profile)
   out.push(h('div', { class: 'profile' },
-    h('div', { class: 'profile-face-col' }, pictureBtn,
-      me.avatar && h('button', { type: 'button', class: 'profile-face-remove', onclick: () => removePicture({ person: me }) }, T('Remove'))),
     h('div', { class: 'profile-text' },
-      nameInput,
+      h('div', { class: 'profile-who' }, people.face(me, { size: 40 }), h('strong', {}, me.name)),
       h('div', { class: 'set-hint' }, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
         : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email)),
       h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))),
       me.email && h('button', { type: 'button', class: 'chip profile-open', onclick: (e) => profiles.openMine(e.currentTarget) }, icon('pencil'), T('Your profile')))));
   renderMeButton();
 
-  {
-    const unseen = state.status?.whatsNew?.unseen?.length || 0;
-    const open = h('button', { class: `chip whats-new-open${unseen ? ' has-new' : ''}`, type: 'button' }, unseen ? (unseen === 1 ? T('1 new') : T('{0} new', unseen)) : T('See updates'));
-    open.addEventListener('click', showUpdateHistory);
-    out.push(settingsRow(T('What’s new'), T('Everything that changed in Lilin lately.'), open));
-  }
   {
     const season = state.status?.wrapped?.year;
     const year = season || new Date().getFullYear();
@@ -7942,7 +7937,7 @@ function renderSettings() {
     out.push(open);
   }
 
-  out.push(me.isOwner ? ideaInboxRow() : ideaBox());
+  if (!me.isOwner) out.push(ideaBox());
 
   if (me.via === 'session' || me.hasPassword) out.push(accountSection());
   out.push(...friendsUI.settings()); // friends
@@ -8200,15 +8195,6 @@ async function takeBackIdea(idea) {
   renderSettings();
 }
 
-// The owner's way in from the top of Settings: how many ideas wait, and a jump to the inbox.
-function ideaInboxRow() {
-  if (ideasNeeded()) return null;
-  const waiting = (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout); // scout
-  const go = h('button', { class: `chip whats-new-open${waiting ? ' has-new' : ''}`, type: 'button',
-    onclick: () => $('[data-anchor="idea-inbox"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
-  waiting ? (waiting === 1 ? T('1 new') : T('{0} new', waiting)) : T('Open'));
-  return settingsRow(T('Idea box'), T('What people would like to see in Lilin.'), go);
-}
 function ideaInbox() {
   const out = [h('h3', { class: 'set-head', 'data-anchor': 'idea-inbox' }, T('Ideas'))];
   if (!ideasView.loaded) { ideasNeeded(); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }

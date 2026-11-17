@@ -2611,7 +2611,8 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .profile-text { flex: 1; min-width: 0; display: grid; gap: 6px; }
 .profile-tags .tag:first-child { margin-left: 0; }
 .profile-tags:empty { display: none; }
-.set-name { height: 44px; font-weight: 700; font-size: 18px; background: var(--surface-2); border-radius: var(--r-sm); }
+.profile-who { display: flex; align-items: center; gap: 12px; font-size: 18px; }
+.profile-who strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin-top: 12px; }
 .swatch {
@@ -3316,7 +3317,6 @@ html.wrapped-on { overflow: hidden; }
 .popular-why > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Settings → You, People: the picture is the button that changes it */
-.profile-face-col { display: grid; justify-items: center; gap: 4px; }
 .profile-face { position: relative; flex: none; padding: 0; border: 0; background: none; border-radius: 50%; }
 .profile-face .face { box-shadow: 0 0 0 2px var(--line); transition: box-shadow 0.15s; }
 .profile-face:hover .face, .profile-face:focus-visible .face { box-shadow: 0 0 0 2px var(--bulb); }
@@ -3329,8 +3329,6 @@ html.wrapped-on { overflow: hidden; }
 .profile-face.small .profile-face-edit svg { width: 12px; height: 12px; }
 .profile-face.small:is(:hover, :focus-visible) .profile-face-edit { opacity: 1; }
 @media (hover: none) { .profile-face.small .profile-face-edit { opacity: 1; } }
-.profile-face-remove { padding: 2px 4px; border: 0; background: none; color: var(--dust); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
-.profile-face-remove:hover { color: var(--paper); }
 .activity-face { position: relative; flex: none; display: inline-grid; align-self: center; }
 .activity-face .activity-dot { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border: 2px solid var(--curtain); }
 /* People + invite rows: on narrow lists the buttons drop under the details instead of squeezing the name to one letter per line. */

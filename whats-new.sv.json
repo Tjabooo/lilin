@@ -2,6 +2,10 @@
   "2026-11-17-fleet-fixes": {
     "title": "En omgång rättningar",
     "items": {
+      "Name and picture on your profile": {
+        "title": "Namn och bild på din profil",
+        "text": "Byt bild genom att trycka på den på din profil, och namnet under Redigera profil. Inställningarna är kortare: bild, namn och Nyheter är borta från toppen."
+      },
       "No Add on films that aren't out yet": {
         "title": "Inget Lägg till på filmer som inte kommit ut",
         "text": "Filmer som bara går på bio och serier som inte börjat sändas visar inte längre Lägg till i biblioteket på sina kort. Spara eller följ dem i stället, så lägger Lilin till dem när de kommit ut."
