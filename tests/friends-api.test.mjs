@@ -100,5 +100,6 @@ test('areFriends and friendIds', async () => {
   assert.equal(friends.areFriends(a.id, b.id), false);
   assert.deepEqual(friends.friendIds(a.id), []);
   assert.deepEqual(friends.friendIds(b.id), []);
-  await fs.rm(dir, { recursive: true, force: true });
+  // the accounts database stays open, so Windows may refuse to delete it: leave the temp dir then
+  await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
 });

@@ -31,7 +31,7 @@ function fixture(respond = async (body) => ({ title: body.title }), person = fal
     fire(key, props = {}) {
       for (const event of (this.events.get(key) || []).slice()) {
         if (event.once) this.removeEventListener(key, event.callback);
-        event.callback({ target: this, currentTarget: this, preventDefault() {}, ...props });
+        event.callback({ target: this, currentTarget: this, preventDefault() {}, stopPropagation() {}, ...props });
       }
       // Browsers dispatch events synchronously without awaiting promises from listeners.
       return Promise.resolve();

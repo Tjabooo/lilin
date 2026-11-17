@@ -1942,5 +1942,14 @@
         "text": "Hitta filmer och serier, ladda ner dem till servern och strömma dem i webbläsaren, på vilken enhet som helst."
       }
     }
+  },
+  "2026-11-17-friend-request-popup": {
+    "title": "Vänförfrågningar hittar dig",
+    "items": {
+      "No more digging in Settings": {
+        "title": "Inget mer letande i Inställningar",
+        "text": "När någon vill bli din vän visar Lilin det så fort du öppnar appen (eller direkt om du redan är inne). Godkänn eller avböj där, eller tryck på Senare så frågar den igen i morgon."
+      }
+    }
   }
 }
