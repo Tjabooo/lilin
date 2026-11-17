@@ -21,6 +21,27 @@ export const SETTLED_LEAD = 120;       // seconds of video in a row: no reason t
 export const COLD_MAX = 10 * 60_000;   // a start that hasn't settled by then stops holding others back
 export const LIFETIME = 12 * 60_000;   // after this nothing more is done for it
 const FASTER = 1.3;                    // a spare has to be clearly faster to take over
+const EARLY = 12_000;                  // a pick far below its picture's bitrate gets a spare beside it this soon
+const HOPELESS = 0.3;                  // ...when it brings less than this share of the bitrate
+const CLEAR_WIN = 2;                   // a spare this much faster than the pick (and well above the bitrate) wins early
+const STUCK_MS = 12_000;               // the in-order edge piece half-fetched this long while later pieces arrive: stuck
+const STUCK_AHEAD = 8;                 // ...with at least this many pieces past it already there
+const MAX_KICKS = 2;
+
+// The first piece of the file that qBittorrent doesn't have yet (in order), or null.
+export function edgePiece(layout, states) {
+  if (!layout || !Array.isArray(states)) return null;
+  for (let i = layout.first; i <= layout.last; i++) if (states[i] !== 2) return i;
+  return null;
+}
+// One slow peer can hold a block of the piece playback needs next for a minute (libtorrent asks someone else only
+// after its request timeout) while every later piece arrives. Returns true when it's that.
+export function stuckEdge(layout, states, edge, since, now = Date.now()) {
+  if (edge == null || states?.[edge] !== 1 || now - since < STUCK_MS) return false;
+  let ahead = 0;
+  for (let i = edge + 1; i <= layout.last && ahead < STUCK_AHEAD; i++) if (states[i] === 2) ahead++;
+  return ahead >= STUCK_AHEAD;
+}
 const SMOOTH = 0.3;                    // speed smoothing (new sample's weight)
 
 // What to do next. c: { addedAt, metaAt, fake, rate, need, lead, done, watching, spares: [{ hash, metaAt, fake,
@@ -38,11 +59,14 @@ export function raceStep(c, now = Date.now()) {
   }
   if (c.done || c.lead >= SETTLED_LEAD) return { settle: true };
   if (running) {
-    if (now - running.startedAt < SPARE_TRIAL) return null;
+    const ran = now - running.startedAt;
+    const clearly = ran >= EARLY && c.need > 0 && running.rate >= c.need * 1.5 && running.rate > c.rate * CLEAR_WIN;
+    if (ran < SPARE_TRIAL && !clearly) return null;
     if (!c.watching && running.rate > Math.max(c.rate * FASTER, c.rate + 0.25 * (c.need || 0))) return { swap: running.hash, why: 'faster' };
     return { settle: true };
   }
-  if (now - c.metaAt < RATE_SETTLE) return null;
+  const hopeless = c.need > 0 && now - c.metaAt >= EARLY && c.rate < c.need * HOPELESS;
+  if (now - c.metaAt < RATE_SETTLE && !hopeless) return null;
   if (!(c.need > 0) || c.rate >= c.need * KEEPS_UP || c.watching) return { settle: true };
   const next = clean.find((s) => !s.tried);
   if (next) return { start: next.hash };
@@ -58,7 +82,7 @@ export class ColdStarts {
   //   info(hashes) -> Map(hash -> qBittorrent torrent info),  files(t) -> file list ([] / null without metadata),
   //   pickFile(c, t, files) -> file index for the film / episode (null: none), fake(files) -> why | null,
   //   partial: PartialStreams (prewarm, entriesOf, drop, readable), addSpare(c, candidate) -> { hash, name, link, ref } | null,
-  //   startSpare(hash), stopSpare(hash), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
+  //   startSpare(hash), stopSpare(hash), kick(hash) (stop + start), prepareSpare(hash, files, index) (a pack: only that file), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
   //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), setLimit(hashes, bytesPerSecond),
   //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it, log }
   constructor(deps) {
@@ -71,24 +95,35 @@ export class ColdStarts {
 
   // A download someone started to watch. pick: { hash, name }, alternatives: search results for spares (best first).
   // kind 'movie' | 'episode'; runtime in minutes (for the picture's bitrate before the probe has read it).
-  register({ userId, hash, name, kind, season = null, episode = null, runtime = null, alternatives = [], title = null, tmdbId = null }) {
+  // more(): more candidates found a little later (a season pack for one episode), added as a third spare.
+  register({ userId, hash, name, kind, season = null, episode = null, runtime = null, alternatives = [], more = null, title = null, tmdbId = null }) {
     hash = String(hash || '').toLowerCase();
     if (!hash || [...this.starts.values()].some((c) => c.hash === hash)) return null;
     const c = { id: `c${++this.seq}`, userId, hash, name, kind, season, episode, runtime, title, tmdbId, addedAt: Date.now(),
       metaAt: null, fake: null, fileIndex: null, rate: 0, need: 0, lead: 0, done: false, watching: false, spares: [], settled: false,
-      ended: false, swaps: 0, followed: false, pending: alternatives.slice(0, 2) };
+      ended: false, swaps: 0, followed: false, pending: alternatives.slice(0, 2), more };
     this.starts.set(c.id, c);
     this.addSpares(c).catch((e) => this.deps.log?.warn?.(`[cold] ${name}: spares: ${e.message}`));
     return c.id;
   }
 
   async addSpares(c) {
+    const add = async (list) => {
+      for (const r of list) {
+        if (c.settled || c.ended) return;
+        const s = await this.deps.addSpare(c, r).catch(() => null);
+        if (s?.hash && s.hash !== c.hash && !c.spares.some((x) => x.hash === s.hash.toLowerCase())) {
+          c.spares.push({ ...s, hash: s.hash.toLowerCase(), pack: Boolean(r.pack), metaAt: null, fake: null, running: false, startedAt: null, rate: 0, tried: false, fileIndex: null });
+        }
+      }
+    };
     const list = c.pending;
     c.pending = [];
-    for (const r of list) {
-      if (c.settled || c.ended) return;
-      const s = await this.deps.addSpare(c, r).catch(() => null);
-      if (s?.hash && s.hash !== c.hash) c.spares.push({ ...s, hash: s.hash.toLowerCase(), metaAt: null, fake: null, running: false, startedAt: null, rate: 0, tried: false, fileIndex: null });
+    await add(list);
+    if (c.more) {
+      const more = await Promise.resolve().then(c.more).catch(() => []);
+      c.more = null;
+      await add((more || []).slice(0, 1));
     }
   }
 
@@ -151,6 +186,7 @@ export class ColdStarts {
       c.lead = duration && size ? (this.deps.partial.readable(entry, 0) / size) * duration : 0;
       c.done = this.deps.partial.status(entry).done;
       c.watching = Boolean(entry.opened && entry.started);
+      await this.unstick(c, entry, now);
     }
     // Spares: their file lists, fakes, and the one running for comparison.
     for (const s of [...c.spares]) {
@@ -168,6 +204,8 @@ export class ColdStarts {
         s.metaAt = now;
         s.fake = this.deps.fake(files) || false;
         s.fileIndex = s.fake ? null : this.deps.pickFile(c, st, files);
+        // A season pack standing in for one episode downloads just that episode.
+        if (!s.fake && s.fileIndex != null && s.pack) await this.deps.prepareSpare?.(s.hash, files, s.fileIndex);
         if (s.fake || s.fileIndex == null) {
           c.spares = c.spares.filter((x) => x !== s);
           if (s.fake) await this.deps.fakeFound(c, s.hash, st.name, s.fake, { primary: false });
@@ -196,6 +234,19 @@ export class ColdStarts {
       await Promise.resolve(this.deps.followUp?.(c)).catch((e) => this.deps.log?.warn?.(`[cold] ${c.name}: next episodes: ${e.message}`));
     }
     if (now - c.addedAt > LIFETIME && c.settled) { c.ended = true; this.starts.delete(c.id); }
+  }
+
+  // Stopping and starting the torrent drops the stuck request (and every connection, which come back in seconds).
+  // Only while it's starting, when playhead isn't there to fetch that piece itself, and twice at most.
+  async unstick(c, entry, now) {
+    if (!isCold(c, now) || entry.assist || !this.deps.kick) return;
+    const edge = edgePiece(entry.layout, entry.states);
+    if (c.edge?.piece !== edge) { c.edge = { piece: edge, since: now }; return; }
+    if ((c.kicks || 0) >= MAX_KICKS || !stuckEdge(entry.layout, entry.states, edge, c.edge.since, now)) return;
+    c.kicks = (c.kicks || 0) + 1;
+    this.deps.log?.info?.(`[cold] ${c.name}: piece ${edge} has been stuck for ${Math.round((now - c.edge.since) / 1000)} s; restarting the download to ask other peers`);
+    c.edge.since = now;
+    await this.deps.kick(c.hash);
   }
 
   async swapTo(c, spare, why, oldT) {

@@ -223,8 +223,10 @@ export class PartialStreams {
     if (!force && Date.now() - e.statesAt < POLL_MS) return Promise.resolve();
     e.refreshing = (async () => {
       try {
-        const [t, states] = await Promise.all([this.torrent(e.hash), this.qbit(`/api/v2/torrents/pieceStates?hash=${e.hash}`)]);
+        // (A removed torrent answers 404 for its pieces: that's "gone", not an error to repeat every second.)
+        const [t, states] = await Promise.all([this.torrent(e.hash), this.qbit(`/api/v2/torrents/pieceStates?hash=${e.hash}`).catch((error) => error)]);
         if (!t) { e.gone = true; return; }
+        if (states instanceof Error) throw states;
         e.torrent = t;
         // Finished downloads move from the scratch drive to their save path (scratch.js).
         try { e.file = this.filePath(t, { name: e.name }) || e.file; } catch { /* keep the last known path */ }

@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { raceStep, isCold, ColdStarts, META_WAIT, RATE_SETTLE, SPARE_TRIAL, RACE_MAX, COLD_MAX, THROTTLE_BPS } from '../src/cold-start.js';
+import { raceStep, isCold, ColdStarts, edgePiece, stuckEdge, META_WAIT, RATE_SETTLE, SPARE_TRIAL, RACE_MAX, COLD_MAX, THROTTLE_BPS } from '../src/cold-start.js';
 import { PartialStreams, readyToStart } from '../src/partial-stream.js';
 import { startSmartJob, smartJob, fakeFound, uploaderOf, raceSwapped } from '../src/smart-download.js';
 import { parseTpb } from '../src/torrents.js';
@@ -32,7 +32,7 @@ test('race: a fake pick is replaced by a clean spare, and waits for one whose fi
 
 test('race: a slow pick tries a spare next to it and keeps whichever is clearly faster', () => {
   const at = T0 + 10_000 + RATE_SETTLE;
-  assert.equal(raceStep(pick({ rate: 0.2e6, spares: [spare()] }), at - 1), null, 'measured for a while first');
+  assert.equal(raceStep(pick({ rate: 0.5e6, spares: [spare()] }), at - 1), null, 'measured for a while first');
   assert.deepEqual(raceStep(pick({ rate: 1.2e6, spares: [spare()] }), at), { settle: true }, 'keeps up: the spares go');
   assert.deepEqual(raceStep(pick({ rate: 0.2e6, spares: [spare()] }), at), { start: 's1' });
   const trial = (rate, over = {}) => raceStep(pick({ rate: 0.2e6, ...over, spares: [spare({ running: true, tried: true, startedAt: at, rate })] }), at + SPARE_TRIAL);
@@ -40,6 +40,12 @@ test('race: a slow pick tries a spare next to it and keeps whichever is clearly 
   assert.deepEqual(trial(0.25e6), { settle: true }, 'not clearly faster: the pick stays');
   assert.deepEqual(trial(1.5e6, { watching: true }), { settle: true }, 'someone is already watching the pick');
   assert.deepEqual(raceStep(pick({ rate: 0.2e6, lead: 200, spares: [spare()] }), at), { settle: true }, 'a good lead already');
+  // Hopeless (a tenth of the bitrate): the spare starts early, and a clear winner takes over early too.
+  const early = T0 + 10_000 + 12_000;
+  assert.deepEqual(raceStep(pick({ rate: 0.1e6, spares: [spare()] }), early), { start: 's1' });
+  assert.equal(raceStep(pick({ rate: 0.5e6, spares: [spare()] }), early), null, 'half the bitrate: measured longer');
+  assert.deepEqual(raceStep(pick({ rate: 0.1e6, spares: [spare({ running: true, tried: true, startedAt: early, rate: 3e6 })] }), early + 12_000), { swap: 's1', why: 'faster' });
+  assert.equal(raceStep(pick({ rate: 0.1e6, spares: [spare({ running: true, tried: true, startedAt: early, rate: 1.2e6 })] }), early + 12_000), null, 'not a clear win yet');
 });
 
 test('cold until the start has a good lead, the file is done, or it has taken too long', () => {
@@ -47,6 +53,16 @@ test('cold until the start has a good lead, the file is done, or it has taken to
   assert.equal(isCold({ addedAt: T0, lead: 130 }, T0 + 1000), false);
   assert.equal(isCold({ addedAt: T0, done: true }, T0 + 1000), false);
   assert.equal(isCold({ addedAt: T0 }, T0 + COLD_MAX), false);
+});
+
+test('a half-fetched piece at the edge with plenty after it is stuck; a slow swarm is not', () => {
+  const layout = { first: 2, last: 20 };
+  const states = [0, 0, 2, 1, ...new Array(10).fill(2), 0, 0, 0, 0, 0, 0, 0];
+  assert.equal(edgePiece(layout, states), 3);
+  assert.equal(stuckEdge(layout, states, 3, T0, T0 + 13_000), true);
+  assert.equal(stuckEdge(layout, states, 3, T0, T0 + 5_000), false, 'not for long yet');
+  assert.equal(stuckEdge(layout, [0, 0, 2, 1, 2, 2, 1, 1, 0], 3, T0, T0 + 60_000), false, 'nothing much after it: just slow');
+  assert.equal(edgePiece(layout, new Array(21).fill(2)), null);
 });
 
 test('start: the minimum lead is enough when the download is well ahead of the picture', () => {
@@ -234,6 +250,18 @@ test('a slow pick: a spare runs next to it and takes over when clearly faster; a
   assert.deepEqual(w.log.filter(([a]) => a === 'follow'), [['follow', 4]], 'once, after it has started well');
 });
 
+test('a season pack standing by for one episode downloads only that episode', async () => {
+  const w = world({ files: (h) => (h === 'pk' ? [1, 2, 3].map((e) => ({ index: e - 1, name: `Show.S01E0${e}.mkv`, size: 2e9, priority: 1 })) : [{ index: 0, name: `${h}.mkv`, size: 2e9, priority: 1 }]) });
+  const prepared = [];
+  w.deps.prepareSpare = async (hash, files, index) => prepared.push([hash, index]);
+  w.deps.pickFile = (c, t, files) => (files.length > 1 ? 1 : 0);
+  w.cold.register({ userId: 1, hash: 'p', name: 'p', kind: 'episode', season: 1, episode: 2, alternatives: [], more: async () => [{ hash: 'pk', name: 'pack', pack: true }] });
+  await settle();
+  assert.deepEqual(w.cold.list()[0].spares.map((s) => [s.hash, s.pack]), [['pk', true]]);
+  await w.cold.round();
+  assert.deepEqual(prepared, [['pk', 1]]);
+});
+
 test('the pick removed by its owner ends the race and its spares', async () => {
   const w = world({ primaryMeta: false });
   w.cold.register({ userId: 1, hash: 'p', name: 'p', kind: 'movie', alternatives: [{ hash: 's1', name: 'one' }] });
@@ -280,6 +308,12 @@ test('one episode asked for is a first-time watch; a fake’s uploader is skippe
   assert.equal(starts.length, 1);
   assert.deepEqual([starts[0].kind, starts[0].season, starts[0].episode], ['episode', 1, 4]);
   assert.deepEqual(starts[0].alternatives.map((r) => r.name), ['Show.S01E04.1080p.WEB.H264-OTHER']);
+  // The season pack stands by too (found a moment later, so the Download isn't held up by it).
+  const packs = results([['Show.S01.1080p.WEB.H264-PACK', 300, 8 * GB]]);
+  assert.equal((await starts[0].more()).length, 0, 'no pack in these results');
+  starts.length = 0;
+  await wait(startSmartJob({ type: 'tv', title: 'Show', season: 1, episodes: [2], requester: 1, want: { profile: 'balanced' } }, { ...deps, searchTorrents: async (q) => ({ results: /S01E0?2|1x02/i.test(q) ? results([['Show.S01E02.1080p.WEB.H264-OTHER', 40, 2 * GB, 'honest']]) : packs }) }));
+  assert.deepEqual((await starts[0].more()).map((r) => [r.name, r.pack]), [['Show.S01.1080p.WEB.H264-PACK', true]]);
   // The pick turns out fake, but a spare already took over: nothing runs again, and that uploader is done for.
   const hash = /btih:(\w+)/.exec(rows[0].magnet)[1];
   const found = fakeFound(hash, { retry: false });
@@ -303,4 +337,17 @@ test('a swap moves the Download’s record to the new release', async () => {
   assert.equal(smartJob(id).added[0].name, 'Ronin.1998.1080p.WEB.x264');
   assert.deepEqual(subs, ['Ronin.1998.1080p.BluRay.x264', 'Ronin.1998.1080p.WEB.x264'], 'subtitles are fetched for the new one');
   assert.equal(fakeFound('f'.repeat(40), { retry: true }).retried != null, true, 'a fake verdict on it runs the Download again');
+});
+
+test('a quick search goes on without a slow site once another has found something', async () => {
+  const { settleQuickly } = await import('../src/torrents.js');
+  const later = (ms, value, fail = false) => new Promise((resolve, reject) => setTimeout(() => (fail ? reject(new Error('down')) : resolve(value)), ms));
+  const t0 = Date.now();
+  const got = await settleQuickly([later(5, [1, 2]), later(10_000, [3]), later(5, null, true)], 50);
+  assert.ok(Date.now() - t0 < 1000, 'didn’t wait for the slow one');
+  assert.deepEqual(got.map((s) => s.status), ['fulfilled', 'rejected', 'rejected']);
+  assert.equal(got[1].reason.message, 'still searching');
+  const empty = await settleQuickly([later(5, []), later(30, [9])], 1000);
+  assert.deepEqual(empty[1].value, [9], 'nothing found yet: waits for the others');
+  assert.deepEqual(await settleQuickly([], 10), []);
 });

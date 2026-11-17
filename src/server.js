@@ -1653,7 +1653,8 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     preferAlternative: !upgrade && !animeCtx && details.original_language === 'sv',
   }, {
     parseName, magnetFor1337x: torrents.magnetFor1337x,
-    searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary }),
+    // Someone is waiting to watch: the sites that answer quickly decide (torrents.js, quick).
+    searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary, quick: !background && !upgrade }),
     alternative: upgrade || animeCtx ? null : svtAlternative(user, { type, title, originalTitle: original, year, tmdbId }),
     addDownload: async (opts) => { const added = await addDownload({ ...opts, user, film, show }); if (added?.hash) onAdded?.(added.hash); return added; },
     coldStart: background || !coldStarts ? null : (start) => coldStarts.register({ ...start, userId: user.id, runtime: type === 'tv' ? runtime || 45 : runtime, title, tmdbId }),
@@ -2734,6 +2735,12 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
   },
   startSpare: (hash) => setPaused(hash, false),
   stopSpare: (hash) => setPaused(hash, true),
+  kick: async (hash) => { await setPaused(hash, true); await new Promise((r) => setTimeout(r, 500)); await setPaused(hash, false); },
+  prepareSpare: async (hash, files, index) => {
+    const off = files.map((f, i) => f.index ?? i).filter((i) => i !== index && files.find((f, j) => (f.index ?? j) === i).priority !== 0);
+    if (off.length) await qbitRequest('/api/v2/torrents/filePrio', { method: 'POST', body: new URLSearchParams({ hash, id: off.join('|'), priority: '0' }) });
+    torrentFilesCache.delete(hash);
+  },
   swap: async (c, spare, why) => {
     const user = accounts.userById(c.userId);
     const [neu] = await qbit(`/api/v2/torrents/info?hashes=${spare.hash}`);

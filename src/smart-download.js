@@ -252,6 +252,16 @@ function nextPicks(pool, pick, choosePick, n = 2) {
   }
   return out;
 }
+// The season pack that would be picked for this season, as a spare for one of its episodes (cold-start.js).
+async function packSpare(title, season, aired, want, deps) {
+  const titles = [title, ...(showKey(title) === 'house' ? ['House MD'] : showKey(title) === 'housemd' ? ['House'] : [])];
+  let results = [];
+  for (const query of seasonQueries(titles, season, 'balanced').slice(0, 2)) {
+    try { results = [...results, ...await search(query, 'tv', deps)]; } catch { /* one site down: the other query */ }
+  }
+  const best = pickBest(results.filter(usable), { ...want, type: 'tv', season, episodes: aired?.length || 0, missing: 1 }, deps.parseName);
+  return best.pick ? [{ ...best.pick, pack: true }] : [];
+}
 // Someone is about to watch what was just added (not a background job, not someone else's download): watch-ready
 // from the start, with spares in case the pick can't deliver.
 function coldStart(added, pick, alternatives, spec, deps, where) {
@@ -486,8 +496,12 @@ async function runSeason(job, spec, deps) {
       const eps = episodesIn(found.pick.name, season, ctx);
       eps.forEach((e) => covered.add(e));
       job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null, hash: added.hash || null });
-      // One episode asked for: someone wants to watch it now.
-      if (list.length === 1) coldStart(added, found.pick, deps.coldStart ? nextPicks(found.fits, found.pick, (l) => pickEpisode(l, { ...want, freeBytes, episode: ep })) : [], spec, deps, { kind: 'episode', season, episode: ep });
+      // One episode asked for: someone wants to watch it now. Older shows' single episodes often sit on dead swarms
+      // next to a lively season pack, so the pack (that episode only) stands by too.
+      if (list.length === 1) {
+        coldStart(added, found.pick, deps.coldStart ? nextPicks(found.fits, found.pick, (l) => pickEpisode(l, { ...want, freeBytes, episode: ep })) : [], spec, deps,
+          { kind: 'episode', season, episode: ep, more: ctx ? null : () => packSpare(job.title, season, aired, { ...want, freeBytes }, deps) });
+      }
       if (Number.isFinite(freeBytes) && found.pick.size) freeBytes -= found.pick.size;
     } catch (e) {
       if (e.status === 503) throw e;

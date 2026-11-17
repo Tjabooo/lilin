@@ -349,12 +349,30 @@ export const plainQuery = (q) => String(q).normalize('NFD').replace(/[\u0300-\u0
 
 // `documentary`: also search 1337x's Documentaries category (one more request through its mirrors, so
 // only for titles known to be documentaries).
-export async function searchTorrents(rawQuery, rawType, { adult = false, documentary = false } = {}) {
-  const data = await searchAll(rawQuery, rawType, documentary);
+// quick: someone is waiting at a Play button. Once one site has found something, the others get QUICK_GRACE_MS more
+// and the search goes on without whichever is still busy (1337x behind Cloudflare takes ~15 s through FlareSolverr;
+// Knaben indexes it anyway). What they find still lands in the cache for the next search.
+export const QUICK_GRACE_MS = 2500;
+export async function searchTorrents(rawQuery, rawType, { adult = false, documentary = false, quick = false } = {}) {
+  const data = await searchAll(rawQuery, rawType, documentary, quick);
   return adult ? data : withoutAdult(data);
 }
 
-async function searchAll(rawQuery, rawType, documentary = false) {
+// Like Promise.allSettled, but done `graceMs` after the first answer with results; still busy = rejected.
+export function settleQuickly(promises, graceMs = QUICK_GRACE_MS) {
+  return new Promise((resolve) => {
+    const out = new Array(promises.length).fill(null);
+    let left = promises.length, timer = null;
+    const finish = () => { clearTimeout(timer); resolve(out.map((o) => o || { status: 'rejected', reason: new Error('still searching') })); };
+    if (!left) finish();
+    promises.forEach((p, i) => p.then(
+      (value) => { out[i] = { status: 'fulfilled', value }; if (value?.length && !timer) timer = setTimeout(finish, graceMs); },
+      (reason) => { out[i] = { status: 'rejected', reason }; },
+    ).finally(() => { if (--left === 0) finish(); }));
+  });
+}
+
+async function searchAll(rawQuery, rawType, documentary = false, quick = false) {
   if (!ENABLED) throw new TorrentError(503, 'Torrent search is turned off (TORRENTS=off in .env).');
   const q = String(rawQuery || '').replace(/\s+/g, ' ').trim().slice(0, 100);
   const type = ['movie', 'tv'].includes(rawType) ? rawType : 'all';
@@ -373,16 +391,32 @@ async function searchAll(rawQuery, rawType, documentary = false) {
     if (KNABEN_URL) sources.push(['Knaben', searchKnaben(plain)]);
   }
   if (NYAA_URL) sources.push(['Nyaa', searchNyaa(q)]);
-  const settled = await Promise.allSettled(sources.map((s) => s[1]));
+  const promises = sources.map((s) => s[1]);
+  const settled = quick ? await settleQuickly(promises) : await Promise.allSettled(promises);
+  const data = mergeSources(sources, settled);
+  if (!data.problems.length) cacheSearch(key, data); // cache complete results only
+  else if (quick && settled.some((s) => s.reason?.message === 'still searching')) {
+    // The slow sites' answers, for the next search of the same words.
+    Promise.allSettled(promises).then((all) => { const full = mergeSources(sources, all); if (!full.problems.length) cacheSearch(key, full); });
+  }
+  if (!data.results.length && data.problems.length === sources.length) {
+    throw new TorrentError(502, `None of the torrent sites answered. ${data.problems.join(' ')}`);
+  }
+  return data;
+}
+
+function cacheSearch(key, data) {
+  searchCache.set(key, { at: Date.now(), data });
+  if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
+}
+
+function mergeSources(sources, settled) {
   const results = [];
   const problems = [];
   settled.forEach((s, i) => {
     if (s.status === 'fulfilled') results.push(...s.value);
     else problems.push(`${sources[i][0]}: ${s.reason?.message || 'failed'}`);
   });
-  if (!results.length && problems.length === sources.length) {
-    throw new TorrentError(502, `None of the torrent sites answered. ${problems.join(' ')}`);
-  }
 
   // Deduplicate by name, keeping the entry with more seeders.
   const byName = new Map();
@@ -392,9 +426,5 @@ async function searchAll(rawQuery, rawType, documentary = false) {
     if (!prev || r.seeders > prev.seeders) byName.set(k, r);
   }
   const merged = [...byName.values()].sort((a, b) => (a.cam - b.cam) || b.seeders - a.seeders).slice(0, 80);
-
-  const data = { results: merged, problems };
-  if (!problems.length) searchCache.set(key, { at: Date.now(), data }); // cache complete results only
-  if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value);
-  return data;
+  return { results: merged, problems };
 }
