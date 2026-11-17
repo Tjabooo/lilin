@@ -87,16 +87,6 @@
   max-width: var(--pf-w); margin: 0 auto; padding: 0 var(--gutter); }
 .pf-align-left .pf-head { align-items: flex-start; text-align: left; }
 .pf-face .face { font-size: 40px; box-shadow: 0 0 0 4px var(--velvet), 0 0 0 6px var(--pf-accent), 0 18px 50px -10px color-mix(in srgb, var(--pf-accent) 65%, transparent); }
-/* your own face is the way to change your picture */
-.pf-face-mine { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
-.pf-face-mine:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 8px; }
-.pf-face-cam { position: absolute; right: 2px; bottom: 2px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%;
-  color: var(--on-bulb); background: var(--bulb); box-shadow: 0 0 0 3px var(--velvet); transition: transform 0.15s; }
-.pf-face-cam svg { width: 17px; height: 17px; }
-.pf-face-mine:hover .pf-face-cam { transform: scale(1.08); }
-.pf-pic-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
-.pf-pic-remove { padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.pf-pic-remove:hover { color: var(--paper); }
 .pf-name { margin: 16px 0 2px; font: 800 clamp(30px, 24px + 1.8vw, 48px)/1.04 var(--display); letter-spacing: -0.025em; overflow-wrap: anywhere; text-wrap: balance; }
 .pf-sub { display: flex; flex-wrap: wrap; align-items: center; justify-content: inherit; gap: 6px; color: var(--text-2); font-size: 15px; font-weight: 600; }
 .pf-align-center .pf-sub { justify-content: center; }
@@ -309,10 +299,11 @@
 .pf-result-name { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 /* The sheet's own bottom padding would leave a gap under a sticky bar (sticky sticks to the content edge),
    so the editor sheet drops it and the bar carries the safe area itself: nothing scrolls past below it. */
-.sheet:has(.pf-save-bar) { padding-bottom: 0; }
+.sheet:has(.pf-save-bar) { padding-bottom: 0; overflow-x: hidden; container-type: inline-size; }
 .pf-save-bar { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; margin: var(--s4) calc(-1 * var(--gutter)) 0; padding: 12px var(--gutter) calc(12px + var(--safe-bottom));
-  /* a raised footer, one step lighter than the sheet with a shadow cast upward, so the options read as sliding
-     under it instead of being chopped off */
+  /* a footer edge to edge across the whole sheet (the content column is narrower and centred, so 50% - 50cqw reaches
+     the sheet's sides), a step lighter with a shadow cast upward so the options read as sliding under it */
+  margin-inline: calc(50% - 50cqw); padding-inline: calc(50cqw - 50%);
   background: var(--surface-2); border-top: 1px solid var(--hairline-2); box-shadow: 0 -14px 28px -14px rgb(0 0 0 / .55); }
 .pf-save-bar .play-btn { min-width: 140px; }
 @media (max-width: 599px) { .pf-save-bar .play-btn { width: 100%; } }
