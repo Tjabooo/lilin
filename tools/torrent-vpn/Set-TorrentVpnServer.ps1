@@ -5,7 +5,8 @@
 .DESCRIPTION
   Without arguments: every configured server, the current one marked with *, plus its free bandwidth
   when loadUrl is set in config.json (AirVPN's status API). -Server switches to the one whose name
-  matches (a regex, it must match exactly one); -Best to the one with the most free bandwidth.
+  matches (a regex, it must match exactly one); -Best to the one the watchdog would pick (the first in
+  list order with room to spare, else the one with the most free bandwidth).
   The watchdog leaves a hand-picked server alone for 30 minutes, then moves on by itself if it is crowded.
   Run as Administrator.
 
@@ -39,8 +40,8 @@ if ($Best) {
   if (-not $load) { throw 'No load data: set loadUrl in config.json (https://airvpn.org/api/status/ for AirVPN).' }
   $choice = Get-TvServerChoice $cfg $load
   if ($choice.bestIndex -lt 0) { throw 'No other server with load data.' }
-  if ($choice.current -and $choice.current.healthy -and $choice.current.freeMbit -ge $choice.best.freeMbit) {
-    "Already on the server with the most free bandwidth ($($choice.current.name), $($choice.current.freeMbit) Mbit/s)."
+  if ($choice.settled) {
+    "Already on the preferred server with room to spare ($($choice.current.name), $($choice.current.freeMbit) Mbit/s free)."
     return
   }
   $index = $choice.bestIndex

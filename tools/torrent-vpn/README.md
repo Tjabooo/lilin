@@ -12,7 +12,7 @@ falling back to your connection.
 | Split tunnel | A WireGuard tunnel service with `Table = off`, so it adds no routes of its own. The tunnel gets a default route with a high metric (5000): normal traffic keeps using your router, but a socket bound to the tunnel address can only leave through the tunnel. Windows uses the strong host model, so a source address is only ever sent out of its own interface. |
 | Kill switch 1 | qBittorrent is bound to the tunnel interface *and* its address (Advanced → Network interface / Optional IP address to bind to). When the tunnel is down there is nothing to bind to, so nothing gets out. UPnP and Local Peer Discovery are turned off; both would work outside the tunnel. |
 | Kill switch 2 | Windows Firewall block rules (in and out) for `qbittorrent.exe` on every local address except the tunnel's and loopback (loopback keeps its WebUI working). |
-| Watchdog | Scheduled task `TorrentVpn Watchdog`, SYSTEM, every minute and at boot. It keeps the tunnel, route, firewall rules and qBittorrent binding in place, and restarts the tunnel when the handshake goes stale. After two restarts it moves to another server (the one with the most free bandwidth when `loadUrl` is set, see Server choice). Every 10 minutes it checks the exit IP through the tunnel. If qBittorrent ever has a connection outside the tunnel, or reports your home IP as its public address, the watchdog stops every torrent. |
+| Watchdog | Scheduled task `TorrentVpn Watchdog`, SYSTEM, every minute and at boot. It keeps the tunnel, route, firewall rules and qBittorrent binding in place, and restarts the tunnel when the handshake goes stale. After two restarts it moves to another server (picked by free bandwidth when `loadUrl` is set, see Server choice). Every 10 minutes it checks the exit IP through the tunnel. If qBittorrent ever has a connection outside the tunnel, or reports your home IP as its public address, the watchdog stops every torrent. |
 
 Allowed IPs are `0.0.0.0/1, 128.0.0.0/1` rather than `0.0.0.0/0`. With `/0`, WireGuard for
 Windows turns on its own whole-machine kill switch, which would cut the server off from the LAN.
@@ -58,17 +58,20 @@ by SYSTEM and Administrators.
 ```powershell
 .\Set-TorrentVpnServer.ps1                    # every server, * = current, free bandwidth if loadUrl is set
 .\Set-TorrentVpnServer.ps1 -Server Formosa    # switch by name (regex, must match one)
-.\Set-TorrentVpnServer.ps1 -Best              # switch to the one with the most free bandwidth
+.\Set-TorrentVpnServer.ps1 -Best              # switch to the one the watchdog would pick
 ```
 
 A crowded VPN server is the usual reason torrents crawl. With `loadUrl` set (`-LoadUrl` at install, or
 `"loadUrl"` in `config.json`; AirVPN: `https://airvpn.org/api/status/`), the watchdog reads every
 server's bandwidth use every 10 minutes and moves the tunnel when the current server has less than
 `minFreeMbit` (3000) Mbit/s free and another configured one has at least `moveMarginMbit` (2000) more,
-or when the provider marks the current one unhealthy. To avoid flapping, the move has to be wanted on
+or when the provider marks the current one unhealthy. It moves to the first server in the peer list
+with room to spare (both thresholds added up), so keep the nearest servers first in `config.json`;
+without one it takes the server with the most free bandwidth. A server with room is kept, even if it
+is not the first in the list (every switch costs the peers' connections). To avoid flapping, the move has to be wanted on
 two checks in a row, at least 30 minutes after the last switch, and it waits up to 20 minutes while
-someone is watching a Play now download (a switch drops every peer connection). Failover goes to the
-server with the most free bandwidth too, skipping servers that stopped answering in the last 30 minutes.
+someone is watching a Play now download (a switch drops every peer connection). Failover picks the
+same way, skipping servers that stopped answering in the last 30 minutes.
 Only peers whose endpoint is an IP address are matched to the load list; a country entry given by host
 name (AirVPN's `se3.vpn.airdns.org`) is only used by the plain rotation when no load data is available.
 `status.json` shows the last check under `serverLoad`.

@@ -110,8 +110,16 @@ function New-TvTunnelConfig($Parsed, $Peer = $null) {
 
 function Get-TvServiceName([string]$Name) { "WireGuardTunnel`$$Name" }
 
+# wg.exe complains on stderr when the tunnel interface is gone. With stderr redirected, Windows PowerShell
+# 5.1 turns that into an error that stops a caller running with ErrorActionPreference Stop: on 2026-11-15
+# it ended every watchdog run while the tunnel service could not start, so the watchdog never failed over.
+function Invoke-TvWg([string[]]$WgArgs) {
+  $ErrorActionPreference = 'Continue'
+  try { & (Join-Path $Script:WgDir 'wg.exe') @WgArgs 2>$null } catch { $null }
+}
+
 function Get-TvHandshakeAge([string]$Name) {
-  $out = & (Join-Path $Script:WgDir 'wg.exe') show $Name latest-handshakes 2>$null
+  $out = Invoke-TvWg @('show', $Name, 'latest-handshakes')
   if (-not $out) { return $null }
   $epoch = [long](($out -split '\s+')[1])
   if ($epoch -le 0) { return $null }
@@ -120,7 +128,7 @@ function Get-TvHandshakeAge([string]$Name) {
 
 # The server address the tunnel really talks to (a peer given by host name resolves at service start).
 function Get-TvLiveEndpointIp([string]$Name) {
-  $out = & (Join-Path $Script:WgDir 'wg.exe') show $Name endpoints 2>$null
+  $out = Invoke-TvWg @('show', $Name, 'endpoints')
   if ("$out" -match '\s(\d{1,3}(?:\.\d{1,3}){3}):\d+') { return $matches[1] }
   $null
 }
@@ -340,6 +348,7 @@ function Test-TvExit($Config) {
 # matched to servers by entry IP, so only peers whose endpoint is an IP address take part. Measured
 # 2026-11-17 from Stockholm: 20 Gbit/s servers with ~9 Gbit/s free gave 54-86 MB/s through the tunnel,
 # 2 Gbit/s servers 5-9 MB/s even at 4 % load, so the choice goes by free bandwidth, not load percent.
+# The peer list order is the preference (nearest first): the first server with room to spare wins.
 
 # Hashtable entry IP -> server (name, load %, free and max Mbit/s, healthy), or $null without data.
 function Get-TvServerLoad($Config) {
@@ -358,33 +367,49 @@ function Get-TvServerLoad($Config) {
 
 function Get-TvPeerIp($Peer) { ($Peer.endpoint -split ':')[0] }
 
-# The server the tunnel uses now and the configured server with the most free bandwidth besides it
-# (healthy, and not in $Skip: peer indexes that failed recently).
+# Thresholds in Mbit/s: a server is crowded below minFreeMbit free (config.json, default 3000); a move
+# needs moveMarginMbit (default 2000) more; "room to spare" is the sum of both.
+function Get-TvLoadLimits($Config) {
+  $min = if ($Config.minFreeMbit) { [int]$Config.minFreeMbit } else { 3000 }
+  $margin = if ($Config.moveMarginMbit) { [int]$Config.moveMarginMbit } else { 2000 }
+  [pscustomobject]@{ minFree = $min; margin = $margin; roomy = $min + $margin }
+}
+
+# The server the tunnel uses now and the one to move to: the first configured server (list order) with
+# room to spare, else the one with the most free bandwidth. Skips unhealthy servers, the current one and
+# $Skip (peer indexes that failed recently). settled = the current server is roomy and nothing roomy comes
+# before it in the list.
 function Get-TvServerChoice($Config, $Load, [int[]]$Skip = @()) {
+  $roomy = (Get-TvLoadLimits $Config).roomy
   $liveIp = Get-TvLiveEndpointIp $Config.name
   if (-not $liveIp) { $liveIp = Get-TvPeerIp $Config.peers[[int]$Config.peerIndex] }
   $current = $Load[[string]$liveIp]
-  $best = $null; $bestIndex = -1
+  $currentPos = -1; $first = $null; $firstIndex = -1; $most = $null; $mostIndex = -1
   for ($i = 0; $i -lt $Config.peers.Count; $i++) {
     $ip = Get-TvPeerIp $Config.peers[$i]
+    if ($ip -eq $liveIp -and $currentPos -lt 0) { $currentPos = $i }
     $s = $Load[[string]$ip]
     if (-not $s -or -not $s.healthy -or $ip -eq $liveIp -or $Skip -contains $i) { continue }
-    if (-not $best -or $s.freeMbit -gt $best.freeMbit) { $best = $s; $bestIndex = $i }
+    if ($firstIndex -lt 0 -and $s.freeMbit -ge $roomy) { $first = $s; $firstIndex = $i }
+    if (-not $most -or $s.freeMbit -gt $most.freeMbit) { $most = $s; $mostIndex = $i }
   }
-  [pscustomobject]@{ current = $current; best = $best; bestIndex = $bestIndex }
+  if ($currentPos -lt 0) { $currentPos = [int]$Config.peerIndex }
+  $best = if ($first) { $first } else { $most }
+  $bestIndex = if ($first) { $firstIndex } else { $mostIndex }
+  $settled = [bool]($current -and $current.healthy -and $current.freeMbit -ge $roomy -and ($firstIndex -lt 0 -or $currentPos -lt $firstIndex))
+  [pscustomobject]@{ current = $current; best = $best; bestIndex = $bestIndex; settled = $settled }
 }
 
 # Leave the current server when the provider marks it unhealthy, or when it has less than minFreeMbit
-# free and the best other one has at least moveMarginMbit more. An unknown current server stays.
+# free and the chosen one has at least moveMarginMbit more. An unknown current server stays.
 function Test-TvShouldMove($Config, $Choice) {
   if (-not $Choice.best -or -not $Choice.current) { return $false }
   if (-not $Choice.current.healthy) { return $true }
-  $min = if ($Config.minFreeMbit) { [int]$Config.minFreeMbit } else { 3000 }
-  $margin = if ($Config.moveMarginMbit) { [int]$Config.moveMarginMbit } else { 2000 }
-  $Choice.current.freeMbit -lt $min -and $Choice.best.freeMbit -ge $Choice.current.freeMbit + $margin
+  $lim = Get-TvLoadLimits $Config
+  $Choice.current.freeMbit -lt $lim.minFree -and $Choice.best.freeMbit -ge $Choice.current.freeMbit + $lim.margin
 }
 
-# The peer to fail over to when the current one stops answering: the one with the most free bandwidth
+# The peer to fail over to when the current one stops answering: the server Get-TvServerChoice picks
 # when load data is available, otherwise the next one in the list.
 function Select-TvFailoverPeer($Config, [int[]]$Skip = @()) {
   $load = Get-TvServerLoad $Config
