@@ -69,3 +69,20 @@ export function episodeQueries(title, season, episode) {
     `${name} S${s}E${e}`, `${name} ${season}x${e}`,
   ]))];
 }
+
+// A set of several seasons that includes `season`: "Friends (1994) Season 1-10 S01-S10 (1080p ...)", "Lost S01-S06",
+// "The Wire Seasons 1 to 5". Returns { from, to } or null (single seasons, single episodes, other shows, ranges
+// without numbers like "Complete Series").
+export function seasonSet(name, title, season, parseName) {
+  const n = String(name).replace(/[._]+/g, ' ');
+  if (/\bS\d{1,2}\s?E\d{1,3}\b|\b\d{1,2}x\d{2,3}\b/i.test(n)) return null;
+  // ("Show S2 - 05" is season 2 episode 5 in anime names: a second S, or two digits each without spaces, for a set.)
+  const m = /\bS(\d{1,2})\s?-\s?S(\d{1,2})\b/i.exec(n) || /\bS(\d{2})-(\d{2})\b/i.exec(n)
+    || /\bseasons?\s?(\d{1,2})\s?(?:-|to|–)\s?(?:season\s?)?(\d{1,2})\b/i.exec(n);
+  if (!m) return null;
+  const from = Number(m[1]), to = Number(m[2]);
+  if (!(from >= 0 && to > from && to - from < 60) || season < from || season > to) return null;
+  const head = n.slice(0, m.index).replace(/(?:\b(?:the )?(?:season|seasons|complete|series|collection)\b[\s-]*)+$/i, '').trim();
+  const parsed = head && parseName ? parseName(head, { file: false }).title : head;
+  return parsed && sameShow(parsed, title) ? { from, to } : null;
+}

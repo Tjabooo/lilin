@@ -9,6 +9,9 @@
 //   Someone already watching the pick (playback started) is never switched.
 // - Priority: while one is starting, background downloads (Live TV picks, upgrades, later episodes) are held back.
 // - Next episodes: a single episode, once it plays smoothly, brings the episodes after it (server.js decides how).
+// - One episode from a pack (pack: true): only that episode's file is switched on before anything else happens; a pack
+//   that turns out not to hold the episode is stopped and replaced by a spare, or removed so the Download can run again.
+// - A film whose Best Quality pick was too heavy to start with (better): that copy follows once this one plays well.
 //
 // Everything that talks to qBittorrent or Lilin's records comes in as deps (server.js); the decisions are here.
 
@@ -52,8 +55,8 @@ export function raceStep(c, now = Date.now()) {
   c = { ...c, rate: Math.min(c.rate, c.orderRate ?? c.rate) };
   const clean = (c.spares || []).filter((s) => s.metaAt != null && !s.fake).map((s) => ({ ...s, rate: Math.min(s.rate, s.orderRate ?? s.rate) }));
   const running = clean.find((s) => s.running);
-  if (c.fake) {
-    if (running || clean[0]) return { swap: (running || clean[0]).hash, why: 'fake' };
+  if (c.fake || c.missing) {
+    if (running || clean[0]) return { swap: (running || clean[0]).hash, why: c.fake ? 'fake' : 'the episode isn’t in it' };
     return (c.spares || []).some((s) => s.metaAt == null && !s.fake) && now - c.addedAt < RACE_MAX ? null : { settle: true };
   }
   if (c.metaAt == null) {
@@ -85,8 +88,10 @@ export class ColdStarts {
   //   info(hashes) -> Map(hash -> qBittorrent torrent info),  files(t) -> file list ([] / null without metadata),
   //   pickFile(c, t, files) -> file index for the film / episode (null: none), fake(files) -> why | null,
   //   partial: PartialStreams (prewarm, entriesOf, drop, readable), addSpare(c, candidate) -> { hash, name, link, ref } | null,
-  //   startSpare(hash), stopSpare(hash), kick(hash) (stop + start), prepareSpare(hash, files, index) (a pack: only that file), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
-  //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), setLimit(hashes, bytesPerSecond),
+  //   startSpare(hash), stopSpare(hash) (also pauses a pack pick without the episode), kick(hash) (stop + start),
+  //   prepareSpare(hash, files, index) (a pack: only that file), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
+  //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), dropPick(c) (a pack pick without the episode
+  //   and nothing to replace it: removed, the Download runs again), setLimit(hashes, bytesPerSecond),
   //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it, log }
   constructor(deps) {
     this.deps = deps;
@@ -99,12 +104,13 @@ export class ColdStarts {
   // A download someone started to watch. pick: { hash, name }, alternatives: search results for spares (best first).
   // kind 'movie' | 'episode'; runtime in minutes (for the picture's bitrate before the probe has read it).
   // more(): more candidates found a little later (a season pack for one episode), added as a third spare.
-  register({ userId, hash, name, kind, season = null, episode = null, runtime = null, alternatives = [], more = null, title = null, tmdbId = null }) {
+  // pack: the pick is a pack, wanted for one episode. better: a film's better copy to fetch once this one plays well.
+  register({ userId, hash, name, kind, season = null, episode = null, runtime = null, alternatives = [], more = null, title = null, tmdbId = null, pack = false, better = null }) {
     hash = String(hash || '').toLowerCase();
     if (!hash || [...this.starts.values()].some((c) => c.hash === hash)) return null;
     const c = { id: `c${++this.seq}`, userId, hash, name, kind, season, episode, runtime, title, tmdbId, addedAt: Date.now(),
       metaAt: null, fake: null, fileIndex: null, rate: 0, need: 0, lead: 0, done: false, watching: false, spares: [], settled: false,
-      ended: false, swaps: 0, followed: false, pending: alternatives.slice(0, 2), more };
+      ended: false, swaps: 0, followed: false, pending: alternatives.slice(0, 2), more, pack: Boolean(pack), prepared: false, missing: false, better };
     this.starts.set(c.id, c);
     this.addSpares(c).catch((e) => this.deps.log?.warn?.(`[cold] ${name}: spares: ${e.message}`));
     return c.id;
@@ -165,6 +171,8 @@ export class ColdStarts {
     if (holder.fake) return { entry: null, meta: true };
     holder.fileIndex ??= this.deps.pickFile(c, t, files);
     if (holder.fileIndex == null) return { entry: null, meta: true };
+    // One episode from a pack: the rest of it switched off before it starts downloading for watching.
+    if (holder.pack && !holder.prepared) { await this.deps.prepareSpare?.(holder.hash, files, holder.fileIndex); holder.prepared = true; }
     const id = `${holder.hash}-${holder.fileIndex}`;
     const entry = await this.deps.partial.prewarm(id, { until }).catch((e) => { this.deps.log?.warn?.(`[cold] ${t.name}: ${e.message}`); return null; });
     return { entry, meta: true };
@@ -182,6 +190,12 @@ export class ColdStarts {
     if (!t) { await this.end(c, 'gone'); return; }
     const until = c.addedAt + LIFETIME;
     const { entry } = await this.warm(c, t, c, until);
+    // A pack without the episode in it (its name promised the season): stopped at once, then replaced or removed.
+    if (c.pack && c.metaAt != null && !c.fake && c.fileIndex == null && !c.missing && !c.settled) {
+      c.missing = true;
+      this.deps.log?.info?.(`[cold] ${c.title || c.name}: episode ${c.episode} isn’t in ${c.name}`);
+      await this.deps.stopSpare?.(c.hash);
+    }
     if (entry) {
       this.measure(c, entry, t);
       const size = entry.size || 0, duration = entry.info?.duration || 0;
@@ -213,7 +227,7 @@ export class ColdStarts {
         s.fake = this.deps.fake(files) || false;
         s.fileIndex = s.fake ? null : this.deps.pickFile(c, st, files);
         // A season pack standing in for one episode downloads just that episode.
-        if (!s.fake && s.fileIndex != null && s.pack) await this.deps.prepareSpare?.(s.hash, files, s.fileIndex);
+        if (!s.fake && s.fileIndex != null && s.pack) { await this.deps.prepareSpare?.(s.hash, files, s.fileIndex); s.prepared = true; }
         if (s.fake || s.fileIndex == null) {
           c.spares = c.spares.filter((x) => x !== s);
           if (s.fake) await this.deps.fakeFound(c, s.hash, st.name, s.fake, { primary: false });
@@ -235,9 +249,10 @@ export class ColdStarts {
         await this.settle(c);
         // A fake with no spare to take over: the usual way (removed, and its Download runs again).
         if (c.fake) { await this.deps.fakeFound(c, c.hash, t.name, c.fake, { primary: true, retry: true }); await this.end(c); return; }
+        if (c.missing) { await this.deps.dropPick?.(c); await this.end(c); return; }
       }
     }
-    if (!isCold(c, now) && c.kind === 'episode' && !c.followed && !c.fake) {
+    if (!isCold(c, now) && (c.kind === 'episode' || c.better) && !c.followed && !c.fake && !c.missing) {
       c.followed = true;
       await Promise.resolve(this.deps.followUp?.(c)).catch((e) => this.deps.log?.warn?.(`[cold] ${c.name}: next episodes: ${e.message}`));
     }
@@ -269,7 +284,8 @@ export class ColdStarts {
     if (was.fileIndex != null) await this.deps.partial.drop(`${was.hash}-${was.fileIndex}`);
     c.spares = c.spares.filter((s) => s !== spare);
     Object.assign(c, { hash: spare.hash, name: spare.name, metaAt: spare.metaAt, fake: false, fileIndex: spare.fileIndex, rate: spare.rate || 0,
-      orderRate: spare.orderRate, samples: spare.samples || 0, swaps: c.swaps + 1, watching: false, edge: null, kicks: 0 });
+      orderRate: spare.orderRate, samples: spare.samples || 0, swaps: c.swaps + 1, watching: false, edge: null, kicks: 0,
+      pack: Boolean(spare.pack), prepared: Boolean(spare.prepared), missing: false });
     if (spare.running) c.metaAt = spare.startedAt; // its speed has been measured since then
     if (why === 'faster') await this.settle(c);
   }

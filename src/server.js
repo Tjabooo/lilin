@@ -1550,12 +1550,15 @@ async function haveEpisodes(key, seasonNo, user = null, ctx = null, { dub = fals
     // Anime: a torrent Lilin downloaded for this show, or any name the context places in this season.
     if (ctx && (shows.showDownload(t.hash)?.id === ctx.id || season.episodesIn(t.name, seasonNo, ctx).length)) return true;
     const identity = torrentIdentity(t.name);
-    return identity.season === seasonNo && season.sameShow(identity.title, key);
+    return (identity.season === seasonNo && season.sameShow(identity.title, key)) || Boolean(season.seasonSet(t.name, key, seasonNo, parseName));
   });
   const managed = new Map();
+  // A set of several seasons ("S01-S10"): only its files that name this season count.
+  const thisSeason = new RegExp(`\\bS0?${seasonNo}\\s?E\\d|\\b0?${seasonNo}x\\d`, 'i');
   for (const t of relevant) {
     try {
       const files = await torrentFileMetadata(t, { fresh: true });
+      const isSet = !ctx && Boolean(season.seasonSet(t.name, key, seasonNo, parseName));
       let covered = false;
       for (const f of files) {
         const full = torrentFilePath(t, f);
@@ -1563,6 +1566,7 @@ async function haveEpisodes(key, seasonNo, user = null, ctx = null, { dub = fals
         const ready = selected && f.progress >= 1 && fileExists(full) && !BUSY_STATES.test(t.state || '');
         managed.set(path.resolve(full).toLowerCase(), ready);
         if (!selected) continue;
+        if (isSet && !thisSeason.test(path.basename(f.name.replace(/\\/g, '/')).replace(/[._]+/g, ' '))) continue;
         const failed = /^(missingFiles|error|unknown)$/.test(t.state || '');
         // Selected queued files count, but a completed/missing download must prove its files exist.
         if (!ready && (failed || t.progress >= 1)) continue;
@@ -1658,7 +1662,8 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
   }, {
     parseName, magnetFor1337x: torrents.magnetFor1337x,
     // Someone is waiting to watch: the sites that answer quickly decide (torrents.js, quick).
-    searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary, quick: !background && !upgrade }),
+    // (opts: what settles a search, how long the slower sites may take: smart-download.js)
+    searchTorrents: (q, t, opts = {}) => torrents.searchTorrents(q, t, { documentary, quick: !background && !upgrade, good: opts.good, wait: opts.wait, hurry: opts.hurry }),
     alternative: upgrade || animeCtx ? null : svtAlternative(user, { type, title, originalTitle: original, year, tmdbId }),
     addDownload: async (opts) => { const added = await addDownload({ ...opts, user, film, show }); if (added?.hash) onAdded?.(added.hash); return added; },
     coldStart: background || !coldStarts ? null : (start) => coldStarts.register({ ...start, userId: user.id, runtime: type === 'tv' ? runtime || 45 : runtime, title, tmdbId }),
@@ -1666,7 +1671,7 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     filmHave: () => filmHave(tmdbId, user, want.quality, { dub }), freeBytes: freeBytesFor,
     seasonEpisodes: (t, y, n) => shows.seasonEpisodes(t, y, n, tmdb),
     haveEpisodes: (key, n, ctx) => haveEpisodes(key, n, user, ctx, { dub }),
-    trimPack: (link, n, owned, ctx) => trimSeasonPack(link, n, owned, { ctx }), removePack: removeNewPack,
+    trimPack: (link, n, owned, ctx, opts = {}) => trimSeasonPack(link, n, owned, { ctx, only: opts.only ?? null }), removePack: removeNewPack,
     reopenPack: (link, n, owned, ctx) => reopenPack(link, n, owned, { ctx, key: shows.showKey(title) }),
     torrentsHere: async () => new Set((await qbit('/api/v2/torrents/info')).map((t) => t.hash.toLowerCase())),
     inOrder: ({ hash, existing }, n) => { if (!existing) orderEpisodes(hash, shows.showKey(title), n); },
@@ -1977,12 +1982,25 @@ async function reopenPack(link, seasonNo, owned, { timeout = 45000, ctx = null, 
   return { covered, skipped: 0, reopened: on.length };
 }
 
-async function trimSeasonPack(link, seasonNo, owned, { timeout = 45000, ctx = null } = {}) {
+// only: one episode wanted from the pack (a first watch, smart-download.js): every other file is switched off, other
+// seasons' too (a set of every season).
+async function trimSeasonPack(link, seasonNo, owned, { timeout = 45000, ctx = null, only = null } = {}) {
   const hash = accounts.magnetHash(link);
   if (!hash) return null;
   const files = await packFilesOf(hash, timeout);
   if (!files.length) return null;
   const covered = new Set(), skip = [];
+  if (only != null) {
+    files.forEach((f, i) => {
+      const eps = isVideo(f.name) ? packFileEpisodes(path.basename(f.name.replace(/\\/g, '/')), seasonNo, ctx) : [];
+      if (eps.includes(only)) eps.forEach((e) => covered.add(e));
+      else if (f.priority !== 0) skip.push(f.index ?? i);
+    });
+    if (covered.size && skip.length) await qbitRequest('/api/v2/torrents/filePrio', { method: 'POST', body: new URLSearchParams({ hash, id: skip.join('|'), priority: '0' }) });
+    torrentFilesCache.delete(hash);
+    torrentInventory.at = 0;
+    return { covered, skipped: covered.size ? skip.length : 0 };
+  }
   files.forEach((f, i) => {
     if (!isVideo(f.name)) return;
     const name = f.name.replace(/\\/g, '/');
@@ -2745,12 +2763,45 @@ function coldFile(c, t, files) {
   const videos = files.map((f, i) => ({ ...f, index: f.index ?? i })).filter((f) => f.priority !== 0 && isVideo(f.name));
   if (!videos.length) return null;
   if (c.kind === 'episode') {
-    const hit = videos.find((f) => season.episodesIn(path.basename(f.name.replace(/\\/g, '/')), c.season).includes(c.episode))
-      || videos.find((f) => season.episodesIn(f.name, c.season).includes(c.episode));
+    const ctx = c.title ? anime.contextForTitle(c.title) : null;
+    const hit = videos.find((f) => packFileEpisodes(path.basename(f.name.replace(/\\/g, '/')), c.season, ctx).includes(c.episode))
+      || (!c.pack && videos.find((f) => season.episodesIn(f.name, c.season).includes(c.episode)));
     if (hit) return hit.index;
     if (videos.length > 1) return null;
   }
   return videos.toSorted((a, b) => b.size - a.size)[0].index;
+}
+// One episode watched from a pack: the episodes after it in the pack (this season, up to FOLLOW_EPISODES) are switched
+// on, so they come next, in order (episode-order.js), before anything else is searched for.
+async function followPack(c, user, show) {
+  const files = await qbit(`/api/v2/torrents/files?hash=${c.hash}`);
+  if (!Array.isArray(files) || !files.length) return;
+  const ctx = anime.contextForTitle(show.name || c.title || '');
+  const have = await haveEpisodes(shows.showKey(show.name || c.title || ''), c.season, user, ctx);
+  const on = [];
+  files.forEach((f, i) => {
+    if (f.priority !== 0 || !isVideo(f.name)) return;
+    const eps = packFileEpisodes(path.basename(f.name.replace(/\\/g, '/')), c.season, ctx);
+    if (eps.length && eps.every((e) => e > c.episode && e <= c.episode + FOLLOW_EPISODES && !have.has(e))) on.push(f.index ?? i);
+  });
+  if (!on.length) return;
+  await qbitRequest('/api/v2/torrents/filePrio', { method: 'POST', body: new URLSearchParams({ hash: c.hash, id: on.join('|'), priority: '1' }) });
+  torrentFilesCache.delete(c.hash);
+  torrentInventory.at = 0;
+  if (!episodeOrder.has(c.hash)) orderEpisodes(c.hash, shows.showKey(show.name || c.title || ''), c.season);
+  console.log(`[cold] ${show.name || c.title} S${String(c.season).padStart(2, '0')}: ${on.length} more episode(s) of ${c.name} switched on`);
+}
+// A film's Best Quality copy, too heavy for a first watch (smart-download.js, betterCopy): downloaded in the background
+// as another version of the film (versions.js) once the quick copy plays well.
+async function betterCopyFollows(c, user) {
+  if (!c.better || !user?.canDownload) return;
+  const link = c.better.magnet || await torrents.magnetFor1337x(c.better.ref).catch(() => null);
+  const hash = accounts.magnetHash(link);
+  if (!hash || hash === c.hash) return;
+  const film = shows.filmDownload(c.hash);
+  const added = await addDownload({ link, user, name: c.better.name, film, mediaType: 'movie' });
+  if (added?.hash) followUps.set(String(added.hash).toLowerCase(), Date.now());
+  console.log(`[cold] ${c.title || c.name}: the better copy follows in the background (${c.better.name})`);
 }
 const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
   info: async (hashes) => new Map((await qbit(`/api/v2/torrents/info?hashes=${hashes.join('|')}`)).map((t) => [t.hash.toLowerCase(), t])),
@@ -2824,12 +2875,22 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
   },
   followUp: async (c) => {
     const user = accounts.userById(c.userId);
+    if (c.kind === 'movie') return betterCopyFollows(c, user);
     const show = shows.showDownload(c.hash);
+    if (c.pack && user?.canDownload && show?.id && c.season != null && c.episode != null) await followPack(c, user, show).catch((e) => console.warn(`[cold] ${c.title || c.name}: ${e.message}`));
     if (!user || !show?.id || c.season == null || c.episode == null || !user.canDownload) return;
     const episodes = Array.from({ length: FOLLOW_EPISODES }, (_, i) => c.episode + 1 + i);
     await startSmartFor(user, { type: 'tv', tmdbId: show.id, season: c.season, episodes, range: true },
       { background: true, onAdded: (hash) => followUps.set(String(hash).toLowerCase(), Date.now()) });
     console.log(`[cold] ${show.name || c.title} S${String(c.season).padStart(2, '0')}: the episodes after ${c.episode} are on their way too`);
+  },
+  dropPick: async (c) => {
+    const [t] = await qbit(`/api/v2/torrents/info?hashes=${c.hash}`);
+    const others = accounts.torrentWanters(c.hash).filter((id) => id !== c.userId);
+    accounts.leaveTorrent(c.hash, c.userId);
+    if (t && !others.length) await removeDownloadWithFiles(t).catch((e) => console.warn(`[cold] couldn’t remove ${t.name}: ${e.message}`));
+    const retried = smart.slowFound(c.hash); // skipped for a day; the Download runs once more without it
+    console.log(`[cold] ${c.title || c.name}: removed ${c.name} (no episode ${c.episode} in it)${retried ? ', looking again' : ''}`);
   },
   background: async () => {
     for (const [h, at] of followUps) if (Date.now() - at > 24 * 3600e3) followUps.delete(h);
@@ -6014,7 +6075,7 @@ function startPickJob(pick, details) {
     filmHave: async () => null, freeBytes: freeBytesFor,
     seasonEpisodes: (t, y, n) => shows.seasonEpisodes(t, y, n, tmdb),
     haveEpisodes: (key, n, ctx) => haveEpisodes(key, n, null, ctx),
-    trimPack: (link, n, owned, ctx) => trimSeasonPack(link, n, owned, { ctx }), removePack: removeNewPack,
+    trimPack: (link, n, owned, ctx, opts = {}) => trimSeasonPack(link, n, owned, { ctx, only: opts.only ?? null }), removePack: removeNewPack,
     reopenPack: (link, n, owned, ctx) => reopenPack(link, n, owned, { ctx, key: shows.showKey(pick.title) }),
     torrentsHere: async () => new Set((await qbit('/api/v2/torrents/info')).map((t) => t.hash.toLowerCase())),
     inOrder: ({ hash, existing }, n) => { if (!existing) orderEpisodes(hash, shows.showKey(pick.title), n); },

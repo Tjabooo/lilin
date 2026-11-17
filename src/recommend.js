@@ -186,6 +186,19 @@ export const streamable = (r, want = {}, kind = 'movie') => {
   return !rate || swarmSpeed(r.seeders) >= rate * PLAY_MARGIN;
 };
 
+// ---- A first-time watch: someone is waiting at Play (want.cold) ----
+// Play now has to start from a swarm nobody has measured yet, so a first watch takes a release whose picture is at most
+// COLD_RATE (25 Mbit/s: 4K web downloads and most disc encodes, never a 40-80 GB remux) on a swarm guessed at COLD_MARGIN times
+// its bitrate, whenever one exists in 1080p or better (else nothing changes). The best picture can follow later
+// (smart-download.js). (2026-11-17: Blade Runner 2049 on Best took an 84 GB 2160p remux and never got ready.)
+export const COLD_RATE = 3 * 1024 ** 2;          // bytes/s of picture
+const COLD_MARGIN = 3;
+export const coldStreamable = (r, want = {}, kind = 'movie') => {
+  const rate = bitrateOf(r, want, kind);
+  return !rate || (rate <= COLD_RATE && swarmSpeed(r.seeders) >= rate * COLD_MARGIN);
+};
+const isHigh = (q) => ['1080p', '1440p', '2160p'].includes(q);
+
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
   const profile = want.profile;
@@ -306,7 +319,9 @@ export function choose(found, want, kind, minAlive = ALIVE) {
     fits = fits.filter((r) => r.quality === want.quality);
     if (!fits.length) return { pick: null, why: limited.why || (found.length || any ? `No matching ${qualityName(want.quality)} release has enough seeders.` : none) };
     const healthy = fits.filter((r) => r.seeders >= HEALTHY);
-    const pool = (healthy.length ? healthy : fits).sort((a, b) => score(b, want, kind) - score(a, want, kind));
+    let pool = healthy.length ? healthy : fits;
+    if (want.cold && pool.some((r) => coldStreamable(r, want, kind))) pool = pool.filter((r) => coldStreamable(r, want, kind));
+    pool.sort((a, b) => score(b, want, kind) - score(a, want, kind));
     // Best Quality in a resolution chosen in Advanced: the best of it that plays while it downloads.
     const smooth = want.profile === 'best' && want.stream !== false && !streamable(pool[0], want, kind)
       ? pool.find((r) => streamable(r, want, kind)) : null;
@@ -333,26 +348,33 @@ export function choose(found, want, kind, minAlive = ALIVE) {
     [['720p'], HEALTHY], ...lower.map((q) => [[q], HEALTHY]), [[null], HEALTHY], [['SD'], HEALTHY], // then lower
     [['720p', ...lower, null, 'SD'], minAlive],
   ];
-  for (const [qualities, min, extra, byScore] of steps) {
-    const pool = fits.filter((r) => qualities.includes(r.quality ?? null) && r.seeders >= min && (!extra || extra(r)));
-    if (!pool.length) continue;
-    // Within a mixed step, keep the preferred quality first; then the best score (Best Quality: score only).
-    pool.sort((a, b) => (byScore ? 0 : qualities.indexOf(a.quality ?? null) - qualities.indexOf(b.quality ?? null))
-      || score(b, want, kind) - score(a, want, kind));
-    let pick = pool[0];
-    // Best Quality: it has to play while it downloads. The best-looking release whose swarm keeps
-    // ahead of its bitrate wins over a better picture that would keep buffering (want.stream false:
-    // an upgrade, nobody watches it download). None keeps up: the best picture stays.
-    let slow = null;
-    if (profile === 'best' && want.stream !== false && !streamable(pick, want, kind)) {
-      const smooth = fits.filter((r) => r.seeders >= minAlive && streamable(r, want, kind) && qualities.includes(r.quality ?? null))
-        .sort((a, b) => score(b, want, kind) - score(a, want, kind));
-      if (smooth[0]) { slow = pick; pick = smooth[0]; }
+  // A first-time watch: the same steps among releases that can start quickly first (coldStreamable), as long as that
+  // doesn't mean going below 1080p; then, if none can, as usual.
+  const anyHigh = fits.some((r) => isHigh(r.quality));
+  const passes = want.cold ? [fits.filter((r) => coldStreamable(r, want, kind)), fits] : [fits];
+  for (const [i, base] of passes.entries()) {
+    if (i === 0 && passes.length > 1 && !base.length) continue;
+    for (const [qualities, min, extra, byScore] of steps) {
+      if (i === 0 && passes.length > 1 && anyHigh && !qualities.some(isHigh)) break;
+      const pool = base.filter((r) => qualities.includes(r.quality ?? null) && r.seeders >= min && (!extra || extra(r)));
+      if (!pool.length) continue;
+      // Within a mixed step, keep the preferred quality first; then the best score (Best Quality: score only).
+      pool.sort((a, b) => (byScore ? 0 : qualities.indexOf(a.quality ?? null) - qualities.indexOf(b.quality ?? null))
+        || score(b, want, kind) - score(a, want, kind));
+      let pick = pool[0];
+      // Best Quality: it has to play while it downloads. The best-looking release whose swarm keeps
+      // ahead of its bitrate wins over a better picture that would keep buffering (want.stream false:
+      // an upgrade, nobody watches it download). None keeps up: the best picture stays.
+      let slow = null;
+      if (profile === 'best' && want.stream !== false && !streamable(pick, want, kind)) {
+        const smooth = base.filter((r) => r.seeders >= minAlive && streamable(r, want, kind) && qualities.includes(r.quality ?? null))
+          .sort((a, b) => score(b, want, kind) - score(a, want, kind));
+        if (smooth[0]) { slow = pick; pick = smooth[0]; }
+      }
+      // (Best Quality may prefer a solid 720p to a starved 1080p: that isn't "nothing better exists".)
+      const low = profile !== 'save' && !isHigh(pick.quality) && !fits.some((r) => isHigh(r.quality) && r.seeders >= minAlive);
+      return { pick, slow, why: low ? 'Nothing in 1080p, 1440p or 4K is available, so this is the best there is.' : null };
     }
-    const isHigh = (q) => ['1080p', '1440p', '2160p'].includes(q);
-    // (Best Quality may prefer a solid 720p to a starved 1080p: that isn't "nothing better exists".)
-    const low = profile !== 'save' && !isHigh(pick.quality) && !fits.some((r) => isHigh(r.quality) && r.seeders >= minAlive);
-    return { pick, slow, why: low ? 'Nothing in 1080p, 1440p or 4K is available, so this is the best there is.' : null };
   }
   return { pick: null, why: limited.why || none };
 }

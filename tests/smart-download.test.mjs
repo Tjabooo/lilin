@@ -188,13 +188,15 @@ test('nothing found anywhere names the missing episodes', async () => {
   assert.deepEqual(job.unavailable.map((u) => u.episode), [1, 2, 3]);
 });
 
-test('Retry unavailable (chosen episodes) never searches a pack and skips what arrived meanwhile', async () => {
+test('Retry unavailable (chosen episodes) never downloads a whole pack and skips what arrived meanwhile', async () => {
   const queries = [];
   const job = await wait(startSmartJob({ type: 'tv', title: 'Severance', season: 2, episodes: [6, 7], want: {} }, seasonDeps({
     haveEpisodes: async () => owned([7]),
     searchTorrents: async (q) => { queries.push(q); return { results: results([[`${q.replace(/ /g, '.')}.1080p.WEB`, 40, 2 * GB]]) }; },
   })));
-  assert.ok(queries.every((q) => /E06|2x06/.test(q))); assert.equal(job.outcome, 'started');
+  // (A season pack may be looked up for the one episode left, as a stand-by: smart-download.js, oneEpisode.)
+  assert.ok(queries.filter((q) => /E\d|\dx\d/.test(q)).every((q) => /E06|2x06/.test(q))); assert.equal(job.outcome, 'started');
+  assert.deepEqual(job.added.map((a) => [a.episode, Boolean(a.pack)]), [[6, false]]);
 });
 
 // ---------- picture quality and Upgrade quality ----------

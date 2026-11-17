@@ -26,8 +26,8 @@
 // first when spec.preferAlternative says the title is likely to be there, else after the search came up empty.
 import crypto from 'node:crypto';
 import { showKey } from './shows.js';
-import { sameShow, episodesIn, episodeQueries } from './season.js';
-import { pickBest, pickEpisode, choose, pictureScore, perItemSize, sourceOf, isDualAudio, bitrateOf, swarmSpeed, PLAY_MARGIN } from './recommend.js';
+import { sameShow, episodesIn, episodeQueries, seasonSet } from './season.js';
+import { pickBest, pickEpisode, choose, pictureScore, perItemSize, sourceOf, isDualAudio, bitrateOf, swarmSpeed, packTitle, PLAY_MARGIN } from './recommend.js';
 import { seasonPacks, packQueries, episodeQueriesAnime } from './anime.js';
 
 const jobs = new Map();          // id -> job
@@ -85,8 +85,8 @@ export function startSmartJob(spec, deps) {
 // "dual" finds every spelling on the torrent sites ("Dual-Audio", "Dual Audio", "DUAL"); "DualAudio" as a
 // search word finds next to nothing. The names are then checked, because sites match loosely.
 function dubbedOnly(deps) {
-  return { ...deps, undubbed: deps, searchTorrents: async (query, type) => {
-    const found = await deps.searchTorrents(`${query} dual`, type);
+  return { ...deps, undubbed: deps, searchTorrents: async (query, type, opts) => {
+    const found = await deps.searchTorrents(`${query} dual`, type, opts);
     return { ...found, results: (found.results || []).filter((r) => isDualAudio(r.name)) };
   } };
 }
@@ -214,13 +214,21 @@ const seasonQueries = (titles, season, profile) => [
 ];
 
 // A search that throws is retried once after a short pause; a 503 (not configured) is final.
-async function search(query, type, deps) {
-  try { return (await deps.searchTorrents(query, type)).results || []; } catch (e) {
+// opts: { good, wait, hurry? } for a quick search (torrents.js): good(result) says a result settles it; until one turns up
+// the slower sites get up to `wait` ms (or until the hurry promise settles). Each Download has SEARCH_PATIENCE of such
+// waiting in all (patience(job)).
+async function search(query, type, deps, opts) {
+  try { return (await deps.searchTorrents(query, type, opts)).results || []; } catch (e) {
     if (e.status === 503) throw e;
     await (deps.sleep || ((ms) => new Promise((r) => setTimeout(r, ms))))(1500);
-    return (await deps.searchTorrents(query, type)).results || [];
+    return (await deps.searchTorrents(query, type, opts)).results || [];
   }
 }
+const SEARCH_PATIENCE = 20_000;
+const GOOD_SEEDERS = 20;        // a matching release this lively settles a quick search
+const patience = (job, good) => ({ good, wait: Math.max(0, job.started + SEARCH_PATIENCE - Date.now()) });
+// Someone is about to watch what this Download brings (not a background job, not an upgrade, not nobody's).
+const watchingNow = (spec, deps) => spec.requester != null && !spec.background && !spec.upgrade && Boolean(deps.coldStart);
 
 async function add(r, mediaType, spec, deps, need = null) {
   const link = r.magnet || await deps.magnetFor1337x(r.ref);
@@ -254,21 +262,11 @@ function nextPicks(pool, pick, choosePick, n = 2) {
   }
   return out;
 }
-// The season pack that would be picked for this season, as a spare for one of its episodes (cold-start.js).
-async function packSpare(title, season, aired, want, deps) {
-  const titles = [title, ...(showKey(title) === 'house' ? ['House MD'] : showKey(title) === 'housemd' ? ['House'] : [])];
-  let results = [];
-  for (const query of seasonQueries(titles, season, 'balanced').slice(0, 2)) {
-    try { results = [...results, ...await search(query, 'tv', deps)]; } catch { /* one site down: the other query */ }
-  }
-  const best = pickBest(results.filter(usable), { ...want, type: 'tv', season, episodes: aired?.length || 0, missing: 1 }, deps.parseName);
-  return best.pick ? [{ ...best.pick, pack: true }] : [];
-}
 // Someone is about to watch what was just added (not a background job, not someone else's download): watch-ready
-// from the start, with spares in case the pick can't deliver.
+// from the start, with spares in case the pick can't deliver. True when it's being looked after that way.
 function coldStart(added, pick, alternatives, spec, deps, where) {
-  if (spec.requester == null || spec.background || spec.upgrade || added.existing || !added.hash || !deps.coldStart) return;
-  try { deps.coldStart({ hash: added.hash, name: pick.name, alternatives, ...where }); } catch (e) { deps.log?.(`[smart] ${spec.title}: ${e.message}`); }
+  if (!watchingNow(spec, deps) || added.existing || !added.hash) return false;
+  try { deps.coldStart({ hash: added.hash, name: pick.name, alternatives, ...where }); return true; } catch (e) { deps.log?.(`[smart] ${spec.title}: ${e.message}`); return false; }
 }
 
 const done = (job, outcome, message) => {
@@ -312,15 +310,31 @@ async function runFilm(job, spec, deps) {
     if (alt) return fromAlternative(alt);
   }
   const freeBytes = await deps.freeBytes?.('movie');
-  const want = { ...spec.want, type: 'movie', title: spec.title, year: spec.year, freeBytes, anime: Boolean(spec.anime), aliases: spec.anime?.keys || [] };
+  // Someone is waiting to watch: a release that can start quickly (recommend.js, want.cold); Best Quality's own pick
+  // follows once they're watching (BETTER_FOLLOWS).
+  const cold = watchingNow(spec, deps);
+  const want = { ...spec.want, type: 'movie', title: spec.title, year: spec.year, freeBytes, anime: Boolean(spec.anime), aliases: spec.anime?.keys || [], cold };
   const names = [spec.title, spec.originalTitle, ...(spec.anime?.queryTitles || [])].filter(Boolean);
   const queries = [...new Set([...names.map((t) => [t, spec.year].filter(Boolean).join(' ')), spec.title, ...(spec.anime?.queryTitles || []),
     ...(want.profile === 'best' ? QUALITY_WORDS.map((w) => [spec.title, spec.year, w].filter(Boolean).join(' ')) : [])])];
+  const keys = new Set([showKey(spec.title), ...want.aliases]);
+  const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && usable(r) && ((p) => p.season == null && keys.has(showKey(p.title))
+    && (!spec.year || !p.year || Math.abs(p.year - spec.year) <= 1))(deps.parseName(r.name, { file: false }));
+  const fine = (r) => usable(r) && !isWrongFilm(r, spec.tmdbId);
   let results = [], best = { pick: null, why: null }, failures = 0;
-  for (const query of queries) {
-    try { results = [...results, ...await search(query, 'movie', deps)]; } catch (e) { if (e.status === 503) throw e; failures++; continue; }
-    best = pickBest(results.filter((r) => usable(r) && !isWrongFilm(r, spec.tmdbId)), want, deps.parseName);
-    if (best.pick && want.profile !== 'best') break; // Best Quality: every search before choosing
+  const run = (query) => search(query, 'movie', deps, patience(job, good)).catch((e) => { if (e.status === 503) throw e; failures++; return null; });
+  if (want.profile === 'best') {
+    // Best Quality: every search before choosing, side by side.
+    for (const found of await Promise.all(queries.map(run))) if (found) results.push(...found);
+    best = pickBest(results.filter(fine), want, deps.parseName);
+  } else {
+    for (const query of queries) {
+      const found = await run(query);
+      if (!found) continue;
+      results = [...results, ...found];
+      best = pickBest(results.filter(fine), want, deps.parseName);
+      if (best.pick) break;
+    }
   }
   if (!best.pick) {
     const alt = spec.preferAlternative ? null : await tryAlternative(job, deps, { type: 'movie' });
@@ -331,9 +345,22 @@ async function runFilm(job, spec, deps) {
   job.step = 'Starting download…';
   const added = await add(best.pick, 'movie', spec, deps, needOf(best.pick, want, 'movie'));
   job.added.push({ name: best.pick.name, quality: best.pick.quality, size: best.pick.size || null, seeders: best.pick.seeders, hash: added.hash || null });
-  const pool = results.filter((r) => usable(r) && !isWrongFilm(r, spec.tmdbId));
-  coldStart(added, best.pick, deps.coldStart ? nextPicks(pool, best.pick, (list) => pickBest(list, want, deps.parseName)) : [], spec, deps, { kind: 'movie' });
+  const pool = results.filter(fine);
+  const better = cold ? betterCopy(pool, best.pick, { ...want, freeBytes: Number.isFinite(freeBytes) ? freeBytes - (best.pick.size || 0) : freeBytes }, deps) : null;
+  if (better) deps.log?.(`[smart] ${spec.title}: ${best.pick.name} to watch now; ${better.name} follows once it plays`);
+  coldStart(added, best.pick, deps.coldStart ? nextPicks(pool, best.pick, (list) => pickBest(list, want, deps.parseName)) : [], spec, deps,
+    { kind: 'movie', ...(better ? { better } : {}) });
   done(job, 'started', 'On its way. It’ll be ready to watch soon.');
+}
+
+// Best Quality's own pick when a first-time watch took a quicker one instead: downloaded in the background as another
+// version once the person is watching (cold-start.js followUp), when its picture is clearly better.
+const BETTER_FOLLOWS = 0.75;     // picture score (recommend.js) it has to be ahead by
+function betterCopy(pool, pick, want, deps) {
+  if (want.profile !== 'best') return null;
+  const full = pickBest(pool, { ...want, cold: false }, deps.parseName).pick;
+  if (!full || full === pick || full.name === pick.name) return null;
+  return pictureScore(full, want, 'movie') - pictureScore(pick, want, 'movie') >= BETTER_FOLLOWS ? full : null;
 }
 
 async function runSeason(job, spec, deps) {
@@ -478,36 +505,35 @@ async function runSeason(job, spec, deps) {
     if (!missing && covered.size) return finish(job, deps, packWhy);
   }
 
-  // ---- episode by episode: what's still missing ----
-  const list = missing || Array.from({ length: MAX_EPISODES }, (_, i) => i + 1);
-  let missesInARow = 0;
-  for (const ep of list) {
-    if (covered.has(ep)) continue;
-    if (!missing && have.has(ep)) continue;
-    job.step = `Looking for episode ${ep}${job.total ? ` of ${job.total}` : ''}…`;
-    const found = await findEpisode(job.title, season, ep, { ...want, freeBytes }, deps, ctx);
-    if (!found.pick) {
-      job.unavailable.push({ episode: ep, reason: found.why });
-      if (!missing && ++missesInARow >= 2) { job.unavailable.splice(-2); break; } // two misses in a row: past the last episode
-      continue;
-    }
-    missesInARow = 0;
-    try {
-      const added = await add(found.pick, 'tv', spec, deps, needOf(found.pick, want, 'episode'));
-      deps.inOrder?.(added, season);
-      const eps = episodesIn(found.pick.name, season, ctx);
-      eps.forEach((e) => covered.add(e));
-      job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null, hash: added.hash || null });
-      // One episode asked for: someone wants to watch it now. Older shows' single episodes often sit on dead swarms
-      // next to a lively season pack, so the pack (that episode only) stands by too.
-      if (list.length === 1) {
-        coldStart(added, found.pick, deps.coldStart ? nextPicks(found.fits, found.pick, (l) => pickEpisode(l, { ...want, freeBytes, episode: ep })) : [], spec, deps,
-          { kind: 'episode', season, episode: ep, more: ctx ? null : () => packSpare(job.title, season, aired, { ...want, freeBytes }, deps) });
+  // ---- one episode: someone wants to watch it, from its own release or a pack ----
+  if (missing?.length === 1 && !covered.has(missing[0])) {
+    await oneEpisode(job, spec, deps, { season, ep: missing[0], aired, want: { ...want, freeBytes }, ctx, covered });
+  } else {
+    // ---- episode by episode: what's still missing ----
+    const list = missing || Array.from({ length: MAX_EPISODES }, (_, i) => i + 1);
+    let missesInARow = 0;
+    for (const ep of list) {
+      if (covered.has(ep)) continue;
+      if (!missing && have.has(ep)) continue;
+      job.step = `Looking for episode ${ep}${job.total ? ` of ${job.total}` : ''}…`;
+      const found = await findEpisode(job, season, ep, { ...want, freeBytes }, deps, ctx);
+      if (!found.pick) {
+        job.unavailable.push({ episode: ep, reason: found.why });
+        if (!missing && ++missesInARow >= 2) { job.unavailable.splice(-2); break; } // two misses in a row: past the last episode
+        continue;
       }
-      if (Number.isFinite(freeBytes) && found.pick.size) freeBytes -= found.pick.size;
-    } catch (e) {
-      if (e.status === 503) throw e;
-      job.unavailable.push({ episode: ep, reason: e.message || String(e) });
+      missesInARow = 0;
+      try {
+        const added = await add(found.pick, 'tv', spec, deps, needOf(found.pick, want, 'episode'));
+        deps.inOrder?.(added, season);
+        const eps = episodesIn(found.pick.name, season, ctx);
+        eps.forEach((e) => covered.add(e));
+        job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null, hash: added.hash || null });
+        if (Number.isFinite(freeBytes) && found.pick.size) freeBytes -= found.pick.size;
+      } catch (e) {
+        if (e.status === 503) throw e;
+        job.unavailable.push({ episode: ep, reason: e.message || String(e) });
+      }
     }
   }
   // Nothing from the torrent sites: what they couldn't find may still be on SVT Play.
@@ -591,20 +617,118 @@ function finish(job, deps, packWhy) {
 const NOTHING = 'Nothing found.';
 // One episode: the exact SxxExx search, then other numbering styles and known title aliases, in the
 // TV category and then everywhere. Only releases of this show, season and episode count.
-async function findEpisode(title, season, episode, want, deps, ctx = null) {
+// hurry: a promise; once it's settled, the searches stop waiting for slow sites (torrents.js, settleQuickly).
+async function findEpisode(job, season, episode, want, deps, ctx = null, hurry = null) {
+  const title = job.title;
   // Anime: the title check is the context's (any known name), and numbering is placed on TMDB's.
-  const fitsFor = (results) => results.filter((r) => usable(r) && (ctx
+  const fits1 = (r) => usable(r) && (ctx
     ? ((eps) => eps.includes(episode) && eps.length <= 3)(episodesIn(r.name, season, ctx)) // not a whole batch
-    : sameShow(deps.parseName(r.name).title, title) && episodesIn(r.name, season).includes(episode)));
+    : sameShow(deps.parseName(r.name).title, title) && episodesIn(r.name, season).includes(episode));
+  const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && fits1(r);
   let fits = [], error = null;
   const queries = ctx ? episodeQueriesAnime(ctx, season, episode).slice(0, 5) : episodeQueries(title, season, episode);
   for (const query of queries) {
     for (const type of ctx ? ['all'] : ['tv', 'all']) {
-      try { fits = fitsFor(await search(query, type, deps)); } catch (e) { if (e.status === 503) throw e; error = e; continue; }
+      try { fits = (await search(query, type, deps, { ...patience(job, good), ...(hurry ? { hurry } : {}) })).filter(fits1); } catch (e) { if (e.status === 503) throw e; error = e; continue; }
       if (fits.length) break;
     }
     if (fits.length) break;
   }
   const best = pickEpisode(fits, { ...want, episode });
   return { pick: best.pick, fits, why: best.pick ? null : fits.length ? best.why : error ? 'The torrent sites didn’t answer.' : NOTHING };
+}
+
+// ---- one episode to watch now ----
+// Old and long-running shows mostly exist as season packs (or sets of every season), and a single-episode release next
+// to a lively pack is often a dead swarm. So the packs are searched alongside the episode, and when there's no lively
+// single release (or a pack's swarm is far bigger) the pack is downloaded with only that episode switched on, played
+// like any other first-time watch; once it plays well, the episodes after it in the pack follow (cold-start.js, server.js).
+// Anime: the batches. (2026-11-17: Friends S5E8 had no single release at all next to a 370-seeder season pack;
+// Jujutsu Kaisen E8's single had 10 seeders and played with four stalls next to a 360-seeder batch.)
+const SINGLE_HEALTHY = 25;       // seeders: a single-episode release this lively is used as is
+const PACK_LEAD = 4;             // ...else a pack with this many times its seeders (and at least SINGLE_HEALTHY) goes first
+export const packFirst = (one, pack) => Boolean(pack) && (!one || (one.seeders < SINGLE_HEALTHY && pack.seeders >= Math.max(SINGLE_HEALTHY, one.seeders * PACK_LEAD)));
+
+async function oneEpisode(job, spec, deps, { season, ep, aired, want, ctx, covered }) {
+  job.step = `Looking for episode ${ep}…`;
+  const cold = watchingNow(spec, deps);
+  want = { ...want, cold };
+  const packWant = { ...want, type: 'tv', season, episodes: aired?.length || 0, missing: 1 };
+  // A lively pack found: the episode's own search stops waiting for slow sites (it would have to beat the pack).
+  let hurry = null;
+  const hurried = new Promise((resolve) => { hurry = resolve; });
+  const packs = findPack(job, season, ep, packWant, deps, ctx).then((p) => { if (p.pick?.seeders >= SINGLE_HEALTHY) hurry(); return p; });
+  packs.catch(() => {}); // (waited for below, or only as a spare)
+  const found = await findEpisode(job, season, ep, want, deps, ctx, hurried);
+  hurry();
+  const healthy = found.pick && found.pick.seeders >= SINGLE_HEALTHY;
+  const pack = healthy ? null : await packs.catch((e) => { if (e.status === 503) throw e; return { pick: null, rest: [] }; });
+  const asSpare = (r) => ({ ...r, pack: true });
+  if (pack && packFirst(found.pick, pack.pick)) {
+    try {
+      const added = await add(pack.pick, 'tv', spec, deps, needOf(pack.pick, packWant, 'pack'));
+      deps.inOrder?.(added, season);
+      const others = new Set((aired || []).filter((e) => e !== ep));
+      job.added.push({ episode: ep, episodes: [ep], pack: true, name: pack.pick.name, quality: pack.pick.quality, seeders: pack.pick.seeders,
+        size: pack.pick.size || null, hash: added.hash || null });
+      covered.add(ep);
+      deps.log?.(`[smart] ${job.title} S${pad(season)}E${pad(ep)}: from the pack ${pack.pick.name} (${pack.pick.seeders} seeders${found.pick ? `; the episode alone: ${found.pick.seeders}` : ', no release of the episode alone'})`);
+      if (added.existing) { await deps.reopenPack?.(added.link, season, others, ctx); return; } // someone else's: this episode switched on
+      const spares = [...(found.pick ? [found.pick] : []), ...pack.rest.map(asSpare)].slice(0, 2);
+      // Watched now: only its file is switched on once the file list is there (cold-start.js). Otherwise the same here.
+      if (!coldStart(added, pack.pick, spares, spec, deps, { kind: 'episode', season, episode: ep, pack: true })) {
+        await deps.trimPack?.(added.link, season, others, ctx, { only: ep });
+      }
+      return;
+    } catch (e) {
+      if (e.status === 503) throw e;
+      if (!found.pick) { job.unavailable.push({ episode: ep, reason: e.message || String(e) }); return; }
+    }
+  }
+  if (!found.pick) { job.unavailable.push({ episode: ep, reason: found.why }); return; }
+  try {
+    const added = await add(found.pick, 'tv', spec, deps, needOf(found.pick, want, 'episode'));
+    deps.inOrder?.(added, season);
+    const eps = episodesIn(found.pick.name, season, ctx);
+    eps.forEach((e) => covered.add(e));
+    job.added.push({ episode: ep, episodes: eps, name: found.pick.name, quality: found.pick.quality, seeders: found.pick.seeders, size: found.pick.size || null, hash: added.hash || null });
+    // The pack (that episode only) stands by in case the episode's own swarm can't deliver; when the single release
+    // looked lively, the pack search goes on without holding up the Download.
+    coldStart(added, found.pick, deps.coldStart ? nextPicks(found.fits, found.pick, (l) => pickEpisode(l, { ...want, episode: ep })) : [], spec, deps,
+      { kind: 'episode', season, episode: ep, more: async () => { const p = await packs; return p.pick ? [asSpare(p.pick)] : []; } });
+  } catch (e) {
+    if (e.status === 503) throw e;
+    job.unavailable.push({ episode: ep, reason: e.message || String(e) });
+  }
+}
+
+// The packs holding episode `ep` of this season: { pick, rest } (rest: the next one or two, for spares). Season packs
+// first; without one, sets of several seasons that include it ("S01-S10"), sized per episode across all of them.
+async function findPack(job, season, ep, want, deps, ctx) {
+  if (ctx) {
+    const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && usable(r) && seasonPacks([r], ctx, season, [ep]).length > 0;
+    const lists = await Promise.all(packQueries(ctx, season).slice(0, 3).map((q) => search(q, 'all', deps, patience(job, good))
+      .catch((e) => { if (e.status === 503) throw e; return []; })));
+    const packs = seasonPacks(unique(lists.flat()).filter(usable).filter((r) => !r.cam && r.seeders >= 2), ctx, season, [ep]);
+    return withRest(packs, (l) => choose(l, want, 'pack'));
+  }
+  const title = job.title;
+  const titles = [title, ...(showKey(title) === 'house' ? ['House MD'] : showKey(title) === 'housemd' ? ['House'] : [])];
+  const isPack = (r) => ((t) => t != null && sameShow(deps.parseName(t, { file: false }).title, title))(packTitle(r.name, season));
+  const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && usable(r) && (isPack(r) || Boolean(seasonSet(r.name, title, season, deps.parseName)));
+  const run = (q) => search(q, 'tv', deps, patience(job, good)).catch((e) => { if (e.status === 503) throw e; return []; });
+  const results = unique((await Promise.all(seasonQueries(titles, season, 'balanced').slice(0, 2).map(run))).flat()).filter(usable);
+  const season1 = withRest(results, (l) => pickBest(l, want, deps.parseName));
+  if (season1.pick) return season1;
+  // Every season in one: per episode, its size over (seasons × this season's episodes).
+  const sets = (list) => list.map((r) => ({ r, set: seasonSet(r.name, title, season, deps.parseName) })).filter((x) => x.set)
+    .map(({ r, set }) => ({ ...r, packEpisodes: (set.to - set.from + 1) * Math.max(1, want.episodes || 20), set: true }));
+  let found = sets(results);
+  if (!found.length) found = sets(unique(await run(`${title} complete`)).filter(usable));
+  return withRest(found.filter((r) => !r.cam && r.seeders >= 2), (l) => choose(l, want, 'pack'));
+}
+const unique = (list) => { const seen = new Set(); return list.filter((r) => { const k = r.magnet || r.ref || r.name; return !seen.has(k) && seen.add(k); }); };
+function withRest(pool, choosePick) {
+  const pick = choosePick(pool).pick;
+  return { pick: pick || null, rest: pick ? nextPicks(pool, pick, choosePick, 1) : [] };
 }
