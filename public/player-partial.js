@@ -148,8 +148,8 @@ export async function playPartial(session, ctx) {
     $('#part-popup-bar').style.setProperty('--p', `${Math.floor((session.part?.progress || 0) * 100)}%`);
     $('#part-popup-progress').textContent = progressLine(session.part);
     const primary = $('#part-popup-primary'), secondary = $('#part-popup-secondary');
-    primary.textContent = T('Keep watching');
-    secondary.textContent = T('Wait for the download');
+    primary.textContent = T('Keep waiting');
+    secondary.textContent = T('Watch it later');
     primary.onclick = () => { notice.dismiss(); hidePopup(); };
     secondary.onclick = () => { hidePopup(); ctx.leave(); ctx.toast(T('Still downloading. It will be ready to watch in your library.')); };
     popup.hidden = false;

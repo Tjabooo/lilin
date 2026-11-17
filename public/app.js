@@ -2459,9 +2459,13 @@ function swapTopOverlay(close) {
 window.addEventListener('popstate', () => { if (pendingBacks) pendingBacks--; overlayStack.pop()?.(); renderUpdatedLibrary(); });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!ccMenu.hidden) { closeCcMenu(); ccBtn.focus(); return; }
-  if (!audioMenu.hidden) { closeAudioMenu(); audioBtn.focus(); return; }
-  if (!helpEl.hidden) { helpEl.hidden = true; return; }
+  if (!playerEl.hidden && playerMenuOpen()) {
+    const back = !ccMenu.hidden ? ccBtn : !audioMenu.hidden ? audioBtn : !nightMenu.hidden ? nightBtn : !qualityMenu.hidden ? qualityBtn
+      : !fsGuide.hidden ? fsBtn : !$('#more-menu').hidden ? $('#more-btn') : null;
+    closePlayerMenus();
+    back?.focus();
+    return;
+  }
   if (watchPanelOpen) { setWatchPanel(false); $('#watch-btn').focus(); return; }
   if (fsElement()) { toggleFullscreen(); return; }
   if (Date.now() - fsExitedAt < 500) return; // that Escape just took the player out of fullscreen
@@ -4393,7 +4397,9 @@ function roomStatus(room, host) {
     return ['wait', eta ? T('Waiting for the download · starts in about {0}', eta) : T('Waiting for the download')];
   }
   if (room.waitingFor.length) return ['wait', T('Waiting for {0}', namesText(room.waitingFor))];
-  if (room.playing) return ['live', T('Playing for {0}', room.members.length === 1 ? T('you') : T('all {0}', room.members.length))];
+  // Only people whose player is connected count: someone still "Connecting…" isn't watching yet.
+  const watching = room.members.filter((m) => m.connected).length || 1;
+  if (room.playing) return ['live', T('Playing for {0}', watching === 1 ? T('you') : T('all {0}', watching))];
   return ['wait', party.isHost ? T('Paused · press Play to start it for everyone') : T('Paused · {0} has the remote', host)];
 }
 // Where one viewer is: ready, getting ready, needs a tap, or still connecting.
@@ -4411,7 +4417,7 @@ function renderRoster(room) {
     const [tone, text] = memberState(m);
     return { m, tone, text, me: m.id === watchClient, host: m.id === room.host };
   });
-  const key = JSON.stringify(rows.map((r) => [r.m.id, r.m.name, r.m.avatar, r.tone, r.host]));
+  const key = JSON.stringify(rows.map((r) => [r.m.id, r.m.name, r.m.avatar, r.tone, r.text, r.host]));
   if (key === roomDrawn) return;
   roomDrawn = key;
   list.replaceChildren(...rows.map(({ m, tone, text, me, host }) => h('li', { class: `room-member is-${tone}${host ? ' is-host' : ''}${me ? ' is-me' : ''}` },
@@ -4478,7 +4484,6 @@ function renderParty() {
     : T('{0} has the remote: play, pause and seeking follow them.', host);
   playerEl.classList.toggle('party-guest', !party.isHost);
   airplayBtn.hidden = true;
-  audioBtn.hidden = true;
   seekEl.setAttribute('aria-disabled', String(!party.isHost));
   seekEl.tabIndex = party.isHost ? 0 : -1;
   for (const b of playBtns) {
@@ -4634,7 +4639,7 @@ async function openGuide() {
   closeTopOverlay();
   await setView('live');
 }
-// "Keep watching" and "Watch from start": the same video in the normal player, which saves a resume point.
+// "Watch on demand" and "Watch from start": the same video in the normal player, which saves a resume point.
 async function leaveLive(fromStart) {
   if (!current?.live) return;
   const media = { ...current, live: undefined };
@@ -4685,7 +4690,8 @@ function renderLiveStrip() {
       button(T('Guide'), openGuide),
       liveChat.toggle, // livechat
       current?.id ? button(T('Watch from start'), () => leaveLive(true)) : null,
-      current?.id ? button(T('Keep watching'), () => leaveLive(false)) : null));
+      current?.id ? h('button', { type: 'button', class: 'chip', title: T('Leaves the channel and keeps your spot'),
+        onclick: (e) => { e.stopPropagation(); leaveLive(false); } }, T('Watch on demand')) : null));
 }
 setInterval(() => { if (party?.state.live && !playerEl.hidden) renderLiveStrip(); }, 15000);
 
@@ -4751,7 +4757,7 @@ async function offerWatchRoom(token) {
     $('#picker-body').replaceChildren(h('h2', { id: 'picker-title', class: 'sr-only' }, T('Watch together')), ticket,
       h('p', { class: 'muted room-ticket-note' }, preview.startsAt
         ? T('Join any time before it starts. There’s a countdown, and playback starts by itself for everyone in the room.')
-        : T('Playback stays in step with everyone. Subtitles and volume are just for you.')), join, status);
+        : T('Playback stays in step with everyone. Subtitles, volume and your own audio pick are just for you.')), join, status);
     pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { closed = true; }));
   } catch (err) { toast(err.message); }
 }
@@ -5356,7 +5362,7 @@ function closeCcMenu() { ccMenu.hidden = true; ccBtn.setAttribute('aria-expanded
 ccBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = ccMenu.hidden;
-  closeAudioMenu();
+  closePlayerMenus('cc');
   ccMenu.hidden = !open;
   ccBtn.setAttribute('aria-expanded', String(open));
   if (open) (ccMenu.querySelector('[aria-checked="true"]') || ccMenu.querySelector('button'))?.focus();
@@ -5390,7 +5396,7 @@ const SUB_SYNC_TEXT = {
   undone: T('Using the original timing.'),
 };
 const subSyncBusy = (s) => s?.state === 'queued' || s?.state === 'syncing';
-const fmtSubShift = (s) => `${Math.round(Math.abs(s) * 100) / 100} s ${s < 0 ? 'earlier' : 'later'}`;
+const fmtSubShift = (s) => `${Math.round(Math.abs(s) * 100) / 100} s ${s < 0 ? T('earlier') : T('later')}`;
 
 function subSyncText(s) {
   if (s.state === 'failed') return T('Timing check failed: {0}', s.error || T('unknown error'));
@@ -5658,7 +5664,7 @@ function renderAudioControls() {
 audioBtn.addEventListener('click', e => {
   e.stopPropagation();
   const open = audioMenu.hidden;
-  closeCcMenu();
+  closePlayerMenus('audio');
   renderAudioControls();
   if (audioBtn.hidden) return;
   audioMenu.hidden = !open;
@@ -6203,9 +6209,7 @@ function sleepPause() {
 nightBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = nightMenu.hidden;
-  closeCcMenu();
-  closeAudioMenu();
-  closeQualityMenu();
+  closePlayerMenus('night');
   renderNightMenu();
   if (nightBtn.hidden) return;
   nightMenu.hidden = !open;
@@ -6261,7 +6265,7 @@ function renderQualityMenu() {
   if (qualityBtn.hidden) { closeQualityMenu(); return; }
   const phone = stream ? phoneQuality(session) : null;
   const source = heightName(session.sourceHeight);
-  const playing = phone ? T('{0}p, made live from the {1} file', phone, source || 'original') : T('Original{0}', source ? ` (${source})` : '');
+  const playing = phone ? T('{0}p, made live from the {1} file', phone, source || T('original')) : T('Original{0}', source ? ` (${source})` : '');
   const choices = [
     ['auto', T('Auto'), phoneScreen() ? T('Lighter stream when a file is too big for a phone') : T('The original file on this screen')],
     ['original', T('Original'), T('Full quality, the file as it is')],
@@ -6350,9 +6354,7 @@ async function setQuality(pref) {
 qualityBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = qualityMenu.hidden;
-  closeCcMenu();
-  closeAudioMenu();
-  closeNightMenu();
+  closePlayerMenus('quality');
   renderQualityMenu();
   if (qualityBtn.hidden) return;
   qualityMenu.hidden = !open;
@@ -6393,7 +6395,7 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
     return { title: show?.title || f.filmTitle || f.title || '',
       label: f.season != null ? (f.episode != null ? `S${pad(f.season)} E${pad(f.episode)}` : `S${pad(f.season)}`) : f.year ? String(f.year) : '' };
   },
-  closeOthers: () => { closeCcMenu(); closeAudioMenu(); closeQualityMenu(); closeNightMenu(); },
+  closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
   rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
@@ -6407,6 +6409,22 @@ const osdEl = $('#player-osd');
 const spinner = $('#player-spinner');
 const helpEl = $('#player-help');
 
+// One player menu or panel at a time: opening one closes the others (they stop their clicks from bubbling,
+// so the "click outside" listeners never see the other buttons). Returns whether anything was open.
+function closePlayerMenus(except) {
+  const was = playerMenuOpen();
+  if (except !== 'cc') closeCcMenu();
+  if (except !== 'audio') closeAudioMenu();
+  if (except !== 'night') closeNightMenu();
+  if (except !== 'quality') closeQualityMenu();
+  if (except !== 'more') momentsUI.closeMenu();
+  if (except !== 'fs') closeFsGuide();
+  if (except !== 'help') helpEl.hidden = true;
+  if (except !== 'stats') streamStats.close();
+  return was;
+}
+const playerMenuOpen = () => !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
+  || !$('#more-menu').hidden || !helpEl.hidden || streamStats.isOpen();
 const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || (watchPanelOpen && !roomDocked()) || momentsUI.menuOpen(); // friends: Moments
 let lastPointer = 'mouse';
 let overControls = false;
@@ -6651,7 +6669,7 @@ function renderFsGuide() {
 }
 function closeFsGuide() { if (fsGuide.hidden) return; fsGuide.hidden = true; fsBtn.setAttribute('aria-expanded', 'false'); }
 function openFsGuide() {
-  closeCcMenu(); closeAudioMenu(); closeQualityMenu(); closeNightMenu();
+  closePlayerMenus('fs');
   renderFsGuide();
   fsGuide.hidden = false;
   fsBtn.setAttribute('aria-expanded', 'true');
@@ -6894,6 +6912,7 @@ const SHORTCUTS = [
 ];
 function toggleHelp() {
   if (helpEl.hidden) {
+    closePlayerMenus('help');
     helpEl.replaceChildren(
       h('p', { class: 'help-title' }, T('Keyboard shortcuts')),
       h('dl', {}, SHORTCUTS.filter(([keys]) => keys !== 'C' || !plainMedia(current)).map(([keys, what]) => h('div', {}, h('dt', {}, keys), h('dd', {}, what)))));
@@ -6917,14 +6936,18 @@ const streamStats = createStreamStats({
         : session?.kind === 'part' ? T('Live 1080p stream, made while the video downloads') : '',
       audio: session?.audio?.activeLabel || '',
       subtitles: lang ? `${lang.name || lang.code}${lang.saved ? T(' · saved on the server') : ''}${nativeSubs ? T(' · drawn by the browser') : ''}${timing ? T(' · timing {0}', timing) : ''}` : '',
-      party: party ? [party.isHost ? 'host' : 'guest', party.connected ? 'connected' : 'reconnecting', T('clock {0} ms off', Math.round(party.clockOffset)),
+      party: party ? [party.isHost ? T('host') : T('guest'), party.connected ? T('connected') : T('reconnecting'), T('clock {0} ms off', Math.round(party.clockOffset)),
         T('rtt {0} ms', Math.round(party.rtt)), $('#watch-members').textContent].filter(Boolean).join(' · ') : '',
       casting: onTvVersion ? T('AirPlay · TV version') : video.webkitCurrentPlaybackTargetIsWireless ? 'AirPlay'
         : video.remote?.state === 'connected' ? T('Remote playback') : inPip() ? T('Picture in picture') : '',
     };
   },
 });
-stage.addEventListener('contextmenu', (e) => { e.preventDefault(); streamStats.toggle(); });
+function toggleStats() {
+  if (!streamStats.isOpen()) closePlayerMenus('stats');
+  streamStats.toggle();
+}
+stage.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleStats(); });
 
 const seekToFraction = (f) => {
   if (!isFinite(video.duration)) return;
@@ -6940,7 +6963,7 @@ const PLAYER_KEYS = {
   ' ': () => togglePlay(true), k: () => togglePlay(true),
   ArrowLeft: () => skip(-5), ArrowRight: () => skip(5), j: () => skip(-10), l: () => skip(10),
   ArrowUp: () => nudgeVolume(0.05), ArrowDown: () => nudgeVolume(-0.05),
-  m: toggleMute, f: toggleFullscreen, c: toggleSubs, p: togglePip, '?': toggleHelp, i: () => streamStats.toggle(),
+  m: toggleMute, f: toggleFullscreen, c: toggleSubs, p: togglePip, '?': toggleHelp, i: toggleStats,
   n: () => setNight(!night.on, true), s: () => { if (!skipIntroEl.hidden) skipIntro(); },
   Home: () => seekToFraction(0), End: () => seekToFraction(0.999),
 };
