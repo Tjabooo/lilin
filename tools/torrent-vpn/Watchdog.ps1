@@ -10,7 +10,8 @@ Import-Module (Join-Path $PSScriptRoot 'TorrentVpn.psm1') -Force
 
 $config = Read-TvConfig
 if (-not $config) { return }
-$lock = Enter-TvLock 45
+$lock = $null
+try { $lock = Enter-TvLock 45 } catch { Write-TvLog "running without the lock: $($_.Exception.Message)" }   # keeping the kill switch up comes first
 $config = Read-TvConfig   # re-read under the lock: a manual server switch may have just finished
 $state = Read-TvState
 function Get-StateValue($Name, $Default) { if ($null -ne $state.$Name) { $state.$Name } else { $Default } }

@@ -155,9 +155,26 @@ function Switch-TvPeer($Config, [int]$Index, [string]$Why) {
 }
 
 # One switch at a time: the watchdog holds this for its whole run, Set-TorrentVpnServer while it switches.
+# The mutex grants SYSTEM and Administrators full access: with the default security an elevated admin
+# shell can't open the one the SYSTEM watchdog created ("Access denied"), and the other way round.
 function Enter-TvLock([int]$TimeoutS = 90) {
-  $m = New-Object Threading.Mutex($false, 'Global\TorrentVpnWatchdog')
-  try { if (-not $m.WaitOne($TimeoutS * 1000)) { $m.Dispose(); throw 'another TorrentVpn run holds the lock' } }
+  $sec = New-Object Security.AccessControl.MutexSecurity
+  foreach ($sid in 'S-1-5-18', 'S-1-5-32-544') {
+    $who = New-Object Security.Principal.SecurityIdentifier $sid
+    $sec.AddAccessRule((New-Object Security.AccessControl.MutexAccessRule($who, [Security.AccessControl.MutexRights]::FullControl, [Security.AccessControl.AccessControlType]::Allow)))
+  }
+  $deadline = (Get-Date).AddSeconds($TimeoutS)
+  $m = $null
+  while (-not $m) {
+    try { $created = $false; $m = [Threading.Mutex]::new($false, 'Global\TorrentVpnWatchdog', [ref]$created, $sec) }
+    catch [UnauthorizedAccessException] {
+      # An older copy of this code holds a mutex with default security; it goes away when that run ends.
+      if ((Get-Date) -gt $deadline) { throw 'the TorrentVpn lock is held by a run this account cannot open' }
+      Start-Sleep 1
+    }
+  }
+  $left = [Math]::Max(1000, [int](($deadline - (Get-Date)).TotalMilliseconds))
+  try { if (-not $m.WaitOne($left)) { $m.Dispose(); throw 'another TorrentVpn run holds the lock' } }
   catch [Threading.AbandonedMutexException] { }   # the previous holder died; the lock is ours now
   $m
 }
