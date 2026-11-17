@@ -58,6 +58,6 @@ test('the owner restricts people; restricted likes and sight stay out of social 
   } finally {
     child.kill();
     await exited;
-    await fs.rm(app, { recursive: true, force: true });
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Windows keeps the dead server's files locked briefly
   }
 });

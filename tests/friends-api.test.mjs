@@ -77,7 +77,7 @@ test('friend requests, search and restricted people', { timeout: 20000 }, async 
   } finally {
     child.kill();
     await exited;
-    await fs.rm(app, { recursive: true, force: true });
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Windows keeps the dead server's files locked briefly
   }
 });
 
