@@ -173,9 +173,8 @@ export function createDocumentaries(ui) {
     if (data && !isSeries && data.overview) content.push(h('p', { class: 'overview' }, data.overview));
     if (data) content.push(h('p', { class: 'muted doc-note' }, T('Saved from SVT Play to your library in full quality, with Swedish subtitles. SVT Play only works in Sweden.')));
     const backdrop = data?.backdrop || t.backdrop;
-    body.replaceChildren(
-      h('div', { class: `sheet-hero${backdrop ? '' : ' no-image'}`, style: backdrop ? `background-image:url("${backdrop}")` : null }),
-      h('div', { class: 'sheet-content' }, ...content));
+    // The same hero as TMDB title pages: the picture fades out under the title, so it stays readable.
+    body.replaceChildren(ui.pageHero(backdrop), h('div', { class: 'sheet-content' }, ...content));
     // While something's on its way, keep the sheet up to date.
     const waiting = data && (data.status === 'queued' || data.seasons?.some((s) => s.episodes.some((e) => e.status === 'queued')));
     if (waiting) setTimeout(() => { if (stillOpen(token)) refresh(seasonNo); }, 6000);

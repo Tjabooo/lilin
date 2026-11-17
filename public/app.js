@@ -127,8 +127,10 @@ async function api(path, opts = {}) {
   try {
     r = await fetch(path, { ...opts, headers: { ...opts.headers, 'X-Lilin-Client': CLIENT_ID, 'X-Lilin-Tab': TAB_ID, 'X-Lilin-Lang': lang } });
   } catch (err) {
-    if (err.name !== 'AbortError' && await signedOut()) throw new Error(T('You’ve been signed out. Sign in again to carry on.'));
-    throw err;
+    if (err.name === 'AbortError') throw err;
+    if (await signedOut()) throw new Error(T('You’ve been signed out. Sign in again to carry on.'));
+    // The browser's own words ("Failed to fetch", "Load failed", …) mean nothing to anyone, and they're always English.
+    throw Object.assign(new Error(T('No connection to Lilin. Check your Wi-Fi and try again.')), { offline: true, cause: err });
   }
   let data = {};
   try { data = await r.json(); } catch { /* non-JSON */ }
@@ -360,6 +362,10 @@ const luminance = (hex) => {
   const [r, g, b] = hexRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
+// A TMDB rating the same way everywhere: one decimal, in the reader's language ("8.0", Swedish "8,0").
+const fmtRating = (r) => Number(r).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// WCAG contrast ratio between two colours (1 to 21).
+const contrastRatio = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
 // A saved theme ({ preset } or { preset: 'custom', colors }) -> the full set of colours.
 function themeColors(theme) {
@@ -377,7 +383,10 @@ function themeColors(theme) {
 function applyTheme(theme) {
   const c = themeColors(theme);
   const light = luminance(c.bg) > 0.5;
-  const onAccent = luminance(c.accent) > 0.4 ? (luminance(c.bg) < 0.15 ? c.bg : '#141414') : (luminance(c.bg) > 0.8 ? c.bg : '#FFFFFF');
+  // Text on the accent (primary buttons): whichever of a dark or light ink reads better on it.
+  const darkInk = luminance(c.bg) < 0.15 ? c.bg : '#141414';
+  const lightInk = luminance(c.bg) > 0.8 ? c.bg : '#FFFFFF';
+  const onAccent = contrastRatio(darkInk, c.accent) >= contrastRatio(lightInk, c.accent) ? darkInk : lightInk;
   const vars = {
     '--velvet': c.bg, '--curtain': c.surface, '--seat': c.raised, '--line': c.line,
     '--paper': c.text, '--dust': c.muted, '--bulb': c.accent, '--alert': c.alert,
@@ -782,11 +791,11 @@ function openTravelList(opener) {
     const items = travelOrder(travelView.items);
     $('#picker-body').replaceChildren(
       h('h2', { id: 'picker-title' }, T('For your phone')),
-      h('p', { class: 'muted picker-sub' }, travelSummary(items).replace(' for your phone', items.length === 1 ? ' copy' : ' copies') || T('Nothing yet. Open a film or episode and choose Download to phone.')),
+      h('p', { class: 'muted picker-sub' }, travelSummary(items, items.length === 1 ? T('1 copy') : T('{0} copies', items.length)) || T('Nothing yet. Open a film or episode and choose Download to phone.')),
       h('ul', { class: 'rows travel-list' }, items.map((item) => h('li', { class: 'row travel-row' },
         h('div', { class: 'row-text' },
           h('div', { class: 'row-title' }, item.title),
-          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label, sizeWords(item, fmtBytes), stateWords(item),
+          h('div', { class: `row-meta${item.state === 'failed' ? ' is-error' : ''}` }, [item.label && T(item.label), sizeWords(item, fmtBytes), stateWords(item),
             item.downloadedAt && T('Downloaded')].filter(Boolean).map((t) => h('span', {}, t))),
           travelProgress(item)),
         h('div', { class: 'row-actions' },
@@ -798,7 +807,7 @@ function openTravelList(opener) {
             draw();
             if (state.view === 'library') renderLibrary();
           } }, icon('trash')))))),
-      items.length > 0 && h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.')));
+      ...(items.length ? [h('p', { class: 'muted travel-note' }, T('Removing one here doesn’t touch the copy already on your phone. Copies leave the server a week after you last download them.'))] : []));
   }
   travelOverlay(opener, draw);
   loadTravel();
@@ -845,8 +854,10 @@ function titleCard(t) {
       ownershipBadge(t),
       svt && h('span', { class: 'svt-mark' }, 'SVT Play')),
     h('div', { class: 'name' }, t.title),
-    h('div', { class: 'sub' }, [t.year, isSeries(t) ? T('Series') : T('Film')].filter(Boolean).join(' · '),
-      t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', t.rating) }, ` · ★ ${t.rating.toFixed(1)}`) : null));
+    // Narrow grid cards drop the Film/Series word (style.css) so the rating always fits.
+    h('div', { class: 'sub' }, t.year ? String(t.year) : '',
+      h('span', { class: t.year ? 'kind' : null }, `${t.year ? ' · ' : ''}${isSeries(t) ? T('Series') : T('Film')}`),
+      t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', fmtRating(t.rating)) }, ` · ★ ${fmtRating(t.rating)}`) : null));
   button._title = t; // peek.js: the preview on hover or long press
   return h('li', {}, button);
 }
@@ -915,7 +926,7 @@ function discoverFilters() {
 }
 
 function heroSlide(t) {
-  const meta = [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${t.rating.toFixed(1)}`, ...genreNames(t)].filter(Boolean);
+  const meta = [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${fmtRating(t.rating)}`, ...genreNames(t)].filter(Boolean);
   return h('li', { class: 'hero-slide' },
     h('button', { class: 'hero-card', onclick: (e) => openDetails(t, e.currentTarget) },
       h('img', { src: t.backdrop, alt: '', decoding: 'async' }),
@@ -962,7 +973,7 @@ function bigArt(url, max = 1280) {
   if (!url || !/image\.tmdb\.org\/t\/p\/w780\//.test(url)) return url;
   return max > 780 && innerWidth * (devicePixelRatio || 1) > 900 ? url.replace('/t/p/w780/', '/t/p/w1280/') : url;
 }
-const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${t.rating.toFixed(1)}`, ...genreNames(t)].filter(Boolean).join(' · ');
+const metaFor = (t) => [t.year, isSeries(t) ? T('Series') : T('Film'), t.type === 'svt' && 'SVT Play', t.rating && `★ ${fmtRating(t.rating)}`, ...genreNames(t)].filter(Boolean).join(' · ');
 // A title page's extras (logo art, runtime, genres, cast, similar titles: /api/title/:type/:id/page), kept for hours.
 const pageInfo = (type, id) => cachedFor(`/api/title/${type}/${id}/page`, 6 * 3600 * 1000).then((d) => d.page);
 
@@ -1277,6 +1288,7 @@ async function renderDiscover() {
   if (disc.genre) {
     const g = disc.genre;
     content.before(h('div', { class: 'discover-head' },
+      h('button', { class: 'back-link', onclick: () => { disc.genre = null; renderDiscover(); } }, T('‹ Discover')),
       h('h3', {}, g.name),
       segmented(SORT_LABELS, disc.sort, (sort) => { disc.sort = sort; renderDiscover(); }, T('Sort by'))));
     return pagedGrid(content, (page) => `/api/discover/genre?type=${disc.type}&movie=${g.movie || ''}&tv=${g.tv || ''}&sort=${disc.sort}&page=${page}`, signal);
@@ -1536,10 +1548,19 @@ function renderLibrary() {
     card.remove(); libraryCards.delete(key);
   }
   for (const group of ui.groups.values()) group.section.hidden = !group.list.children.length;
-  const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? T('No titles match these filters.') : T('Nothing here yet. Find something in Discover and press Add to start watching.');
+  // Filtered down to nothing: say which filter did it, and offer the way back to everything.
+  const filteredText = () => state.query.trim() ? T('Nothing in your library matches “{0}”.', state.query.trim())
+    : ({ attention: T('Nothing needs attention right now.'), downloading: T('Nothing is on its way right now.'), ready: T('Nothing is ready to watch yet.') })[state.libAvailability]
+    || T('No titles match these filters.');
+  const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? filteredText() : T('Nothing here yet. Find something in Discover and press Add to start watching.');
+  const showAll = () => {
+    state.libFilter = 'all'; state.libAvailability = 'all';
+    if (state.query) { input.value = ''; input.dispatchEvent(new Event('input')); }
+    renderLibrary();
+  };
   if (ui.empty.dataset.text !== emptyText) {
     ui.empty.dataset.text = emptyText;
-    ui.empty.replaceChildren(!emptyText ? '' : all.length ? notice(T('No matching titles'), emptyText)
+    ui.empty.replaceChildren(!emptyText ? '' : all.length ? emptyState(T('No matching titles'), emptyText, { label: T('Show all titles'), run: showAll })
       : emptyState(T('Your library is empty'), emptyText, { label: T('Find something to watch'), icon: 'search', run: () => setView('discover') }));
   }
   // Shelves use ready files only; transfers never create fake playback progress.
@@ -1864,7 +1885,7 @@ function renderFilm() {
     pageHero(f.backdrop),
     h('div', { class: 'sheet-content' },
       pageTitle(f.filmTitle || f.title, 'movie', tmdbFilm),
-      pageFacts([f.year, f.season != null ? episodeLabel(f) : T('Film'), f.rating && h('li', { class: 'fact-rating' }, `★ ${f.rating}`), f.format?.toUpperCase(), fmtBytes(f.size)], 'movie', tmdbFilm),
+      pageFacts([f.year, f.season != null ? episodeLabel(f) : T('Film'), f.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(f.rating)}`), f.format?.toUpperCase(), fmtBytes(f.size)], 'movie', tmdbFilm),
       transferPanel(unifiedLibrary().find(e => e.files.some(file => file.id === f.id))),
       f.movieAmbiguous && h('p', { class: 'identity-note' }, state.me?.isOwner
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
@@ -1876,6 +1897,16 @@ function renderFilm() {
         h('button', { class: 'chip', onclick: (e) => openTravel(file, e.currentTarget) }, icon('phone'), T('To phone')),
         h('button', { class: 'chip', onclick: (e) => openDelete(file, e.currentTarget) }, icon('trash'), T('Delete')),
         state.me?.isOwner && h('button', { class: 'chip', onclick: (e) => openFilmIdentity(f, e.currentTarget) }, T('Identify film'))),
+      // A film with versions (4K + 1080p): which one Play starts, the same picker as on Discover's title page.
+      f.versions?.length > 1 && versionSelect({
+        id: `ver-${f.versionKey}`, options: f.versions.map((v) => ({ value: v.mediaKey, label: v.versionLabel })), value: f.mediaKey,
+        onPick: (key) => {
+          const v = f.versions.find((x) => x.mediaKey === key);
+          setVersionPick(f, v);
+          if (!String(filmView.id).startsWith('entry:')) { filmView.id = v.id; filmView.mediaKey = v.mediaKey; }
+          patchUnifiedLibrary(); renderFilm();
+        },
+      }),
       h('div', { class: 'page-extras' }, social.rateRow(f.season == null && f.tmdbId ? `movie:${f.tmdbId}` : titleKeyOf(f), f.filmTitle || f.title)),
       f.overview && h('p', { class: 'overview' }, f.overview),
       keepBar([f], renderFilm),
@@ -1953,13 +1984,26 @@ function transferPanel(entry) {
   const { key, aliases } = entry;
   return transferSummary(() => unifiedLibrary().find((e) => e.key === key || e.aliases.some((a) => aliases.includes(a)))?.transfers || [], entry.name);
 }
+// "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
+function airsLabel(airDate) {
+  const date = airDate && new Date(`${airDate}T12:00:00`);
+  if (!date || !(date > new Date())) return null;
+  return T('Airs {0}', date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }));
+}
 // Episode rows on a show page get TMDB's running time and a line of the story once the season's details arrive.
+// A missing episode that hasn't aired yet shows its date instead of offering to add it.
 function fillEpisodeDetails(tmdbId, season) {
   cachedFor(`/api/tv/${tmdbId}/season/${season}`, 60 * 60 * 1000).then(({ episodes }) => {
     const byNumber = new Map((episodes || []).map((ep) => [ep.number, ep]));
     for (const row of document.querySelectorAll('#sheet-body .episode-row[data-episode]')) {
       const ep = byNumber.get(Number(row.dataset.episode));
       const text = row.querySelector('.row-text');
+      const airs = ep && row.classList.contains('missing-episode') && airsLabel(ep.airDate);
+      if (airs && !row.classList.contains('is-upcoming')) {
+        row.classList.add('is-upcoming');
+        text?.querySelector('.row-meta')?.replaceChildren(airs);
+        row.querySelector('.episode-get')?.remove();
+      }
       if (!ep || !text || text.querySelector('.ep-overview')) continue;
       if (ep.runtime) text.querySelector('.row-meta')?.prepend(h('span', { class: 'ep-runtime' }, fmtRuntime(ep.runtime)));
       if (ep.overview) text.querySelector('.row-title')?.after(h('p', { class: 'ep-overview' }, ep.overview));
@@ -1967,9 +2011,14 @@ function fillEpisodeDetails(tmdbId, season) {
   }).catch(() => {});
 }
 // The show page's main button: carry on where you left off (or start at the beginning).
-function showPlayButton(showId) {
+function showPlayButton(showId, entry) {
   const up = nextUp(showId);
-  if (!up || up.f.converting) return up ? null : h('p', { class: 'muted show-caught-up' }, T('You’re all caught up.'));
+  if (up?.f.converting) return null;
+  if (!up) {
+    // Nothing here to watch yet (the first episodes are still downloading): the transfer card says how it's going.
+    if (!entry?.files?.some((f) => f.season != null && f.episode != null)) return null;
+    return h('p', { class: 'muted show-caught-up' }, entry.transfers?.length ? T('You’re all caught up. More is on its way.') : T('You’re all caught up.'));
+  }
   const ep = episodeLabel(up.f);
   const label = up.kind === 'resume' ? T('Resume {0} · {1} min left', ep, Math.max(1, Math.ceil((up.progress.duration - up.progress.time) / 60)))
     : up.kind === 'next' ? T('Play next: {0}', ep) : T('Play {0}', ep);
@@ -2020,7 +2069,7 @@ function renderShow() {
     const tvId = { id: show.tmdbId ?? null, title: show.title, type: 'tv' }; // episodeDownload decides Add / Download / nothing
     const upgrade = seasonUpgrade(tvId, open.number);
     for (const {d,ep} of byEpisode.values()) rows.push({ number: ep.episode, node: h('li', { class: 'row episode-row pending-episode', 'data-episode': ep.episode, 'data-transfer-hash': d.hash, 'data-episode-number': ep.episode, 'data-episode-season': ep.season }, thumb(ep.episode), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(ep.episode)), h('div', { class: 'row-meta episode-transfer-state' }, ep.available ? T('Ready · watch it from Details') : `${transferState(d)}${Number.isFinite(ep.progress) ? ` · ${Math.floor(ep.progress*100)}%` : ''}`)), d.canPlayNow && !ep.available && ep.started && ep.fileIndex != null && h('button', { class: 'play-btn', onclick: () => openPlayer(playNowItem(d, ep, ep)) }, icon('play'), T('Play now')), h('button', { class: 'chip', onclick: e => openTransferDetails({ ...entry, transfers: [d] }, e.currentTarget) }, T('Details'))) });
-    if (Number.isInteger(open.total) && open.total > 0 && open.total <= 1000) for (let number = open.first || 1; number < (open.first || 1) + open.total; number++) if (!rows.some(row => row.number === number)) rows.push({ number, node: h('li', { class: 'row episode-row missing-episode', 'data-episode': number }, thumb(number), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(number)), h('div', { class: 'row-meta' }, T('Not added yet'))), tvId && episodeDownload(tvId, open.number, number)) });
+    if (Number.isInteger(open.total) && open.total > 0 && open.total <= 1000) for (let number = open.first || 1; number < (open.first || 1) + open.total; number++) if (!rows.some(row => row.number === number)) { const airs = airsLabel(tmdbEp(number).airDate); rows.push({ number, node: h('li', { class: `row episode-row missing-episode${airs ? ' is-upcoming' : ''}`, 'data-episode': number }, thumb(number), h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, epTitle(number)), h('div', { class: 'row-meta' }, airs || T('Not added yet'))), !airs && tvId && episodeDownload(tvId, open.number, number)) }); }
     content = [!single && h('button', { class: 'chip season-back', onclick: () => pick(null) }, icon('back'), T('All seasons')), h('h3', {}, open.name),
       seasonVersionPick(ready, () => renderShow()),
       h('div', { class: 'season-summary' }, h('p', { class: 'muted' }, T('{0} episodes ready', open.total ? T('{0} of {1}', episodeCount(ready), open.total) : episodeCount(ready))),
@@ -2034,7 +2083,7 @@ function renderShow() {
   const tv = canGet() && show.tmdbId ? showDownload({ id: show.tmdbId, title: show.title, type: 'tv' }, { season: open?.number ?? null, onAdded: renderShow }) : null;
   $('#sheet-body').replaceChildren(pageHero(show.backdrop),
     h('div', { class: 'sheet-content' }, pageTitle(show.title, 'tv', show.tmdbId), pageFacts([show.year, T('Series'), libraryAvailability(entry)], 'tv', show.tmdbId),
-      h('div', { class: 'title-actions' }, showPlayButton(show.id), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
+      h('div', { class: 'title-actions' }, showPlayButton(show.id, entry), (tv || deleteShow) && h('div', { class: 'action-row' }, tv?.toggle, tv?.dubBtn, deleteShow), tv?.panel, transferPanel(entry)),
       h('div', { class: 'page-extras' }, show.tmdbId && social.rateRow(`tv:${show.tmdbId}`, show.title), state.status.search && show.tmdbId && watchBox({ id: show.tmdbId, type: 'tv', title: show.title })),
       show.overview && h('p', { class: 'overview' }, show.overview), files.length > 0 && keepBar(files, renderShow),
       h('section', { class: 'page-section show-episodes' }, ...content),
@@ -2818,7 +2867,7 @@ function renderDetails(t) {
     detailsHero(t),
     h('div', { class: 'sheet-content' },
       pageTitle(t.title, t.type, t.id),
-      pageFacts([t.year, t.type === 'tv' ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${t.rating}`),
+      pageFacts([t.year, t.type === 'tv' ? T('Series') : T('Film'), t.rating && h('li', { class: 'fact-rating' }, `★ ${fmtRating(t.rating)}`),
         files.some((f) => f.done) && h('li', { class: 'fact-owned' }, T('In your library'))], t.type, t.id),
       actions,
       !isTv && filmVersionPick(t, () => renderDetails(t)),
@@ -3558,7 +3607,7 @@ function renderMeButton() {
 $('#me-btn').addEventListener('click', (e) => profiles.openMine(e.currentTarget));
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
-const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
+const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
   sheet: () => $('#sheet'), sheetBody: () => $('#sheet-body'),
@@ -7795,8 +7844,7 @@ function appearanceSection() {
     const colors = customColors();
     const contrast = h('p', { class: 'set-hint custom-warn', role: 'status' });
     const check = () => {
-      const ratio = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-      const low = ratio(colors.text, colors.bg) < 4.5 || ratio(colors.text, colors.surface) < 4.5;
+      const low = contrastRatio(colors.text, colors.bg) < 4.5 || contrastRatio(colors.text, colors.surface) < 4.5;
       contrast.textContent = low ? T('The text may be hard to read on these backgrounds. Try a lighter or darker text colour.') : '';
     };
     const commit = () => {
@@ -7956,7 +8004,9 @@ function settingsLayout(nodes) {
   for (const node of nodes) {
     if (node.matches?.('h3.set-head')) {
       if (current.items.length || current.head) groups.push(current);
-      current = { title: node.textContent.trim(), head: node, items: [] };
+      // the heading's own words only: not a tag inside it ("Server" + "Owner" read "ServerOwner")
+      const own = [...node.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+      current = { title: own || node.textContent.trim(), head: node, items: [] };
     } else current.items.push(node);
   }
   if (current.items.length || current.head) groups.push(current);
@@ -8401,14 +8451,18 @@ function ownerSettings() {
     toggle(r.membersCanDownload !== false, (on) => saveRules({ membersCanDownload: on }), T('New people can download'))));
   out.push(settingsRow(T('Colours for new people'), T('Until they pick their own.'),
     select(Object.entries(THEMES).map(([k, t]) => [k, t.name]), r.defaultTheme || 'lilin', (v) => saveRules({ defaultTheme: v }), T('Colours for new people'))));
-  out.push(h('details', { class: 'set-card set-signin' },
-    h('summary', {}, T('Staying signed in')),
-    h('p', {}, T('Lilin has no login of its own: it uses the Cloudflare Access sign-in, so how long people stay signed in is set in Cloudflare. To make it last a month:')),
+  out.push(h('details', { class: 'set-card set-details set-signin' },
+    h('summary', {},
+      h('span', { class: 'set-text' }, h('span', { class: 'set-label' }, T('Staying signed in')),
+        h('span', { class: 'set-hint' }, T('How long a sign-in lasts before Lilin asks again.'))),
+      h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
+    h('p', {}, T('With Lilin’s own sign-in, people stay signed in for SESSION_DAYS days (30 unless you change it in .env, then restart Lilin).')),
+    h('p', {}, T('Behind Cloudflare Access, Access has its own session too, and the shorter one wins. To make that last a month:')),
     h('ol', {},
       h('li', {}, T('Cloudflare dashboard → Zero Trust → Access → Applications → Lilin → Edit.')),
-      h('li', {}, T('Set Session Duration to 1 month (it’s 24 hours now) and save.')),
+      h('li', {}, T('Set Session Duration to 1 month and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
-    h('p', { class: 'set-hint' }, T('If someone’s sign-in does run out while Lilin is open, it now tells them and signs them back in with one tap.'))));
+    h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
 
   out.push(...ideaInbox());
 
@@ -10345,7 +10399,11 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   try {
     state.status = await api('/api/status');
   } catch {
-    $('#discover-body').replaceChildren(notice(T('Can’t reach the server'), T('Make sure server.js is running, then reload this page.'), () => location.reload()));
+    const heading = $('#discover-heading');
+    heading.textContent = T('Lilin isn’t answering'); heading.classList.add('sr-only');
+    $('#discover-body').replaceChildren(emptyState(T('Lilin isn’t answering'),
+      T('It’s probably restarting or updating. Give it a minute, then try again.'),
+      { label: T('Try again'), run: () => location.reload() }));
     return;
   }
   state.me = state.status.me;

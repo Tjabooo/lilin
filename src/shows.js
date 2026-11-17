@@ -114,7 +114,7 @@ function loadDetails(id, seasons, tmdb) {
       try {
         const d = await tmdb(`/tv/${id}/season/${n}`);
         s.episodes[n] = Object.fromEntries((d.episodes || []).map((e) => [e.episode_number, {
-          name: e.name || null, still: img('w300', e.still_path),
+          name: e.name || null, still: img('w300', e.still_path), airDate: e.air_date || null,
         }]));
       } catch { s.episodes[n] = s.episodes[n] || {}; }
     }
