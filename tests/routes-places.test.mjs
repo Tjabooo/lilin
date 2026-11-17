@@ -86,9 +86,9 @@ test('You pages per role keep today’s rules', () => {
   assert.deepEqual(pages('memberAct'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('memberInv'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('restricted'), ['history', 'liked', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'activity', 'invite', 'account', 'look', 'watching', 'devices', 'download-settings']);
-  assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'people', 'ideas', 'rules', 'screen-time']);
-  assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
+  assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'download-settings']);
+  assert.deepEqual(pagesOf('house', ROLES.owner.me, ROLES.owner.status).map((id) => ROUTES[id].sub), ['machines', 'activity', 'people', 'ideas', 'rules', 'screen-time']);
+  assert.deepEqual(pagesOf('house', ROLES.ownerNotes.me, ROLES.ownerNotes.status).map((id) => ROUTES[id].sub), ['machines', 'activity', 'notes', 'clips', 'people', 'ideas', 'rules', 'screen-time']);
 });
 
 test('old addresses and notification links land on their new homes, or the start view when not allowed', () => {
@@ -98,6 +98,9 @@ test('old addresses and notification links land on their new homes, or the start
   assert.equal(resolve('#downloads', member.me, member.status), 'library/downloads');
   assert.equal(resolve('#activity', memberAct.me, memberAct.status), 'you/activity');
   assert.equal(resolve('#activity', member.me, member.status), null);
+  assert.equal(resolve('#activity', owner.me, owner.status), 'house/activity', 'owners read Activity in House');
+  assert.equal(resolve('#you/activity', owner.me, owner.status), 'house/activity', 'an old You › Activity bookmark follows it');
+  assert.equal(resolve('#house/activity', memberAct.me, memberAct.status), null, 'House stays owners only');
   assert.equal(resolve('#notes', ownerNotes.me, ownerNotes.status), 'house/notes');
   assert.equal(resolve('#notes', owner.me, owner.status), null, 'Notes needs the notes switch');
   assert.equal(resolve('#clips', ownerNotes.me, ownerNotes.status), 'house/clips');

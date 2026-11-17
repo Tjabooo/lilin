@@ -31,8 +31,8 @@ const WATCHING = ['history', 'ratings', 'liked'];
 
 test('You: each role gets exactly its rows, group by group', () => {
   // owners (co-owners too) invite from You as well as House → People
-  assert.deepEqual(rows('owner'), { watching: WATCHING, people: ['friends', 'moments', 'activity', 'invite'], settings: [...SETTINGS, 'download-settings'] });
-  assert.deepEqual(rows('coOwner'), { watching: WATCHING, people: ['friends', 'moments', 'activity', 'invite'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
+  assert.deepEqual(rows('owner'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: [...SETTINGS, 'download-settings'] });
+  assert.deepEqual(rows('coOwner'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
   assert.deepEqual(rows('member'), { watching: WATCHING, people: ['friends', 'moments'], settings: SETTINGS, ideas: ['ideas'] });
   assert.deepEqual(rows('memberAct'), { watching: WATCHING, people: ['friends', 'moments', 'activity'], settings: SETTINGS, ideas: ['ideas'] });
   assert.deepEqual(rows('memberInv'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: SETTINGS, ideas: ['ideas'] });
@@ -63,7 +63,7 @@ test('You: old addresses and notification links open the right page for every ro
     const friends = linkRoute(q('friends=1'), me, status);
     assert.equal(friends, me.email && !me.restricted ? 'you/friends' : null, `${role}: friends link`);
     assert.equal(linkRoute(q('ideas=1'), me, status), me.isOwner ? 'house/ideas' : 'you/ideas', `${role}: ideas link (a co-owner's answers too)`);
-    assert.equal(resolve('#activity', me, status), status.admin || me.canSeeActivity ? 'you/activity' : null, `${role}: #activity`);
+    assert.equal(resolve('#activity', me, status), status.admin ? 'house/activity' : me.canSeeActivity ? 'you/activity' : null, `${role}: #activity`);
     for (const sub of WATCHING) {
       const id = resolve(`#you/${sub}`, me, status);
       assert.equal(id, sub === 'ratings' && me.restricted ? null : `you/${sub}`, `${role}: #you/${sub}`);

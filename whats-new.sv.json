@@ -1,4 +1,13 @@
 {
+  "2026-11-17-activity-house": {
+    "title": "Aktivitet har flyttat till Huset",
+    "items": {
+      "Activity is a House tile now": {
+        "title": "Aktivitet är en ruta i Huset nu",
+        "text": "Vem som såg vad, och när, öppnas nu från fliken Huset bredvid dina andra verktyg i stället för från Du. Gamla länkar hittar fortfarande dit."
+      }
+    }
+  },
   "2026-11-17-fresh-hevc": {
     "title": "Nyss nedladdade filmer blir klara i fler webbläsare",
     "items": {

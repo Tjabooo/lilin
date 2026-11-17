@@ -21,6 +21,7 @@ export const PLACES = [
   { id: 'ratings', route: 'you/ratings', syn: syn(['reviews', 'my reviews', 'stars', 'my ratings'], ['betyg', 'recensioner', 'mina recensioner', 'stjärnor']) },
   { id: 'liked', route: 'you/liked', syn: syn(['likes', 'thumbs up', 'favourites', 'favorites'], ['gillat', 'gillade', 'tummen upp', 'favoriter']) },
   { id: 'activity', route: 'you/activity', syn: syn(['what happened', 'log', 'history of everyone'], ['aktivitet', 'logg', 'vad som hänt']) },
+  { id: 'house-activity', route: 'house/activity', syn: syn(['what happened', 'log', 'history of everyone'], ['aktivitet', 'logg', 'vad som hänt']) },
   { id: 'friends', route: 'you/friends', syn: syn(['friend requests', 'add a friend', 'find someone'], ['vänner', 'vänförfrågningar', 'lägg till en vän']) },
   { id: 'moments', route: 'you/moments', syn: syn(['clips from films', 'shared with you'], ['ögonblick', 'delat med dig']) },
   { id: 'invite', route: 'you/invite', syn: syn(['invite link', 'invite someone'], ['bjud in', 'inbjudningslänk']) },

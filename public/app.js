@@ -9488,13 +9488,14 @@ function renderHouseHub(body) {
   const active = state.downloads.filter((d) => !d.done).length;
   const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
   const tools = [
-    ...['house/notes', 'house/clips', 'house/people', 'house/ideas'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+    ...['house/activity', 'house/notes', 'house/clips', 'house/people', 'house/ideas'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
     { label: T('Downloads'), line: stuck ? T('Needs attention') : active ? T('Downloading · {0}', plural(active, 'download')) : T('Everything the server is downloading'),
       count: stuck, run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) },
     { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
     ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
   ];
   const lines = {
+    'house/activity': T('Who watched what, and when'),
     'house/notes': T('Notes to yourself, with files and reminders'),
     'house/clips': state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
     'house/people': T('Who uses Lilin and what they may do'),

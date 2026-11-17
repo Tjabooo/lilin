@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-17-activity-house",
+  "date": "2026-11-17",
+  "title": "Activity moved to House",
+  "audience": "owner",
+  "items": [
+    {
+      "title": "Activity is a House tile now",
+      "text": "Who watched what, and when, now opens from the House tab next to your other tools instead of from You. Old links still find it."
+    }
+  ]
+},
+{
   "id": "2026-11-17-fresh-hevc",
   "date": "2026-11-17",
   "title": "Just-downloaded films get ready in more browsers",

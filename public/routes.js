@@ -28,7 +28,8 @@ export const ROUTES = {
   'you/liked': { view: 'you', tab: 'you', sub: 'liked', group: 'watching', label: 'Liked', allowed: (me) => Boolean(me) },
   'you/friends': { view: 'you', tab: 'you', sub: 'friends', group: 'people', label: 'Friends', allowed: social },
   'you/moments': { view: 'you', tab: 'you', sub: 'moments', group: 'people', label: 'Moments', allowed: (me) => Boolean(me) },
-  'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(s?.admin || me?.canSeeActivity) },
+  // Owners read Activity in House; a member with "Can see activity" keeps it here (House is owners only).
+  'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(!s?.admin && me?.canSeeActivity) },
   'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite someone to Lilin', allowed: (me, s) => Boolean(s?.admin || (me?.canInvite && me.email && !me.restricted)) },
   'you/account': { view: 'you', tab: 'you', sub: 'account', group: 'settings', label: 'Account' },
   'you/look': { view: 'you', tab: 'you', sub: 'look', group: 'settings', label: 'Language and look' },
@@ -40,6 +41,7 @@ export const ROUTES = {
   // House: the owner's tools, one tile each (the machines page used to be called House).
   house: { view: 'house', tab: 'house', label: 'House', allowed: owner },
   'house/machines': { view: 'house', tab: 'house', sub: 'machines', group: 'tools', label: 'Machines' },
+  'house/activity': { view: 'activity', tab: 'house', sub: 'activity', group: 'tools', label: 'Activity' },
   'house/notes': { view: 'notes', tab: 'house', sub: 'notes', group: 'tools', label: 'Notes', allowed: (me, s) => Boolean(s?.notes) },
   'house/clips': { view: 'clips', tab: 'house', sub: 'clips', group: 'tools', label: 'Game clips', allowed: (me, s) => Boolean(s?.clips) },
   'house/people': { view: 'house', tab: 'house', sub: 'people', group: 'tools', label: 'People' },
@@ -53,9 +55,14 @@ export const LEGACY = {
   settings: 'you',
   downloads: 'library/downloads',
   watchlist: 'library/watchlist',
-  activity: 'you/activity',
+  activity: 'you/activity', // owners: MOVED sends it on to House
   notes: 'house/notes',
   clips: 'house/clips',
+};
+
+// Pages that moved for some people: an old address they can't open falls through to the new one.
+export const MOVED = {
+  'you/activity': 'house/activity',
 };
 
 // Notification links carry a query (?friends=1#settings): the route each one lands on. Anything else in the
@@ -88,6 +95,7 @@ export function resolve(hash, me, status) {
   id = id.trim().replace(/\/+$/, '');
   if (!id || id.startsWith('@')) return null; // #@handle: a profile, opened over the start view
   id = LEGACY[id] || id;
+  if (!allowedRoute(id, me, status) && MOVED[id]) id = MOVED[id];
   return allowedRoute(id, me, status) ? id : null;
 }
 
