@@ -8151,7 +8151,7 @@ function youIdentity({ numbers = false } = {}) {
 }
 function renderYouIdentity() { $('#you-id').replaceChildren(h('div', { class: 'set-stack' }, youIdentity())); }
 
-// For you: 0-3 cards for what's waiting (requests first: they need an answer), each handled right there. Empty: gone.
+// Waiting for you (For you in the code): 0-3 cards for what's waiting (requests first: they need an answer), each handled right there. Empty: gone.
 function forYouCards() {
   const answers = newIdeaAnswers().map((i) => h('li', { class: 'friend' },
     h('button', { type: 'button', class: 'friend-open', onclick: () => setView('you/ideas') },
@@ -8162,7 +8162,7 @@ function forYouCards() {
       ideaStatusPill(i.status))));
   const cards = [...friendsUI.forYou(3), ...momentsUI.forYou(3), ...answers].slice(0, 3);
   return cards.length ? h('section', { class: 'set-group' },
-    h('h3', { class: 'set-head' }, T('For you')), h('ul', { class: 'set-stack friend-list foryou-list' }, cards)) : null;
+    h('h3', { class: 'set-head' }, T('Waiting for you')), h('ul', { class: 'set-stack friend-list foryou-list' }, cards)) : null;
 }
 function renderForYou() {
   const box = $('#you-foryou');

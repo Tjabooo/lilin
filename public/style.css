@@ -522,6 +522,7 @@ main {
   color: #fff; background: rgb(var(--picture-dark) / .74); border-radius: var(--r-xs);
 }
 .poster-expiry.is-soon { color: var(--on-bulb); background: var(--bulb); }
+.poster:has(> .poster-expiry) > .poster-fallback { padding-bottom: 36px; } /* no art: the title sits above the badge */
 .poster-progress {
   position: absolute; left: 8px; right: 8px; bottom: 5px; z-index: 1; height: 4px;
   border-radius: 2px; background: rgb(255 255 255 / .28); overflow: hidden;
