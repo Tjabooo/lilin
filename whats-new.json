@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-17-friends-restrict",
+  "date": "2026-11-17",
+  "title": "Restrict people",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "A Restrict switch in People",
+      "text": "Settings → People has a new Restrict switch for each person. Someone restricted keeps Watch Together, rooms and room chat, but gets none of the other social parts: they don't see who liked what, nobody sees their likes, they can't send or get notification invites, and they share only by copying links."
+    }
+  ]
+},
+{
   "id": "2026-11-17-smoother-scrolling",
   "date": "2026-11-17",
   "title": "Smoother scrolling",

@@ -1772,6 +1772,10 @@ export default {
   "Your last edit of this clip is still being saved ({0}%). Saving again replaces it.": "Din förra redigering av klippet sparas fortfarande ({0} %). Sparar du igen ersätts den.",
   "Can invite people": "Kan bjuda in folk",
   "The owner can always invite people": "Ägaren kan alltid bjuda in folk",
+  // friends: Restrict, friends list, Moments
+  "Restrict": "Begränsa",
+  "Restrict {0}": "Begränsa {0}",
+  "Restrict: no friends, reviews or notification invites. They keep Watch Together and share by links only.": "Begränsa: inga vänner, recensioner eller inbjudningar via aviseringar. De behåller Titta tillsammans och delar bara via länkar.",
   "{0} can invite people": "{0} kan bjuda in folk",
   "by {0}": "av {0}",
   "Invite people": "Bjud in folk",

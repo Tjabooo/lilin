@@ -171,6 +171,10 @@ export function initAccounts({ dataDir, adminEmails, mediaDir: dir }) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'can_invite'").get()) {
     db.exec('ALTER TABLE users ADD COLUMN can_invite INTEGER NOT NULL DEFAULT 0');
   }
+  // friends: Restrict (owner sets it in People): no social features apart from Watch Together, links only.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'restricted'").get()) {
+    db.exec('ALTER TABLE users ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0');
+  }
   // Added later: when the episode was finished. last_at keeps moving when you rewatch part of it the same day,
   // so it can't tell "finished" from "started again" (old rows: null, last_at stands in).
   if (!db.prepare("SELECT 1 FROM pragma_table_info('watch_log') WHERE name = 'finished_at'").get()) {
@@ -309,6 +313,7 @@ function rowToUser(r) {
     canDownload: isOwner || Boolean(r.can_download),
     // the owner can always invite; others only once the owner allows it
     canInvite: isOwner || Boolean(r.can_invite),
+    restricted: !isOwner && Boolean(r.restricted), // friends: the owner is never restricted
     keep: Boolean(r.keep),
     settings: { ...USER_DEFAULTS, ...settings },
     createdAt: r.created_at,
@@ -335,6 +340,14 @@ export function userFor(req) {
     db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(Date.now(), user.id);
   }
   return user;
+}
+
+// friends: restricted people have no social features apart from Watch Together, and share by links only.
+export const isRestricted = (user) => Boolean(user && !user.isOwner && user.restricted);
+// The ids of everyone restricted (one query, for filtering lists of people).
+export function restrictedIds() {
+  if (!db) return new Set();
+  return new Set(db.prepare('SELECT id, email FROM users WHERE restricted = 1').all().filter((r) => !admins.includes(r.email)).map((r) => r.id));
 }
 
 // The server's owner (first of ADMIN_EMAILS): files added outside Lilin go in their library.
@@ -406,7 +419,7 @@ function cleanTheme(t) {
 
 // What the browser gets about the person signed in.
 export function publicUser(u) {
-  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, keep: u.keep, settings: u.settings,
+  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), keep: u.keep, settings: u.settings,
     sharedWith: libraryMates(u.id).filter((id) => id !== u.id).map((id) => userById(id)).filter(Boolean).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar })) };
 }
 
@@ -432,6 +445,11 @@ export function updateUser(id, patch) {
   if ('canInvite' in patch) {
     if (u.isOwner && !patch.canInvite) throw httpError(400, 'The owner can always invite people.');
     db.prepare('UPDATE users SET can_invite = ? WHERE id = ?').run(patch.canInvite ? 1 : 0, id);
+  }
+  // friends: Restrict this person (no social features apart from Watch Together; links only)
+  if ('restricted' in patch) {
+    if (u.isOwner && patch.restricted) throw httpError(400, 'The owner can’t be restricted.');
+    db.prepare('UPDATE users SET restricted = ? WHERE id = ?').run(patch.restricted ? 1 : 0, id);
   }
   if ('libraryWith' in patch) shareLibrary(id, patch.libraryWith == null || patch.libraryWith === '' ? null : Number(patch.libraryWith));
   if ('keep' in patch) {

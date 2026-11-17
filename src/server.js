@@ -195,6 +195,8 @@ const jellyfin = createJellyfin({
 watchRooms.attachStore(social.partyStore); // planned watch parties survive restarts
 const personName = (id) => accounts.userById(id)?.name || 'Someone';
 const avatarOf = (id) => accounts.userById(id)?.avatar || null;
+// friends: who a person may see in social spots. Restricted people see nobody else (blind); nobody sees them (hide).
+const socialSight = (user) => ({ blind: accounts.isRestricted(user), hide: accounts.restrictedIds() });
 const notes = new NotesStore(DATA_DIR, { fileDir: process.env.NOTES_FILES_DIR });
 const watchlist = new WatchlistStore(DATA_DIR);
 // Text in Notes images becomes search keywords. Uploads are read right away; older images catch up after startup.
@@ -3315,8 +3317,10 @@ async function handleApi(req, res, url) {
     const room = watchRooms.room(token);
     watchRooms.member(room, user, String(body.clientId || url.searchParams.get('clientId') || ''));
     if (room.live) throw new HttpError(409, 'Everyone can tune in to a channel from the Live tab.');
+    // friends: restricted people share rooms by link only, and are never offered as invitees
+    if (accounts.isRestricted(user)) throw new HttpError(403, 'Copy the room link and send it instead.');
     const inRoom = new Set([...room.members.values()].map((v) => v.userId));
-    const invitees = accounts.listUsers().filter((u) => !inRoom.has(u.id) && push.hasDevice(u.id) && u.settings?.pushWatch !== false)
+    const invitees = accounts.listUsers().filter((u) => !inRoom.has(u.id) && !u.restricted && push.hasDevice(u.id) && u.settings?.pushWatch !== false)
       .map((u) => ({ id: u.id, name: u.name, avatar: u.avatar }));
     if (action === 'invitees') return sendJson(res, 200, { people: invitees });
     if (req.method !== 'POST') throw new HttpError(405, 'Unsupported watch-room action.');
@@ -3551,9 +3555,9 @@ async function handleApi(req, res, url) {
   if (p === '/api/social/rate' && req.method === 'POST') {
     const { key, value, title } = await readJson(req);
     social.rate(user.id, String(key || ''), value, title);
-    return sendJson(res, 200, social.ratingFor(user.id, String(key), personName, avatarOf));
+    return sendJson(res, 200, social.ratingFor(user.id, String(key), personName, avatarOf, socialSight(user)));
   }
-  if (p === '/api/social/title') return sendJson(res, 200, social.ratingFor(user.id, String(url.searchParams.get('key') || ''), personName, avatarOf));
+  if (p === '/api/social/title') return sendJson(res, 200, social.ratingFor(user.id, String(url.searchParams.get('key') || ''), personName, avatarOf, socialSight(user)));
   if (p === '/api/social/ratings') {
     const keys = String(url.searchParams.get('keys') || '').split(',').slice(0, 500);
     return sendJson(res, 200, { ratings: social.ratingsFor(user.id, keys) });
@@ -3563,12 +3567,14 @@ async function handleApi(req, res, url) {
     if (!TMDB_TOKEN && !TMDB_KEY) return sendJson(res, 200, { items: [] });
     const disliked = social.dislikedKeys(user.id);
     const ranked = social.popular({ type, limit: 20 + disliked.size }).filter((r) => !disliked.has(r.key)).slice(0, 20);
+    const sight = socialSight(user);
     const cards = await Promise.allSettled(ranked.map(async (r) => {
       const [kind, id] = r.key.split(':');
       const card = mapTitle(await cachedTmdb(`/${kind}/${id}`, {}, 6 * 3600 * 1000), kind);
+      const others = r.likedBy.filter((u) => u !== user.id && !sight.hide.has(u) && !sight.blind); // friends: Restrict
       return { ...card, likes: r.likes, viewers: r.viewers,
-        likedBy: r.likedBy.filter((u) => u !== user.id).map(personName).slice(0, 4),
-        people: r.likedBy.filter((u) => u !== user.id).slice(0, 4).map((u) => ({ name: personName(u), avatar: avatarOf(u) })),
+        likedBy: others.map(personName).slice(0, 4),
+        people: others.slice(0, 4).map((u) => ({ name: personName(u), avatar: avatarOf(u) })),
         youLiked: r.likedBy.includes(user.id) };
     }));
     return sendJson(res, 200, { items: cards.filter((c) => c.status === 'fulfilled').map((c) => c.value) });
@@ -3656,6 +3662,7 @@ async function handleApi(req, res, url) {
       const u = accounts.updateUser(Number(m[1]), body);
       if ('canDownload' in body) activity.record(req, 'permission', `${u.name} ${body.canDownload ? 'can' : 'can’t'} download`);
       if ('canInvite' in body) activity.record(req, 'permission', `${u.name} ${body.canInvite ? 'can' : 'can’t'} invite people`);
+      if ('restricted' in body) activity.record(req, 'permission', `${u.name} ${body.restricted ? 'is restricted' : 'is no longer restricted'}`); // friends
       if ('keep' in body) activity.record(req, 'permission', `${u.name}’s videos ${body.keep ? 'are never auto-deleted' : 'are auto-deleted again'}`);
       if ('libraryWith' in body) {
         const mates = accounts.libraryMates(u.id).filter((id) => id !== u.id).map((id) => accounts.userById(id)?.name).filter(Boolean);

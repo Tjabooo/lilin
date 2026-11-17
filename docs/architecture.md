@@ -88,6 +88,7 @@ There's no separate login. Cloudflare Access adds the signed-in email to every r
 - **Auto-delete.** Each video in someone's library has a date it goes: by default 7 days after the download finished (or after it was added from the server). **Keep 7 more days** pushes it back. When the date passes it leaves that person's library, and once it's in nobody's library the file is deleted (with its MP4 copy and subtitles), checked every 10 minutes. A file that's playing is retried later. The owner can change the period (or turn it off), the extension, and how many times a video can be extended, and can exempt someone (**Never auto-delete**) in Settings.
 - **Deleting** takes a video out of your library; the file is only deleted when nobody else has it. The owner can also delete it for everyone.
 - **Privacy.** People only see their own library and downloads. Search tells them a title is on the server, not whose it is. The owner's Settings tab lists everyone with how much they have.
+- **Restrict.** The owner can mark a person **Restrict** in Settings → People (`users.restricted`; never the owner). A restricted person keeps Watch Together (rooms, Live TV and room chat) but no other social features: they don't see who else liked a title and nobody sees their likes (counts stay), they have no friends list and can't be found in it, they aren't offered as a Watch Together invitee and can't send notification invites. They share and receive by copying links only. Code reads it through `isRestricted(user)` and `restrictedIds()` in `src/accounts.js`.
 - **Staying signed in.** How long a sign-in lasts is Cloudflare's setting: Zero Trust → Access → Applications → your Lilin app → **Session duration** (24 hours by default; up to a month). If a sign-in runs out while Lilin is open, it says so and signs back in with one tap.
 
 ## Activity
@@ -222,7 +223,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET` | `/api/social/popular?type=` | Popular on Lilin: last 60 days of likes, viewers and hours, as TMDB cards |
 | `GET`, `POST` | `/api/admin/settings` | Auto-delete rules and defaults (`ADMIN_EMAILS` only) |
 | `GET` | `/api/admin/users` | Everyone who has used Lilin, with their library size (`ADMIN_EMAILS` only) |
-| `POST` | `/api/admin/users/<id>` | `{ canDownload?, keep? }` (`ADMIN_EMAILS` only) |
+| `POST` | `/api/admin/users/<id>` | `{ canDownload?, canInvite?, restricted?, keep?, libraryWith? }` (`ADMIN_EMAILS` only) |
 | `GET` | `/api/downloads` | Your qBittorrent downloads (`?all=1`: everyone's, owner only) |
 | `POST` | `/api/downloads/add` | Add a magnet or `.torrent` URL (`{ link, subs?, movieId? }`); `movieId` carries the selected TMDB film identity |
 | `POST` | `/api/downloads/smart` | Download a film or season (`{ type: "movie" \| "tv", tmdbId, season?, episodes?, profile?, quality? }`), returns `{ id }` |

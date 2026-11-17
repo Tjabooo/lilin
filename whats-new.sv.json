@@ -1,4 +1,13 @@
 {
+  "2026-11-17-friends-restrict": {
+    "title": "Begränsa personer",
+    "items": {
+      "A Restrict switch in People": {
+        "title": "En Begränsa-knapp under Personer",
+        "text": "Inställningar → Personer har en ny Begränsa-knapp för varje person. Den som är begränsad behåller Titta tillsammans, rum och rumschatt, men får inga av de andra sociala delarna: de ser inte vem som gillat vad, ingen ser vad de gillat, de kan inte skicka eller få inbjudningar via aviseringar, och de delar bara genom att kopiera länkar."
+      }
+    }
+  },
   "2026-11-17-smoother-scrolling": {
     "title": "Mjukare scrollning",
     "items": {

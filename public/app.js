@@ -4703,6 +4703,7 @@ async function offerWatchRoom(token) {
 function setWatchPanel(open) {
   watchPanelOpen = Boolean(open && party);
   if (!watchPanelOpen) closeInviteList();
+  $('#watch-invite').hidden = Boolean(state.me?.restricted); // friends: restricted people share the room link only
   if (watchPanelOpen) { partyUnread = 0; requestAnimationFrame(() => { const log = $('#chat-log'); log.scrollTop = log.scrollHeight; }); }
   renderParty(); showPlayerUi();
 }
@@ -8173,6 +8174,7 @@ function ownerSettings() {
   out.push(...ideaInbox());
 
   out.push(h('h3', { class: 'set-head' }, T('People')));
+  out.push(h('p', { class: 'set-hint' }, T('Restrict: no friends, reviews or notification invites. They keep Watch Together and share by links only.'))); // friends
   if (state.peopleError) out.push(h('p', { class: 'muted' }, state.peopleError));
   else if (!state.people) out.push(h('p', { class: 'muted' }, T('Loading…')));
   else {
@@ -8199,6 +8201,9 @@ function ownerSettings() {
             if (u.isOwner) { input.checked = true; toast(T('The owner can always invite people')); return; }
             await personUpdate(u, { canInvite: on });
           }, T('{0} can invite people', u.name))),
+        // friends: Restrict = no social features apart from Watch Together; sharing by links only
+        !u.isOwner && h('label', { class: 'person-toggle' }, T('Restrict'),
+          toggle(u.restricted, (on) => personUpdate(u, { restricted: on }), T('Restrict {0}', u.name))),
         h('label', { class: 'person-toggle' }, T('Never auto-delete'),
           toggle(u.keep, (on) => personUpdate(u, { keep: on }), T('Never auto-delete {0}’s videos', u.name))),
         h('label', { class: 'person-toggle person-library' }, T('Library'), libraryShareSelect(u)))))));
