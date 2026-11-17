@@ -3504,7 +3504,7 @@ const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state
 rateHooks.extra = (key, title, hooks) => reviews.rateButton(key, title, hooks);
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
-const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
+const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
   sheet: () => $('#sheet'), sheetBody: () => $('#sheet-body'),
