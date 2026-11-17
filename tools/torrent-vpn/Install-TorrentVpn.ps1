@@ -18,6 +18,10 @@
 
 .EXAMPLE
   .\Install-TorrentVpn.ps1 -Config C:\Users\me\Downloads\mullvad_wireguard_windows_all.zip -Prefer 'se-'
+
+.EXAMPLE
+  .\Install-TorrentVpn.ps1 -Config C:\Users\me\airvpn -Prefer 'Formosa' -CheckUrl https://airvpn.org/api/whatismyip/ -LoadUrl https://airvpn.org/api/status/
+  AirVPN: -LoadUrl lets the watchdog move off crowded servers (see README, "Server choice").
 #>
 param(
   [Parameter(Mandatory)][string[]]$Config,
@@ -27,6 +31,7 @@ param(
   [string]$QbitUrl = '',
   [string]$QbitExe = (Join-Path $env:ProgramFiles 'qBittorrent\qbittorrent.exe'),
   [string]$CheckUrl = 'https://am.i.mullvad.net/json',
+  [string]$LoadUrl = '',
   [int]$Metric = 5000,
   [switch]$NoQbitRestart
 )
@@ -67,7 +72,7 @@ Remove-Item -Recurse -Force (Join-Path $data 'import') -ErrorAction SilentlyCont
 
 $cfg = [pscustomobject]@{
   name = $Name; address = $first.Address; metric = $Metric
-  envFile = (Resolve-Path $EnvFile).Path; qbitUrl = $QbitUrl; qbitExe = (Resolve-Path $QbitExe).Path; checkUrl = $CheckUrl
+  envFile = (Resolve-Path $EnvFile).Path; qbitUrl = $QbitUrl; qbitExe = (Resolve-Path $QbitExe).Path; checkUrl = $CheckUrl; loadUrl = $LoadUrl
   interface = [pscustomobject]@{ PrivateKey = $first.PrivateKey; Address = $first.Address; Mtu = $first.Mtu; PublicKey = $null; Endpoint = $null; PresharedKey = $null }
   peers = $peers; peerIndex = 0; qbitInterface = $null
 }

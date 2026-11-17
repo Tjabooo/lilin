@@ -1,6 +1,7 @@
 # Runs every minute as SYSTEM (scheduled task "TorrentVpn Watchdog"). Keeps the torrent tunnel,
-# its route, the firewall kill switch and qBittorrent's binding in place, rotates to the next
-# server when the current one stops answering, and stops every torrent if a leak is ever seen.
+# its route, the firewall kill switch and qBittorrent's binding in place, rotates to another
+# server when the current one stops answering or (with loadUrl set) gets crowded, and stops every
+# torrent if a leak is ever seen.
 # Writes C:\ProgramData\TorrentVpn\status.json, plus a copy any local user can read in
 # C:\ProgramData\TorrentVpn-Status\status.json (Lilin's House tab runs unelevated).
 param([switch]$Quiet)
@@ -9,11 +10,19 @@ Import-Module (Join-Path $PSScriptRoot 'TorrentVpn.psm1') -Force
 
 $config = Read-TvConfig
 if (-not $config) { return }
+$lock = Enter-TvLock 45
+$config = Read-TvConfig   # re-read under the lock: a manual server switch may have just finished
 $state = Read-TvState
 function Get-StateValue($Name, $Default) { if ($null -ne $state.$Name) { $state.$Name } else { $Default } }
 function Set-StateValue($Name, $Value) { $state | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force }
 
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+# Peers that stopped answering in the last 30 minutes are not picked again by a failover or load move.
+function Get-RecentlyDead {
+  $dead = Get-StateValue 'deadPeers' $null
+  if (-not $dead) { return @() }
+  @($dead.PSObject.Properties | Where-Object { $now - [long]$_.Value -lt 1800 } | ForEach-Object { [int]$_.Name })
+}
 $problems = New-Object System.Collections.Generic.List[string]
 $status = [ordered]@{ at = (Get-Date).ToString('o'); name = $config.name; address = $config.address }
 
@@ -46,23 +55,66 @@ if ($healthy) {
   $restarts = [int](Get-StateValue 'restarts' 0)
   $lastRestart = [long](Get-StateValue 'lastRestart' 0)
   if ($now - $lastRestart -ge 120) {
-    if ($restarts -ge 2 -and $config.peers.Count -gt 1) {
-      $config.peerIndex = ([int]$config.peerIndex + 1) % $config.peers.Count
-      $next = $config.peers[[int]$config.peerIndex]
-      Set-Content -Encoding ascii -Path (Join-Path (Get-TvDataDir) "$($config.name).conf") -Value (New-TvTunnelConfig $config.interface $next)
-      Save-TvJson $config (Join-Path (Get-TvDataDir) 'config.json')
-      Write-TvLog "server $($peer.name) not answering; switching to $($next.name)"
-      $restarts = 0
-    } else {
-      Write-TvLog "no handshake (age=$age); restarting tunnel"
-      $restarts++
-    }
-    try { Restart-Service (Get-TvServiceName $config.name) -Force; Start-Sleep 5; Set-TvRoute $config | Out-Null } catch { $problems.Add("restart failed: $($_.Exception.Message)") }
+    try {
+      if ($restarts -ge 2 -and $config.peers.Count -gt 1) {
+        $dead = Get-StateValue 'deadPeers' ([pscustomobject]@{})
+        $dead | Add-Member -NotePropertyName ([string]$config.peerIndex) -NotePropertyValue $now -Force
+        Set-StateValue 'deadPeers' $dead
+        $next = Select-TvFailoverPeer $config (Get-RecentlyDead)
+        $restarts = 0
+        Set-StateValue 'lastSwitchAt' $now
+        Switch-TvPeer $config $next "server $($peer.name) not answering" | Out-Null
+      } else {
+        Write-TvLog "no handshake (age=$age); restarting tunnel"
+        $restarts++
+        Restart-Service (Get-TvServiceName $config.name) -Force; Start-Sleep 5; Set-TvRoute $config | Out-Null
+      }
+    } catch { $problems.Add("restart failed: $($_.Exception.Message)") }
     Set-StateValue 'restarts' $restarts; Set-StateValue 'lastRestart' $now
   }
   $problems.Add("tunnel has no recent handshake (down for $([int](($now - $downSince) / 60)) min); torrents are paused by the kill switch")
 }
 $status.tunnel = if ($healthy) { 'up' } else { 'down' }
+
+# 3b. Server load (loadUrl, AirVPN's status API), every 10 minutes while the tunnel is up: move off a
+# crowded server to the configured one with clearly more free bandwidth. Hysteresis: the move has to
+# be wanted on two checks in a row, at least 30 minutes after the last switch, and waits up to
+# 20 minutes while someone is watching a Play now download (a switch drops every peer connection).
+if ($healthy -and $config.loadUrl -and $now - [long](Get-StateValue 'loadAt' 0) -ge 600) {
+  Set-StateValue 'loadAt' $now
+  $load = Get-TvServerLoad $config
+  if ($load) {
+    $choice = Get-TvServerChoice $config $load (Get-RecentlyDead)
+    $cur = $choice.current; $best = $choice.best
+    Set-StateValue 'serverLoad' ([pscustomobject][ordered]@{
+        server = $cur.name; loadPct = $cur.loadPct; freeMbit = $cur.freeMbit; maxMbit = $cur.maxMbit
+        best = $best.name; bestFreeMbit = $best.freeMbit; checkedAt = (Get-Date).ToString('o') })
+    if (Test-TvShouldMove $config $choice) {
+      $wanted = [int](Get-StateValue 'moveWanted' 0) + 1
+      Set-StateValue 'moveWanted' $wanted
+      $busy = Test-TvPlayNowBusy $config
+      if (-not $busy) { Set-StateValue 'busySince' $null }
+      elseif ($null -eq (Get-StateValue 'busySince' $null)) { Set-StateValue 'busySince' $now }
+      $waited = $now - [long](Get-StateValue 'busySince' $now)
+      if ($wanted -ge 2 -and $now - [long](Get-StateValue 'lastSwitchAt' 0) -ge 1800 -and (-not $busy -or $waited -ge 1200)) {
+        $why = "$($cur.name) has $($cur.freeMbit) Mbit/s free ($($cur.loadPct) %), $($best.name) $($best.freeMbit)"
+        Set-StateValue 'moveWanted' 0; Set-StateValue 'busySince' $null; Set-StateValue 'lastSwitchAt' $now
+        Set-StateValue 'exitAt' 0   # check the new exit in this run
+        try {
+          if (-not (Switch-TvPeer $config $choice.bestIndex $why)) { Write-TvLog "no handshake yet with $($best.name) after the switch" }
+          $age = Get-TvHandshakeAge $config.name
+          $status.handshakeAgeS = $age
+          $healthy = $null -ne $age -and $age -lt 180
+          $status.tunnel = if ($healthy) { 'up' } else { 'down' }
+          $status.server = $config.peers[[int]$config.peerIndex].name
+        } catch { $problems.Add("server switch failed: $($_.Exception.Message)") }
+      }
+    } else {
+      Set-StateValue 'moveWanted' 0; Set-StateValue 'busySince' $null
+    }
+  }
+}
+$status.serverLoad = Get-StateValue 'serverLoad' $null
 
 # 4. Firewall kill switch.
 try { Set-TvFirewall $config } catch { $problems.Add("firewall: $($_.Exception.Message)") }
@@ -139,4 +191,5 @@ if ($previousOk -ne $status.ok) {
   Write-TvLog ("status " + $(if ($status.ok) { 'OK' } else { 'NOT OK: ' + ($problems -join '; ') }))
   Set-StateValue 'ok' $status.ok; Save-TvJson $state (Join-Path (Get-TvDataDir) 'state.json')
 }
+Exit-TvLock $lock
 if (-not $Quiet) { [pscustomobject]$status | ConvertTo-Json -Depth 5 }

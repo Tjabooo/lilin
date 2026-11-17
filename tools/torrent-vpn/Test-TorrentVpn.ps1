@@ -45,6 +45,13 @@ $exit = Test-TvExit $cfg
 Check 'tunnel exit answers' $exit.ok "$($exit.ip) $($exit.city) $($exit.country) $($exit.server)"
 if ($null -ne $exit.provider) { Check 'provider confirms its exit IP' $exit.provider }
 Check 'exit IP is not the home IP' ($exit.ok -and $homeIp -and $exit.ip -ne $homeIp) "home $homeIp"
+if ($cfg.loadUrl) {
+  $load = Get-TvServerLoad $cfg
+  $choice = if ($load) { Get-TvServerChoice $cfg $load } else { $null }
+  $detail = if (-not $load) { "no answer from $($cfg.loadUrl)" } elseif (-not $choice.current) { 'current server not in the load list' } else {
+    '{0} {1} Mbit/s free ({2} %); best other {3} {4}' -f $choice.current.name, $choice.current.freeMbit, $choice.current.loadPct, $choice.best.name, $choice.best.freeMbit }
+  Check 'server has room (no move wanted)' ($load -and -not (Test-TvShouldMove $cfg $choice)) $detail
+}
 $info = Invoke-TvQbit $q '/api/v2/transfer/info'
 $ext = $info.last_external_address_v4
 Check 'qBittorrent public address (as peers see it) is not home' ($ext -ne $homeIp) $(if ($ext) { $ext } else { 'not learned yet' })

@@ -118,6 +118,43 @@ function Get-TvHandshakeAge([string]$Name) {
   [int]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $epoch)
 }
 
+# The server address the tunnel really talks to (a peer given by host name resolves at service start).
+function Get-TvLiveEndpointIp([string]$Name) {
+  $out = & (Join-Path $Script:WgDir 'wg.exe') show $Name endpoints 2>$null
+  if ("$out" -match '\s(\d{1,3}(?:\.\d{1,3}){3}):\d+') { return $matches[1] }
+  $null
+}
+
+# Points the tunnel at config.peers[$Index]. WireGuard for Windows only picks up a new endpoint when the
+# tunnel service restarts (wg set does not move it), so the config is rewritten and the service restarted.
+# Waits up to 20 s for the first handshake with the new server.
+function Switch-TvPeer($Config, [int]$Index, [string]$Why) {
+  $from = $Config.peers[[int]$Config.peerIndex].name
+  $next = $Config.peers[$Index]
+  $Config.peerIndex = $Index
+  Set-Content -Encoding ascii -Path (Join-Path $Script:DataDir "$($Config.name).conf") -Value (New-TvTunnelConfig $Config.interface $next)
+  Save-TvJson $Config $Script:ConfigFile
+  Write-TvLog "switching server $from -> $($next.name): $Why"
+  Restart-Service (Get-TvServiceName $Config.name) -Force
+  Start-Sleep 5
+  Set-TvRoute $Config | Out-Null
+  for ($i = 0; $i -lt 15; $i++) {
+    $age = Get-TvHandshakeAge $Config.name
+    if ($null -ne $age -and $age -lt 30) { return $true }
+    Start-Sleep 1
+  }
+  $false
+}
+
+# One switch at a time: the watchdog holds this for its whole run, Set-TorrentVpnServer while it switches.
+function Enter-TvLock([int]$TimeoutS = 90) {
+  $m = New-Object Threading.Mutex($false, 'Global\TorrentVpnWatchdog')
+  try { if (-not $m.WaitOne($TimeoutS * 1000)) { $m.Dispose(); throw 'another TorrentVpn run holds the lock' } }
+  catch [Threading.AbandonedMutexException] { }   # the previous holder died; the lock is ours now
+  $m
+}
+function Exit-TvLock($Mutex) { if ($Mutex) { try { $Mutex.ReleaseMutex() } catch { }; $Mutex.Dispose() } }
+
 # ---------- routing ----------
 
 # A default route on the tunnel with a high metric: normal traffic still prefers Ethernet, but a
@@ -281,13 +318,90 @@ function Get-TvProgramSockets($Config, [string]$Exe) {
 # ---------- exit check ----------
 
 # Asks the provider's check page which IP the tunnel exits from, using a socket bound to the tunnel.
+# Understands Mullvad's (am.i.mullvad.net/json) and AirVPN's (airvpn.org/api/whatismyip/) answers, which
+# also confirm the exit is theirs, and generic ones with an "ip" field (ipinfo.io/json). An answer without
+# an IP (ipinfo.io rate-limits busy VPN exits with a 429 body) is a failed check, not a pass.
 function Test-TvExit($Config) {
   $json = & curl.exe -s -m 12 --interface $Config.address $Config.checkUrl 2>$null
   if (-not $json) { return [pscustomobject]@{ ok = $false; ip = $null; provider = $null; error = 'no answer through the tunnel' } }
   try { $j = ($json -join '') | ConvertFrom-Json } catch { return [pscustomobject]@{ ok = $false; ip = $null; provider = $null; error = 'unexpected answer' } }
-  $isVpn = $null
-  if ($null -ne $j.mullvad_exit_ip) { $isVpn = [bool]$j.mullvad_exit_ip }
-  [pscustomobject]@{ ok = $true; ip = $j.ip; provider = $isVpn; city = $j.city; country = $j.country; server = $j.mullvad_exit_ip_hostname; error = $null }
+  if ("$($j.ip)" -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
+    $why = if ($j.status) { " (status $($j.status))" } else { '' }
+    return [pscustomobject]@{ ok = $false; ip = $null; provider = $null; error = "no IP in the answer$why" }
+  }
+  $isVpn = $null; $server = $null; $city = $j.city; $country = $j.country
+  if ($null -ne $j.mullvad_exit_ip) { $isVpn = [bool]$j.mullvad_exit_ip; $server = $j.mullvad_exit_ip_hostname }
+  elseif ($null -ne $j.airvpn) { $isVpn = [bool]$j.airvpn; $server = $j.server_name; if ($j.geo) { $country = $j.geo.name } }
+  [pscustomobject]@{ ok = $true; ip = $j.ip; provider = $isVpn; city = $city; country = $country; server = $server; error = $null }
+}
+
+# ---------- server choice (provider load) ----------
+# AirVPN publishes every server's bandwidth use (loadUrl = https://airvpn.org/api/status/). Peers are
+# matched to servers by entry IP, so only peers whose endpoint is an IP address take part. Measured
+# 2026-11-17 from Stockholm: 20 Gbit/s servers with ~9 Gbit/s free gave 54-86 MB/s through the tunnel,
+# 2 Gbit/s servers 5-9 MB/s even at 4 % load, so the choice goes by free bandwidth, not load percent.
+
+# Hashtable entry IP -> server (name, load %, free and max Mbit/s, healthy), or $null without data.
+function Get-TvServerLoad($Config) {
+  if (-not $Config.loadUrl) { return $null }
+  $json = & curl.exe -s -m 15 $Config.loadUrl 2>$null
+  if (-not $json) { return $null }
+  try { $j = ($json -join "`n") | ConvertFrom-Json } catch { return $null }
+  if (-not $j.servers) { return $null }
+  $byIp = @{}
+  foreach ($s in $j.servers) {
+    $info = [pscustomobject]@{ name = $s.public_name; loadPct = [int]$s.currentload; freeMbit = [int]$s.bw_max - [int]$s.bw; maxMbit = [int]$s.bw_max; healthy = ($s.health -eq 'ok') }
+    foreach ($k in 'ip_v4_in1', 'ip_v4_in2', 'ip_v4_in3', 'ip_v4_in4') { if ($s.$k) { $byIp[[string]$s.$k] = $info } }
+  }
+  $byIp
+}
+
+function Get-TvPeerIp($Peer) { ($Peer.endpoint -split ':')[0] }
+
+# The server the tunnel uses now and the configured server with the most free bandwidth besides it
+# (healthy, and not in $Skip: peer indexes that failed recently).
+function Get-TvServerChoice($Config, $Load, [int[]]$Skip = @()) {
+  $liveIp = Get-TvLiveEndpointIp $Config.name
+  if (-not $liveIp) { $liveIp = Get-TvPeerIp $Config.peers[[int]$Config.peerIndex] }
+  $current = $Load[[string]$liveIp]
+  $best = $null; $bestIndex = -1
+  for ($i = 0; $i -lt $Config.peers.Count; $i++) {
+    $ip = Get-TvPeerIp $Config.peers[$i]
+    $s = $Load[[string]$ip]
+    if (-not $s -or -not $s.healthy -or $ip -eq $liveIp -or $Skip -contains $i) { continue }
+    if (-not $best -or $s.freeMbit -gt $best.freeMbit) { $best = $s; $bestIndex = $i }
+  }
+  [pscustomobject]@{ current = $current; best = $best; bestIndex = $bestIndex }
+}
+
+# Leave the current server when the provider marks it unhealthy, or when it has less than minFreeMbit
+# free and the best other one has at least moveMarginMbit more. An unknown current server stays.
+function Test-TvShouldMove($Config, $Choice) {
+  if (-not $Choice.best -or -not $Choice.current) { return $false }
+  if (-not $Choice.current.healthy) { return $true }
+  $min = if ($Config.minFreeMbit) { [int]$Config.minFreeMbit } else { 3000 }
+  $margin = if ($Config.moveMarginMbit) { [int]$Config.moveMarginMbit } else { 2000 }
+  $Choice.current.freeMbit -lt $min -and $Choice.best.freeMbit -ge $Choice.current.freeMbit + $margin
+}
+
+# The peer to fail over to when the current one stops answering: the one with the most free bandwidth
+# when load data is available, otherwise the next one in the list.
+function Select-TvFailoverPeer($Config, [int[]]$Skip = @()) {
+  $load = Get-TvServerLoad $Config
+  if ($load) {
+    $choice = Get-TvServerChoice $Config $load (@($Skip) + @([int]$Config.peerIndex))
+    if ($choice.bestIndex -ge 0) { return $choice.bestIndex }
+  }
+  ([int]$Config.peerIndex + 1) % $Config.peers.Count
+}
+
+# True while Lilin's Play now helper has peer connections, i.e. someone is watching a download.
+function Test-TvPlayNowBusy($Config) {
+  $exe = Get-TvPlayheadExe $Config
+  $ids = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | ForEach-Object Id)
+  if (-not $ids.Count) { return $false }
+  [bool](Get-NetTCPConnection -State Established -LocalAddress $Config.address -ErrorAction SilentlyContinue |
+    Where-Object { $ids -contains $_.OwningProcess } | Select-Object -First 1)
 }
 
 function Get-TvHomeIp {
