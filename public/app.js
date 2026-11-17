@@ -418,9 +418,16 @@ function skeletonGrid(n = 8) {
 }
 
 let toastTimer;
+// In the player, a note at the top (Making a version…, Off air) would sit under the toast: the toast goes below it.
+function placeToast(t) {
+  const note = document.body.classList.contains('in-player') ? $('#player-note') : null;
+  const below = note && !note.hidden ? note.getBoundingClientRect().bottom : 0;
+  t.style.top = below > 0 ? `${Math.round(below + 10)}px` : '';
+}
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
+  placeToast(t);
   t.classList.remove('has-action');
   t.classList.add('show');
   clearTimeout(toastTimer);
@@ -430,6 +437,7 @@ function toast(msg) {
 // A toast with one button (Undo). It stays a little longer than a plain one.
 function actionToast(msg, label, action, ms = 6000) {
   const t = $('#toast');
+  placeToast(t);
   t.replaceChildren(h('span', {}, msg), h('button', { type: 'button', class: 'toast-action', onclick: () => { t.classList.remove('show'); action(); } }, label));
   t.classList.add('show', 'has-action');
   clearTimeout(toastTimer);
@@ -2471,9 +2479,13 @@ function swapTopOverlay(close) {
 window.addEventListener('popstate', () => { if (pendingBacks) pendingBacks--; overlayStack.pop()?.(); renderUpdatedLibrary(); });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!ccMenu.hidden) { closeCcMenu(); ccBtn.focus(); return; }
-  if (!audioMenu.hidden) { closeAudioMenu(); audioBtn.focus(); return; }
-  if (!helpEl.hidden) { helpEl.hidden = true; return; }
+  if (!playerEl.hidden && playerMenuOpen()) {
+    const back = !ccMenu.hidden ? ccBtn : !audioMenu.hidden ? audioBtn : !nightMenu.hidden ? nightBtn : !qualityMenu.hidden ? qualityBtn
+      : !fsGuide.hidden ? fsBtn : !$('#more-menu').hidden ? $('#more-btn') : null;
+    closePlayerMenus();
+    back?.focus();
+    return;
+  }
   if (watchPanelOpen) { setWatchPanel(false); $('#watch-btn').focus(); return; }
   if (fsElement()) { toggleFullscreen(); return; }
   if (Date.now() - fsExitedAt < 500) return; // that Escape just took the player out of fullscreen
@@ -4428,9 +4440,11 @@ let watchPanelOpen = false;
 let partyUnread = 0; // chat messages since the Room panel was last open
 const watchClient = globalThis.crypto?.randomUUID?.() || `${CLIENT_ID}-${Math.random().toString(36).slice(2, 10)}`;
 
-// Wide screens dock the room on the right and the picture moves over; phones get a sheet.
-const roomDocks = matchMedia('(min-width: 1100px)');
+// Wide or landscape screens dock the room on the right and the picture moves over; phones and upright tablets
+// get a sheet under the picture, which moves up (the live chat's model). Either way nothing covers the picture.
+const roomDocks = matchMedia('(min-width: 1100px), (orientation: landscape) and (min-width: 560px)');
 const roomDocked = () => Boolean(party && watchPanelOpen && roomDocks.matches);
+const roomSheet = () => Boolean(party && watchPanelOpen && !roomDocks.matches);
 roomDocks.addEventListener?.('change', () => { if (party) renderParty(); });
 
 // One line about the room, with a tone for its colour: live, count, wait or alert.
@@ -4444,7 +4458,9 @@ function roomStatus(room, host) {
     return ['wait', eta ? T('Waiting for the download · starts in about {0}', eta) : T('Waiting for the download')];
   }
   if (room.waitingFor.length) return ['wait', T('Waiting for {0}', namesText(room.waitingFor))];
-  if (room.playing) return ['live', T('Playing for {0}', room.members.length === 1 ? T('you') : T('all {0}', room.members.length))];
+  // Only people whose player is connected count: someone still "Connecting…" isn't watching yet.
+  const watching = room.members.filter((m) => m.connected).length || 1;
+  if (room.playing) return ['live', T('Playing for {0}', watching === 1 ? T('you') : T('all {0}', watching))];
   return ['wait', party.isHost ? T('Paused · press Play to start it for everyone') : T('Paused · {0} has the remote', host)];
 }
 // Where one viewer is: ready, getting ready, needs a tap, or still connecting.
@@ -4462,7 +4478,7 @@ function renderRoster(room) {
     const [tone, text] = memberState(m);
     return { m, tone, text, me: m.id === watchClient, host: m.id === room.host };
   });
-  const key = JSON.stringify(rows.map((r) => [r.m.id, r.m.name, r.m.avatar, r.tone, r.host]));
+  const key = JSON.stringify(rows.map((r) => [r.m.id, r.m.name, r.m.avatar, r.tone, r.text, r.host]));
   if (key === roomDrawn) return;
   roomDrawn = key;
   list.replaceChildren(...rows.map(({ m, tone, text, me, host }) => h('li', { class: `room-member is-${tone}${host ? ' is-host' : ''}${me ? ' is-me' : ''}` },
@@ -4503,8 +4519,9 @@ function renderParty() {
   playerEl.classList.toggle('is-live', onAir);
   renderLiveStrip();
   playerEl.classList.toggle('in-party', Boolean(party));
-  if (playerEl.classList.contains('room-docked') !== roomDocked()) {
+  if (playerEl.classList.contains('room-docked') !== roomDocked() || playerEl.classList.contains('room-sheet') !== roomSheet()) {
     playerEl.classList.toggle('room-docked', roomDocked());
+    playerEl.classList.toggle('room-sheet', roomSheet());
     requestAnimationFrame(layoutSubs);
   }
   updateUpNext();
@@ -4529,7 +4546,6 @@ function renderParty() {
     : T('{0} has the remote: play, pause and seeking follow them.', host);
   playerEl.classList.toggle('party-guest', !party.isHost);
   airplayBtn.hidden = true;
-  audioBtn.hidden = true;
   seekEl.setAttribute('aria-disabled', String(!party.isHost));
   seekEl.tabIndex = party.isHost ? 0 : -1;
   for (const b of playBtns) {
@@ -4618,10 +4634,10 @@ const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, 
 let tuning = null, lastChannel = null, liveDigits = '', liveDigitsTimer = null;
 const liveChannelId = () => (current?.live ? party?.state.live?.channel?.id || current.live.channel?.id : null);
 
-async function tuneIn(id) {
+async function tuneIn(id, again = false) {
   if (!id || tuning) return;
   const was = liveChannelId();
-  if (was === id && !playerEl.hidden) { showPlayerUi(); return; }
+  if (was === id && !playerEl.hidden && !again) { showPlayerUi(); return; }
   tuning = id;
   try {
     const room = await api(`/api/live/${encodeURIComponent(id)}/tune`, jsonPost({ clientId: watchClient }));
@@ -4685,7 +4701,7 @@ async function openGuide() {
   closeTopOverlay();
   await setView('live');
 }
-// "Keep watching" and "Watch from start": the same video in the normal player, which saves a resume point.
+// "Watch on demand" and "Watch from start": the same video in the normal player, which saves a resume point.
 async function leaveLive(fromStart) {
   if (!current?.live) return;
   const media = { ...current, live: undefined };
@@ -4733,7 +4749,8 @@ function renderLiveStrip() {
       button(T('Guide'), openGuide),
       liveChat.toggle, // livechat
       current?.id ? button(T('Watch from start'), () => leaveLive(true)) : null,
-      current?.id ? button(T('Keep watching'), () => leaveLive(false)) : null));
+      current?.id ? h('button', { type: 'button', class: 'chip', title: T('Leaves the channel and keeps your spot'),
+        onclick: (e) => { e.stopPropagation(); leaveLive(false); } }, T('Watch on demand')) : null));
 }
 setInterval(() => { if (party?.state.live && !playerEl.hidden) renderLiveStrip(); }, 15000);
 
@@ -4799,7 +4816,7 @@ async function offerWatchRoom(token) {
     $('#picker-body').replaceChildren(h('h2', { id: 'picker-title', class: 'sr-only' }, T('Watch together')), ticket,
       h('p', { class: 'muted room-ticket-note' }, preview.startsAt
         ? T('Join any time before it starts. There’s a countdown, and playback starts by itself for everyone in the room.')
-        : T('Playback stays in step with everyone. Subtitles and volume are just for you.')), join, status);
+        : T('Playback stays in step with everyone. Subtitles, volume and your own audio pick are just for you.')), join, status);
     pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { closed = true; }));
   } catch (err) { toast(err.message); }
 }
@@ -4965,11 +4982,6 @@ async function loadParties() {
 }
 $('#watch-btn').addEventListener('click', () => { if (party) setWatchPanel(!watchPanelOpen); else hostWatchRoom(); });
 $('#watch-hide').addEventListener('click', () => { setWatchPanel(false); $('#watch-btn').focus(); });
-// The phone sheet covers the picture, so a tap outside closes it; the docked panel stays put.
-document.addEventListener('click', (event) => {
-  if (!watchPanelOpen || roomDocked() || !event.target.isConnected) return;
-  if (!event.target.closest?.('#watch-bar, #watch-btn')) setWatchPanel(false);
-});
 $('#watch-copy').addEventListener('click', () => {
   // /c/w/ shows a preview in Discord and other chats, then forwards to /?watch=
   if (party) copyWithToast(`${location.origin}/c/w/${party.state.token}`, T('Room link copied. Everyone uses their usual Lilin sign-in.'));
@@ -5404,7 +5416,7 @@ function closeCcMenu() { ccMenu.hidden = true; ccBtn.setAttribute('aria-expanded
 ccBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = ccMenu.hidden;
-  closeAudioMenu();
+  closePlayerMenus('cc');
   ccMenu.hidden = !open;
   ccBtn.setAttribute('aria-expanded', String(open));
   if (open) (ccMenu.querySelector('[aria-checked="true"]') || ccMenu.querySelector('button'))?.focus();
@@ -5438,7 +5450,7 @@ const SUB_SYNC_TEXT = {
   undone: T('Using the original timing.'),
 };
 const subSyncBusy = (s) => s?.state === 'queued' || s?.state === 'syncing';
-const fmtSubShift = (s) => `${Math.round(Math.abs(s) * 100) / 100} s ${s < 0 ? 'earlier' : 'later'}`;
+const fmtSubShift = (s) => `${Math.round(Math.abs(s) * 100) / 100} s ${s < 0 ? T('earlier') : T('later')}`;
 
 function subSyncText(s) {
   if (s.state === 'failed') return T('Timing check failed: {0}', s.error || T('unknown error'));
@@ -5706,7 +5718,7 @@ function renderAudioControls() {
 audioBtn.addEventListener('click', e => {
   e.stopPropagation();
   const open = audioMenu.hidden;
-  closeCcMenu();
+  closePlayerMenus('audio');
   renderAudioControls();
   if (audioBtn.hidden) return;
   audioMenu.hidden = !open;
@@ -6251,9 +6263,7 @@ function sleepPause() {
 nightBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = nightMenu.hidden;
-  closeCcMenu();
-  closeAudioMenu();
-  closeQualityMenu();
+  closePlayerMenus('night');
   renderNightMenu();
   if (nightBtn.hidden) return;
   nightMenu.hidden = !open;
@@ -6309,7 +6319,7 @@ function renderQualityMenu() {
   if (qualityBtn.hidden) { closeQualityMenu(); return; }
   const phone = stream ? phoneQuality(session) : null;
   const source = heightName(session.sourceHeight);
-  const playing = phone ? T('{0}p, made live from the {1} file', phone, source || 'original') : T('Original{0}', source ? ` (${source})` : '');
+  const playing = phone ? T('{0}p, made live from the {1} file', phone, source || T('original')) : T('Original{0}', source ? ` (${source})` : '');
   const choices = [
     ['auto', T('Auto'), phoneScreen() ? T('Lighter stream when a file is too big for a phone') : T('The original file on this screen')],
     ['original', T('Original'), T('Full quality, the file as it is')],
@@ -6398,9 +6408,7 @@ async function setQuality(pref) {
 qualityBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const open = qualityMenu.hidden;
-  closeCcMenu();
-  closeAudioMenu();
-  closeNightMenu();
+  closePlayerMenus('quality');
   renderQualityMenu();
   if (qualityBtn.hidden) return;
   qualityMenu.hidden = !open;
@@ -6445,7 +6453,7 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
     return { title: show?.title || f.filmTitle || f.title || '',
       label: f.season != null ? (f.episode != null ? `S${pad(f.season)} E${pad(f.episode)}` : `S${pad(f.season)}`) : f.year ? String(f.year) : '' };
   },
-  closeOthers: () => { closeCcMenu(); closeAudioMenu(); closeQualityMenu(); closeNightMenu(); },
+  closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
   rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
@@ -6459,7 +6467,23 @@ const osdEl = $('#player-osd');
 const spinner = $('#player-spinner');
 const helpEl = $('#player-help');
 
-const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || (watchPanelOpen && !roomDocked()) || momentsUI.menuOpen(); // friends: Moments
+// One player menu or panel at a time: opening one closes the others (they stop their clicks from bubbling,
+// so the "click outside" listeners never see the other buttons). Returns whether anything was open.
+function closePlayerMenus(except) {
+  const was = playerMenuOpen();
+  if (except !== 'cc') closeCcMenu();
+  if (except !== 'audio') closeAudioMenu();
+  if (except !== 'night') closeNightMenu();
+  if (except !== 'quality') closeQualityMenu();
+  if (except !== 'more') momentsUI.closeMenu();
+  if (except !== 'fs') closeFsGuide();
+  if (except !== 'help') helpEl.hidden = true;
+  if (except !== 'stats') streamStats.close();
+  return was;
+}
+const playerMenuOpen = () => !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
+  || !$('#more-menu').hidden || !helpEl.hidden || streamStats.isOpen();
+const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen(); // friends: Moments
 let lastPointer = 'mouse';
 let overControls = false;
 let uiTimer = null;
@@ -6480,7 +6504,7 @@ function hidePlayerUi() {
   setUi(false);
 }
 playerEl.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; }, true);
-playerEl.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !(roomDocked() && e.target.closest?.('#watch-bar'))) showPlayerUi(); });
+playerEl.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !(watchPanelOpen && e.target.closest?.('#watch-bar'))) showPlayerUi(); });
 controlsEl.addEventListener('pointerenter', (e) => { overControls = e.pointerType === 'mouse'; });
 controlsEl.addEventListener('pointerleave', () => { overControls = false; });
 video.addEventListener('play', showPlayerUi);
@@ -6703,7 +6727,7 @@ function renderFsGuide() {
 }
 function closeFsGuide() { if (fsGuide.hidden) return; fsGuide.hidden = true; fsBtn.setAttribute('aria-expanded', 'false'); }
 function openFsGuide() {
-  closeCcMenu(); closeAudioMenu(); closeQualityMenu(); closeNightMenu();
+  closePlayerMenus('fs');
   renderFsGuide();
   fsGuide.hidden = false;
   fsBtn.setAttribute('aria-expanded', 'true');
@@ -6946,6 +6970,7 @@ const SHORTCUTS = [
 ];
 function toggleHelp() {
   if (helpEl.hidden) {
+    closePlayerMenus('help');
     helpEl.replaceChildren(
       h('p', { class: 'help-title' }, T('Keyboard shortcuts')),
       h('dl', {}, SHORTCUTS.filter(([keys]) => keys !== 'C' || !plainMedia(current)).map(([keys, what]) => h('div', {}, h('dt', {}, keys), h('dd', {}, what)))));
@@ -6969,14 +6994,18 @@ const streamStats = createStreamStats({
         : session?.kind === 'part' ? T('Live 1080p stream, made while the video downloads') : '',
       audio: session?.audio?.activeLabel || '',
       subtitles: lang ? `${lang.name || lang.code}${lang.saved ? T(' · saved on the server') : ''}${nativeSubs ? T(' · drawn by the browser') : ''}${timing ? T(' · timing {0}', timing) : ''}` : '',
-      party: party ? [party.isHost ? 'host' : 'guest', party.connected ? 'connected' : 'reconnecting', T('clock {0} ms off', Math.round(party.clockOffset)),
+      party: party ? [party.isHost ? T('host') : T('guest'), party.connected ? T('connected') : T('reconnecting'), T('clock {0} ms off', Math.round(party.clockOffset)),
         T('rtt {0} ms', Math.round(party.rtt)), $('#watch-members').textContent].filter(Boolean).join(' · ') : '',
       casting: onTvVersion ? T('AirPlay · TV version') : video.webkitCurrentPlaybackTargetIsWireless ? 'AirPlay'
         : video.remote?.state === 'connected' ? T('Remote playback') : inPip() ? T('Picture in picture') : '',
     };
   },
 });
-stage.addEventListener('contextmenu', (e) => { e.preventDefault(); streamStats.toggle(); });
+function toggleStats() {
+  if (!streamStats.isOpen()) closePlayerMenus('stats');
+  streamStats.toggle();
+}
+stage.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleStats(); });
 
 const seekToFraction = (f) => {
   if (!isFinite(video.duration)) return;
@@ -6992,7 +7021,7 @@ const PLAYER_KEYS = {
   ' ': () => togglePlay(true), k: () => togglePlay(true),
   ArrowLeft: () => skip(-5), ArrowRight: () => skip(5), j: () => skip(-10), l: () => skip(10),
   ArrowUp: () => nudgeVolume(0.05), ArrowDown: () => nudgeVolume(-0.05),
-  m: toggleMute, f: toggleFullscreen, c: toggleSubs, p: togglePip, '?': toggleHelp, i: () => streamStats.toggle(),
+  m: toggleMute, f: toggleFullscreen, c: toggleSubs, p: togglePip, '?': toggleHelp, i: toggleStats,
   n: () => setNight(!night.on, true), s: () => { if (!skipIntroEl.hidden) skipIntro(); },
   Home: () => seekToFraction(0), End: () => seekToFraction(0.999),
 };
@@ -7087,9 +7116,8 @@ function setPlayerTitle(f) {
 
 async function loadPlayerMedia(f, opts = {}) {
   resetPlayerMedia();
-  const session = current = { ...f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
+  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
-  const err = $('#player-error');
   setPlayerTitle(f);
   momentsUI.sync(); // friends: the ⋯ menu (Clip a moment) for library videos
   playerEl.classList.toggle('is-clip', plainMedia(f));
@@ -7150,7 +7178,7 @@ async function loadPlayerMedia(f, opts = {}) {
       setSpinner,
       showNote: (text) => { const note = $('#player-note'); note.textContent = text; note.hidden = false; },
       hideNote: () => { $('#player-note').hidden = true; },
-      showError: (text) => { err.textContent = text; err.hidden = false; },
+      showError: (text) => showPlayerError(text, { title: T('Can’t play this yet') }),
       fullItem: (id) => state.library.find((x) => x.id === id && !x.converting) || null,
       switchToFull: (item) => {
         const at = video.currentTime || 0;
@@ -7164,7 +7192,7 @@ async function loadPlayerMedia(f, opts = {}) {
     // and a viewer who isn't heard from for 20 s leaves the room. Until their video is ready the room waits.
     if (watchSession) {
       watchSession.start().catch((error) => {
-        if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); err.textContent = error.message; err.hidden = false; }
+        if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); roomFailed(error); }
       });
     }
     return;
@@ -7183,8 +7211,8 @@ async function loadPlayerMedia(f, opts = {}) {
     if (current !== session) return;
     if (party === watchSession && watchSession) leaveWatchRoom();
     setSpinner(false);
-    err.textContent = error.message;
-    err.hidden = false;
+    if (watchSession) roomFailed(error);
+    else showPlayerError(error.message, { title: T('Couldn’t start this video') });
     return;
   }
   if (current !== session) return;
@@ -7214,7 +7242,7 @@ async function loadPlayerMedia(f, opts = {}) {
   watchAudio(f, session);
   if (watchSession) {
     try { await watchSession.start(); }
-    catch (error) { if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); err.textContent = error.message; err.hidden = false; } }
+    catch (error) { if (current === session && party === watchSession) { leaveWatchRoom(); video.pause(); roomFailed(error); } }
   } else video.play().catch(() => { /* autoplay blocked: the controls are there */ });
 }
 
@@ -7424,15 +7452,49 @@ video.addEventListener('pause', () => saveProgress(true));
 // A video that already played and then errors lost its connection (Lilin restarted, Wi-Fi blip); it didn't
 // turn unplayable. Fetch a fresh link and carry on where it stopped. At most 3 reconnects per spot.
 let reconnect = null;
+// The error card over the picture: what went wrong, a way on (Try again) and a way out (Back). While it shows,
+// the play button and spinner under it are hidden (style.css), so nothing pokes out around it.
+function showPlayerError(text, { title = T('Something went wrong'), retry = retryPlayer, retryLabel = T('Try again'), busy = false } = {}) {
+  const err = $('#player-error');
+  const action = (label, cls, onclick) => h('button', { type: 'button', class: cls, onclick: (e) => { e.stopPropagation(); onclick(); } }, label);
+  err.replaceChildren(
+    h('p', { class: 'player-error-title' }, title),
+    h('p', { class: 'player-error-text' }, text),
+    busy ? h('span', { class: 'bulb-loader', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'), h('i')) : null,
+    h('div', { class: 'player-error-actions' },
+      !busy && retry ? action(retryLabel, 'play-btn', retry) : null,
+      action(T('Back'), 'btn-glass', closeTopOverlay)));
+  err.setAttribute('role', 'alert');
+  err.hidden = false;
+  setSpinner(false);
+  if (!busy) err.querySelector('button')?.focus({ preventScroll: true });
+}
+// Start the same video again from where it stopped (or tune the channel in again).
+function retryPlayer() {
+  const session = current;
+  if (!session) return;
+  $('#player-error').hidden = true;
+  const channel = session.live?.channel?.id;
+  if (channel) { tuneIn(channel, true); return; }
+  const at = session.ready ? video.currentTime || 0 : 0;
+  loadPlayerMedia(session.origin || { ...session }, at > 0 ? { startAt: at } : {});
+}
+// Joining or keeping the room failed. On a channel the server's room wording ("ask someone to start a new
+// one") makes no sense, so it says the channel dropped out; elsewhere the video can carry on without the room.
+function roomFailed(error) {
+  if (current?.live) {
+    showPlayerError(T('Tune in again to catch up with the channel.'), { title: T('This channel dropped out'), retryLabel: T('Tune in again') });
+    return;
+  }
+  showPlayerError(error.message, { title: T('Couldn’t join the room'), retryLabel: T('Watch on your own'),
+    retry: () => { const session = current; if (!session) return; $('#player-error').hidden = true; loadPlayerMedia(session.origin || { ...session }); } });
+}
 function startReconnect(session) {
   const at = video.currentTime || 0;
   const key = mediaId(session);
   if (reconnect?.key !== key || Math.abs(reconnect.at - at) > 30 || Date.now() - reconnect.since > 180000) reconnect = { key, at, since: Date.now(), tries: 0 };
   if (reconnect.tries++ >= 3) return false;
-  const err = $('#player-error');
-  err.textContent = T('Lost the connection to Lilin. Reconnecting…');
-  err.hidden = false;
-  setSpinner(true);
+  showPlayerError(T('Lost the connection to Lilin. Reconnecting…'), { title: T('Reconnecting'), busy: true });
   const f = { ...session };
   (async () => {
     for (const wait of [1500, 3000, 5000, 8000, 12000, 15000, 15000]) {
@@ -7447,7 +7509,7 @@ function startReconnect(session) {
     }
     if (current !== session) return;
     setSpinner(false);
-    err.textContent = T('Lilin can’t be reached right now. Close the player and open it again in a minute.');
+    showPlayerError(T('Lilin can’t be reached right now. Check your connection and try again in a minute.'), { title: T('Can’t reach Lilin') });
   })();
   return true;
 }
@@ -7455,11 +7517,12 @@ video.addEventListener('error', () => {
   if (!current?.sourceUrl || video.currentSrc !== current.sourceUrl || current.kind === 'part') return;
   if (!party && !plainMedia(current) && current.ready && (video.error?.code === 2 || video.currentTime > 0) && startReconnect(current)) return;
   const err = $('#player-error');
-  err.textContent = current.kind === 'note'
+  showPlayerError(current.kind === 'note'
     ? T('This video can’t play in this browser. Its format isn’t supported here; open the file link under the video to download it, or try another browser.')
     : current.kind === 'clip'
     ? T('This clip can’t play in this browser. Its video format (often AV1) isn’t supported here; try another browser, or share it to get a copy that plays everywhere.')
-    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.');
+    : T('This video can’t play in this browser yet. Lilin makes a version that plays here automatically; you can follow its progress in the Library tab.'),
+  { title: T('Can’t play here') });
   // When the note below the video says a version is being made, that note is the explanation.
   err.hidden = !$('#player-note').hidden;
 });
