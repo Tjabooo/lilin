@@ -3673,6 +3673,7 @@ async function handleApi(req, res, url) {
       if ('canDownload' in body) activity.record(req, 'permission', `${u.name} ${body.canDownload ? 'can' : 'can’t'} download`);
       if ('canInvite' in body) activity.record(req, 'permission', `${u.name} ${body.canInvite ? 'can' : 'can’t'} invite people`);
       if ('restricted' in body) activity.record(req, 'permission', `${u.name} ${body.restricted ? 'is restricted' : 'is no longer restricted'}`); // friends
+      if ('canSeeActivity' in body) activity.record(req, 'permission', `${u.name} ${body.canSeeActivity ? 'can' : 'can’t'} see activity`);
       if ('keep' in body) activity.record(req, 'permission', `${u.name}’s videos ${body.keep ? 'are never auto-deleted' : 'are auto-deleted again'}`);
       if ('libraryWith' in body) {
         const mates = accounts.libraryMates(u.id).filter((id) => id !== u.id).map((id) => accounts.userById(id)?.name).filter(Boolean);
@@ -3884,7 +3885,7 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/activity') {
-    if (!activity.isAdmin(req)) throw new HttpError(403, 'Only the server’s owner can see activity.');
+    if (!activity.isAdmin(req) && !user?.canSeeActivity) throw new HttpError(403, 'Only the server’s owner can see activity.');
     return sendJson(res, 200, activity.report());
   }
 

@@ -1,4 +1,17 @@
 {
+  "2026-11-17-activity-revamp": {
+    "title": "En tydligare Aktivitet-sida",
+    "items": {
+      "Activity at a glance": {
+        "title": "Aktivitet i en blick",
+        "text": "Aktivitet börjar nu med dagens siffror och alla som varit inne: tryck på ett ansikte för att se bara vad den personen gjort. Flödet samlar varje persons stund i ett kort, flera avsnitt i rad blir en rad (House S04 E08–E12), undertexter syns som en liten etikett, och knapparna högst upp visar bara uppspelning, nedladdningar eller ändringar i biblioteket."
+      },
+      "Let someone see Activity": {
+        "title": "Låt någon se Aktivitet",
+        "text": "Inställningar → Personer har en ny brytare, Kan se aktivitet. Den du slår på den för får fliken Aktivitet, bara för att läsa: de kan inte bjuda in eller ta bort någon, och de andra ägarflikarna är fortfarande dina. Att bjuda in och ta bort folk ligger nu under Personer och inbjudningar på Aktivitet-sidan."
+      }
+    }
+  },
   "2026-11-17-comingsoon": {
     "title": "Kommer snart",
     "items": {
@@ -11,7 +24,8 @@
         "text": "Varje kort har en liten knapp för att spara en film eller följa en serie direkt från raden, precis som på titelsidan. Det du sparar och följer syns under På gång i ditt bibliotek, och om du kan ladda ner lägger Lilin till det när det är ute och skickar en notis."
       }
     }
-  },  "2026-11-17-friends": {
+  },
+  "2026-11-17-friends": {
     "title": "Vänner",
     "items": {
       "Add your friends": {

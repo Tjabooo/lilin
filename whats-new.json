@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-17-activity-revamp",
+  "date": "2026-11-17",
+  "title": "A clearer Activity page",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "Activity at a glance",
+      "text": "Activity now opens with today's numbers and everyone who's been around: tap a face to see just what that person did. The feed groups each person's sitting into one card, a run of episodes shows as one line (House S04 E08–E12), subtitles ride along as a small tag, and the buttons at the top show only watching, downloads or library changes."
+    },
+    {
+      "audience": "owner",
+      "title": "Let someone see Activity",
+      "text": "Settings → People has a new Can see activity switch. Whoever you turn it on for gets the Activity tab, read-only: they can't invite or remove anyone, and the other owner tabs stay yours. Inviting and removing people now sits under People and invites on the Activity page."
+    }
+  ]
+},
+{
   "id": "2026-11-17-comingsoon",
   "date": "2026-11-17",
   "title": "Coming soon",

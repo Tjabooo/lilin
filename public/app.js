@@ -2389,6 +2389,7 @@ async function applyLive() {
         state.status = await api('/api/status');
         state.me = state.status.me; state.rules = state.status.rules;
         applyTheme(prefs().theme);
+        if (state.me?.canSeeActivity) { enableActivityTab(); updateTabOverflow(); } // the owner just let them see it
       } catch { return; }
       maybeShowWhatsNew(); // e.g. the server came back from an update
       if (state.view === 'settings' && state.me?.isOwner) await loadPeople();
@@ -8218,6 +8219,11 @@ function ownerSettings() {
         // friends: Restrict = no social features apart from Watch Together; sharing by links only
         !u.isOwner && h('label', { class: 'person-toggle' }, T('Restrict'),
           toggle(u.restricted, (on) => personUpdate(u, { restricted: on }), T('Restrict {0}', u.name))),
+        h('label', { class: 'person-toggle' }, T('Can see activity'),
+          toggle(u.canSeeActivity, async (on, input) => {
+            if (u.isOwner) { input.checked = true; toast(T('The owner can always see activity')); return; }
+            await personUpdate(u, { canSeeActivity: on });
+          }, T('{0} can see activity', u.name))),
         h('label', { class: 'person-toggle' }, T('Never auto-delete'),
           toggle(u.keep, (on) => personUpdate(u, { keep: on }), T('Never auto-delete {0}’s videos', u.name))),
         h('label', { class: 'person-toggle person-library' }, T('Library'), libraryShareSelect(u)))))));
@@ -8246,7 +8252,7 @@ async function personUpdate(u, patch) {
   if (state.view === 'settings') renderSettings();
 }
 
-// ---------- activity (server owner only) ----------
+// ---------- activity (server owner, plus people the owner lets see it) ----------
 // Who has been using Lilin and what they did, from the server's activity log.
 const ACTIVITY_TEXT = {
   // The log keeps these lines whole, in English.
@@ -8306,6 +8312,7 @@ function lastSeenText(ms) {
 
 async function loadActivity() {
   try { state.activity = await api('/api/activity'); state.activityError = null; } catch (err) { state.activityError = err.message; }
+  if (!state.status?.admin) return; // people allowed to see Activity get it read-only, without the access list
   try { state.access = await api('/api/access'); } catch (err) { state.access = { configured: true, error: err.message, invites: [] }; }
 }
 
@@ -8478,7 +8485,7 @@ function peopleSection(q) {
         },
       }, T('Remove'))));
   })) : h('p', { class: 'muted' }, q ? T('Nobody matches.') : T('Nobody yet.')));
-  return foldGroup('people', 'h3', 'activity-head', T('People'), rows.length, out, Boolean(q));
+  return foldGroup('access', 'h3', 'activity-head', T('People and invites'), rows.length, out, Boolean(q), true);
 }
 
 // Activity sections and days fold open/closed; the folded ones are remembered per browser.
@@ -8491,8 +8498,8 @@ function activityFoldSet() {
   return activityFolded;
 }
 
-function foldGroup(key, tag, cls, title, count, kids, forceOpen = false) {
-  const folded = !forceOpen && activityFoldSet().has(key);
+function foldGroup(key, tag, cls, title, count, kids, forceOpen = false, foldedByDefault = false) {
+  const folded = !forceOpen && activityFoldSet().has(key) !== foldedByDefault;
   const content = h('div', { class: 'fold-body', hidden: folded }, kids);
   const btn = h('button', {
     type: 'button',
@@ -8506,12 +8513,150 @@ function foldGroup(key, tag, cls, title, count, kids, forceOpen = false) {
       btn.title = open ? T('Hide') : T('Show');
       const set = activityFoldSet();
       set.delete(key);
-      if (!open) set.add(key);
+      if (!open !== foldedByDefault) set.add(key);
       while (set.size > 60) set.delete(set.values().next().value);
       try { localStorage.setItem(ACTIVITY_FOLD_KEY, JSON.stringify([...set])); } catch { /* blocked */ }
     },
   }, h('span', { class: 'fold-chev', 'aria-hidden': 'true' }), h('span', {}, title), count != null && h('span', { class: 'fold-count' }, String(count)));
   return [h(tag, { class: `${cls} fold-head` }, btn), content];
+}
+
+// What each logged action is about: a filter group and an icon. Unknown actions land in Other.
+const ACTIVITY_KIND = {
+  play: ['watch', 'play'], cast: ['watch', 'tv'], stop: ['watch', 'pause'], watch: ['watch', 'party'], subtitles: ['watch', 'info'],
+  download: ['download', 'download'], pause: ['download', 'pause'], resume: ['download', 'download'], upgrade: ['download', 'upgrade'],
+  blocked: ['download', 'close'], slow: ['download', 'convert'], travel: ['download', 'phone'],
+  add: ['library', 'plus'], remove: ['library', 'trash'], delete: ['library', 'trash'], extend: ['library', 'clock'], expire: ['library', 'clock'],
+};
+const ACTIVITY_FILTERS = [['all', 'All'], ['watch', 'Watching'], ['download', 'Downloads'], ['library', 'Library'], ['other', 'Other']];
+const kindOf = (action) => ACTIVITY_KIND[action] || ['other', action === 'settings' ? 'rules' : action === 'wake' || action === 'restart' ? 'server' : action === 'share' || action === 'trim' ? 'share' : 'me'];
+const SESSION_GAP = 60 * 60000; // events further apart than this start a new card
+const SYSTEM_USER = 'Lilin';    // auto-deletes and other things the server does by itself
+
+// "House S04 E08" → { show: 'House', season: 4, ep: 8 }
+function episodeOf(title) {
+  const m = /^(.*) S(\d+) E(\d+)$/.exec(title);
+  return m ? { show: m[1], season: Number(m[2]), ep: Number(m[3]) } : null;
+}
+// [8, 9, 10, 12] → "E08–E10, E12"
+function episodeRanges(eps) {
+  const list = [...new Set(eps)].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    let j = i;
+    while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++;
+    out.push(j > i ? `E${pad2(list[i])}–E${pad2(list[j])}` : `E${pad2(list[i])}`);
+    i = j;
+  }
+  return out.join(', ');
+}
+
+// One card's lines: repeats folded, a run of episodes in one line, subtitles as a tag on what was watched.
+function sessionLines(events) {
+  const lines = new Map();
+  const subs = [];
+  for (const e of events) {
+    let action = e.action, subject = e.subjectName || e.detail, lang = null;
+    if (action === 'subtitles') {
+      const m = /^(.+?) subtitles for (.+)$/.exec(subject);
+      if (m) { lang = m[1]; subject = m[2]; subs.push({ e, lang, subject }); continue; }
+    }
+    const ep = episodeOf(subject);
+    const key = ep ? `${action}|${ep.show}|${ep.season}` : `${action}|${subject}`;
+    const line = lines.get(key) || { action, subject, ep: ep && { show: ep.show, season: ep.season, eps: [] }, titles: new Set(), langs: new Set(), at: e.at, from: e.at, n: 0 };
+    if (ep) line.ep.eps.push(ep.ep);
+    line.titles.add(subject);
+    line.from = Math.min(line.from, e.at);
+    line.n++;
+    lines.set(key, line);
+  }
+  // Subtitles fetched for something played in the same card ride along with it; the rest get lines of their own.
+  for (const s of subs) {
+    const owner = [...lines.values()].find((l) => l.action === 'play' && l.titles.has(s.subject));
+    if (owner) { owner.langs.add(s.lang); continue; }
+    const ep = episodeOf(s.subject);
+    const key = `subtitles|${s.lang}|${ep ? `${ep.show}|${ep.season}` : s.subject}`;
+    const line = lines.get(key) || { action: 'subtitles', lang: s.lang, subject: s.subject, ep: ep && { show: ep.show, season: ep.season, eps: [] }, titles: new Set(), langs: new Set(), at: s.e.at, from: s.e.at, n: 0 };
+    if (ep) line.ep.eps.push(ep.ep);
+    line.titles.add(s.subject);
+    line.n++;
+    lines.set(key, line);
+  }
+  return [...lines.values()].sort((a, b) => b.at - a.at).map((l) => {
+    const label = l.ep ? `${l.ep.show} S${pad2(l.ep.season)} ${episodeRanges(l.ep.eps)}` : l.subject;
+    return { ...l, label, detail: l.action === 'subtitles' && l.lang ? `${l.lang} subtitles for ${label}` : label };
+  });
+}
+
+// One line of a card: icon, the sentence with its title picked out, and a count or subtitle tag.
+function activityLine(l) {
+  const [kind, ico] = kindOf(l.action);
+  const sentence = (ACTIVITY_TEXT[l.action] || ((d) => `${l.action} ${d}`))(l.detail);
+  const at = sentence.indexOf(l.label);
+  const text = at < 0 ? [sentence] : [sentence.slice(0, at), h('strong', { title: l.label }, l.label), sentence.slice(at + l.label.length)];
+  const repeats = l.ep ? 0 : l.n;
+  return h('li', { class: `act-line act-${kind}` },
+    h('span', { class: 'act-icon', 'aria-hidden': 'true' }, icon(ICONS[ico] ? ico : 'info')),
+    h('span', { class: 'act-text' }, ...text,
+      repeats > 1 && h('span', { class: 'act-tag' }, `×${repeats}`),
+      ...[...l.langs].map((lang) => h('span', { class: 'act-tag', title: T('{0} subtitles', lang) }, T('{0} subs', lang)))),
+    h('time', { class: 'act-time', datetime: new Date(l.at).toISOString() }, clock(l.at)));
+}
+
+// Feed cards: one per person per sitting (same day, under an hour between things).
+function activitySessions(events) {
+  const out = [];
+  for (const e of events) {
+    const last = out.at(-1);
+    if (last && last.user === e.user && last.from - e.at < SESSION_GAP && dayLabel(last.from) === dayLabel(e.at)) {
+      last.events.push(e); last.from = e.at;
+    } else out.push({ user: e.user, first: e, events: [e], at: e.at, from: e.at });
+  }
+  return out;
+}
+
+function activityCard(s) {
+  const e = s.first;
+  const system = e.user === SYSTEM_USER;
+  const lines = sessionLines(s.events);
+  const span = clock(s.from) === clock(s.at) ? clock(s.at) : `${clock(s.from)}–${clock(s.at)}`;
+  return h('li', { class: `act-card${system ? ' is-system' : ''}` },
+    h('div', { class: 'act-card-head' },
+      people.face(e, { size: 34 }),
+      h('div', { class: 'act-who' },
+        h('span', { class: 'act-name', title: e.user }, system ? T('Lilin itself') : personName(e)),
+        !system && h('span', { class: 'act-where' }, activityDevice(e))),
+      h('span', { class: 'act-span' }, span)),
+    h('ul', { class: `act-lines${lines.length === 1 ? ' is-single' : ''}` }, lines.map(activityLine)));
+}
+
+// The top of the page: a few numbers for today and everyone who's been around (tap a face to see just them).
+function activitySummary(events) {
+  const today = new Date().toDateString();
+  const todays = events.filter((e) => new Date(e.at).toDateString() === today && e.user !== SYSTEM_USER);
+  const peopleList = (state.activity.people || []).filter((p) => p.user !== SYSTEM_USER);
+  const on = peopleList.filter((p) => Date.now() - p.at < 3 * 60000).length;
+  const watched = new Set(todays.filter((e) => e.action === 'play').map((e) => e.detail)).size;
+  const downloads = todays.filter((e) => e.action === 'download').length;
+  const who = new Set(todays.map((e) => e.user)).size;
+  const tile = (n, label, cls = '') => h('div', { class: `act-stat${cls}` }, h('strong', {}, String(n)), h('span', {}, label));
+  const pick = state.activityPerson;
+  return [
+    h('div', { class: 'act-stats' },
+      tile(on, T('on right now'), on ? ' is-live' : ''),
+      tile(who, who === 1 ? T('person today') : T('people today')),
+      tile(watched, watched === 1 ? T('video watched today') : T('videos watched today')),
+      tile(downloads, downloads === 1 ? T('download today') : T('downloads today'))),
+    peopleList.length > 0 && h('div', { class: 'act-people', role: 'group', 'aria-label': T('Show one person') },
+      peopleList.map((p) => h('button', {
+        type: 'button', class: 'act-person', 'aria-pressed': String(pick === p.user), title: `${personName(p)} · ${lastSeenText(p.at)} · ${activityDevice(p)}`,
+        onclick: () => { state.activityPerson = pick === p.user ? null : p.user; renderActivity(); },
+      },
+      h('span', { class: 'activity-face' }, people.face(p, { size: 44 }),
+        h('span', { class: `activity-dot${Date.now() - p.at < 3 * 60000 ? ' is-on' : ''}`, 'aria-hidden': 'true' })),
+      h('span', { class: 'act-person-name' }, personName(p)),
+      h('span', { class: 'act-person-seen' }, lastSeenText(p.at))))),
+  ];
 }
 
 function renderActivity() {
@@ -8521,25 +8666,26 @@ function renderActivity() {
   if (state.activityError) { body.replaceChildren(notice(T('Couldn’t get activity'), state.activityError)); return; }
   if (!state.activity) return;
   const q = norm(state.query);
-  const events = state.activity.events.filter((e) => !q || norm(`${e.user} ${personName(e)} ${e.subjectName || ''} ${e.detail} ${e.action} ${activityDevice(e)}`).includes(q));
-  const out = [...peopleSection(q)];
-  const eventKids = [];
-  if (!events.length) eventKids.push(h('p', { class: 'muted' }, q ? T('Nothing matches.') : T('Nothing has happened yet.')));
+  const filter = state.activityFilter || 'all';
+  const all = state.activity.events;
+  const events = all.filter((e) => (filter === 'all' || kindOf(e.action)[0] === filter)
+    && (!state.activityPerson || e.user === state.activityPerson)
+    && (!q || norm(`${e.user} ${personName(e)} ${e.subjectName || ''} ${e.detail} ${e.action} ${activityDevice(e)}`).includes(q)));
+  const out = [...activitySummary(all)];
+  if (state.status?.admin) out.push(...peopleSection(q));
   const days = [];
-  for (const e of events) {
-    const label = dayLabel(e.at);
-    if (days.at(-1)?.label !== label) days.push({ label, key: `day:${new Date(e.at).toDateString()}`, list: h('ul', { class: 'rows activity-list' }), n: 0 });
-    const d = days.at(-1);
-    d.n++;
-    d.list.append(h('li', { class: 'row activity-row' },
-      h('span', { class: 'activity-time' }, clock(e.at)),
-      people.face(e, { size: 32, cls: 'activity-row-face' }),
-      h('span', { class: 'row-text' },
-        h('span', { class: 'activity-text' }, h('strong', { title: e.user }, personName(e)), ' ', (ACTIVITY_TEXT[e.action] || ((d) => `${e.action} ${d}`))(e.subjectName || e.detail)),
-        h('span', { class: 'row-meta' }, h('span', {}, activityDevice(e))))));
+  for (const s of activitySessions(events)) {
+    const label = dayLabel(s.at);
+    if (days.at(-1)?.label !== label) days.push({ label, key: `day:${new Date(s.at).toDateString()}`, list: h('ul', { class: 'act-cards' }), n: 0 });
+    days.at(-1).n += s.events.length;
+    days.at(-1).list.append(activityCard(s));
   }
-  for (const d of days) eventKids.push(...foldGroup(d.key, 'p', 'activity-day', d.label, d.n, [d.list], Boolean(q)));
-  out.push(...foldGroup('events', 'h3', 'activity-head', T('What happened'), events.length, eventKids, Boolean(q)));
+  const picked = state.activityPerson && (state.activity.people || []).find((p) => p.user === state.activityPerson);
+  out.push(h('div', { class: 'act-feed-head' },
+    h('h3', { class: 'activity-head' }, picked ? T('What {0} did', personName(picked)) : T('What happened')),
+    segmented(ACTIVITY_FILTERS.map(([k, t]) => [k, T(t)]), filter, (k) => { state.activityFilter = k; renderActivity(); }, T('Show'))));
+  if (!events.length) out.push(h('p', { class: 'muted act-empty' }, q || filter !== 'all' || picked ? T('Nothing matches.') : T('Nothing has happened yet.')));
+  for (const d of days) out.push(...foldGroup(d.key, 'p', 'activity-day', d.label, d.n, [d.list], Boolean(q)));
   body.replaceChildren(...out);
 }
 
@@ -9795,7 +9941,7 @@ const enableNotesTab = () => {
   $('.tabs').insertBefore($('.tab[data-view="notes"]'), $('.tab[data-view="library"]'));
 };
 
-// Adds the Activity tab for the server's owner (ADMIN_EMAILS in .env).
+// Adds the Activity tab for the server's owner (ADMIN_EMAILS in .env) and anyone the owner lets see it (read-only).
 function enableActivityTab() {
   if ($('#view-activity')) return;
   $('#main').append(h('section', { id: 'view-activity', class: 'view', 'aria-labelledby': 'activity-heading', hidden: true },
@@ -9978,7 +10124,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   applyTheme(prefs().theme);
   $('#find-torrents').hidden = !state.status.torrents || !canDownload();
   $('#manage-downloads').hidden = !state.me?.isOwner;
-  if (state.status.admin) { enableActivityTab(); enableHouseTab(); enableNotesTab(); }
+  if (state.status.admin) { enableActivityTab(); enableHouseTab(); enableNotesTab(); } else if (state.me?.canSeeActivity) enableActivityTab();
   if (state.status.clips) enableClipsTab();
   enableLiveTab();
   updateTabOverflow();

@@ -195,7 +195,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | Method | Route | Description |
 | --- | --- | --- |
 | `GET` | `/api/status` | Enabled features |
-| `GET` | `/api/activity` | Recent activity and people (`ADMIN_EMAILS` only) |
+| `GET` | `/api/activity` | Recent activity and people (`ADMIN_EMAILS`, plus people with Can see activity) |
 | `POST` | `/api/watch` | Host a library title (`{ id, clientId, position }`), returns a private room token |
 | `GET` | `/api/watch/clock` | Server clock sample for latency compensation |
 | `GET` | `/api/watch/<token>/preview` | Title and host for the join screen (normal sign-in required) |

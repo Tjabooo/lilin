@@ -176,6 +176,10 @@ export function initAccounts({ dataDir, adminEmails, mediaDir: dir }) {
   if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'restricted'").get()) {
     db.exec('ALTER TABLE users ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0');
   }
+  // Added later: may this person see the Activity tab (read-only; the owner switches it on per person).
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'can_see_activity'").get()) {
+    db.exec('ALTER TABLE users ADD COLUMN can_see_activity INTEGER NOT NULL DEFAULT 0');
+  }
   // Added later: when the episode was finished. last_at keeps moving when you rewatch part of it the same day,
   // so it can't tell "finished" from "started again" (old rows: null, last_at stands in).
   if (!db.prepare("SELECT 1 FROM pragma_table_info('watch_log') WHERE name = 'finished_at'").get()) {
@@ -315,6 +319,8 @@ function rowToUser(r) {
     // the owner can always invite; others only once the owner allows it
     canInvite: isOwner || Boolean(r.can_invite),
     restricted: !isOwner && Boolean(r.restricted), // friends: the owner is never restricted
+    // the owner always sees Activity; others only once the owner allows it
+    canSeeActivity: isOwner || Boolean(r.can_see_activity),
     keep: Boolean(r.keep),
     settings: { ...USER_DEFAULTS, ...settings },
     createdAt: r.created_at,
@@ -420,7 +426,7 @@ function cleanTheme(t) {
 
 // What the browser gets about the person signed in.
 export function publicUser(u) {
-  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), keep: u.keep, settings: u.settings,
+  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), canSeeActivity: u.canSeeActivity, keep: u.keep, settings: u.settings,
     sharedWith: libraryMates(u.id).filter((id) => id !== u.id).map((id) => userById(id)).filter(Boolean).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar })) };
 }
 
@@ -451,6 +457,10 @@ export function updateUser(id, patch) {
   if ('restricted' in patch) {
     if (u.isOwner && patch.restricted) throw httpError(400, 'The owner can’t be restricted.');
     db.prepare('UPDATE users SET restricted = ? WHERE id = ?').run(patch.restricted ? 1 : 0, id);
+  }
+  if ('canSeeActivity' in patch) {
+    if (u.isOwner && !patch.canSeeActivity) throw httpError(400, 'The owner can always see activity.');
+    db.prepare('UPDATE users SET can_see_activity = ? WHERE id = ?').run(patch.canSeeActivity ? 1 : 0, id);
   }
   if ('libraryWith' in patch) shareLibrary(id, patch.libraryWith == null || patch.libraryWith === '' ? null : Number(patch.libraryWith));
   if ('keep' in patch) {
