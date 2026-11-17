@@ -56,6 +56,19 @@ test('trimming with no new copy only enforces the cap', () => {
   assert.deepEqual(pickEvictions(copies, { maxBytes: 0 }), { names: [], fits: true });
 });
 
+test('someone waiting may go over the cap after old copies go, but never under minFree', () => {
+  const now = Date.now();
+  const recent = [
+    { name: 'old.mp4', size: 10 * GB, used: now - 10 * 3600e3 },
+    { name: 'fresh-a.mp4', size: 30 * GB, used: now - 600e3 },
+    { name: 'fresh-b.mp4', size: 30 * GB, used: now - 300e3 },
+  ];
+  const opts = { need: 35 * GB, maxBytes: 80 * GB, free: 200 * GB, minFree: 20 * GB, keepSince: now - 3 * 3600e3 };
+  assert.deepEqual(pickEvictions(recent, opts), { names: ['old.mp4'], fits: false });
+  assert.deepEqual(pickEvictions(recent, { ...opts, softCap: true }), { names: ['old.mp4'], fits: true, overCap: true });
+  assert.equal(pickEvictions(recent, { ...opts, softCap: true, free: 40 * GB }).fits, false);
+});
+
 test('freeBytes and sameDrive read the real file system', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-space-'));
   try {

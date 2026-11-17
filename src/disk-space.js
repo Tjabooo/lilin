@@ -23,8 +23,10 @@ export function sameDrive(a, b) {
 //   free:      free bytes on the output's drive (null = unknown); minFree must stay free after `need`
 //   sameDrive: the folder is on the output's drive, so deleting here frees space there
 //   keepSince: copies used at or after this time are never deleted
+//   softCap:   someone is waiting for this file: when deleting can't bring the folder under maxBytes,
+//              it may go over (minFree still holds); later trims bring it back once copies age out
 // Returns { names: least recently used first, fits: whether the new file fits after deleting them }.
-export function pickEvictions(entries, { need = 0, inFolder = true, maxBytes = 0, free = null, minFree = 0, sameDrive: same = true, keepSince = Infinity } = {}) {
+export function pickEvictions(entries, { need = 0, inFolder = true, maxBytes = 0, free = null, minFree = 0, sameDrive: same = true, keepSince = Infinity, softCap = false } = {}) {
   let total = entries.reduce((sum, e) => sum + e.size, 0);
   let left = free;
   const capOk = () => !(maxBytes > 0) || total + (inFolder ? need : 0) <= maxBytes;
@@ -38,5 +40,6 @@ export function pickEvictions(entries, { need = 0, inFolder = true, maxBytes = 0
     total -= e.size;
     if (same && left != null) left += e.size;
   }
-  return { names, fits: capOk() && freeOk() };
+  const fits = (capOk() || softCap) && freeOk();
+  return softCap ? { names, fits, overCap: !capOk() } : { names, fits };
 }

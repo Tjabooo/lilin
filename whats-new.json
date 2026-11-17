@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-no-stuck-wait",
+    "date": "2026-11-18",
+    "title": "No more endless \"Waiting to start\"",
+    "items": [
+      {
+        "title": "Films that need a version for your browser start right away",
+        "text": "If your browser needed Lilin to make a version of a film, it could sit on \"Waiting to start\" for hours while episodes other people were about to watch were being prepared. Now the film you pressed Play on always goes first."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-logo-fill",
     "date": "2026-11-17",
     "title": "A nicer wait",

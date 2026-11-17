@@ -1191,7 +1191,7 @@ async function makeRoom(job) {
   const mayEvict = !job || !job.fix || job.force || job.prepare;
   const copies = cachedCopies().map((c) => ({ ...c, evictable: mayEvict && !busy.has(c.name) }));
   const free = job ? await freeBytes(outDir) : null;
-  const { names, fits } = pickEvictions(copies, {
+  const { names, fits, overCap } = pickEvictions(copies, {
     need: job ? outputEstimate(job) : 0,
     inFolder: Boolean(job?.fix),
     maxBytes: COPIES_MAX_BYTES,
@@ -1199,6 +1199,10 @@ async function makeRoom(job) {
     minFree: MIN_FREE_BYTES,
     sameDrive: !job || job.fix || sameDrive(fixDir, outDir),
     keepSince: Date.now() - RECENT_USE_MS,
+    // Someone pressed Play and is staring at "Waiting to start": the cap is for the cache, not for them.
+    // Without this, a batch of freshly prepared next-episode copies (protected for RECENT_USE_MS) kept a
+    // 17 GB film waiting for hours.
+    softCap: Boolean(job?.force && !job.prepare),
   });
   for (const name of names) {
     try {
@@ -1209,6 +1213,7 @@ async function makeRoom(job) {
     } catch { /* in use; next time */ }
   }
   if (names.length) { videoCache.clear(); audioCache.clear(); saveFailures(); }
+  if (job && fits && overCap) console.log(`[convert] going over BROWSER_COPIES_MAX_GB=${COPIES_MAX_BYTES / GB} for ${path.basename(job.file)}: someone is waiting for it`);
   if (!job || fits) { if (job) status.lowSpace = null; return; }
   const why = free != null && free - outputEstimate(job) < MIN_FREE_BYTES
     ? `${outDir} is nearly full (${(free / GB).toFixed(1)} GB free, MIN_FREE_GB=${MIN_FREE_BYTES / GB})`
