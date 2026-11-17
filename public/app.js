@@ -7847,7 +7847,9 @@ function settingsLayout(nodes) {
   for (const node of nodes) {
     if (node.matches?.('h3.set-head')) {
       if (current.items.length || current.head) groups.push(current);
-      current = { title: node.textContent.trim(), head: node, items: [] };
+      // the heading's own words only: not a tag inside it ("Server" + "Owner" read "ServerOwner")
+      const own = [...node.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+      current = { title: own || node.textContent.trim(), head: node, items: [] };
     } else current.items.push(node);
   }
   if (current.items.length || current.head) groups.push(current);
@@ -8292,14 +8294,18 @@ function ownerSettings() {
     toggle(r.membersCanDownload !== false, (on) => saveRules({ membersCanDownload: on }), T('New people can download'))));
   out.push(settingsRow(T('Colours for new people'), T('Until they pick their own.'),
     select(Object.entries(THEMES).map(([k, t]) => [k, t.name]), r.defaultTheme || 'lilin', (v) => saveRules({ defaultTheme: v }), T('Colours for new people'))));
-  out.push(h('details', { class: 'set-card set-signin' },
-    h('summary', {}, T('Staying signed in')),
-    h('p', {}, T('Lilin has no login of its own: it uses the Cloudflare Access sign-in, so how long people stay signed in is set in Cloudflare. To make it last a month:')),
+  out.push(h('details', { class: 'set-card set-details set-signin' },
+    h('summary', {},
+      h('span', { class: 'set-text' }, h('span', { class: 'set-label' }, T('Staying signed in')),
+        h('span', { class: 'set-hint' }, T('How long a sign-in lasts before Lilin asks again.'))),
+      h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
+    h('p', {}, T('With Lilin’s own sign-in, people stay signed in for SESSION_DAYS days (30 unless you change it in .env, then restart Lilin).')),
+    h('p', {}, T('Behind Cloudflare Access, Access has its own session too, and the shorter one wins. To make that last a month:')),
     h('ol', {},
       h('li', {}, T('Cloudflare dashboard → Zero Trust → Access → Applications → Lilin → Edit.')),
-      h('li', {}, T('Set Session Duration to 1 month (it’s 24 hours now) and save.')),
+      h('li', {}, T('Set Session Duration to 1 month and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
-    h('p', { class: 'set-hint' }, T('If someone’s sign-in does run out while Lilin is open, it now tells them and signs them back in with one tap.'))));
+    h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
 
   out.push(...ideaInbox());
 

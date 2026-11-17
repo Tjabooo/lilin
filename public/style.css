@@ -2140,6 +2140,8 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .act-feed-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s3); margin: var(--s5) 0 var(--s2); }
 .act-feed-head .activity-head { margin: 0; }
 .act-feed-head .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+/* rows that scroll sideways: buttons keep their width (shrinking ran Swedish labels into each other) */
+.act-feed-head .segmented button, .st-controls .segmented button { flex: none; }
 .act-empty { margin: var(--s4) 0; }
 
 .act-cards { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); } /* an implicit auto column grows to the widest card and pushes the page wider than a phone */
@@ -2537,7 +2539,12 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .set-text { flex: 1 1 220px; min-width: 0; display: grid; gap: 2px; }
 .set-label { font-weight: 650; }
 .set-control { flex: none; max-width: 100%; }
-.set-control .segmented { flex-wrap: wrap; }
+/* a choice that doesn't fit beside its label (long Swedish options) goes under it, full width, instead of wrapping inside its pill */
+@media (max-width: 599px) {
+  .set-control:has(> .segmented) { flex: 1 1 100%; }
+  .set-control > .segmented { display: flex; width: 100%; border-radius: var(--r-md); }
+  .set-control > .segmented button { flex: 1 1 0; height: auto; min-height: 34px; padding: 6px 10px; line-height: 1.25; white-space: normal; border-radius: calc(var(--r-md) - 3px); }
+}
 .set-control .sub-select { height: 40px; border-radius: 999px; padding-left: 16px; }
 .set-card { padding: 16px; background: var(--surface-1); border-radius: var(--r-md); }
 .set-card p { margin: 0 0 6px; }
@@ -2571,10 +2578,12 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .account-password .invite-note { height: 44px; }
 .account-password .chip { justify-self: start; margin-top: 2px; }
 .account-password .set-hint:empty { display: none; }
-.set-signin { margin-top: 8px; }
-.set-signin summary { cursor: pointer; font-weight: 600; }
-.set-signin ol { margin: 6px 0 10px; padding-left: 20px; color: var(--dust); font-size: 14px; }
+.set-signin { margin-top: 8px; padding: 0; overflow: hidden; }
+.set-signin > summary { border-radius: var(--r-md); }
+.set-signin > :not(summary) { margin-left: 16px; margin-right: 16px; }
+.set-signin ol { margin-top: 6px; margin-bottom: 10px; padding-left: 20px; color: var(--dust); font-size: 14px; }
 .set-signin p { margin-top: 10px; font-size: 14px; }
+.set-signin > :last-child { margin-bottom: 16px; }
 .tag {
   display: inline-block; margin-left: 6px; padding: 1px 8px;
   font: 700 11px/18px var(--body); letter-spacing: 0.02em; vertical-align: 2px;
