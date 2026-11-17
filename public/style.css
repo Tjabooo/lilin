@@ -111,7 +111,7 @@
 
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { background: var(--velvet); scroll-padding-top: calc(var(--safe-top) + var(--head-h) + 8px); }
+html { background: var(--velvet); scroll-padding-top: calc(var(--safe-top) + var(--head-h) + 8px); overflow-x: clip; } /* never pan sideways on phones, even if something pokes out */
 body {
   margin: 0;
   color: var(--text);
@@ -2128,7 +2128,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .act-feed-head .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .act-empty { margin: var(--s4) 0; }
 
-.act-cards { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s2); }
+.act-cards { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); } /* an implicit auto column grows to the widest card and pushes the page wider than a phone */
 .act-card { padding: 12px 14px 10px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
 .act-card.is-system { background: none; border-style: dashed; }
 .act-card.is-system .face { opacity: .7; }

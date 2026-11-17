@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-no-side-scroll",
+  "date": "2026-11-17",
+  "title": "Steadier scrolling on phones",
+  "items": [
+    {
+      "title": "No more sliding sideways",
+      "text": "On a phone, scrolling down Activity could drift the whole page a little to the side. The page now stays put and only scrolls up and down."
+    }
+  ]
+},
+{
   "id": "2026-11-17-likes-phone",
   "date": "2026-11-17",
   "title": "Likes on phones",
