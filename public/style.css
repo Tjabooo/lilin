@@ -1088,6 +1088,17 @@ html.has-vt .view { animation: none; }
 .season-select { max-width: 280px; margin-bottom: var(--s3); }
 .season-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: var(--s2); }
 .season-head .muted, .season-pack { margin: 0; font-size: 14px; }
+/* Season actions: a chip row where there's room, the ⋯ menu on phones */
+.row-tools { display: flex; min-width: 0; }
+.row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.row-actions .chip { min-height: 36px; padding: 0 13px; font-size: 13.5px; }
+.row-actions .chip svg { color: var(--text-2); }
+.row-actions .chip.is-danger, .row-actions .chip.is-danger svg { color: var(--alert); }
+.row-tools > .row-more { display: none; }
+@media (max-width: 719px) {
+  .row-actions { display: none; }
+  .row-tools > .row-more { display: block; }
+}
 .episode-list { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
 .ep {
   display: grid; grid-template-columns: clamp(124px, 30vw, 220px) minmax(0, 1fr) auto; gap: var(--s3); align-items: start;

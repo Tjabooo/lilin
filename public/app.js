@@ -645,6 +645,13 @@ function rowMenu(label, items) {
   menu.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.open) { e.stopPropagation(); menu.open = false; summary.focus(); } });
   return menu;
 }
+// The same actions spelled out as a row of chips where there's room (style.css swaps them for the ⋯ menu on phones).
+function rowActions(label, items) {
+  const chips = h('div', { class: 'row-actions', role: 'group', 'aria-label': label },
+    items.filter(Boolean).map(([ic, text, run, cls]) => h('button', { type: 'button', class: `chip ${cls || ''}`.trim(),
+      onclick: (e) => { e.stopPropagation(); run(e.currentTarget); } }, ic.cloneNode(true), h('span', {}, text))));
+  return h('div', { class: 'row-tools' }, chips, rowMenu(label, items));
+}
 document.addEventListener('click', (e) => { for (const m of document.querySelectorAll('details.row-more[open]')) if (!m.contains(e.target)) m.open = false; });
 
 // ---------- Download to phone (travel.js; the server makes the copies, src/travel.js) ----------
@@ -2270,7 +2277,7 @@ function episodeList(c) {
     const upgrade = t.id != null ? upgradeState(tvT, n) : null;
     const packs = forSeason.filter((d) => !(d.episodes || []).some((ep) => ep.season === n));
     const complete = se.total && readyCount >= se.total;
-    const menu = rowMenu(T('More for {0}', `${t.title} · ${label(se)}`), [
+    const seasonItems = [
       serverOnly.length > 0 && [icon('plus'), T('Add season'), async () => { try { await addFromServer(serverOnly); } catch (err) { toast(err.message); } }],
       !serverOnly.length && !complete && !se.upcoming && c.tvd && [icon('download'), T('Add Season {0}', n), () => {
         const ps = showPanels.get(t.id);
@@ -2289,13 +2296,14 @@ function episodeList(c) {
       ...packs.map((d) => [icon('download'), T('Season pack details'), (o) => openTransferDetails({ ...(c.entryNow() || { key: `title:${t.title}`, name: t.title }), transfers: [d] }, o)]),
       list.length > 1 && (seasonFiles.length > 0 || leaving.length > 0) && [icon('trash'), T('Delete season'),
         (o) => openDeleteMany({ files: seasonFiles, transfers: leaving, what: T('this season'), label: `${t.title} · ${label(se)}`, onDone: () => updateOpenTitle() }, o), 'is-danger'],
-    ]);
+    ].filter(Boolean);
+    const menu = seasonItems.length > 0 && rowActions(T('More for {0}', `${t.title} · ${label(se)}`), seasonItems);
     const summary = readyCount ? T('{0} episodes ready', se.total ? T('{0} of {1}', readyCount, se.total) : readyCount)
       : se.total ? plural(se.total, 'episode') : '';
     section.replaceChildren(
       h('h3', {}, T('Episodes')),
       picker,
-      h('div', { class: 'season-head' }, h('p', { class: 'muted' }, summary), menu.querySelector('.row-menu-item') && menu),
+      h('div', { class: 'season-head' }, h('p', { class: 'muted' }, summary), menu),
       seasonVersionPick(ready, () => draw()),
       packs.length > 0 && h('p', { class: 'muted season-pack' }, T('{0} pack', label(se)), ' · ', T('Episode availability is shown when individual files are verified.')),
       h('ul', { class: 'episode-list', 'aria-live': 'polite' }, loading
