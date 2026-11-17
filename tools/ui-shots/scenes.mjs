@@ -8,6 +8,8 @@ const shelfCard = (re, nth = 0) => `
   const card = shelf.querySelectorAll('.title-card')[${nth}];
   card.scrollIntoView({ block: 'center' }); card.click();`;
 const sheetOpen = "await __waitFor('#sheet.open #sheet-title'); await __sleep(700);";
+// The one title page has one gold button: report how many are lit (visible .play-btn in the sheet).
+const lit = "return 'lit ' + [...document.querySelectorAll('#sheet-body .play-btn')].filter((b) => b.offsetParent && !b.closest('[hidden]')).length;";
 const libraryCard = (type) => `
   await __waitFor('.unified-library .lib-group .title-card');
   const groups = [...document.querySelectorAll('.unified-library .lib-group')].filter((g) => !g.hidden);
@@ -23,7 +25,7 @@ const ACCESS = { '^/api/access$': { configured: true, members: ['owner@example.t
     { id: 'abcd1235', token: 'bbbbbbbbbbbbbbbb', note: '', expires: Date.now() + 6 * 864e5, state: 'open', byName: 'Oliver' }] } };
 // The friend request popup (it waits for nothing on a page that's just open): Later, so the page underneath shows.
 const laterAsks = "await __sleep(1500); if (document.querySelector('#picker.open .friend-asks')) { document.querySelector('#picker .whats-new-done').click(); await __sleep(600); }";
-const openPlayer = ["await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(5000); const v = document.querySelector('#video'); v.pause(); await __sleep(500);"];
+const openPlayer = ["await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(5000); const v = document.querySelector('#video'); v.pause(); await __sleep(500);"];
 const menu = (sel) => `const b = document.querySelector('${sel}'); if (b && !b.hidden) { b.click(); await __sleep(700); } else return 'no ${sel}';`;
 
 const MOCK_SESSION = { id: 'mock-session', deviceId: 'living-room', title: 'Arrival', deviceName: 'Living room TV', state: 'playing', position: 1260, duration: 6960, mine: true, kind: 'dlna' };
@@ -142,11 +144,12 @@ export const SCENES = [
   { name: 'discover-docs', path: '/', ready: '#discover-body .shelf', steps: ["await __click('.discover-controls .segmented button:nth-child(4)'); await __sleep(3500);"] },
   { name: 'search', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('house'), "await __waitFor('#search-layer .grid .title-card');"] },
   { name: 'search-empty', path: '/', ready: '#discover-body .shelf', steps: [typeSearch('zzqxjvwq'), "await __waitFor('#search-layer .notice, #search-layer .empty');"] },
-  { name: 'title-film', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular films|populära filmer'), sheetOpen] },
+  { name: 'title-film', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular films|populära filmer'), sheetOpen], probe: lit },
   { name: 'title-film-more', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular films|populära filmer'), sheetOpen, "const s = document.querySelector('#sheet'); s.scrollTo(0, s.scrollHeight); await __sleep(400);"] },
-  { name: 'title-show', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular shows|populära serier'), sheetOpen] },
+  { name: 'title-soon', path: '/', ready: '#discover-body .shelf', steps: ["const s = await __waitFor('.cs-card .title-card', 20000); s.scrollIntoView({ block: 'center' }); s.click();", sheetOpen, 'await __sleep(1500);'], probe: lit },
+  { name: 'title-show', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular shows|populära serier'), sheetOpen], probe: lit },
   { name: 'title-show-add', path: '/', ready: '#discover-body .shelf', steps: [shelfCard('popular shows|populära serier', 3), sheetOpen,
-    "const b = document.querySelector('#sheet .action-row button'); if (b) { b.click(); await __sleep(1500); }"] },
+    "const b = document.querySelector('#sheet .title-bar .title-add'); if (b) { b.click(); await __sleep(1500); }"], probe: lit },
 
   { name: 'peek-hover', path: '/', ready: '#discover-body .shelf .title-card', sizes: ['desktop', 'tv'], steps: [
     "const c = [...document.querySelectorAll('#discover-body .shelf-items .title-card')].filter((b) => b._title)[2]; c.scrollIntoView({ block: 'center' }); await __sleep(400);",
@@ -162,10 +165,11 @@ export const SCENES = [
   // ---- Library ----
   { name: 'library', path: '/#library', ready: '.unified-library' , after: 1500 },
   { name: 'library-grid', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: ["document.querySelector('.unified-library .lib-group:not([hidden])').scrollIntoView(); window.scrollBy(0, -80); await __sleep(400);"] },
-  { name: 'library-film', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: filmPage },
-  { name: 'library-show', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [libraryCard('tv'), sheetOpen] },
+  { name: 'library-film', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: filmPage, probe: lit },
+  { name: 'library-film-more', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __click('#sheet .title-bar .row-more > summary'); await __sleep(500);"], probe: lit },
+  { name: 'library-show', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [libraryCard('tv'), sheetOpen], probe: lit },
   { name: 'library-season', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [libraryCard('tv'), sheetOpen,
-    "const se = document.querySelector('#sheet .season-grid .title-card'); if (se) { se.click(); await __sleep(900); } const r = document.querySelector('#sheet .episode-row'); r?.scrollIntoView({ block: 'center' }); await __sleep(500);"] },
+    "const se = document.querySelector('#sheet .season-chips .chip:last-child'); if (se) { se.click(); await __sleep(900); } const r = document.querySelector('#sheet .episode-list .ep'); r?.scrollIntoView({ block: 'center' }); await __sleep(500);"], probe: lit },
   { name: 'picker', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(Play on TV|Spela på TV)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
   { name: 'delete', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(Delete|Radera)$'); await __waitFor('#picker.open'); await __sleep(1200);"] },
   { name: 'travel', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [...filmPage, "await __clickText('^(To phone|Till telefonen)$'); await __waitFor('#picker.open'); await __sleep(1500);"] },
@@ -213,13 +217,15 @@ export const SCENES = [
   { name: 'owner-library', path: '/#library', ready: '.unified-library .lib-group .title-card', after: 1500 },
   { name: 'owner-season-46', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /One Piece/.test(b.textContent)); c.click();", sheetOpen,
-    "const r = document.querySelectorAll('#sheet .episode-row'); r[Math.min(30, r.length - 1)]?.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
+    "const r = document.querySelectorAll('#sheet .episode-list .ep'); r[Math.min(30, r.length - 1)]?.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
   { name: 'owner-long-title', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(400); c.click();", sheetOpen] },
   { name: 'owner-long-title-card', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /Jesse James/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); await __sleep(600);"] },
   { name: 'owner-downloads', path: '/#library', ready: '.unified-library', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, after: 1500 },
   { name: 'owner-downloads-home', path: '/', ready: '#discover-body .shelf', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, steps: ["document.querySelector('.home-shelf, .continue-shelf')?.scrollIntoView({ block: 'center' }); await __sleep(500);"] },
+  { name: 'owner-download-title', path: '/#library', ready: '.unified-library .unified-card', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
+    steps: ["const c = [...document.querySelectorAll('.unified-library .unified-card .title-card')].find((b) => /Dune/.test(b.textContent)); c.scrollIntoView({ block: 'center' }); c.click();", sheetOpen], probe: lit },
   { name: 'owner-downloads-only', path: '/#library', ready: '.unified-library', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON,
     steps: ["const s = document.querySelector('.library-availability select'); s.value = 'downloading'; s.dispatchEvent(new Event('change')); await __sleep(800);"] },
   { name: 'owner-library-empty', path: '/#library', ready: '.unified-library', mocks: { '^/api/library': { items: [], server: [], shows: [] }, '^/api/downloads': { items: [] } }, after: 1200 },
@@ -232,6 +238,8 @@ export const SCENES = [
   { name: 'owner-machines', path: '/#house/machines', ready: '#house-body', full: true, after: 2000 },
   { name: 'owner-activity', path: '/#activity', ready: '#activity-body', full: true, after: 1500 },
   { name: 'owner-house', path: '/#house', ready: '#house-body', full: true, after: 2000 },
+  { name: 'owner-house-needs', path: '/#house', ready: '#house-body .tool-grid', mocks: { '^/api/downloads': () => ({ items: MOCK_DOWNLOADS }) }, patch: DOWNLOADS_ON, full: true, after: 2000,
+    probe: "return 'needs ' + document.querySelectorAll('#house-body .house-needs .lrow').length + ', dot ' + !document.querySelector('.tab[data-view=house] .tab-dot').hidden;" },
   { name: 'owner-clips', path: '/#clips', ready: '#clips-body', after: 1500 },
   { name: 'owner-notes', path: '/#notes', ready: '#notes-body', after: 1500 },
   { name: 'owner-notes-click', path: '/#notes', ready: '#notes-body .note-message', steps: ["document.querySelector('.note-draft')?.focus(); await __sleep(1200); document.querySelector('.note-draft')?.blur(); await __sleep(800);"],
@@ -249,14 +257,14 @@ export const SCENES = [
   { name: 'friend-add', path: '/#you/friends', ready: '.friends-add', steps: ["await __click('.friends-add'); await __waitFor('#picker .invite-sheet .friends-find'); const i = document.querySelector('#picker .friends-search'); i.value = 'ma'; i.dispatchEvent(new Event('input')); await __sleep(900);"] },
   { name: 'room-ask', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
-    "await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
+    "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
     "document.querySelector('#player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); await __sleep(300);",
     { mouse: '#watch-btn', click: true }, "await __sleep(2500);"] },
   { name: 'search-people', path: '/#library', ready: '#view-library:not([hidden])', steps: [typeSearch('ma'), "await __waitFor('#search-layer .sr-people .sr-row', 5000).catch(() => {}); await __sleep(500);"] },
   { name: 'search-live', path: '/#library', ready: '#view-library:not([hidden])', steps: ["document.querySelector('#search-toggle')?.offsetParent && document.querySelector('#search-toggle').click(); await __sleep(800);", typeSearch('fresh'), "await __sleep(800);"] },
   { name: 'owner-watch-room', path: '/#library', ready: '.unified-library .lib-group .title-card', steps: [
     "const c = [...document.querySelectorAll('.unified-library .title-card')].find((b) => /^Arrival/.test(b.querySelector('.name')?.textContent || '')); c.click();", sheetOpen,
-    "await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
+    "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(2500); document.querySelector('#video').pause();",
     "document.querySelector('#player').dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); await __sleep(300);",
     { mouse: '#watch-btn', click: true }, "await __sleep(2500);"],
     probe: "return 'status: ' + document.querySelector('#watch-status')?.textContent;" },
@@ -276,7 +284,7 @@ export const SCENES = [
     "history.back(); await __sleep(600);",
     "await __click('.tab[data-view=\"library\"]'); await __waitFor('.unified-library .lib-group .title-card');",
     libraryCard('movie'), sheetOpen,
-    "await __click('#sheet .library-film-actions .play-btn'); await __waitFor('#player:not([hidden])'); await __sleep(4000); document.querySelector('#video').pause();",
+    "await __click('#sheet .title-bar [data-act=play]'); await __waitFor('#player:not([hidden])'); await __sleep(4000); document.querySelector('#video').pause();",
     "await __click('#watch-btn'); await __waitFor('#watch-bar:not([hidden])'); await __sleep(1500);",
     "await __click('#watch-leave'); await __sleep(1200);",
     "await __click('#player-close'); await __sleep(800);",

@@ -1057,11 +1057,6 @@ html.has-vt .view { animation: none; }
 .cast-line a { padding-block: 4px; color: inherit; text-decoration: underline; text-decoration-color: var(--text-3); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .cast-line a:hover { color: var(--bulb); text-decoration-color: currentColor; }
 
-/* Secondary actions on a page: icon over label, in a quiet row (Play on TV, Watch party, To phone, Delete…) */
-.library-film-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s5); }
-.library-film-actions > .play-btn { flex: 1 1 100%; height: 52px; font-size: 17px; }
-@media (min-width: 600px) { .library-film-actions > .play-btn { flex: 0 0 auto; min-width: 200px; } }
-
 /* Cast with faces */
 .cast-rail {
   display: grid; grid-auto-flow: column; grid-auto-columns: clamp(84px, 70px + 3vw, 128px); gap: var(--s4);
@@ -1084,16 +1079,23 @@ html.has-vt .view { animation: none; }
 .cast-name { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
 .cast-role { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.25; color: var(--text-2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Episodes: still, number and title, running time, a line of description, progress */
-.episode-tabs { display: flex; gap: 6px; margin: 0 calc(-1 * var(--gutter)) var(--s4); padding: 2px var(--gutter); overflow-x: auto; scrollbar-width: none; }
-.episode-tabs::-webkit-scrollbar { display: none; }
-.episode-tabs .chip { flex: none; min-height: 36px; }
+/* Episodes: season chips (a picker above 8), then the still, number and title, running time, a line of description,
+   progress; ⋯, Add or the download's state on the right (under the text on phones) */
+.season-chips { display: flex; gap: 6px; margin: 0 calc(-1 * var(--gutter)) var(--s3); padding: 2px var(--gutter); overflow-x: auto; scrollbar-width: none; }
+.season-chips::-webkit-scrollbar { display: none; }
+.season-chips .chip { flex: none; min-height: 36px; }
+.season-select { max-width: 280px; margin-bottom: var(--s3); }
+.season-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: var(--s2); }
+.season-head .muted, .season-pack { margin: 0; font-size: 14px; }
 .episode-list { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
 .ep {
-  display: grid; grid-template-columns: clamp(124px, 30vw, 220px) minmax(0, 1fr); gap: var(--s3); align-items: start;
+  display: grid; grid-template-columns: clamp(124px, 30vw, 220px) minmax(0, 1fr) auto; gap: var(--s3); align-items: start;
   padding: var(--s2); border-radius: var(--r-md);
   transition: background-color var(--d-1);
 }
+.ep > .row-more, .ep > .chip, .ep-actions { align-self: center; }
+.ep-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ep-art[aria-disabled="true"] { cursor: progress; }
 .ep:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
 .ep .wide-art { border-radius: var(--r-sm); }
 .ep-art { position: relative; display: block; padding: 0; border: 0; background: none; border-radius: var(--r-sm); color: inherit; }
@@ -1103,7 +1105,12 @@ html.has-vt .view { animation: none; }
 .ep-meta { margin: 3px 0 0; font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .ep-overview { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ep.is-missing .wide-art { opacity: .55; filter: saturate(.5); }
-@media (max-width: 420px) { .ep-overview { -webkit-line-clamp: 3; } .ep { grid-template-columns: 124px minmax(0, 1fr); } }
+@media (max-width: 520px) {
+  .ep { grid-template-columns: 124px minmax(0, 1fr) auto; }
+  .ep > .row-more { align-self: start; }
+  .ep > .chip, .ep-actions { grid-column: 2 / -1; justify-self: start; }
+  .ep-overview { -webkit-line-clamp: 3; }
+}
 
 /* ⋯ menus on rows: the less common actions, with words */
 .row-more { position: relative; flex: none; }
@@ -1127,11 +1134,12 @@ html.has-vt .view { animation: none; }
 .row-menu-item svg { width: 19px; height: 19px; flex: none; color: var(--text-2); }
 .row-menu-item.is-danger, .row-menu-item.is-danger svg { color: var(--alert); }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.row-menu.is-up { top: auto; bottom: calc(100% + 6px); }
+/* Phones: the title page's ⋯ opens across the width of its bar */
+@media (max-width: 599px) { .title-bar { position: relative; } .title-bar > .row-more { position: static; } .title-bar .row-menu { left: 0; right: 0; } }
 
-/* Thumbs and Save / Follow share one quiet strip under the actions */
-.page-extras { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--s4); margin: 0 0 var(--s5); }
-.page-extras:empty { display: none; }
-.page-extras > * { margin: 0 !important; }
+/* Thumbs and the Review button, beside the reviews */
+.title-reactions { margin: var(--s6) 0 0; }
 
 /* More like this */
 .page-section { margin-top: var(--s7); }
@@ -2011,7 +2019,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   #sheet .sheet-content { padding: 0 clamp(28px, 4vw, 56px); }
   #sheet .sheet-hero:not(.no-image):not(.is-playing) + .sheet-content { margin-top: -170px; }
   #sheet .sheet-hero.no-image + .sheet-content { padding-top: var(--s6); }
-  .cast-rail, .episode-tabs { margin-inline: calc(-1 * clamp(28px, 4vw, 56px)); padding-inline: clamp(28px, 4vw, 56px); }
+  .cast-rail, .season-chips { margin-inline: calc(-1 * clamp(28px, 4vw, 56px)); padding-inline: clamp(28px, 4vw, 56px); }
   #sheet .shelf-items { margin-inline: calc(-1 * clamp(28px, 4vw, 56px)); padding-inline: clamp(28px, 4vw, 56px); scroll-padding: 0 clamp(28px, 4vw, 56px); }
   .toast { bottom: 32px; }
   .nowbar { left: auto; right: var(--gutter); width: 380px; bottom: 24px; }
@@ -2401,24 +2409,11 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .trim-del { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; color: var(--dust); }
 
 /* Library: seasons and episodes in the show sheet */
-.season-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); margin-bottom: 8px; }
-.season-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px; padding-left: 8px; }
-.season-back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
-.season-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
-.season-summary .muted { margin: 0; }
-.season-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.chip.delete-many { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
-.chip.delete-many svg { width: 18px; height: 18px; }
-.chip.delete-many:hover, .chip.delete-many:focus-visible { color: var(--alert); border-color: var(--alert); }
-.season-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-.season-head .season-poster { flex: none; width: 76px; }
-.season-head h3 { margin: 0 0 4px; }
 
 /* Torrent search: whole season, episode by episode */
 
 /* ---------- accounts: library sections, countdown, adding from the server ---------- */
 #library-body > .segmented { margin: 0 0 16px; }
-.expiry-wrap { display: inline-flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; }
 .expiry { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .expiry::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%;
@@ -2431,17 +2426,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--bulb-dim);
 }
 .keep-btn:disabled { opacity: 0.5; }
-.server-offer {
-  margin: var(--s4) 0 var(--s2); padding: var(--s4);
-  background: radial-gradient(100% 120% at 0% 0%, color-mix(in srgb, var(--bulb) 8%, transparent), transparent 60%), var(--surface-2);
-  border: 1px solid color-mix(in srgb, var(--bulb) 28%, transparent); border-radius: var(--r-lg);
-}
-.server-offer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.server-offer h3 { margin: 0; }
-.server-offer .muted { margin: 4px 0 12px; font-size: 14px; }
-.server-offer .row { background: var(--curtain); }
-.server-offer .play-btn { height: 40px; padding: 0 14px; }
-.server-offer .chip { height: 40px; }
 
 /* Shown when the Cloudflare sign-in has run out */
 .signed-out {
@@ -2625,22 +2609,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .library-shelf { margin-bottom: var(--s6); }
 .library-keep { margin-top: 9px; width: 100%; height: auto; min-height: 38px; padding: 6px 8px; color: var(--bulb); background: var(--bulb-dim); border-color: transparent; font-size: 12px; justify-content: center; }
 .library-keep:disabled { opacity: 0.6; }
-.library-keep-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
-  padding: var(--s4); margin: 0 0 var(--s5); max-width: 720px;
-  border: 1px solid color-mix(in srgb, var(--bulb) 26%, transparent); border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
-}
-.library-keep-bar p { margin: 0; }
-.library-keep-bar .keep-countdown { font-weight: 700; }
-.library-keep-bar .muted { font-size: 13px; margin-top: 3px; }
-.library-keep-bar .play-btn { min-height: 44px; height: auto; padding: 10px 18px; font-size: 14px; }
-.library-keep-bar.is-kept { display: block; border-color: var(--hairline); color: var(--text-2); background: none; padding: var(--s2) 0; }
-.library-keep-bar.is-kept p:first-child { font-size: 14px; font-weight: 600; color: var(--text); }
-.library-film-actions .chip { justify-content: center; min-height: 44px; }
-@media (max-width: 420px) {
-  .library-keep-bar .play-btn { width: 100%; }
-}
 
 /* Discover carousels keep touch scrolling and expose the same movement to mouse and keyboard. */
 .carousel-controls .see-all { margin-right: 6px; }
@@ -2732,27 +2700,26 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-action-error:empty { display: none; }
 .transfer-detail-list .dl-controls { display: flex; flex-wrap: wrap; gap: 6px; }
 .transfer-detail-list .dl-ctl, .pending-episode .chip { min-height: 44px; }
-.pack-transfer { margin: 10px 0; padding: 12px 14px; background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: var(--r-md); font-size: 13px; }
 @media (max-width: 420px) {
   .transfer-detail-list .dl-head { flex-wrap: wrap; }
   .transfer-detail-list .dl-foot { flex-wrap: wrap; }
-  .pending-episode { gap: 8px; }
 }
-.library-keep, .sheet-content .season-back, .pack-transfer .chip, #picker-body > .chip, #picker-body .segmented button { min-height: 44px; }
+.library-keep, #picker-body > .chip, #picker-body .segmented button { min-height: 44px; }
 .dl-ctl[aria-disabled="true"] { opacity: .6; cursor: wait; }
 
-/* Download: Play / Download in the title sheet, the season panel, and progress where the title is */
-.title-actions { display: grid; gap: 12px; margin: 0 0 var(--s5); min-width: 0; max-width: 720px; }
-.title-actions:empty { display: none; }
-.action-row { display: flex; flex-wrap: wrap; gap: 10px; }
-.action-row[hidden] { display: none; }
+/* The title page: a state line, then one bar with the gold button, quiet chips and ⋯; the season panel and progress
+   under it. Phones: the gold button takes the row, the chips wrap under it. */
+.title-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: calc(-1 * var(--s2)) 0 var(--s4); font-size: 14px; color: var(--text-2); }
+.title-state > span:first-child { color: var(--text); font-weight: 600; }
+.title-bar, .title-film { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 var(--s4); max-width: 720px; }
+.title-film { display: grid; gap: 12px; }
+.title-film:empty, .title-bar:empty { display: none; }
+.title-bar .chip { min-height: 44px; }
+.title-bar .row-menu-item[hidden], .row-menu-item[hidden] { display: none; }
 .action-btn { min-width: 150px; height: 52px; padding: 0 24px; gap: 8px; font-size: 16px; font-weight: 700; }
-.action-btn svg { width: 20px; height: 20px; }
+.action-btn svg { width: 20px; height: 20px; flex: none; }
 .action-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.action-btn[aria-expanded="true"] { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--on-bulb) 25%, transparent); }
 .action-btn[aria-disabled="true"], .dl-submit[aria-disabled="true"], .episode-get[aria-disabled="true"] { opacity: 0.7; cursor: progress; transform: none; }
-.action-btn.is-soon[aria-disabled="true"] { opacity: .5; cursor: not-allowed; filter: grayscale(1); }
-.action-btn svg { flex: none; }
 .stroke-icon svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
 .action-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .action-result:has(.action-status:empty):has(.action-retry[hidden]) { display: none; }
@@ -2769,7 +2736,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .dl-field label, .adv-field label { font-size: 13px; font-weight: 500; color: var(--dust); }
 .dl-field .sub-select, .adv-field .sub-select { width: 100%; min-width: 0; height: 48px; padding-left: 12px; background-color: var(--velvet); }
 .dl-field[hidden] { display: none; }
-.title-actions > .dl-audio { max-width: 340px; }
+.title-film > .dl-audio { max-width: 340px; }
 .dl-add-dubbed { display: inline-flex; align-items: center; justify-content: center; }
 .dl-add-dubbed[hidden] { display: none; }
 .dl-audio-hint[hidden] { display: none; }
@@ -2799,16 +2766,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .season-versions .version-pick { margin-top: 0; }
 .version-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; }
 .tor-have { color: var(--bulb); }
-.dl-upgrade[hidden] { display: none; }
-.dl-upgrade { display: inline-flex; align-items: center; gap: 6px; height: 44px; color: var(--paper); }
-.dl-upgrade svg { width: 18px; height: 18px; }
-.dl-upgrade[aria-disabled="true"] { opacity: .55; cursor: default; }
-.dl-upgrade-status { margin: 0; font-size: 13px; line-height: 1.5; color: var(--paper); }
-.dl-upgrade-status:empty { display: none; }
-.season-upgrade { display: grid; gap: 6px; margin: -6px 0 14px; }
-.season-upgrade:has(.season-upgrade-note[hidden]):has(.dl-upgrade-status:empty) { display: none; }
-.season-upgrade-note { margin: 0; font-size: 13px; line-height: 1.5; }
-.season-upgrade-note[hidden] { display: none; }
 .dl-panel .advanced { margin-top: 8px; }
 
 .advanced > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 13px; color: var(--dust); cursor: pointer; list-style: none; border-radius: 8px; }
@@ -2832,7 +2789,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-summary .transfer-line { font-size: 14px; font-weight: 600; }
 .transfer-summary .transfer-track { height: 6px; margin: 12px 0 14px; background: color-mix(in srgb, var(--paper) 10%, transparent); }
 .transfer-summary .transfer-controls { gap: 12px; }
-.sheet-transfer { margin: 6px 0 24px; }
 .transfer-summary .transfer-percent { color: var(--dust); }
 .transfer-summary.is-error .transfer-state { color: var(--alert); }
 .transfer-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -2840,7 +2796,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .transfer-ctl[hidden] { display: none; }
 .link-btn { height: 44px; padding: 0 6px; font-size: 14px; color: var(--dust); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; }
 .link-btn:hover { color: var(--paper); }
-.missing-episode .episode-get { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; color: var(--paper); }
+.episode-get { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; color: var(--paper); }
 .episode-get svg { width: 16px; height: 16px; }
 
 @media (max-width: 479px) {
@@ -2849,7 +2805,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   .dl-fields > .dl-range { grid-column: auto; }
   .dl-fields > .dl-scope, .dl-fields > .dl-range { order: 1; } /* one column: the hint stays right under Audio */
   .dl-field .sub-select, .dl-num { font-size: 16px; } /* no zoom on focus in iOS */
-  .action-row .action-btn { flex: 1 1 0; min-width: 0; }
+  .title-bar > .action-btn { flex: 1 1 100%; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .advanced > summary::after { transition: none; } }
 
@@ -2857,8 +2813,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .continue-card .continue-episode { margin-top: 1px; color: var(--text); opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .continue-card .continue-episode + .sub { margin-top: 0; }
 .continue-card { position: relative; }
-.show-play { margin: 2px 0 12px; }
-.show-caught-up { margin: 0 0 10px; }
 /* solid tint, no backdrop blur: a blur per card re-rendered every picture under it on every scrolled frame */
 .continue-more {
   position: absolute; top: 7px; right: 7px; z-index: 3; display: grid; place-items: center;
@@ -2872,22 +2826,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .continue-actions .continue-keep { background: none; color: var(--dust); }
 .continue-note { margin: -4px 0 0; font-size: 13px; text-align: center; }
 
-/* Episode rows on a show page: the still (plays the episode), then number and title, a line of story and the time
-   left before it's deleted; Play and a ⋯ menu on the right. */
-.episode-row { display: grid; grid-template-columns: clamp(120px, 28vw, 220px) minmax(0, 1fr) auto; align-items: start; gap: var(--s3); padding: var(--s2); background: none; border-color: transparent; }
-.episode-row:hover { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
-.episode-row > .ep-art, .episode-row > .episode-thumb { grid-row: span 2; }
-.episode-row .row-text { padding-top: 2px; }
-.episode-row .row-title { white-space: normal; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.episode-row .ep-overview { margin: 4px 0 6px; }
-.episode-row .row-actions { align-self: center; }
-.episode-thumb { flex: none; width: 100%; border-radius: var(--r-sm); }
-.episode-row .ep-art .wide-art { border-radius: var(--r-sm); }
-.ep-runtime { color: var(--text-2); }
-.missing-episode .wide-art, .pending-episode .wide-art { opacity: .6; filter: saturate(.6); }
-.sheet-content .episode-row { background: none; }
-.sheet-content .episode-row:hover { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
-
 /* Up next: the next episode's still beside the label and title (hidden in the short landscape layout). */
 .up-next-copy { display: flex; align-items: center; gap: 12px; }
 .up-next-copy > div:last-child { min-width: 0; }
@@ -2895,12 +2833,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .up-next-art .wide-art { border-radius: 8px; }
 .up-next-art:empty { display: none; }
 
-@media (max-width: 520px) {
-  /* Phones: still and text side by side, the buttons under the text */
-  .episode-row { grid-template-columns: 128px minmax(0, 1fr); }
-  .episode-row .row-actions, .episode-row > .play-btn, .episode-row > .chip, .episode-row > .episode-get { grid-column: 2; justify-self: start; }
-  .episode-row .ep-overview { -webkit-line-clamp: 3; }
-}
 @media (max-height: 450px) and (min-width: 480px) {
   .up-next-art { display: none; }
 }
@@ -2918,9 +2850,14 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .st-c-utilities { --st: var(--st-utilities); } .st-c-other { --st: var(--st-other); }
 /* House: a tile per tool */
 .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(150px, 22%), 1fr)); gap: var(--s3); }
-.tool { display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
+.tool { position: relative; display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
+.tool .set-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lrow .tab-badge { position: static; box-shadow: none; }
+.tool .tab-badge { position: absolute; top: 10px; right: 10px; left: auto; margin: 0; box-shadow: none; }
+.tool:has(.tab-badge) .set-label { padding-right: 26px; }
 .tool:hover { background: var(--surface-2); }
-.tool.has-alert { border-color: var(--bulb); }
+.house-card-link.has-alert { border-color: var(--bulb); }
+.house-card-link, .house-needs { margin-bottom: var(--s5); }
 .st-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .st-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .st-controls .segmented button { height: 30px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
@@ -3043,7 +2980,6 @@ button.st-col:hover .st-stack { filter: brightness(1.12); }
 /* ---------- Save for later and Follow ---------- */
 .watch-box { display: grid; gap: 10px; margin: -6px 0 20px; }
 .watch-box.is-busy { opacity: .7; pointer-events: none; }
-.watch-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .watch-toggle { display: inline-flex; align-items: center; gap: 7px; }
 .watch-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .watch-toggle[aria-pressed="true"] svg { fill: currentColor; }

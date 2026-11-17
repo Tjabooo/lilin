@@ -140,13 +140,13 @@ export function createDocumentaries(ui) {
         : data.status === 'queued'
           ? h('button', { class: 'play-btn action-btn', disabled: true }, h('span', {}, statusWord(data)))
           : ui.canAdd() && h('button', { class: 'play-btn action-btn stroke-icon', onclick: () => add({}, data.title) }, icon('plus'), h('span', {}, T('Add to library')));
-      content.push(h('div', { class: 'title-actions' }, button, status));
+      content.push(h('div', { class: 'title-bar' }, button, status));
       if (data.minutes) content[1].append(h('li', {}, T('{0} min', data.minutes)));
     } else {
       const season = data.seasons.find((s) => s.number === seasonNo) || data.seasons.at(-1);
       const rest = season.episodes.filter((e) => !['library', 'queued'].includes(e.status));
       const count = season.episodes.length;
-      content.push(h('div', { class: 'title-actions' },
+      content.push(h('div', { class: 'title-bar' },
         ui.canAdd() && rest.length > 0 && h('button', { class: 'play-btn action-btn stroke-icon', onclick: () => add({ seasons: [season.number] }, data.title) },
           icon('plus'), h('span', {}, rest.length === 1 ? T('Add 1 episode') : T('Add {0} episodes', rest.length))),
         !rest.length && h('p', { class: 'muted' }, season.episodes.some((e) => e.status === 'queued') ? T('On its way. It’ll be ready to watch soon.') : T('This season is in your library.')),

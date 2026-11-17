@@ -6,13 +6,12 @@ import fs from 'node:fs/promises';
 const app = await fs.readFile(new URL('../public/app.js', import.meta.url), 'utf8');
 const css = await fs.readFile(new URL('../public/style.css', import.meta.url), 'utf8');
 const between = (a, b) => app.slice(app.indexOf(a), app.indexOf(b, app.indexOf(a)));
-const details = between('function renderDetails(', '// "Already on the server"');
+const page = between('// ---------- the title page', '// ---------- end of the title page');
 const ui = between('// ---------- Download: you choose what', '// ---------- casting: device picker');
-const show = between('function renderShow() {', '// ---------- Downloads ----------');
 
 test('title sheets offer Play / Download, never a release list, quality rail or second search', () => {
-  assert.match(details, /filmActions\(t\)/);
-  assert.match(details, /showDownload\(t, \{ onAdded: \(\) => renderDetails\(t\) \}\)/);
+  assert.match(page, /filmActions\(t, \{ stateOf: c\.stateOf \}\)/);
+  assert.match(page, /showDownload\(t, \{ season: [\s\S]*?, onAdded: \(\) => updateOpenTitle\(\)/);
   assert.doesNotMatch(app, /seasonStrip|bestDownload|getSeason\(|Get only missing episodes|Find another release|api\/torrents\/recommend|api\/downloads\/season/);
   assert.equal((app.match(/openTorrents\(/g) || []).length, 2, 'only the Find torrents sheet itself and its button');
 });
@@ -33,7 +32,8 @@ test('a show someone else already has joins your library in one press, every sea
   assert.match(ui, /function serverOnlyEpisodes\(s, season = null\)/);
   assert.match(ui, /const ADD_BATCH = 400;/);
   assert.match(ui, /files\.slice\(i, i \+ ADD_BATCH\)/);
-  assert.match(app, /await addIds\(files\);\s+await loadLibrary\(\);/, 'the no-download-rights offer uses the same batches');
+  assert.match(page, /addFromServer\(serverOnlyEpisodes\(c\.stateOf\(\)\)\)/, 'without download rights, Add uses the same batches');
+  assert.match(app, /try \{ await addIds\(files\); \}/);
   assert.match(ui, /addingAll \? T\('Adding…'\)/);
 });
 
@@ -49,8 +49,7 @@ test('Library shows state and progress only; details carry speed and ETA', () =>
   assert.doesNotMatch(card, /transfer-stats|fmtEta|entry\.speed/);
   assert.doesNotMatch(css, /\.transfer-stats/);
   assert.match(css, /\.poster-progress\.is-transfer \{/); // a slim bar on the card; Downloads has the rest
-  assert.match(show, /showDownload\(\{ id: show\.tmdbId, title: show\.title, type: 'tv' \}, \{ season: open\?\.number \?\? null, onAdded: renderShow \}\)/);
-  assert.match(show, /episodeDownload\(tvId, open\.number, number\)/);
+  assert.match(page, /episodeDownload\(tvT, season, k\)/, 'a missing episode has a quiet Add');
 });
 
 test('Settings has one Downloads group: profile, size limit, audio language', () => {
@@ -73,13 +72,12 @@ test('the Audio choice is for anime, sends dub, and Dubbed counts only dual-audi
 test('an anime others have here offers Add dubbed beside the one-press add', () => {
   assert.match(app, /dubBtn\.hidden = !\(addsAll && dub\.anime && !addingAll\)/, 'only when one press would add copies, anime only');
   assert.match(app, /dubBtn\.addEventListener\('click', \(\) => \{\s+dub\.choose\('dub'\);\s+ps\.open = true;/, 'opens the panel set to Dubbed');
-  assert.match(app, /tv\.toggle, tv\.dubBtn\)/);
-  assert.match(app, /tv\?\.toggle, tv\?\.dubBtn, deleteShow\)/);
+  assert.match(page, /dubbed: \(c\) => \[icon\('plus'\), T\('Dubbed'\), \(\) => \(c\.fa \? c\.fa\.chooseDub\(\) : c\.tvd\?\.dubBtn\.click\(\)\)/, 'Dubbed waits in the page’s ⋯');
 });
 
 test('Upgrade quality sits with the season and in the player, not in the add panel', () => {
   assert.doesNotMatch(between('function showDownload(', '// Upgrade quality: the season is here'), /Upgrade quality|upgrade: true/);
-  assert.match(show, /seasonUpgrade\(tvId, open\.number\)/);
+  assert.match(page, /upgradeState\(tvT, n\)\.run\(\)/, 'Upgrade quality is in the season’s ⋯');
   const menu = between('function renderQualityMenu() {', '// Another version of what');
   assert.match(menu, /qualityBtn\.hidden = !stream && !vers && !upgrade/, 'the menu opens for the upgrade alone');
   assert.match(menu, /quality-upgrade/);
