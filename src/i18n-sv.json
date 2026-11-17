@@ -671,6 +671,7 @@
  "Your email": "Din e-post",
  "Choose a password (10+ characters)": "Välj ett lösenord (minst 10 tecken)",
  "Same password again": "Samma lösenord igen",
+ "Only you know this password. Lilin scrambles it before saving it, so nobody can see it, not even the people who run Lilin.": "Bara du vet det här lösenordet. Lilin gör om det till en oläslig kod innan det sparas, så ingen kan se det, inte ens de som driver Lilin.",
  "Save password": "Spara lösenordet",
  "Join Lilin": "Gå med i Lilin",
  "On a new phone or computer, open Lilin and sign in with this email and password.": "På en ny telefon eller dator öppnar du Lilin och loggar in med den här e-posten och lösenordet.",

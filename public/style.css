@@ -3584,6 +3584,16 @@ html.wrapped-on { overflow: hidden; }
 .password-gate-show:hover { color: var(--text); }
 .password-gate-card .password-gate-msg { min-height: 1.5em; color: var(--alert); text-align: center; font-size: 14px; }
 .password-gate-msg:empty { min-height: 0; }
+/* "only you know this password": a quiet lit note with a lock under the fields */
+.password-gate-card .safe-note {
+  display: flex; gap: 10px; align-items: flex-start; margin-top: var(--s1); padding: 11px 14px;
+  font-size: 13px; line-height: 1.45; color: var(--text-2); text-align: left;
+  background: color-mix(in srgb, var(--bulb) 6%, transparent); border: 1px solid color-mix(in srgb, var(--bulb) 22%, transparent); border-radius: var(--r-md);
+}
+.password-gate-card .safe-note::before {
+  content: ""; flex: none; width: 16px; height: 16px; margin-top: 1px; background: var(--bulb);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .password-gate-save { width: 100%; height: 52px; margin-top: var(--s1); font-size: 17px; }
 .password-gate-save:disabled { opacity: 0.6; cursor: wait; }
 

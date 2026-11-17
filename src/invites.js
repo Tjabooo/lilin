@@ -165,6 +165,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
       <input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}>
       <label for="again">Same password again</label>
       <input id="again" name="again" type="password" required minlength="10" autocomplete="new-password">
+      <p class="safe-note">Only you know this password. Lilin scrambles it before saving it, so nobody can see it, not even the people who run Lilin.</p>
       ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
       <button type="submit">${bound ? 'Save password' : 'Join Lilin'}</button>
     </form>

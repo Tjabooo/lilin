@@ -69,6 +69,16 @@ button:hover { filter: brightness(1.06); }
 button:active { transform: scale(.97); }
 button:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
 .foot { color: var(--dust); font-size: 13px; }
+/* "only you know this password" under the password fields: a quiet lit note with a lock */
+.card .safe-note {
+  display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 0; padding: 11px 14px;
+  font-size: 13px; line-height: 1.45; color: var(--dust); text-align: left;
+  background: rgb(244 193 82 / .06); border: 1px solid rgb(244 193 82 / .2); border-radius: 12px;
+}
+.card .safe-note::before {
+  content: ""; flex: none; width: 16px; height: 16px; margin-top: 1px; background: var(--bulb);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 .err { color: var(--alert); }
 .ok { color: var(--bulb); }
 /* a shared clip: the video big, framed like a screen in the dark */

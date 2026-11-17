@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-password-private",
+  "date": "2026-11-17",
+  "title": "Your password is yours alone",
+  "items": [
+    {
+      "title": "A note where you pick your password",
+      "text": "When you join Lilin or pick a password, a small note now says what was always true: your password is scrambled before it's saved, so nobody can see it, not even the people who run Lilin."
+    }
+  ]
+},
+{
   "id": "2026-11-17-revamp-2",
   "date": "2026-11-17",
   "title": "Lilin got tidied up",

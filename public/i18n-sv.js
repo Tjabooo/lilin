@@ -1941,6 +1941,7 @@ export default {
   "Pick a password for Lilin": "Välj ett lösenord för Lilin",
   "Lilin now signs you in with your own password instead of codes sent by email. Pick one to carry on.": "Lilin loggar nu in dig med ett eget lösenord i stället för koder via mejl. Välj ett för att fortsätta.",
   "Same password again": "Samma lösenord igen",
+  "Only you know this password. Lilin scrambles it before saving it, so nobody can see it, not even the people who run Lilin.": "Bara du vet det här lösenordet. Lilin gör om det till en oläslig kod innan det sparas, så ingen kan se det, inte ens de som driver Lilin.",
   "The two passwords aren’t the same.": "Lösenorden är inte likadana.",
   "Password link": "Lösenordslänk",
   "Password link copied: send it to them": "Lösenordslänken är kopierad: skicka den till personen",

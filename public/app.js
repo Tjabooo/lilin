@@ -8712,6 +8712,7 @@ function showPasswordGate() {
     user,
     h('div', { class: 'password-gate-field' }, h('label', { for: 'gate-password' }, T('New password (10+ characters)')), pass),
     h('div', { class: 'password-gate-field' }, h('label', { for: 'gate-again' }, T('Same password again')), again),
+    h('p', { class: 'safe-note' }, T('Only you know this password. Lilin scrambles it before saving it, so nobody can see it, not even the people who run Lilin.')),
     show, msg, save);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
