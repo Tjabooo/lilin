@@ -1352,10 +1352,10 @@ async function renderDiscover() {
     if (err.name !== 'AbortError') content.replaceChildren(notice(T('Couldn’t load Discover'), err.message, renderDiscover));
   }
 }
-// The top of Discover (and of Documentaries): search (phones), the billboard, Right now and the control row.
+// The top of Discover (and of Documentaries): search (phones), the billboard and the control row.
+// (The "Right now" strip is off: Oliver found it annoying. right-now.js stays for now; unused.)
 function homeTop(bb) {
-  loadRightNow();
-  return [searchHero(), bb, rightNow.mount(), discoverControls()].filter(Boolean);
+  return [searchHero(), bb, discoverControls()].filter(Boolean);
 }
 // Documentaries draws its own billboard: the same top goes with it.
 const docsBillboard = (items, o) => { const f = document.createDocumentFragment(); f.append(...homeTop(billboard(items, o))); return f; };
@@ -2868,7 +2868,6 @@ async function applyLive() {
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if ((has('parties') || has('avatars') || has('match')) && view === 'live') jobs.push(loadParties().then(() => { if (state.view === 'live') renderLive(); }));
-  if (has('parties')) jobs.push(loadRightNow(true)); // Right now: a party row
   if (has('me') || has('people') || has('avatars')) {
     jobs.push((async () => {
       try {

@@ -1,4 +1,13 @@
 {
+  "2026-11-17-no-right-now": {
+    "title": "Ett lugnare Upptäck",
+    "items": {
+      "Right now is gone": {
+        "title": "Just nu är borta",
+        "text": "Raden Just nu högst upp i Upptäck är borta, så Upptäck börjar med det du kan titta på. Din Wrapped finns kvar under Du."
+      }
+    }
+  },
   "2026-11-17-play-first": {
     "title": "Tryck bara på Spela upp",
     "items": {

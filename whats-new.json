@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-17-no-right-now",
+    "date": "2026-11-17",
+    "title": "A calmer Discover",
+    "items": [
+      {
+        "title": "Right now is gone",
+        "text": "The Right now strip at the top of Discover is gone, so Discover starts with what to watch. Your Wrapped is still in You."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-play-first",
     "date": "2026-11-17",
     "title": "Just press Play",
