@@ -18,17 +18,18 @@ test('changes map to topics; read-only checks and chunk uploads do not', () => {
   assert.deepEqual(live.topicFor('/api/downloads/abc/delete'), { topic: 'library', audience: 'all' });
   assert.equal(live.topicFor('/api/library/delete-many-info'), null);
   assert.deepEqual(live.topicFor('/api/me/progress'), { topic: 'progress', audience: 'user' });
-  assert.deepEqual(live.topicFor('/api/admin/notes/4/trash'), { topic: 'notes', audience: 'admin' });
+  assert.deepEqual(live.topicFor('/api/admin/notes/4/trash'), { topic: 'notes', audience: 'notes' });
   assert.equal(live.topicFor(`/api/admin/notes/uploads/${'a'.repeat(32)}`), null);
   assert.equal(live.topicFor('/api/watch'), null);
 });
 
 test('events reach the right pages, once per burst', async () => {
-  const mine = fakePage(), myOtherTab = fakePage(), someoneElse = fakePage(), admin = fakePage();
+  const mine = fakePage(), myOtherTab = fakePage(), someoneElse = fakePage(), admin = fakePage(), ownerWithoutNotes = fakePage();
   live.subscribe(mine.req, mine.res, { userId: 1, admin: false, tab: 'a' });
   live.subscribe(myOtherTab.req, myOtherTab.res, { userId: 1, admin: false, tab: 'b' });
   live.subscribe(someoneElse.req, someoneElse.res, { userId: 2, admin: false, tab: 'c' });
-  live.subscribe(admin.req, admin.res, { userId: 3, admin: true, tab: 'd' });
+  live.subscribe(admin.req, admin.res, { userId: 3, admin: true, notes: true, tab: 'd' });
+  live.subscribe(ownerWithoutNotes.req, ownerWithoutNotes.res, { userId: 4, admin: true, notes: false, tab: 'e' });
 
   live.afterRequest('/api/library/delete', 200, { userId: 1, tab: 'a' });
   live.afterRequest('/api/library/delete', 200, { userId: 1, tab: 'a' });
@@ -41,7 +42,8 @@ test('events reach the right pages, once per burst', async () => {
   assert.deepEqual(myOtherTab.topics().sort(), ['library', 'progress']);
   assert.deepEqual(someoneElse.topics(), ['library']);
   assert.deepEqual(admin.topics().sort(), ['library', 'notes']);
+  assert.deepEqual(ownerWithoutNotes.topics(), ['library']); // owners outside NOTES_EMAILS never hear about notes
 
-  for (const p of [mine, myOtherTab, someoneElse, admin]) p.close();
+  for (const p of [mine, myOtherTab, someoneElse, admin, ownerWithoutNotes]) p.close();
   assert.equal(live.connectedCount(), 0);
 });
