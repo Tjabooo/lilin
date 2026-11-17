@@ -51,7 +51,7 @@ function fixture(respond = async (body) => ({ title: body.title }), person = fal
     state: { clips: { clips: [clip] }, access: { names: {} }, me: { id: 3, name: 'Original' }, people: [{ id: 3, name: 'Original' }], activity: { people: [{ user: 'viewer@example.test', name: 'Original' }], events: [] } }, jsonPost: (body) => body, toast: (message) => messages.push(message),
     api: async (url, body) => { calls.push({ url, body }); return respond(body); },
   });
-  vm.runInContext(builder + titleEditor + source.slice(source.indexOf('function accessName('), source.indexOf('function activityInvite(')), context);
+  vm.runInContext(builder + titleEditor + source.slice(source.indexOf('function accessName('), source.indexOf('function accessActions(')), context);
   const wrap = person ? context.accessName('viewer@example.test', 'Original') : context.clipTitle(clip);
   const edit = async () => { await wrap.children[0].fire('click'); return { form: wrap.children[0], input: wrap.children[0].children[0] }; };
   return { wrap, edit, clip, calls, messages, document, Element, state: context.state };

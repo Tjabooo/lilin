@@ -34,7 +34,7 @@ const tonight = () => { const d = new Date(); d.setHours(20, 0, 0, 0); if (d.get
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWithToast, pushOverlay, closeTopOverlay, openTitle,
-  enterRoom, offerRoom, watchClient, canDownload = () => false }) {
+  enterRoom, offerRoom, watchClient, canDownload = () => false, invite }) {
   let root = null, body = null, head = null;
   let open = false;
   let mode = null;           // 'setup' | 'join' | 'swipe' | 'loading'
@@ -116,7 +116,8 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
             : p.mine ? T('Your pick') : T('{0}’s pick', p.host?.name || '')),
           h('span', { class: 'muted' }, p.invited ? T('Join and start swiping') : p.matches ? (p.matches === 1 ? T('1 match so far') : T('{0} matches so far', p.matches)) : T('Still swiping'))),
         h('span', { class: 'pick-going-go', 'aria-hidden': 'true' }, '›'))));
-    const invitees = data.canInvite ? (data.people || []) : [];
+    // Who to ask (the Invite sheet's Pick part, choosing before it starts): they get a notification once it's going.
+    const ask = invite.mount(h('div'), { kind: 'pick', title: false, chosen: setup.invite, people: data.people || [], canInvite: data.canInvite });
     const start = h('button', { type: 'button', class: 'play-btn pick-start', onclick: async () => {
       start.disabled = true; status.textContent = '';
       mode = 'loading';
@@ -144,20 +145,7 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
       h('div', { class: 'pick-switches' },
         switchRow(T('Skip what anyone here has seen'), setup.unseen, (v) => { setup.unseen = v; }),
         switchRow(T('Only what’s on the server'), setup.serverOnly, (v) => { setup.serverOnly = v; })),
-      data.canInvite && invitees.length ? section(T('Invite'),
-        h('ul', { class: 'room-invitee-grid pick-invitees' }, invitees.map((u) => {
-          const on = setup.invite.has(u.id);
-          return h('li', {}, h('button', { type: 'button', class: 'room-invitee', 'aria-pressed': String(on), 'data-state': on ? 'sent' : null,
-            'aria-label': T('Invite {0}', u.name), onclick: (e) => {
-              if (setup.invite.has(u.id)) setup.invite.delete(u.id); else setup.invite.add(u.id);
-              const now = setup.invite.has(u.id);
-              e.currentTarget.setAttribute('aria-pressed', String(now));
-              if (now) e.currentTarget.dataset.state = 'sent'; else delete e.currentTarget.dataset.state;
-              e.currentTarget.querySelector('.room-invitee-state').textContent = now ? T('Invited') : T('Invite');
-            } }, people.face(u, { size: 44 }), h('span', { class: 'room-invitee-name' }, u.name), h('span', { class: 'room-invitee-state' }, on ? T('Invited') : T('Invite'))));
-        })),
-        h('p', { class: 'muted pick-hint' }, T('They get a notification. You can also copy a link once it’s going.')))
-        : h('p', { class: 'muted pick-hint' }, data.canInvite ? T('Copy the link once it’s going and send it to whoever’s watching.') : T('Copy the link once it’s going and send it.')),
+      data.canInvite && data.people?.length ? section(T('Ask people to pick'), ask) : ask,
       h('div', { class: 'pick-start-row' }, start), status));
   }
 
@@ -318,9 +306,9 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
     matchesBtn = h('button', { type: 'button', class: `chip pick-matches${count ? ' has-some' : ''}`, onclick: openMatches, hidden: !count },
       svg('<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/>'), String(count));
     matchesBtn.setAttribute('aria-label', count === 1 ? T('1 match') : T('{0} matches', count));
-    const invite = h('button', { type: 'button', class: 'icon-btn pick-invite', 'aria-label': T('Invite people'), title: T('Invite people'), onclick: openInvite },
+    const ask = h('button', { type: 'button', class: 'icon-btn pick-invite', 'aria-label': T('Ask people to pick'), title: T('Ask people to pick'), onclick: openInvite },
       svg('<circle cx="9.5" cy="8.5" r="3.5"/><path d="M3.5 19.5a6 6 0 0 1 12 0M18.5 8v6M15.5 11h6"/>'));
-    header({ faces, actions: [matchesBtn, invite] });
+    header({ faces, actions: [matchesBtn, ask] });
     if (undoBtn) undoBtn.disabled = !undoStack.length;
   }
 
@@ -563,38 +551,17 @@ export function createMatch({ h, api, jsonPost, toast, icon, people, me, copyWit
   }
 
   // ---------- inviting, the link, leaving ----------
-  async function openInvite() {
+  // The Invite sheet's Pick part (invite.js) in a popup over the stack, with leaving the pick under it.
+  function openInvite() {
     if (!pick) return;
     root.querySelector('.pick-pop')?.remove();
-    const link = `${location.origin}/?pick=${pick.id}`;
-    const grid = h('ul', { class: 'room-invitee-grid pick-invitees' });
     const card = h('div', { class: 'pick-pop-card pick-pop-list' },
-      h('p', { class: 'pick-pop-kicker' }, T('Invite people')),
-      pick.canInvite ? grid : h('p', { class: 'muted' }, T('Send the link to whoever’s watching.')),
-      h('div', { class: 'pick-pop-actions' },
-        h('button', { type: 'button', class: 'play-btn', onclick: () => copyWithToast(link, T('Link copied')) }, icon('copy'), T('Copy link'))),
-      h('p', { class: 'muted pick-hint' }, filterLine(pick)),
+      invite.mount(h('div'), { kind: 'pick', id: pick.id, canInvite: pick.canInvite, hint: filterLine(pick) }),
       h('button', { type: 'button', class: 'pick-leave', onclick: leave }, T('Leave this pick')),
       h('button', { type: 'button', class: 'pick-keep', onclick: closePop }, T('Keep swiping')));
-    const pop = h('div', { class: 'pick-pop', role: 'dialog', 'aria-label': T('Invite people'), 'aria-modal': 'true' }, card);
+    const pop = h('div', { class: 'pick-pop', role: 'dialog', 'aria-label': T('Ask people to pick'), 'aria-modal': 'true' }, card);
     root.querySelector('.pick-panel').append(pop);
     requestAnimationFrame(() => pop.classList.add('open'));
-    if (!pick.canInvite) return;
-    grid.replaceChildren(h('li', { class: 'muted' }, T('Loading…')));
-    try {
-      const { people: list } = await api(`/api/match/${pick.id}/invitees`);
-      if (!list.length) { grid.replaceChildren(h('li', { class: 'muted pick-hint' }, T('Nobody else can get a notification right now. Copy the link instead.'))); return; }
-      grid.replaceChildren(...list.map((u) => {
-        const state = h('span', { class: 'room-invitee-state' }, T('Invite'));
-        const tile = h('button', { type: 'button', class: 'room-invitee', 'aria-label': T('Invite {0}', u.name), onclick: async () => {
-          if (tile.dataset.state === 'sent' || tile.dataset.state === 'sending') return;
-          tile.dataset.state = 'sending'; state.textContent = T('Sending…');
-          try { await api(`/api/match/${pick.id}/invite`, jsonPost({ userIds: [u.id] })); tile.dataset.state = 'sent'; state.textContent = T('Invited'); }
-          catch (err) { tile.dataset.state = 'failed'; state.textContent = T('Try again'); toast(err.message); }
-        } }, people.face(u, { size: 44 }), h('span', { class: 'room-invitee-name' }, u.name), state);
-        return h('li', {}, tile);
-      }));
-    } catch (err) { grid.replaceChildren(h('li', { class: 'muted' }, err.message)); }
   }
 
   async function leave() {

@@ -40,7 +40,7 @@ export function clampRange(start, end, edge, duration) {
   return { start: Math.round(start * 10) / 10, end: Math.round(end * 10) / 10 };
 }
 
-export function createMoments({ h, api, jsonPost, toast, icon, people, me, friendsUI, copyWithToast, fmtAgo, video, playerEl,
+export function createMoments({ h, api, jsonPost, toast, icon, people, me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl,
   current, describe, subCues, inRoom, closeOthers, openMoment, rerender }) {
   const moreBtn = document.getElementById('more-btn');
   const moreMenu = document.getElementById('more-menu');
@@ -114,7 +114,7 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
 
   let strip, range, startH, endH, playhead, fromLabel, toLabel, summary;
   function pick() {
-    clip.step = 'pick';
+    clip.step = 'pick'; clip.link = null; // a new range makes a new link
     strip = h('div', { class: 'moment-strip' });
     range = h('div', { class: 'moment-range' });
     playhead = h('div', { class: 'moment-playhead', 'aria-hidden': 'true' });
@@ -230,48 +230,45 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
     const note = h('textarea', { class: 'moment-note', rows: '2', maxlength: '200', placeholder: T('Add a note (optional)'), 'aria-label': T('Note') });
     note.value = clip.note;
     note.addEventListener('input', () => { clip.note = note.value; });
-    const sendBtn = h('button', { type: 'button', class: 'chip moment-next', disabled: !clip.to.size, onclick: () => submit(true) },
-      icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send'));
-    const linkBtn = h('button', { type: 'button', class: 'chip', onclick: () => submit(false) }, icon('copy'), T('Copy link'));
-    const pickFace = (p) => {
-      const b = h('button', { type: 'button', class: 'room-invitee moment-friend', 'aria-pressed': String(clip.to.has(p.id)) },
-        people.face(p, { size: 40 }), h('span', { class: 'room-invitee-name' }, p.name));
-      b.addEventListener('click', () => {
-        if (clip.to.has(p.id)) clip.to.delete(p.id); else clip.to.add(p.id);
-        b.setAttribute('aria-pressed', String(clip.to.has(p.id)));
-        sendBtn.disabled = !clip.to.size;
-        sendBtn.replaceChildren(icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send'));
-      });
-      return h('li', {}, b);
-    };
+    const sendLabel = () => [icon('send'), clip.to.size > 1 ? T('Send to {0}', clip.to.size) : T('Send')];
+    const sendBtn = h('button', { type: 'button', class: 'chip moment-next', disabled: !clip.to.size, onclick: send }, ...sendLabel());
+    // The Invite sheet's Moment part (invite.js): friends to choose, Copy link / Share… (the link is made then), Send.
+    const ask = invite.mount(h('div', { class: 'moment-ask' }), { kind: 'moment', title: false, friends, chosen: clip.to, link, done: stop,
+      actions: friends.length ? [sendBtn] : [], onChange: () => { sendBtn.disabled = !clip.to.size; sendBtn.replaceChildren(...sendLabel()); } });
     clip.panel.replaceChildren(
       h('div', { class: 'moment-head' },
         h('button', { type: 'button', class: 'moment-close', 'aria-label': T('Back'), onclick: pick }, icon('back')),
-        h('h2', { class: 'moment-title' }, T('Share this moment')),
+        h('h2', { class: 'moment-title' }, T('Send this moment')),
         h('button', { type: 'button', class: 'moment-close', 'aria-label': T('Cancel'), onclick: stop }, icon('close'))),
       h('p', { class: 'moment-summary' }, [d.title, d.label].filter(Boolean).join(' · '), ` · ${fmt(clip.start)} – ${fmt(clip.end)} (${lengthText(clip.end - clip.start)})`),
       note,
       cues.length > 0 && h('label', { class: 'moment-subs' },
         h('input', { type: 'checkbox', checked: clip.subs, onchange: (e) => { clip.subs = e.target.checked; } }), T('Include the subtitles')),
-      restricted ? h('p', { class: 'moment-hint' }, T('Copy the link and send it to whoever you like.'))
-        : friends.length ? h('ul', { class: 'room-invitee-grid moment-friends', 'aria-label': T('Send to') }, friends.map(pickFace))
-          : h('p', { class: 'moment-hint' }, T('Add friends in Settings to send moments straight to them. Or copy the link.')),
-      h('div', { class: 'moment-actions' }, h('span', { class: 'moment-spacer' }), linkBtn, !restricted && friends.length > 0 && sendBtn));
+      ask);
     requestAnimationFrame(() => note.focus({ preventScroll: true }));
-    async function submit(toFriends) {
-      if (clip.busy) return;
-      clip.busy = true; sendBtn.disabled = linkBtn.disabled = true;
+    const create = async (to) => {
       const f = clip.f;
+      const r = await api('/api/moments', jsonPost({ kind: f.kind, id: f.id, start: clip.start, end: clip.end, note: clip.note,
+        title: d.title, label: d.label, subtitles: clip.subs ? cues : null, to }));
+      invalidate();
+      return r;
+    };
+    // Copy link / Share…: the moment is made then, once (the panel closes after).
+    async function link() {
+      if (clip.busy) return null;
+      clip.busy = true;
+      try { clip.link ||= (await create([])).link; return clip.link; } finally { if (clip) clip.busy = false; }
+    }
+    async function send() {
+      if (clip.busy) return;
+      clip.busy = true; sendBtn.disabled = true;
       try {
-        const r = await api('/api/moments', jsonPost({ kind: f.kind, id: f.id, start: clip.start, end: clip.end, note: clip.note,
-          title: d.title, label: d.label, subtitles: clip.subs ? cues : null, to: toFriends ? [...clip.to] : [] }));
-        invalidate();
-        if (toFriends) toast(r.sent ? T('Sent. They’ll get it as soon as it’s ready.') : T('Saved, but it couldn’t be sent.'));
-        else await copyWithToast(r.link, T('Link copied. It works for anyone, and plays once it’s ready.'));
+        const r = await create([...clip.to]);
+        toast(r.sent ? T('Sent. They’ll get it as soon as it’s ready.') : T('Saved, but it couldn’t be sent.'));
         stop();
       } catch (err) {
         toast(err.message);
-        if (clip) { clip.busy = false; sendBtn.disabled = !clip.to.size; linkBtn.disabled = false; }
+        if (clip) { clip.busy = false; sendBtn.disabled = !clip.to.size; }
       }
     }
   }

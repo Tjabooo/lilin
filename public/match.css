@@ -95,7 +95,6 @@ body.pick-open { overflow: hidden; }
   font-size: 15px; border-bottom: 1px solid var(--hairline); cursor: pointer;
 }
 .pick-switch:first-child { border-top: 1px solid var(--hairline); }
-.pick-invitees { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
 .pick-start-row { margin-top: 24px; }
 .pick-start { width: 100%; }
 .pick-going-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }

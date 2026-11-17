@@ -89,10 +89,7 @@
 .moment-note:focus { outline: 2px solid var(--bulb); border-color: transparent; }
 .moment-subs { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; }
 .moment-subs input { width: 18px; height: 18px; accent-color: var(--bulb); }
-.moment-friends { max-height: 30dvh; overflow-y: auto; }
-.moment-friend { color: var(--paper); }
-.moment-friend[aria-pressed="true"] { border-color: var(--bulb); background: color-mix(in srgb, var(--bulb) 18%, transparent); }
-.moment-friend[aria-pressed="true"] .room-invitee-name { color: var(--bulb); }
+.moment-ask .invite-people { max-height: 30dvh; overflow-y: auto; }
 @media (max-width: 560px) {
   .moment-head .moment-summary { order: 3; flex-basis: 100%; text-align: left; }
   .moment-actions .moment-spacer { display: none; }
