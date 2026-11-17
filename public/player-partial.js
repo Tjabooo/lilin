@@ -100,7 +100,7 @@ const sleep = (ms, signal) => new Promise((resolve) => {
 
 // ctx: video, playerEl, seekEl, api, $, isCurrent(session), setSource(url, session, onMetadata),
 // setHlsSource(hls, url, session, onMetadata), onMetadata(session), setSpinner(on), showNote(text), hideNote(),
-// showError(text), fullItem(libraryId), switchToFull(item), leave(), toast(text)
+// showError(text), fullItem(libraryId), switchToFull(item), leave(), toast(text), starting(status, ready) (optional)
 // In Watch Together: room() = the WatchSession (or null); the room starts playback, not this.
 // The room then decides when everyone plays and waits (the server holds it for the download), so the hold and
 // the buffering popup here stay out of it, and only the host is offered full quality: it switches the whole room.
@@ -151,7 +151,7 @@ export async function playPartial(session, ctx) {
     primary.textContent = T('Keep waiting');
     secondary.textContent = T('Watch it later');
     primary.onclick = () => { notice.dismiss(); hidePopup(); };
-    secondary.onclick = () => { hidePopup(); ctx.leave(); ctx.toast(T('Still downloading. It will be ready to watch in your library.')); };
+    secondary.onclick = () => { hidePopup(); ctx.leave(); ctx.toast(T('It keeps getting ready. Press Play again any time.')); };
     popup.hidden = false;
     playerEl.classList.add('has-part-popup');
   };
@@ -263,7 +263,7 @@ export async function playPartial(session, ctx) {
     if (!ctx.isCurrent(session) || session.hlsPlayer || !sourceUrl) return;
     if (++nativeRetries > NATIVE_RETRIES) {
       ctx.setSpinner(false);
-      ctx.showError(T('This video can’t keep playing right now. Wait for the download to finish and play it from your library.'));
+      ctx.showError(T('This video can’t keep playing right now. Press Play again in a few minutes.'));
       return;
     }
     nativeLastTime = video.currentTime || nativeLastTime;
@@ -282,6 +282,7 @@ export async function playPartial(session, ctx) {
       opened = await api(party ? `${party.base}/play-link?clientId=${encodeURIComponent(party.clientId)}` : `/api/part/open?${query}`, { signal });
       if (!ctx.isCurrent(session)) return;
       paintStatus(opened.status);
+      ctx.starting?.(opened.status, opened.ready); // Getting it ready (getting-ready.js) words it while it's up
       if (opened.ready) break;
       ctx.showNote(`${T('Getting the start of the video from the download…')} ${startLine(opened.status)}`);
       await sleep(OPEN_MS, signal);
@@ -313,7 +314,7 @@ export async function playPartial(session, ctx) {
       else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
       else {
         ctx.setSpinner(false);
-        ctx.showError(T('This video can’t keep playing right now. Wait for the download to finish and play it from your library.'));
+        ctx.showError(T('This video can’t keep playing right now. Press Play again in a few minutes.'));
       }
     });
     ctx.setHlsSource(hls, opened.url, session, onMetadata);
@@ -322,9 +323,9 @@ export async function playPartial(session, ctx) {
     ctx.setSource(opened.url, session, onMetadata);
   } else {
     ctx.setSpinner(false);
-    ctx.showError(T('This browser can’t play a video that’s still downloading. Wait for the download to finish and play it from your library.'));
+    ctx.showError(T('This browser can’t play a video that’s still on its way. Try again in a while, or in another browser.'));
     return;
   }
-  ctx.toast(T('Playing while it downloads, at up to 1080p.'));
+  ctx.toast(T('Playing at up to 1080p while the rest arrives.'));
   if (!room()) video.play().catch(() => { /* autoplay blocked: the controls are there */ });
 }
