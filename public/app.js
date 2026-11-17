@@ -33,6 +33,8 @@ import { createComingSoon as createComingSoonView } from './coming-soon.js'; // 
 import { createScout, scoutWaiting } from './scout.js'; // scout: the idea scout's cards in the owner's inbox
 import { createTitleDetails } from './details.js'; // details: More details at the bottom of title pages
 import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme music on show pages
+import { ROUTES, allowedRoute, tabsFor, pagesOf, resolve, linkRoute, startRoute } from './routes.js'; // the shell: tabs, addresses, Back
+import { createSearch } from './search.js'; // search: titles + Go to (places.js)
 
 translatePage();
 saveLanguage(lang);
@@ -73,6 +75,7 @@ const ICONS = {
   tv: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/></svg>',
   back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
+  filter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16l-6.2 7.3V19l-3.6 1.6v-7.8z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M10 4h4M6.5 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v6M14 11v6"/></svg>',
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg>',
   bookmark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg>',
@@ -198,10 +201,9 @@ const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 // ---------- state ----------
 const state = {
-  view: 'discover',
+  view: 'discover', route: 'discover', sub: null, // routes.js: the view on screen, its address and the page inside it
   sessions: [],
   convert: null,
-  query: '',
   status: { search: false, library: false, downloads: false, torrents: false, subtitles: false },
   library: [],
   libraryShows: [], // episodes grouped into shows (server side, TMDB posters per season)
@@ -215,7 +217,9 @@ const state = {
   progress: {},     // where this person stopped watching, from any device
   libFilter: 'all',
   libAvailability: 'all',
-};
+};// Page filters (Library, Activity, House → Machines, Game clips, Notes): what's typed in each page's own field.
+const pageFilters = { library: '', activity: '', house: '', clips: '', notes: '' };
+
 const canDownload = () => state.status.downloads && state.me?.canDownload !== false;
 const prefs = () => state.me?.settings || {};
 
@@ -512,7 +516,7 @@ async function loadWatchlist() {
 function refreshWatchViews() {
   document.querySelectorAll('.watch-box').forEach((box) => box._update?.());
   if (state.view === 'library') renderLibrary();
-  if (state.view === 'discover' && !state.query.trim() && !disc.list && !disc.genre) refreshSavedShelf();
+  if (state.view === 'discover' && !disc.list && !disc.genre) refreshSavedShelf();
   document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: Save / Follow on its cards
 }
 async function setWatch(t, flags) {
@@ -578,7 +582,7 @@ function refreshSavedShelf() {
 function comingUpShelf() {
   const list = comingUp(watch.items, todayIso())
     .filter((c) => state.libFilter === 'all' || state.libFilter === c.item.type)
-    .filter((c) => !state.query.trim() || norm(c.item.title).includes(norm(state.query))).slice(0, 20);
+    .filter((c) => !pageFilters.library.trim() || norm(c.item.title).includes(norm(pageFilters.library))).slice(0, 20);
   if (!list.length) return null;
   return libraryShelf(T('Coming up'), list.map((c) => h('li', { class: 'library-card continue-card coming-card' },
     h('button', { type: 'button', class: 'title-card', onclick: (e) => openDetails(c.item, e.currentTarget) },
@@ -816,7 +820,6 @@ function openTravelList(opener) {
 
 // ---------- Discover ----------
 let searchCtrl;
-let searchTimer;
 const disc = { type: 'all', genre: null, sort: 'popular', list: null, genres: null, cache: new Map() };
 const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['docs', T('Documentaries')]];
 const SORT_LABELS = [['popular', T('Popular')], ['rating', T('Top rated')], ['newest', T('Newest')]];
@@ -1248,9 +1251,8 @@ async function renderDiscover() {
   const body = $('#discover-body');
   if (state.view === 'discover') { $('#browse-btn').hidden = false; updateBrowseButton(); }
   const heading = $('#discover-heading');
-  const q = state.query.trim();
-  heading.textContent = q ? T('Results for “{0}”', q) : T('Discover');
-  heading.classList.toggle('sr-only', !q);
+  heading.textContent = T('Discover');
+  heading.classList.add('sr-only');
 
   if (!state.status.search) {
     body.replaceChildren(notice(T('Discover isn’t set up yet'),
@@ -1261,22 +1263,6 @@ async function renderDiscover() {
   searchCtrl?.abort();
   searchCtrl = new AbortController();
   const { signal } = searchCtrl;
-
-  if (q) {
-    body.replaceChildren(skeletonGrid());
-    try {
-      const data = await api(`/api/search?q=${encodeURIComponent(q)}`, { signal });
-      const svtHits = data.svt || [];
-      body.replaceChildren(...[
-        svtHits.length > 0 && carousel(T('Free on SVT Play'), h('ul', { class: 'shelf-items wide-cards', tabindex: '0', 'aria-label': T('Free on SVT Play') }, svtHits.map(titleCard))),
-        data.results.length ? titleGrid(data.results)
-          : !svtHits.length && emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')),
-      ].filter(Boolean));
-    } catch (err) {
-      if (err.name !== 'AbortError') body.replaceChildren(notice(T('Search didn’t work'), err.message, renderDiscover));
-    }
-    return;
-  }
 
   if (!disc.genres) {
     try { disc.genres = (await cachedApi('/api/discover/genres', signal)).genres; } catch { disc.genres = []; }
@@ -1492,6 +1478,7 @@ const libraryMates = () => (state.me?.sharedWith || []).map((m) => m.name);
 
 function renderLibrary() {
   libraryRenderPending = false;
+  filterField('library', T('Filter your library'), renderLibrary);
   const body = $('#library-body');
   if (!libraryUI || !body.contains(libraryUI.root)) {
     const filters = segmented(LIB_FILTERS, state.libFilter, v => { state.libFilter = v; renderLibrary(); }, T('Show'));
@@ -1512,7 +1499,7 @@ function renderLibrary() {
   ui.availability.value = state.libAvailability;
   ui.filters.querySelectorAll('button').forEach((button, i) => { button.setAttribute('data-library-focus', `filter-${LIB_FILTERS[i][0]}`); button.setAttribute('aria-pressed', String(state.libFilter === LIB_FILTERS[i][0])); button.classList.toggle('active', state.libFilter === LIB_FILTERS[i][0]); });
   const all = unifiedLibrary();
-  const entries = filterLibrary(all, { type: state.libFilter, availability: state.libAvailability, query: state.query, sort: prefs().librarySort });
+  const entries = filterLibrary(all, { type: state.libFilter, availability: state.libAvailability, query: pageFilters.library, sort: prefs().librarySort });
   const active = all.flatMap(e => e.active).length, attention = all.filter(e => e.attention).length;
   ui.summary.hidden = !active;
   const mates = libraryMates();
@@ -1561,13 +1548,13 @@ function renderLibrary() {
   }
   for (const group of ui.groups.values()) group.section.hidden = !group.list.children.length;
   // Filtered down to nothing: say which filter did it, and offer the way back to everything.
-  const filteredText = () => state.query.trim() ? T('Nothing in your library matches “{0}”.', state.query.trim())
+  const filteredText = () => pageFilters.library.trim() ? T('Nothing in your library matches “{0}”.', pageFilters.library.trim())
     : ({ attention: T('Nothing needs attention right now.'), downloading: T('Nothing is on its way right now.'), ready: T('Nothing is ready to watch yet.') })[state.libAvailability]
     || T('No titles match these filters.');
   const emptyText = entries.length || [...libraryCards.values()].some(c => c.contains(document.activeElement)) ? '' : all.length ? filteredText() : T('Nothing here yet. Find something in Discover and press Add to start watching.');
   const showAll = () => {
     state.libFilter = 'all'; state.libAvailability = 'all';
-    if (state.query) { input.value = ''; input.dispatchEvent(new Event('input')); }
+    clearFilter('library');
     renderLibrary();
   };
   if (ui.empty.dataset.text !== emptyText) {
@@ -1576,11 +1563,11 @@ function renderLibrary() {
       : emptyState(T('Your library is empty'), emptyText, { label: T('Find something to watch'), icon: 'search', run: () => setView('discover') }));
   }
   // Shelves use ready files only; transfers never create fake playback progress.
-  const shelfKey = JSON.stringify([librarySignature, state.libFilter, state.query, libraryProgressRevision, watch.revision, todayIso()]);
+  const shelfKey = JSON.stringify([librarySignature, state.libFilter, pageFilters.library, libraryProgressRevision, watch.revision, todayIso()]);
   // Also rebuilt when this page changed the list itself (a delete), before the server's copy catches up.
   if (ui.shelfKey !== shelfKey || ui.shelfLibrary !== state.library || ui.shelfProgress !== state.progress) {
     ui.shelfKey = shelfKey; ui.shelfLibrary = state.library; ui.shelfProgress = state.progress;
-    const q = norm(state.query), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
+    const q = norm(pageFilters.library), ready = state.library.filter(f => (!q || norm(`${f.title} ${f.filmTitle || ''} ${f.file}`).includes(q)) && (state.libFilter === 'all' || (state.libFilter === 'tv') === (f.season != null)));
     const watching = continueItems(ready);
     const leaving = libraryEntries(ready.filter(f => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000));
     ui.shelves.replaceChildren(...[watching.length && continueShelf(watching.map(({f, progress}) => continueCard(f, progress))), comingUpShelf(), leaving.length && libraryShelf(T('Leaving soon'), leaving.map(e => libraryCard(e, true)))].filter(Boolean));
@@ -2404,13 +2391,13 @@ function schedulePoll() {
   const clipsBusy = state.view === 'clips' && state.clips?.clips?.some((c) => (c.share && !c.share.ready && !c.share.error) || c.editing);
   const powerBusy = state.view === 'house' && state.house?.power?.some((pw) => pw.pending);
   const downloading = state.downloads.some((d) => d.mine !== false && !d.done);
-  const delay = state.view === 'downloads' ? 2000 : state.view === 'notes' ? 5000 : state.view === 'library' || downloading || current || clipsBusy || powerBusy ? 3000 : ['activity', 'house'].includes(state.view) ? 10000 : 15000;
+  const delay = state.view === 'library' && state.sub === 'downloads' ? 2000 : state.view === 'notes' ? 5000 : state.view === 'library' || downloading || current || clipsBusy || powerBusy ? 3000 : ['activity', 'house'].includes(state.view) ? 10000 : 15000;
   pollTimer = setTimeout(async () => {
     try {
       if (!document.hidden) {
         await Promise.all([refreshMediaLibrary(), loadSessions(), state.view === 'library' ? loadConvert() : null]);
         if (state.view === 'activity' && !$('#activity-body .person-name .clip-rename-form')) { await loadActivity(); if (state.view === 'activity') renderActivity(); }
-        if (state.view === 'house') { await loadHouse(); if (state.view === 'house') renderHouse(); }
+        if (houseLive()) { await loadHouse(); if (houseLive()) renderHouse(); }
         if (state.view === 'notes') await notesView.poll();
         if (state.view === 'clips' && clipsBusy && !$('#clips-body .clip-rename-form')) { await loadClips(); if (state.view === 'clips') renderClips(); }
         if (state.view === 'library') renderConvertBanner();
@@ -2476,11 +2463,11 @@ async function applyLive() {
   if (has('sessions')) jobs.push(loadSessions());
   if (has('watchlist')) jobs.push(loadWatchlist());
   if (has('travel')) jobs.push(loadTravel());
-  if (has('push')) { pushView.loaded = false; if (view === 'settings' && !editingIn('#settings-body')) jobs.push(loadPush().then(renderSettings)); }
+  if (has('push')) { pushView.loaded = false; if (settingsOpen() && !editingSettings()) jobs.push(loadPush().then(renderSettings)); }
   if (has('match')) pickUi.onLive(); // pick: Pick together
-  if (has('moments')) { momentsUI.invalidate(); if (view === 'settings') jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
-  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(view === 'settings' ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
-  if (has('ideas')) { ideasView.loaded = false; if (view === 'settings') jobs.push(loadIdeas().then(() => { if (!editingIn('#settings-body')) renderSettingsWhenStill(); })); }
+  if (has('moments')) { momentsUI.invalidate(); if (settingsOpen()) jobs.push(momentsUI.load().then(renderSettingsWhenStill)); } // friends: Moments
+  if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(settingsOpen() ? renderSettingsWhenStill : maybeAskFriends)); } // friends (+ the request popup)
+  if (has('ideas')) { ideasView.loaded = false; if (settingsOpen()) jobs.push(loadIdeas().then(() => { if (!editingSettings()) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if (has('avatars') && view === 'library') jobs.push(loadParties());
@@ -2491,20 +2478,25 @@ async function applyLive() {
         state.status = await api('/api/status');
         state.me = state.status.me; state.rules = state.status.rules;
         applyTheme(prefs().theme);
-        if (state.me?.canSeeActivity) { enableActivityTab(); updateTabOverflow(); } // the owner just let them see it
+        renderTabs(); // e.g. the owner just let them see Activity
       } catch { return; }
       maybeShowWhatsNew(); // e.g. the server came back from an update
-      if (state.view === 'settings' && state.me?.isOwner) await loadPeople();
-      if (state.view === 'settings') renderSettingsWhenStill();
+      if (state.view === 'house' && state.sub === 'people') await loadPeople();
+      if (settingsOpen()) renderSettingsWhenStill();
     })());
   }
   if (has('notes') && view === 'notes') jobs.push(notesView.poll());
   if (has('clips') && view === 'clips' && !$('#clips-body .clip-rename-form')) jobs.push(loadClips().then(() => { if (state.view === 'clips') renderClips(); }));
-  if (has('house') && view === 'house') jobs.push(loadHouse().then(() => { if (state.view === 'house') renderHouse(); }));
+  if (has('house') && houseLive()) jobs.push(loadHouse().then(() => { if (state.view === 'house') renderHouse(); }));
   // Every change shows up in the Activity log.
   if (topics.size && view === 'activity' && !$('#activity-body .person-name .clip-rename-form')) jobs.push(loadActivity().then(() => { if (state.view === 'activity') renderActivity(); }));
   await Promise.allSettled(jobs);
 }
+
+// Back closes the top overlay (below) or, with none open, moves between pages (the shell, near the end). This runs
+// first, so the shell can tell which.
+let popHadOverlay = false;
+window.addEventListener('popstate', () => { popHadOverlay = overlayStack.length > 0; });
 
 // ---------- overlays ----------
 // Each overlay pushes a history entry so the browser/phone back gesture closes it.
@@ -3544,14 +3536,14 @@ const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'applic
 const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: Settings → Friends (friends.js)
-const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), rerender: () => { if (settingsOpen()) renderSettingsWhenStill(); } });
 // friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
 // while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
-// stays away from Settings, where the requests are already on screen.
+// stays away from the You tab, where the requests are already on screen.
 const friendAsks = { open: false, retry: null };
 function maybeAskFriends() {
   clearTimeout(friendAsks.retry);
-  if (friendAsks.open || state.view === 'settings' || !friendsUI.waitingAsks().length) return;
+  if (friendAsks.open || state.view === 'you' || !friendsUI.waitingAsks().length) return;
   if (overlayStack.length || !$('#player').hidden || document.hidden) { friendAsks.retry = setTimeout(maybeAskFriends, 4000); return; }
   const opener = document.activeElement;
   const sheet = friendsUI.askSheet({ close: () => closeTopOverlay() });
@@ -3596,7 +3588,7 @@ const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () 
     },
     close: () => closeTopOverlay(),
   },
-  friendsChanged: () => { friendsUI.invalidate(); if (state.view === 'settings') renderSettingsWhenStill(); },
+  friendsChanged: () => { friendsUI.invalidate(); if (settingsOpen()) renderSettingsWhenStill(); },
   // your name and picture live on your profile (Settings no longer edits them)
   changePicture: ({ opener, over, done }) => editPicture({ person: state.me, opener, over, done }),
   removePicture: () => removePicture({ person: state.me }),
@@ -3611,17 +3603,18 @@ async function openTitleFromProfile(card, opener, nested) {
   } catch { return; }
   openDetails(card, $('#sheet').classList.contains('open') ? $('#sheet-body') : null);
 }
-// The header's face: your own profile.
+// Your face on the You tab, and on wide screens at the far right of the header (both open You). The home network's
+// shared account has no face of its own: it keeps the person glyph.
 function renderMeButton() {
-  const btn = $('#me-btn');
   const m = state.me;
-  btn.hidden = !m?.email;
-  if (!m?.email) return;
-  btn.replaceChildren(people.face(m, { size: 32 }));
-  btn.setAttribute('aria-label', T('Your profile'));
-  btn.title = T('Your profile');
+  const glyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>';
+  const tabFace = $('.tab[data-view="you"] .tab-face');
+  if (m?.email) tabFace.replaceChildren(people.face(m, { size: 24 })); else tabFace.innerHTML = glyph;
+  const btn = $('#me-btn');
+  const dot = btn.querySelector('.tab-dot');
+  if (m?.email) btn.replaceChildren(people.face(m, { size: 32 }), dot); else { btn.innerHTML = glyph; btn.append(dot); }
+  btn.title = T('You');
 }
-$('#me-btn').addEventListener('click', (e) => profiles.openMine(e.currentTarget));
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
 // theme: a show's theme song, softly, while its page is open (theme-music.js)
@@ -4693,10 +4686,6 @@ liveView.onChanged(() => { if (state.view === 'live') liveView.load(true).then(r
 const liveChat = createLiveChat({ h, api, jsonPost, toast, people, social, reactions: REACTIONS, me: () => state.me, client: watchClient,
   player: $('#player'), floats: $('#chat-layer'), bursts: $('#reaction-layer'), channelName: (ch) => channelName(ch, state.me),
   say: (text) => party.say(text), react: (emoji) => party?.react(emoji), layout: () => requestAnimationFrame(layoutSubs) });
-function enableLiveTab() {
-  addAdminTab('live', T('Live'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>');
-  $('.tabs').insertBefore($('.tab[data-view="live"]'), $('.tab[data-view="library"]'));
-}
 function renderLive() { const body = $('#live-body'); if (body) liveView.render(body); }
 
 const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, live: room.live,
@@ -6525,7 +6514,7 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
   },
   closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
-  rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+  rerender: () => { if (settingsOpen()) renderSettingsWhenStill(); } });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
 const muteBtn = $('#pc-mute');
 const volInput = $('#pc-vol');
@@ -7605,22 +7594,21 @@ window.addEventListener('pageshow', (event) => {
 
 // ---------- search box + tabs ----------
 const input = $('#q');
-const PLACEHOLDERS = { live: T('Search films and shows'), discover: T('Search films and shows'), library: T('Filter your library'), downloads: T('Filter downloads'), activity: T('Filter by person or title'), house: T('Filter machines'), clips: T('Filter by game or name'), settings: T('Search films and shows'), notes: T('Search notes by keyword') };
-const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, query: () => state.query,
+const notesView = createNotesView({ h, icon, api, jsonPost, toast, copyText, query: () => pageFilters.notes,
   playVideo: (a) => openPlayer({ kind: 'note', id: a.fileId, key: `note:${a.fileId}`, title: a.name }),
   overlay: { push: pushOverlay, close: closeTopOverlay },
-  clearQuery: () => { input.value = state.query = ''; $('#q-clear').hidden = true; } });
+  clearQuery: () => clearFilter('notes') });
 
 function renderView() {
   if (state.view === 'discover') renderDiscover();
   if (state.view === 'live') renderLive();
   if (state.view === 'library') renderLibrary();
-  if (state.view === 'downloads') renderDownloads();
   if (state.view === 'activity') renderActivity();
   if (state.view === 'house') renderHouse();
   if (state.view === 'clips') renderClips();
-  if (state.view === 'settings') renderSettings();
-  if (state.view === 'notes') notesView.render();
+  if (state.view === 'you') renderSettings();
+  if (state.view === 'notes') { filterField('notes', T('Search notes by keyword'), () => notesView.load()); notesView.render(); }
+  renderBackLink();
 }
 
 // ---------- settings ----------
@@ -7645,7 +7633,7 @@ function editPicture({ person, opener, over = false, done = null }) {
     for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.toggle('over-pf', Boolean(over));
     pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), async () => {
       if (!mine && state.me?.isOwner) await loadPeople();
-      if (state.view === 'settings') renderSettings();
+      if (settingsOpen()) renderSettings();
       done?.();
       if (over) setTimeout(() => { for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.remove('over-pf'); }, 320);
       opener?.isConnected && opener.focus({ preventScroll: true });
@@ -7659,7 +7647,7 @@ async function removePicture({ person }) {
     else { await people.saveFor(person.id, null); await loadPeople(); }
     toast(T('Picture removed'));
     if (mine) renderMeButton();
-    if (state.view === 'settings') renderSettings();
+    if (settingsOpen()) renderSettings();
   } catch (err) { toast(err.message); }
 }
 
@@ -7919,70 +7907,113 @@ const MAX_SIZE_OPTIONS = [[0, T('No limit')], [1, T('1 GB')], [2, T('2 GB')], [4
 const AUDIO_LANGUAGES = [['', T('Original language')], ['en', T('English')], ['sv', T('Swedish')], ['da', T('Danish')], ['no', T('Norwegian')], ['fi', T('Finnish')],
   ['de', T('German')], ['fr', T('French')], ['es', T('Spanish')], ['it', T('Italian')], ['pt', T('Portuguese')], ['nl', T('Dutch')], ['pl', T('Polish')],
   ['ru', T('Russian')], ['tr', T('Turkish')], ['hi', T('Hindi')], ['ja', T('Japanese')], ['ko', T('Korean')], ['zh', T('Chinese')]];
+// ---------- you (was Settings) ----------
+// The You tab: your own pages. The root list is the phone's index (each row opens one page, #you/<page>); wide
+// screens show the list beside the open page. Pages are routes in routes.js ('you/…'); YOU_PAGES draws each one
+// from what used to be a Settings group. Above the list: #you-id (who you are) and #you-foryou (things waiting for
+// you), and setYouDot(n) lights the tab. renderSettings() redraws whichever settings page is open: a You page, or
+// an owner page in House (People, Ideas, Server rules).
 function renderSettings() {
-  const body = $('#settings-body');
-  const me = state.me;
-  if (!me) { body.replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
-  const p = prefs();
-  const out = [];
+  if (state.view === 'house') { renderHouse(); return; }
+  if (!state.me) { $('#you-rows').replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
+  renderMeButton();
+  renderYouIdentity();
+  renderForYou();
+  renderYouRows();
+  renderYouPage();
+}
+function settingsOpen() { return state.view === 'you' || (state.view === 'house' && ['people', 'ideas', 'rules'].includes(state.sub)); }
+function editingSettings() { return editingIn(state.view === 'house' ? '#house-body' : '#you-body'); }
 
-  // ---- you ---- (name and picture are edited on your profile)
-  out.push(h('div', { class: 'profile' },
+const YOU_PAGES = {
+  friends: () => friendsUI.settings(), // friends
+  moments: () => momentsUI.settings(), // friends: Moments
+  invite: () => memberInviteSettings(),
+  account: () => accountPage(),
+  look: () => appearanceSection(),
+  watching: () => watchingPage(),
+  devices: () => devicesPage(),
+  'download-settings': () => downloadPrefsPage(),
+  ideas: () => [ideaBox()],
+};
+const YOU_GROUPS = () => [['people', T('People')], ['settings', T('Settings')]];
+
+// Who you are (name and picture are edited on your profile).
+function renderYouIdentity() {
+  const me = state.me;
+  $('#you-id').replaceChildren(h('div', { class: 'profile' },
     h('div', { class: 'profile-text' },
       h('div', { class: 'profile-who' }, people.face(me, { size: 40 }), h('strong', {}, me.name)),
       h('div', { class: 'set-hint' }, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
         : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email)),
       h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))),
       me.email && h('button', { type: 'button', class: 'chip profile-open', onclick: (e) => profiles.openMine(e.currentTarget) }, icon('pencil'), T('Your profile')))));
-  renderMeButton();
+}
+// Friend requests, moments sent to you and answers to your ideas go here (empty until that's built), and the tab's dot counts them.
+function renderForYou() { $('#you-foryou').hidden = !$('#you-foryou').childElementCount; }
+function setYouDot(n) {
+  for (const dot of document.querySelectorAll('.tab[data-view="you"] .tab-dot, #me-btn .tab-dot')) { dot.hidden = !n; dot.textContent = n > 9 ? '9+' : n ? String(n) : ''; }
+  const label = n ? T('You: {0} new for you', n) : T('You');
+  $('.tab[data-view="you"]').setAttribute('aria-label', label); $('#me-btn').setAttribute('aria-label', label);
+}
 
-  {
-    const season = state.status?.wrapped?.year;
-    const year = season || new Date().getFullYear();
-    const open = h('button', { class: 'wrapped-open', type: 'button', onclick: (e) => openWrapped(year, e.currentTarget) },
-      h('span', { class: 'wrapped-open-kicker' }, T('Lilin Wrapped {0}', year)), h('span', {}, season ? T('Your year on Lilin is here') : T('Your year in watching so far')));
-    out.push(open);
-  }
+// One row of a list that opens something: a label, a quiet line under it, an optional count, and a chevron.
+function navRow({ label, meta, count, current, run, route }) {
+  return h('button', { type: 'button', class: 'lrow', 'aria-current': current ? 'page' : null, 'data-route': route, onclick: run },
+    h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, label), meta && h('span', { class: 'set-hint' }, meta)),
+    count ? h('b', { class: 'tab-badge' }, String(count)) : null,
+    h('i', { class: 'lrow-chev', 'aria-hidden': 'true' }));
+}
+function renderYouRows() {
+  const pages = pagesOf('you', state.me, state.status);
+  const season = state.status?.wrapped?.year;
+  const year = season || new Date().getFullYear();
+  const top = h('div', { class: 'set-stack' }, navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'),
+    run: (e) => openWrapped(year, e.currentTarget) }));
+  const groups = YOU_GROUPS().map(([key, title]) => {
+    const ids = pages.filter((id) => ROUTES[id].group === key);
+    return ids.length && h('section', { class: 'set-group' }, h('h3', { class: 'set-head' }, title),
+      h('div', { class: 'set-stack' }, ids.map((id) => navRow({ label: T(ROUTES[id].label), route: id, current: state.route === id, run: () => setView(id) }))));
+  });
+  $('#you-rows').replaceChildren(top, ...groups.filter(Boolean));
+}
+// The open page: its rows in cards, one per group, as Settings had them.
+function renderYouPage() {
+  const page = $('#you-page');
+  const sub = state.view === 'you' ? state.sub : null;
+  $('#view-you').classList.toggle('on-page', Boolean(sub));
+  if (!sub || !YOU_PAGES[sub]) { page.replaceChildren(); return; }
+  const title = T(ROUTES[`you/${sub}`].label);
+  const nodes = YOU_PAGES[sub]().filter(Boolean);
+  page.replaceChildren(h('button', { type: 'button', class: 'back-link you-back', onclick: goUp }, `‹ ${T('You')}`),
+    h('h3', { class: 'you-page-title' }, title),
+    ...(nodes.length ? settingsGroups(nodes, title) : [h('p', { class: 'muted' }, T('Nothing here yet.'))]));
+  if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('#idea-box')?.scrollIntoView({ block: 'start' })); }
+}
 
-  if (!me.isOwner) out.push(ideaBox());
-
-  if (me.via === 'session' || me.hasPassword) out.push(accountSection());
-  out.push(...friendsUI.settings()); // friends
-  out.push(...momentsUI.settings()); // friends: Moments
-
-  out.push(...appearanceSection());
-
-  // ---- watching ----
-  out.push(h('h3', { class: 'set-head' }, T('Watching')));
+function accountPage() {
+  const me = state.me;
+  return [
+    h('div', { class: 'set-card' }, h('p', {}, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
+      : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email))),
+    ...(me.via === 'session' || me.hasPassword ? accountSection() : []),
+  ];
+}
+function watchingPage() {
+  const p = prefs();
+  const out = [];
   out.push(settingsRow(T('Subtitles'), T('Turned on automatically when a video has them in this language.'),
     select([['', T('Off')], ...(state.status.subLangs || []).map((l) => [l.code, l.name])], p.subLang || '', (v) => saveMe({ subLang: v }), T('Default subtitles'))));
   out.push(settingsRow(T('Intros'), p.skipIntro === 'auto' ? T('Opening titles are skipped as they start (not in Watch Together).') : T('A Skip intro button shows during opening titles.'),
     segmented([['button', T('Show a button')], ['auto', T('Skip automatically')]], p.skipIntro || 'button', (v) => saveMe({ skipIntro: v }).then(renderSettings), T('Intros'))));
   out.push(themeMusic.settings(settingsRow, segmented, renderSettings)); // theme
+  const start = p.startView === 'downloads' ? 'library' : p.startView || 'discover';
   out.push(settingsRow(T('Open Lilin on'), null,
-    segmented([['discover', T('Discover')], ['library', T('Library')]], p.startView === 'downloads' ? 'library' : p.startView || 'discover', (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
-  out.push(tvSignInRow());
-  // The Android TV app's install steps (/android, android-tv.js on the server): opened on a phone at home.
-  out.push(settingsRow(T('Android TV'), T('Put Lilin on an Android TV or Google TV. It takes a few minutes.'),
-    h('a', { class: 'chip', href: '/android', target: '_blank', rel: 'noopener' }, T('Show the steps'))));
-  out.push(jellyfinRow());
+    segmented([['discover', T('Discover')], ['live', T('Live')], ['library', T('Library')], ['you', T('You')]], start, (v) => saveMe({ startView: v }).then(renderSettings), T('Open Lilin on'))));
   out.push(settingsRow(T('Library order'), null,
     segmented([['newest', T('Newest')], ['expiring', T('Leaving soonest')], ['title', 'A–Z']], p.librarySort || 'newest', (v) => saveMe({ librarySort: v }).then(renderSettings), T('Library order'))));
-  out.push(...memberInviteSettings());
-  out.push(...notificationSettings());
-  // ---- downloads: set once, used by every Download ----
-  if (canDownload()) {
-    const profile = savedProfile();
-    out.push(h('h3', { class: 'set-head' }, T('Downloads')));
-    out.push(settingsRow(T('Quality'), PROFILE_HINTS[profile],
-      select(PROFILE_OPTIONS, profile, (v) => saveMe({ downloadProfile: v }).then(renderSettings), T('Download quality'))));
-    out.push(settingsRow(T('Largest download'), T('Per film or episode. Bigger releases are skipped.'),
-      select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest download'))));
-    out.push(settingsRow(T('Audio language'), T('Releases in this language come first. Releases dubbed into another language are skipped when there’s a choice.'),
-      select(AUDIO_LANGUAGES, p.audioLang || '', (v) => saveMe({ audioLang: v }), T('Audio language'))));
-  }
-
   // ---- your library ----
+  const me = state.me;
   const r = state.rules || {};
   const mine = state.library;
   const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
@@ -7995,10 +8026,32 @@ function renderSettings() {
       : r.retentionDays
         ? T('Downloads are deleted {0} after they finish, to keep space free on the server. Use “Keep {1} more days” in the Library to hold on to something{2}.', plural(r.retentionDays, 'day'), r.extendDays, r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
         : T('Nothing is deleted automatically.'))));
-
-  if (me.isOwner) out.push(...ownerSettings());
-  body.replaceChildren(...settingsLayout(out.filter(Boolean)));
-  if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $(me.isOwner ? '[data-anchor="idea-inbox"]' : '#idea-box')?.scrollIntoView({ block: 'start' })); }
+  return out;
+}
+function devicesPage() {
+  return [
+    ...notificationSettings(),
+    h('h3', { class: 'set-head' }, T('TVs and apps')),
+    tvSignInRow(),
+    // The Android TV app's install steps (/android, android-tv.js on the server): opened on a phone at home.
+    settingsRow(T('Android TV'), T('Put Lilin on an Android TV or Google TV. It takes a few minutes.'),
+      h('a', { class: 'chip', href: '/android', target: '_blank', rel: 'noopener' }, T('Show the steps'))),
+    jellyfinRow(),
+  ];
+}
+// Downloads: set once, used by every Download.
+function downloadPrefsPage() {
+  if (!canDownload()) return [];
+  const p = prefs();
+  const profile = savedProfile();
+  return [
+    settingsRow(T('Quality'), PROFILE_HINTS[profile],
+      select(PROFILE_OPTIONS, profile, (v) => saveMe({ downloadProfile: v }).then(renderSettings), T('Download quality'))),
+    settingsRow(T('Largest download'), T('Per film or episode. Bigger releases are skipped.'),
+      select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest download'))),
+    settingsRow(T('Audio language'), T('Releases in this language come first. Releases dubbed into another language are skipped when there’s a choice.'),
+      select(AUDIO_LANGUAGES, p.audioLang || '', (v) => saveMe({ audioLang: v }), T('Audio language'))),
+  ];
 }
 // Live updates redraw Settings; not in the middle of a scroll (on a phone that stops the scroll dead), but once it settles.
 let lastPageScroll = 0, settingsRedraw = null;
@@ -8008,31 +8061,24 @@ function renderSettingsWhenStill() {
   clearTimeout(settingsRedraw);
   const wait = 900 - (Date.now() - lastPageScroll);
   if (wait > 0) { settingsRedraw = setTimeout(renderSettingsWhenStill, wait); return; }
-  if (state.view === 'settings' && !editingIn('#settings-body')) renderSettings();
+  if (settingsOpen() && !editingSettings()) renderSettings();
 }
 
-// Settings in groups: each heading starts a card of rows, and wide screens get an index of the groups beside them.
-function settingsLayout(nodes) {
+// A page's rows in cards: each heading starts a card of rows. A heading that repeats the page's title is dropped
+// (its anchor moves to the page).
+function settingsGroups(nodes, title) {
   const groups = [];
-  let current = { title: T('You'), items: [] };
+  let current = { items: [] };
   for (const node of nodes) {
     if (node.matches?.('h3.set-head')) {
       if (current.items.length || current.head) groups.push(current);
       // the heading's own words only: not a tag inside it ("Server" + "Owner" read "ServerOwner")
       const own = [...node.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
-      current = { title: own || node.textContent.trim(), head: node, items: [] };
+      current = { head: own === title && !groups.length && !current.items.length ? null : node, anchor: node.dataset.anchor, items: [] };
     } else current.items.push(node);
   }
   if (current.items.length || current.head) groups.push(current);
-  const sections = groups.map((g, i) => {
-    const head = g.head || h('h3', { class: 'set-head' }, g.title);
-    head.id = `set-group-${i}`;
-    return h('section', { class: 'set-group', 'aria-labelledby': head.id }, head, h('div', { class: 'set-stack' }, g.items));
-  });
-  const jump = (i) => (e) => { e.preventDefault(); $(`#set-group-${i}`)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); };
-  const index = h('nav', { class: 'set-index', 'aria-label': T('Settings sections') },
-    h('ul', {}, groups.map((g, i) => h('li', {}, h('a', { href: `#set-group-${i}`, onclick: jump(i) }, g.title)))));
-  return [index, h('div', { class: 'set-groups' }, sections)];
+  return groups.map((g) => h('section', { class: 'set-group', 'data-anchor': g.head ? null : g.anchor }, g.head, h('div', { class: 'set-stack' }, g.items)));
 }
 
 // The Lilin app on a TV (tv/tizen) shows a code; entering it here signs that TV in as you.
@@ -8062,7 +8108,7 @@ function loadJellyfin() {
   jellyfinView.loading ??= api('/api/jellyfin')
     .then((d) => { jellyfinView.links = d.links; })
     .catch(() => { jellyfinView.links = jellyfinView.links || []; })
-    .finally(() => { jellyfinView.loading = null; if (state.view === 'settings') renderSettingsWhenStill(); });
+    .finally(() => { jellyfinView.loading = null; if (settingsOpen()) renderSettingsWhenStill(); });
   return jellyfinView.loading;
 }
 function jellyfinRow() {
@@ -8130,7 +8176,7 @@ function loadIdeas() {
 }
 function ideasNeeded() {
   if (ideasView.loaded) return false;
-  loadIdeas().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); });
+  loadIdeas().then(() => { if (settingsOpen()) renderSettingsWhenStill(); });
   return true;
 }
 // scout: the idea scout's ideas sit at the top of the owner's inbox (public/scout.js)
@@ -8284,7 +8330,7 @@ function notificationSettings() {
   const p = prefs();
   const out = [h('h3', { class: 'set-head' }, T('Notifications'))];
   if (!pushView.loaded) {
-    if (support === 'ok') { loadPush().then(() => { if (state.view === 'settings') renderSettingsWhenStill(); }); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
+    if (support === 'ok') { loadPush().then(() => { if (settingsOpen()) renderSettingsWhenStill(); }); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
     pushView.loaded = true;
   }
   const on = Boolean(pushView.deviceId);
@@ -8443,9 +8489,10 @@ function accountSection() {
       form));
 }
 
+// House → Server rules: how long downloads stay, and what new people get.
 function ownerSettings() {
   const r = state.rules || {};
-  const out = [h('h3', { class: 'set-head' }, T('Server'), h('span', { class: 'tag' }, T('Owner')))];
+  const out = [h('h3', { class: 'set-head' }, T('Server rules'))];
   out.push(settingsRow(T('Delete downloads after'), T('Counted from when each download finishes, per person. A video someone else still has stays.'),
     select([0, 1, 3, 7, 14, 30].map((n) => [n, days(n)]), r.retentionDays ?? 7, (v) => saveRules({ retentionDays: Number(v) }), T('Delete downloads after'))));
   out.push(settingsRow(T('“Keep longer” adds'), null,
@@ -8468,10 +8515,11 @@ function ownerSettings() {
       h('li', {}, T('Set Session Duration to 1 month and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
     h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
-
-  out.push(...ideaInbox());
-
-  out.push(h('h3', { class: 'set-head' }, T('People')));
+  return out;
+}
+// House → People: everyone who uses Lilin, their picture and what they may do.
+function peopleSettings() {
+  const out = [h('h3', { class: 'set-head' }, T('People'))];
   out.push(h('p', { class: 'set-hint' }, T('Restrict: no friends, reviews or notification invites. They keep Watch Together and share by links only.'))); // friends
   if (state.peopleError) out.push(h('p', { class: 'muted' }, state.peopleError));
   else if (!state.people) out.push(h('p', { class: 'muted' }, T('Loading…')));
@@ -8532,7 +8580,7 @@ async function personUpdate(u, patch) {
   } catch (err) { toast(err.message); }
   await loadPeople();
   if (u.id === state.me.id) { state.me = (await api('/api/me')).me; await loadLibrary(); }
-  if (state.view === 'settings') renderSettings();
+  if (settingsOpen()) renderSettings();
 }
 
 // ---------- activity (server owner, plus people the owner lets see it) ----------
@@ -8955,7 +9003,8 @@ function renderActivity() {
   const body = $('#activity-body');
   if (state.activityError) { body.replaceChildren(notice(T('Couldn’t get activity'), state.activityError)); return; }
   if (!state.activity) return;
-  const q = norm(state.query);
+  filterField('activity', T('Filter by person or title'), renderActivity);
+  const q = norm(pageFilters.activity);
   const filter = state.activityFilter || 'all';
   const all = state.activity.events;
   const events = all.filter((e) => (filter === 'all' || kindOf(e.action)[0] === filter)
@@ -8988,7 +9037,11 @@ function activityDevice(entry) {
 // ---------- house (server owner only) ----------
 // The home server's own health plus the machines that report in (laptop, desktop): house.js.
 async function loadHouse() {
-  if (state.houseTab === 'screentime') { await loadScreenTime(); return; }
+  const sub = state.view === 'house' ? state.sub : null;
+  if (sub === 'screen-time') { await loadScreenTime(); return; }
+  if (sub === 'people') { await loadPeople(); return; }
+  if (sub === 'ideas') { await loadIdeas(); return; }
+  if (sub === 'rules') return;
   const [r, l] = await Promise.allSettled([api('/api/house'), api(`/api/house/load?hours=${state.houseHours || 1}`)]);
   if (r.status === 'fulfilled') { state.house = r.value; state.houseError = null; } else state.houseError = r.reason.message;
   state.houseLoad = l.status === 'fulfilled' ? l.value : null;
@@ -9190,14 +9243,57 @@ function diskRows(disks, label = (d) => (d.label ? T(d.label) : d.mount)) {
     h('span', { class: 'house-disk-free' }, T('{0} free', fmtBytes(d.size - d.used)))));
 }
 
+// ---------- house (owners) ----------
+// The House tab: the owner's tools as tiles, each opening its own page (#house/<tool>). Machines is what the House
+// tab used to show (server, VPN, sharing, power, machines); Notes and Game clips keep their own views; People, Ideas
+// and Server rules came out of Settings. setHouseDot(n) lights the tab.
+function houseLive() { return state.view === 'house' && (!state.sub || state.sub === 'machines' || state.sub === 'screen-time'); }
+function setHouseDot(n) { const dot = $('.tab[data-view="house"] .tab-dot'); dot.hidden = !n; dot.textContent = n > 9 ? '9+' : n ? String(n) : ''; }
 function renderHouse() {
   const body = $('#house-body');
-  if (state.houseTab === 'screentime') { body.replaceChildren(houseTabs(), ...screenTimeView()); return; }
-  if (state.houseError) { body.replaceChildren(houseTabs(), notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))); return; }
+  const sub = state.view === 'house' ? state.sub : null;
+  $('#house-heading').textContent = sub ? T(ROUTES[`house/${sub}`].label) : T('House');
+  const filter = filterField('house', T('Filter machines'), renderHouse);
+  filter.hidden = sub !== 'machines';
+  if (!sub) { renderHouseHub(body); return; }
+  if (sub === 'screen-time') { body.replaceChildren(...screenTimeView()); return; }
+  if (sub === 'people') { body.replaceChildren(...settingsGroups(peopleSettings(), T('People'))); return; }
+  if (sub === 'rules') { body.replaceChildren(...settingsGroups(ownerSettings(), T('Server rules'))); return; }
+  if (sub === 'ideas') {
+    body.replaceChildren(...settingsGroups(ideaInbox(), T('Ideas')));
+    if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('[data-anchor="idea-inbox"]')?.scrollIntoView({ block: 'start' })); }
+    return;
+  }
+  renderMachines(body);
+}
+// The tiles: one line each, with what's going on where that's known already.
+function renderHouseHub(body) {
+  const r = state.house;
+  const lines = {
+    machines: r ? (r.issues.length ? (r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)) : T('Everything’s fine'))
+      : state.houseError ? T('Couldn’t check the house') : T('Checking…'),
+    notes: T('Notes to yourself, with files and reminders'),
+    clips: state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
+    people: T('Who uses Lilin and what they may do'),
+    ideas: T('Ideas and bugs people sent you'),
+    rules: T('Auto-delete, keeping longer, new people'),
+    'screen-time': T('Time on your devices'),
+  };
+  const tile = ({ label, line, run, alert, route }) => h('button', { type: 'button', class: `tool${alert ? ' has-alert' : ''}`, 'data-route': route, onclick: run },
+    h('span', { class: 'set-label' }, label), h('span', { class: 'set-hint' }, line));
+  const tiles = pagesOf('house', state.me, state.status).map((id) => tile({ route: id, label: T(ROUTES[id].label), line: lines[ROUTES[id].sub] || '',
+    alert: id === 'house/machines' && r?.issues.length > 0, run: () => setView(id) }));
+  tiles.push(tile({ label: T('Manage downloads'), line: T('Everything the server is downloading'), run: (e) => PLACE_ACTIONS['manage-downloads'](e.currentTarget) }),
+    tile({ label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) }));
+  body.replaceChildren(h('div', { class: 'tool-grid' }, tiles));
+}
+// House → Machines: the server, VPN, sharing, power and every machine.
+function renderMachines(body) {
+  if (state.houseError) { body.replaceChildren(notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))); return; }
   const r = state.house;
   if (!r) return;
-  const q = norm(state.query);
-  const out = [houseTabs()];
+  const q = norm(pageFilters.house);
+  const out = [];
   out.push(r.issues.length
     ? h('div', { class: 'house-status has-issues' },
       h('strong', {}, r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)),
@@ -9386,14 +9482,6 @@ async function stPick(changes) {
   Object.assign(state.st, changes);
   await loadScreenTime();
   if (state.view === 'house') renderHouse();
-}
-
-function houseTabs() {
-  return h('div', { class: 'house-tabs' }, segmented([['overview', T('Overview')], ['screentime', T('Screen Time')]], state.houseTab || 'overview', async (tab) => {
-    state.houseTab = tab;
-    await loadHouse();
-    if (state.view === 'house') renderHouse();
-  }, T('House page')));
 }
 
 // Top three categories get their colour; everything else is "Other", like iOS.
@@ -10183,11 +10271,12 @@ function clipCard(c) {
 }
 
 function renderClips() {
+  filterField('clips', T('Filter by game or name'), renderClips);
   const body = $('#clips-body');
   if (state.clipsError) { body.replaceChildren(notice(T('Couldn’t load clips'), state.clipsError, () => loadClips().then(renderClips))); return; }
   if (!state.clips) return;
   if (!state.clips.configured) { body.replaceChildren(notice(T('No clips folder'), T('Set CLIPS_DIR in .env to the folder your desktop syncs clips to.'))); return; }
-  const q = norm(state.query);
+  const q = norm(pageFilters.clips);
   const all = state.clips.clips;
   const list = all.filter((c) => !q || norm(`${c.title} ${c.game}`).includes(q));
   if (!list.length) {
@@ -10212,84 +10301,101 @@ function renderClips() {
   body.replaceChildren(...out);
 }
 
-function addAdminTab(view, label, iconSvg) {
-  if ($(`#view-${view}`)) return;
-  $('#main').append(h('section', { id: `view-${view}`, class: 'view', 'aria-labelledby': `${view}-heading`, hidden: true },
-    h('h2', { class: 'view-heading', id: `${view}-heading` }, label),
-    h('div', { id: `${view}-body` })));
-  const tab = h('button', { class: 'tab', 'data-view': view });
-  tab.innerHTML = `${iconSvg}<span>${label}</span>`;
-  tab.addEventListener('click', () => setView(view));
-  $('.tabs').insertBefore(tab, $('.tab[data-view="settings"]')); // Settings stays last
+// ---------- page filters ----------
+// Library, Activity, Machines, Game clips and Notes narrow their own lists with a small field beside the page's
+// heading (pageFilters), separate from search. The field is made once and kept, so redraws never steal its focus.
+function filterField(view, label, onChange) {
+  const head = $(`#view-${view} .view-head`);
+  let field = head.querySelector('.filter-field');
+  if (field) return field;
+  const box = h('input', { type: 'search', placeholder: label, 'aria-label': label, autocomplete: 'off', spellcheck: 'false', enterkeyhint: 'search' });
+  let timer = 0;
+  box.addEventListener('input', () => { pageFilters[view] = box.value; clearTimeout(timer); timer = setTimeout(onChange, 200); });
+  box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && box.value) { e.stopPropagation(); clearFilter(view); onChange(); } });
+  field = h('label', { class: 'filter-field' }, icon('filter'), box);
+  head.append(field);
+  return field;
 }
-const enableHouseTab = () => addAdminTab('house', T('House'), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>');
-const enableClipsTab = () => addAdminTab('clips', T('Clips'), '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg>');
-
-const enableNotesTab = () => {
-  addAdminTab('notes', T('Notes'), '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg>');
-  $('.tabs').insertBefore($('.tab[data-view="notes"]'), $('.tab[data-view="library"]'));
-};
-
-// Adds the Activity tab for the server's owner (ADMIN_EMAILS in .env) and anyone the owner lets see it (read-only).
-function enableActivityTab() {
-  if ($('#view-activity')) return;
-  $('#main').append(h('section', { id: 'view-activity', class: 'view', 'aria-labelledby': 'activity-heading', hidden: true },
-    h('h2', { class: 'view-heading', id: 'activity-heading' }, T('Activity')),
-    h('div', { id: 'activity-body' })));
-  const tab = h('button', { class: 'tab', 'data-view': 'activity' });
-  tab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 13.8c1.8.7 3 2.6 3 5.2"/></svg><span>' + T('Activity') + '</span>';
-  tab.addEventListener('click', () => setView('activity'));
-  $('.tabs').insertBefore(tab, $('.tab[data-view="settings"]'));
+function clearFilter(view, value = '') {
+  pageFilters[view] = value;
+  const box = $(`#view-${view} .filter-field input`);
+  if (box) box.value = value;
 }
 
-input.addEventListener('input', () => {
-  if (state.view === 'settings' || state.view === 'live') { const q = input.value; setView('discover').then(() => { input.value = state.query = q; renderDiscover(); }); return; }
-  state.query = input.value;
-  $('#q-clear').hidden = !input.value;
-  if (state.view === 'notes') {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => notesView.load(), 250);
-    return;
-  }
-  if (state.view === 'discover') {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(renderDiscover, 300);
-  } else {
-    renderView();
-  }
-});
-$('#search-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  clearTimeout(searchTimer);
-  if (state.view === 'discover') renderDiscover();
-  if (state.view === 'notes') notesView.load();
-  input.blur(); // hides the phone keyboard
-});
-$('#q-clear').addEventListener('click', () => {
-  input.value = '';
-  input.dispatchEvent(new Event('input'));
-  input.focus();
-});
-
-// Phones and tablets: search sits behind an icon so Discover's billboard has the top of the screen;
-// it opens as a full-width field with Cancel. Wide screens always show the field (style.css).
+// ---------- search (search.js) ----------
+// The header's box (an icon on phones) finds titles and places; results show in a layer over the page.
 const searchToggle = $('#search-toggle');
 const wideHeader = matchMedia('(min-width: 900px)');
+const searchEntryRow = (e) => h('button', { type: 'button', class: 'sr-row', onclick: (ev) => { searchUi.remember(); openUnifiedTitle(e, ev.currentTarget); } },
+  e.poster ? h('img', { class: 'sr-thumb', src: e.poster, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'sr-thumb' }),
+  h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, e.name), h('span', { class: 'set-hint' }, libraryAvailability(e))));
+const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'), me: () => state.me, status: () => state.status,
+  onLilin: (q) => filterLibrary(unifiedLibrary(), { query: q, sort: 'title' }).slice(0, 4).map(searchEntryRow),
+  openPlace: (p) => openPlace(p), titleGrid, titleCard, carousel, skeletonGrid, emptyState, notice,
+  footer: (q) => [
+    state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => { searchUi.remember(); findTorrents(q, e.currentTarget); } },
+      icon('search'), T('Search torrents for “{0}”', q)),
+    state.status.notes && h('button', { type: 'button', class: 'chip', onclick: async () => { endSearch(); await setView('house/notes'); clearFilter('notes', q); await notesView.load(); } },
+      icon('search'), T('Search notes for “{0}”', q)),
+  ].filter(Boolean) });
 function setSearching(on) {
   document.body.classList.toggle('searching', on);
   searchToggle.setAttribute('aria-expanded', String(on));
-  if (on) input.focus();
+  if (on) { searchUi.open(); if (document.activeElement !== input) input.focus(); } else searchUi.close();
+}
+function endSearch() { input.value = ''; $('#q-clear').hidden = true; setSearching(false); }
+// Go to: a place opens its page, or runs its action (places.js ACTIONS).
+const PLACE_ACTIONS = {
+  'whats-new': () => showUpdateHistory(),
+  'wrapped': (opener) => openWrapped(state.status?.wrapped?.year || new Date().getFullYear(), opener),
+  'pick': () => pickUi.open(),
+  'profile': (opener) => profiles.openMine(opener),
+  'manage-downloads': (opener) => openTransferDetails(null, opener),
+  'channels': (opener) => liveView.openEditor(opener),
+  'torrents': (opener) => findTorrents('', opener),
+};
+function openPlace(p) {
+  endSearch();
+  if (p.route) setView(p.route); else PLACE_ACTIONS[p.action]?.(null);
 }
 searchToggle.addEventListener('click', () => setSearching(true));
-$('#search-cancel').addEventListener('click', () => {
-  if (input.value) { input.value = ''; input.dispatchEvent(new Event('input')); }
-  setSearching(false);
-  searchToggle.focus();
+input.addEventListener('focus', () => { if (!searchUi.isOpen()) setSearching(true); });
+input.addEventListener('input', () => {
+  $('#q-clear').hidden = !input.value;
+  if (searchUi.isOpen()) searchUi.render(); else setSearching(true);
 });
-input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !wideHeader.matches && !input.value) { e.stopPropagation(); setSearching(false); searchToggle.focus(); } });
+$('#search-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  searchUi.remember();
+  input.blur(); // hides the phone keyboard; the results stay
+});
+$('#q-clear').addEventListener('click', () => {
+  input.value = ''; $('#q-clear').hidden = true;
+  searchUi.render(); input.focus();
+});
+$('#search-cancel').addEventListener('click', () => { endSearch(); if (!wideHeader.matches) searchToggle.focus(); });
+input.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  e.stopPropagation();
+  endSearch(); input.blur();
+  if (!wideHeader.matches) searchToggle.focus();
+});
+// An empty box closes when you leave it (not while a press inside the results is still going on).
+let searchPress = false;
+$('#search-layer').addEventListener('pointerdown', () => { searchPress = true; });
+window.addEventListener('pointerup', () => setTimeout(() => { searchPress = false; }, 300), true);
 input.addEventListener('blur', () => setTimeout(() => {
-  if (!wideHeader.matches && !input.value && document.activeElement !== input) setSearching(false);
+  if (!input.value && !searchPress && document.activeElement !== input && !$('#search-layer').contains(document.activeElement) && !overlayStack.length) setSearching(false);
 }, 200));
+// "/" or Ctrl K (⌘K) jumps to the box.
+document.addEventListener('keydown', (e) => {
+  const typing = e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+  const slash = e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (!slash && !(e.key.toLowerCase?.() === 'k' && (e.ctrlKey || e.metaKey))) return;
+  if (!$('#player').hidden || overlayStack.length) return;
+  e.preventDefault();
+  setSearching(true);
+});
 
 // The header turns to glass once the page scrolls (style.css: html.scrolled).
 let scrollFrame = 0;
@@ -10304,86 +10410,128 @@ markScrolled();
 const smoothViews = () => 'startViewTransition' in document && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 if ('startViewTransition' in document) document.documentElement.classList.add('has-vt');
 
-// The open tab lives in the address (#library), so reloading the page comes back to it.
-function rememberView(view) {
-  if (!view || location.hash === `#${view}`) return;
-  history.replaceState(history.state, '', `${location.pathname}${location.search}#${view}`);
+// ---------- the shell: tabs, addresses and Back (routes.js) ----------
+// Every screen has an address (#library, #you/watching, #house/people) and lights its tab. A tab opens the page it
+// was last on (sessionStorage 'lilin:stack'); tapping the open tab goes up to its root, then to the top. A page
+// opened from its tab's root gets its own history entry, so Back returns to the list; anything else replaces it.
+const tabStack = (() => { try { return JSON.parse(sessionStorage.getItem('lilin:stack')) || {}; } catch { return {}; } })();
+// Which tabs this person has (House: owners only).
+function renderTabs() {
+  const tabs = tabsFor(state.me, state.status);
+  document.querySelectorAll('.tab').forEach((t) => { t.hidden = !tabs.includes(t.dataset.view); });
 }
-// Closing a sheet restores the address it opened on; keep what's shown now in it: the profile
-// still open on top (#@ebicat, so a reload comes back to it), else the tab.
+function openTab(tab) {
+  const r = ROUTES[state.route];
+  if (document.body.classList.contains('searching')) { endSearch(); if (r?.tab === tab) return; } // a tab closes search
+  if (r?.tab === tab) { if (state.route !== tab) goUp(); else window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const last = tabStack[tab];
+  setView(last && ROUTES[last]?.tab === tab && allowedRoute(last, state.me, state.status) ? last : tab);
+}
+// Up from a page to its tab's root: Back when the page was opened from there, else straight to the root.
+function goUp() {
+  const r = ROUTES[state.route];
+  if (!r || r.tab === state.route) return;
+  if (history.state?.page === state.route && !overlayStack.length) history.back();
+  else setView(r.tab);
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => openTab(t.dataset.view)));
+$('#me-btn').addEventListener('click', () => openTab('you'));
+// "‹ House" / "‹ You" over a page that has a view of its own (Activity, Notes, Game clips) or a House page.
+function renderBackLink() {
+  const r = ROUTES[state.route];
+  const back = $(`#view-${state.view} > .view-back`);
+  if (!back) return;
+  back.hidden = !r?.sub;
+  if (r?.sub) { back.textContent = `‹ ${T(ROUTES[r.tab].label)}`; back.onclick = goUp; }
+}
+// The address: #route. A replaced entry keeps its overlay mark, and its page mark if it had one.
+function rememberView(id, push = false) {
+  if (!id || location.hash === `#${id}`) return;
+  const url = `${location.pathname}${location.search}#${id}`;
+  if (push && !overlayStack.length) history.pushState({ page: id }, '', url);
+  else history.replaceState(history.state?.overlay ? history.state : { page: history.state?.page ? id : null }, '', url);
+}
+// Back and Forward: closing a sheet restores the address it opened on (the profile still open on top, #@ebicat, so
+// a reload comes back to it); with no sheet open they move between pages.
 window.addEventListener('popstate', () => {
   const handle = [...document.querySelectorAll('.pf.open')].pop()?.dataset.handle;
-  if (!handle) { rememberView(state.view); return; }
-  if (location.hash !== `#@${handle}`) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${handle}`);
+  if (handle) {
+    if (location.hash !== `#@${handle}`) history.replaceState(history.state, '', `${location.pathname}${location.search}#@${handle}`);
+    return;
+  }
+  if (!popHadOverlay) {
+    const id = resolve(location.hash, state.me, state.status);
+    if (id && id !== state.route) { setView(id, { address: false }); return; }
+  }
+  rememberView(state.route);
 });
-function linkedView() {
-  const view = decodeURIComponent(location.hash.slice(1));
-  return view && [...document.querySelectorAll('.tab')].some((t) => t.dataset.view === view) ? view : null;
-}
-async function setView(view) {
-  if (view === 'library' || view === 'downloads') invalidateLibraryProgress();
-  if (view === 'downloads') { state.libAvailability = 'downloading'; view = 'library'; }
-  if (view === state.view) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  state.view = view;
-  rememberView(view);
-  document.querySelectorAll('.tab').forEach((t) => {
-    if (t.dataset.view === view) {
-      t.setAttribute('aria-current', 'page');
-    }
-    else t.removeAttribute('aria-current');
-  });
+// Opens a route (or an old address: 'settings', 'downloads'). Unknown or not allowed: nothing happens.
+async function setView(target, { address = true } = {}) {
+  const id = resolve(target, state.me, state.status);
+  if (!id) return;
+  const r = ROUTES[id];
+  if (document.body.classList.contains('searching')) endSearch();
+  if (r.view === 'library') invalidateLibraryProgress();
+  if (id === state.route) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const fromRoot = state.route === r.tab;
+  if (address) rememberView(id, Boolean(r.sub) && fromRoot);
+  const viewChanged = r.view !== state.view;
+  state.route = id; state.sub = r.sub || null; state.view = r.view;
+  tabStack[r.tab] = id;
+  try { sessionStorage.setItem('lilin:stack', JSON.stringify(tabStack)); } catch { /* private mode: no stacks */ }
+  if (r.sub === 'downloads') state.libAvailability = 'downloading';
+  else if (id === 'library' && state.libAvailability === 'downloading') state.libAvailability = 'all'; // up from Downloads
+  document.querySelectorAll('.tab').forEach((t) => { if (t.dataset.view === r.tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
+  if (r.tab === 'you') $('#me-btn').setAttribute('aria-current', 'page'); else $('#me-btn').removeAttribute('aria-current');
   const show = () => {
-    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${view}`; });
-    document.body.classList.toggle('has-billboard', view === 'discover' && Boolean($('#discover-body .billboard')));
-    $('#browse-btn').hidden = view !== 'discover';
+    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${r.view}`; });
+    document.body.classList.toggle('has-billboard', r.view === 'discover' && Boolean($('#discover-body .billboard')));
+    $('#browse-btn').hidden = r.view !== 'discover';
     window.scrollTo(0, 0);
   };
-  if (smoothViews()) document.startViewTransition(show); else show();
-  input.value = state.query = '';
-  $('#q-clear').hidden = true;
-  document.body.classList.remove('searching');
-  input.placeholder = PLACEHOLDERS[view];
+  if (viewChanged && smoothViews()) document.startViewTransition(show); else show();
 
   renderView(); // render cached data, then refresh
-  revealSectionTab();
+  const view = r.view;
   if (view === 'library') { await loadDownloads(); await Promise.all([loadLibrary(), loadConvert()]); }
-  if (view === 'downloads') await loadDownloads();
   if (view === 'activity') await loadActivity();
   if (view === 'house') await loadHouse();
   if (view === 'clips') await loadClips();
   if (view === 'live') await liveView.load(true);
   if (view === 'notes') await notesView.load();
-  if (view === 'settings') await Promise.all([loadLibrary(), state.me?.isOwner ? loadPeople() : null]);
-  if (state.view === view) { if (view === 'settings') renderSettingsWhenStill(); else renderView(); revealSectionTab(); }
+  if (view === 'you') await loadLibrary();
+  if (state.route === id) { if (view === 'you') renderSettingsWhenStill(); else renderView(); }
   schedulePoll();
 }
-const sectionTabs = $('.tabs');
-function updateTabOverflow() {
-  sectionTabs.classList.toggle('can-scroll-left', sectionTabs.scrollLeft > 1);
-  sectionTabs.classList.toggle('can-scroll-right', sectionTabs.scrollLeft + sectionTabs.clientWidth < sectionTabs.scrollWidth - 1);
-}
-function revealSectionTab() {
-  const tab = sectionTabs.querySelector('[aria-current="page"]');
-  if (tab) {
-    const start = tab.offsetLeft, end = start + tab.offsetWidth;
-    if (start < sectionTabs.scrollLeft) sectionTabs.scrollLeft = start;
-    else if (end > sectionTabs.scrollLeft + sectionTabs.clientWidth) sectionTabs.scrollLeft = end - sectionTabs.clientWidth;
-  }
-  updateTabOverflow();
-}
-sectionTabs.addEventListener('scroll', updateTabOverflow, { passive: true });
-window.addEventListener('resize', revealSectionTab);
-document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
 $('#home-link').addEventListener('click', async (e) => {
   e.preventDefault();
   disc.list = null; disc.genre = null;
   vibesUi.reset(); // vibes
-  state.query = ''; input.value = ''; $('#q-clear').hidden = true;
-  if (state.view === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
+  if (document.body.classList.contains('searching')) endSearch();
+  if (state.route === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }
   else await setView('discover');
 });
 $('#manage-downloads').addEventListener('click', e => openTransferDetails(null, e.currentTarget));
-$('#find-torrents').addEventListener('click', (e) => openTorrents({ query: state.query.trim(), opener: e.currentTarget }));
+// Find torrents: the Library's button, search's footer and Go to all open the same sheet.
+function findTorrents(query, opener) { return openTorrents({ query, opener }); }
+$('#find-torrents').addEventListener('click', (e) => findTorrents(pageFilters.library.trim(), e.currentTarget));
+
+// A link into Lilin (a tapped notification, or how this page was opened): ?friends=1 → You › Friends, ?ideas=1 →
+// You › Ideas or House › Ideas, ?moment= plays it, ?travel=1 opens the phone list, ?note= focuses it. Returns true
+// when it opened something.
+async function openLink(url) {
+  const params = url.searchParams;
+  const id = linkRoute(params, state.me, state.status);
+  if (params.get('moment')) momentsUI.jumpTo(params.get('moment')); // friends: Moments
+  if (params.has('friends')) friendsUI.jumpNext(); // friends
+  if (params.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; await loadIdeas(); }
+  if (!id) return false;
+  if (id === state.route) renderView(); else await setView(id);
+  if (params.has('travel')) openTravelList();
+  const note = params.get('note');
+  if (note && /^\d+$/.test(note)) await notesView.focus(Number(note));
+  return true;
+}
 
 // ---------- start ----------
 // A tapped notification while Lilin is open (sw.js): open what it points at without a reload.
@@ -10394,14 +10542,11 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (url.origin !== location.origin) return;
   const token = url.searchParams.get('watch');
   if (token) { await offerWatchRoom(token); return; }
-  if (url.searchParams.has('travel')) { await setView('library'); openTravelList(); return; }
   if (url.searchParams.get('pick')) { pickUi.openPick(url.searchParams.get('pick')); return; } // pick: an invite or a match
-  if (url.searchParams.get('moment')) { momentsUI.jumpTo(url.searchParams.get('moment')); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends: Moments
-  if (url.searchParams.has('friends')) { friendsUI.jumpNext(); if (state.view === 'settings') renderSettings(); else await setView('settings'); return; } // friends
-  if (url.searchParams.has('ideas')) { ideasView.jump = true; ideasView.loaded = false; if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings'); return; }
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
-  const view = url.hash.slice(1);
-  if (view && view !== state.view && $(`#view-${view}`)) await setView(view);
+  if (await openLink(url)) return;
+  const id = resolve(url.hash, state.me, state.status);
+  if (id && id !== state.route) await setView(id);
 });
 
 (async function init() {
@@ -10417,6 +10562,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     return;
   }
   state.me = state.status.me;
+  renderTabs();
   renderMeButton();
   // The preview of a redesign (PREVIEW_DIR on the server): a small way back to the live app.
   if (state.status.preview) document.body.append(h('a', { class: 'preview-pill', href: '/preview/off', title: T('Leave the preview and go back to the live app') },
@@ -10427,50 +10573,31 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   applyTheme(prefs().theme);
   $('#find-torrents').hidden = !state.status.torrents || !canDownload();
   $('#manage-downloads').hidden = !state.me?.isOwner;
-  if (state.status.admin) { enableActivityTab(); enableHouseTab(); if (state.status.notes) enableNotesTab(); } else if (state.me?.canSeeActivity) enableActivityTab();
-  if (state.status.clips) enableClipsTab();
-  enableLiveTab();
-  updateTabOverflow();
   await Promise.all([loadLibrary(), loadDownloads(), loadSessions(), loadProgress(), loadWatchlist(), loadTravel()]);
-  // A reload stays on the tab it was on (#library); a fresh visit opens the chosen start tab.
-  const start = linkedView() || prefs().startView;
-  if (start && start !== 'discover') { state.view = null; await setView(start); } else { rememberView('discover'); renderDiscover(); }
+  // A reload stays on the page it was on (#library, #you/watching; old addresses like #settings land on their new
+  // homes); a fresh visit opens the chosen start view.
+  const start = resolve(linkHash, state.me, state.status) || startRoute(prefs().startView, state.me, state.status);
+  state.route = null;
+  if (start !== 'discover') await setView(start);
+  else { state.route = 'discover'; rememberView('discover'); $('.tab[data-view="discover"]').setAttribute('aria-current', 'page'); renderDiscover(); }
   profiles.fromHash(linkHash);
   const watchToken = new URL(location.href).searchParams.get('watch');
   if (watchToken) await offerWatchRoom(watchToken);
-  // A shared note link (/c/n/<token>) lands here as ?note=<id>.
-  const noteId = new URL(location.href).searchParams.get('note');
-  if (noteId) {
-    const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    if (state.status.notes && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
-  }
   // pick: a Pick together invite (or its link) opens Lilin as ?pick=<id>
   if (new URL(location.href).searchParams.get('pick')) {
     const url = new URL(location.href); const id = url.searchParams.get('pick'); url.searchParams.delete('pick'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     pickUi.openPick(id);
   }
-  // friends: a "sent you a moment" notification opens Lilin as ?moment=<id>: Settings → Moments, and it plays.
-  if (new URL(location.href).searchParams.get('moment')) {
-    const url = new URL(location.href); const id = url.searchParams.get('moment'); url.searchParams.delete('moment'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    momentsUI.jumpTo(id);
-    if (state.view === 'settings') renderSettings(); else await setView('settings');
-  }
-  // friends: a friend request notification opens Lilin as ?friends=1: Settings, scrolled to Friends.
-  if (new URL(location.href).searchParams.has('friends')) {
-    const url = new URL(location.href); url.searchParams.delete('friends'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    friendsUI.jumpNext();
-    if (state.view === 'settings') renderSettings(); else await setView('settings');
-  }
-  // An idea box notification opens Lilin as ?ideas=1: Settings, scrolled to the ideas.
-  if (new URL(location.href).searchParams.has('ideas')) {
-    const url = new URL(location.href); url.searchParams.delete('ideas'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    ideasView.jump = true;
-    if (state.view === 'settings') { await loadIdeas(); renderSettings(); } else await setView('settings');
-  }
-  // A "Ready for your phone" notification opens Lilin as ?travel=1.
-  if (new URL(location.href).searchParams.has('travel')) {
-    const url = new URL(location.href); url.searchParams.delete('travel'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    await setView('library'); openTravelList();
+  // Notification links (?friends=1, ?ideas=1, ?moment=<id>, ?travel=1) and shared note links (/c/n/<token> lands as
+  // ?note=<id>): open where they point, then tidy the address.
+  {
+    const url = new URL(location.href);
+    if (['friends', 'ideas', 'moment', 'travel', 'note'].some((k) => url.searchParams.has(k))) {
+      const clean = new URL(location.href);
+      for (const k of ['friends', 'ideas', 'moment', 'travel', 'note']) clean.searchParams.delete(k);
+      history.replaceState(history.state, '', clean.pathname + clean.search + clean.hash);
+      await openLink(url);
+    }
   }
   // The iPhone Home Screen app hands a video to Safari for picture in picture as ?play=<library id>&t=<seconds>.
   const playId = new URL(location.href).searchParams.get('play');

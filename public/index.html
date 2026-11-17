@@ -63,21 +63,32 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M10 9.5v5l4-2.5z"/></svg>
           <span>Discover</span>
         </button>
+        <button class="tab" data-view="live">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>
+          <span>Live</span>
+        </button>
         <button class="tab" data-view="library">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v16M10 4v16M15 5l4 14.5"/></svg>
           <span>Library</span>
           <b class="tab-badge" id="dl-badge" hidden></b>
         </button>
-        <button class="tab" data-view="settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-          <span>Settings</span>
+        <button class="tab" data-view="house" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>
+          <span>House</span>
+          <b class="tab-dot" hidden></b>
+        </button>
+        <!-- You: your face (app.js); on wide screens the face at the far right of the header opens it instead -->
+        <button class="tab" data-view="you">
+          <i class="tab-face"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></i>
+          <span>You</span>
+          <b class="tab-dot" hidden></b>
         </button>
       </nav>
       <div class="top-actions">
         <form class="search" role="search" id="search-form">
           <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
           <label class="sr-only" for="q">Search</label>
-          <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Search films and shows">
+          <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Search Lilin" role="combobox" aria-expanded="false" aria-controls="search-layer" aria-autocomplete="list">
           <button type="button" class="search-clear" id="q-clear" aria-label="Clear search" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
           </button>
@@ -89,10 +100,12 @@
         <button type="button" class="news-btn" id="whats-new-btn" aria-haspopup="dialog" hidden>
           <span class="news-bulb" aria-hidden="true"></span><span class="news-label">What’s new</span><span class="news-count" hidden></span>
         </button>
-        <button type="button" class="me-btn" id="me-btn" aria-label="Your profile" hidden></button>
+        <button type="button" class="me-btn" id="me-btn" aria-label="You"><b class="tab-dot" hidden></b></button>
       </div>
     </div>
   </header>
+  <!-- Search results (search.js): over the page, which stays as it was underneath -->
+  <div class="search-layer" id="search-layer" role="region" aria-label="Search results" hidden></div>
 
   <main id="main">
     <section id="view-discover" class="view" aria-labelledby="discover-heading">
@@ -110,9 +123,44 @@
       <p id="library-live" class="sr-only" role="status" aria-live="polite"></p>
     </section>
 
-    <section id="view-settings" class="view" aria-labelledby="settings-heading" hidden>
-      <h2 class="view-heading" id="settings-heading">Settings</h2>
-      <div id="settings-body"></div>
+    <section id="view-live" class="view" aria-labelledby="live-heading" hidden>
+      <h2 class="view-heading" id="live-heading">Live</h2>
+      <div id="live-body"></div>
+    </section>
+
+    <!-- You (was Settings): the list of your pages, and the open page beside it on wide screens (app.js renderSettings) -->
+    <section id="view-you" class="view" aria-labelledby="you-heading" hidden>
+      <h2 class="view-heading" id="you-heading">You</h2>
+      <div id="you-body">
+        <div id="you-list">
+          <div id="you-id"></div>
+          <div id="you-foryou" hidden></div>
+          <div id="you-rows"></div>
+        </div>
+        <div id="you-page"></div>
+      </div>
+    </section>
+
+    <!-- Owners: House, with a tile per tool; Activity sits under You, Notes and Game clips under House -->
+    <section id="view-house" class="view" aria-labelledby="house-heading" hidden>
+      <button type="button" class="back-link view-back" hidden></button>
+      <div class="view-head"><h2 class="view-heading" id="house-heading">House</h2></div>
+      <div id="house-body"></div>
+    </section>
+    <section id="view-activity" class="view" aria-labelledby="activity-heading" hidden>
+      <button type="button" class="back-link view-back" hidden></button>
+      <div class="view-head"><h2 class="view-heading" id="activity-heading">Activity</h2></div>
+      <div id="activity-body"></div>
+    </section>
+    <section id="view-notes" class="view" aria-labelledby="notes-heading" hidden>
+      <button type="button" class="back-link view-back" hidden></button>
+      <div class="view-head"><h2 class="view-heading" id="notes-heading">Notes</h2></div>
+      <div id="notes-body"></div>
+    </section>
+    <section id="view-clips" class="view" aria-labelledby="clips-heading" hidden>
+      <button type="button" class="back-link view-back" hidden></button>
+      <div class="view-head"><h2 class="view-heading" id="clips-heading">Game clips</h2></div>
+      <div id="clips-body"></div>
     </section>
   </main>
 

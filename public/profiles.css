@@ -4,6 +4,7 @@
 
 /* ---------- the header's face ---------- */
 .me-btn { flex: none; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; background: none; border: 0; border-radius: 50%; }
+@media (max-width: 899px) { .me-btn { display: none; } } /* phones: your face is the You tab */
 .me-btn .face { box-shadow: 0 0 0 2px var(--velvet), 0 0 0 3px var(--hairline-2); transition: box-shadow var(--d-2); }
 .me-btn:hover .face { box-shadow: 0 0 0 2px var(--velvet), 0 0 0 3px var(--bulb); }
 .profile-open { justify-self: start; width: auto; margin-top: 10px; min-height: 36px; }

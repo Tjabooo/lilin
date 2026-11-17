@@ -345,6 +345,20 @@ body.searching .top-actions { flex: 1; margin-left: 0; }
 .search-clear svg { width: 18px; height: 18px; }
 .search-cancel { flex: none; height: 40px; padding: 0 4px 0 10px; font-weight: 600; color: var(--text); background: none; border: 0; }
 body:not(.searching) .search-cancel { display: none; }
+/* Search results (search.js): a layer under the header, over the page, which stays as it was. No blur. */
+.search-layer {
+  position: fixed; inset: calc(var(--safe-top) + var(--head-h)) 0 0; z-index: 29; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--s4) var(--gutter) calc(var(--tabs-h) + var(--safe-bottom) + var(--s6)); background: var(--velvet);
+}
+.sr-body { display: grid; gap: var(--s6); max-width: var(--page-max); margin: 0 auto; }
+.sr-head { margin: 0 0 var(--s3); font: 700 var(--t-h3)/1.3 var(--display); }
+.sr-chips, .sr-more { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.sr-thumb { flex: none; width: 32px; height: 48px; object-fit: cover; background: var(--surface-2); border-radius: 6px; }
+/* A page's own filter (Library, Activity, Machines, Game clips, Notes): a funnel, not the search magnifier */
+.filter-field { position: relative; display: flex; align-items: center; flex: 0 1 240px; min-width: 150px; }
+.filter-field svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-2); pointer-events: none; }
+.filter-field input { width: 100%; height: 38px; padding: 0 12px 0 36px; font-size: 16px; color: var(--text); background: var(--surface-1); border: 1px solid var(--hairline-2); border-radius: 999px; -webkit-appearance: none; appearance: none; }
+.filter-field input:focus { outline: none; border-color: var(--bulb); }
 
 /* Browse (phones, tablets): what Discover shows, picked from a sheet instead of pills over the billboard */
 .browse-btn {
@@ -377,12 +391,10 @@ body.searching .browse-btn { display: none; }
   background: var(--surface-glass);
   -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
   border-top: 1px solid var(--hairline);
-  overflow-x: auto; scrollbar-width: none;
 }
-.tabs::-webkit-scrollbar { display: none; }
 .tab {
   position: relative;
-  flex: 1 0 64px; height: calc(var(--tabs-h) - 8px); min-width: 64px;
+  flex: 1 1 0; height: calc(var(--tabs-h) - 8px); min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   font-size: 11.5px; font-weight: 600; letter-spacing: .01em;
   color: var(--text-2); background: none; border: 0; border-radius: 12px;
@@ -400,9 +412,14 @@ body.searching .browse-btn { display: none; }
 }
 .tab[aria-current="page"]::before { opacity: 1; transform: none; }
 .tab:active svg { transform: scale(.9); }
-.tabs { --tab-edge-left: #000; --tab-edge-right: #000; mask-image: linear-gradient(to right, var(--tab-edge-left), #000 14px, #000 calc(100% - 14px), var(--tab-edge-right)); }
-.tabs.can-scroll-left { --tab-edge-left: transparent; }
-.tabs.can-scroll-right { --tab-edge-right: transparent; }
+/* You: your face instead of an icon (the shared home account keeps the glyph); a dot when something waits for you */
+.tab-face { display: grid; place-items: center; width: 24px; height: 24px; }
+.tab[aria-current="page"] .tab-face .face { box-shadow: 0 0 0 2px var(--velvet), 0 0 0 3.5px var(--bulb); }
+.tab-dot { position: absolute; top: 6px; left: calc(50% + 7px); width: 10px; height: 10px; font-size: 0; background: var(--bulb); border-radius: 50%; box-shadow: 0 0 0 2px var(--velvet); }
+.me-btn { position: relative; }
+.me-btn .tab-dot { top: 1px; left: auto; right: 1px; }
+.me-btn > svg { width: 24px; height: 24px; color: var(--text-2); }
+@media (min-width: 900px) { .tab[data-view="you"] { display: none; } .tab-dot { position: static; margin-left: 6px; } .me-btn .tab-dot { position: absolute; } }
 .tab-badge {
   position: absolute; top: 5px; left: calc(50% + 7px);
   min-width: 18px; height: 18px; padding: 0 5px;
@@ -420,7 +437,7 @@ main {
 }
 .view { animation: view-in var(--d-3) var(--ease-out); }
 @keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
-#view-settings, #view-activity, #view-house, #view-clips { max-width: var(--page-max); margin: 0 auto; }
+#view-you, #view-activity, #view-house, #view-clips { max-width: var(--page-max); margin: 0 auto; }
 .view-heading, .view-head h2 {
   margin: var(--s3) 0 var(--s5);
   font: 800 var(--t-h1)/1.08 var(--display);
@@ -1982,7 +1999,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   :root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .tab { color: color-mix(in srgb, var(--on-image) 80%, transparent); }
   :root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .tab:hover,
   :root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .tab[aria-current="page"] { color: var(--on-image); }
-  .search-toggle, .search-cancel { display: none !important; }
+  .search-toggle { display: none !important; }
   .search { display: flex; flex: 0 1 300px; transition: flex-basis var(--d-2) var(--ease-out); }
   .search:focus-within, .search:has(input:not(:placeholder-shown)) { flex-basis: 420px; }
   body.searching .wordmark, body.searching .news-btn { display: revert; }
@@ -2511,10 +2528,22 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 }
 .signed-out p { margin: 0; font-size: 14px; }
 
-/* ---------- settings ---------- */
-#settings-body { max-width: none; }
+/* ---------- you (was Settings): the list of your pages; wide screens show it beside the open page ---------- */
+#you-list, #you-rows, #you-page { display: grid; gap: var(--s6); align-content: start; min-width: 0; max-width: 780px; }
+#view-you.on-page #you-list, #view-you:not(.on-page) #you-page { display: none; }
+.you-page-title { margin: 0; font: 800 var(--t-h2)/1.2 var(--display); letter-spacing: -.015em; }
+@media (min-width: 900px) {
+  #view-you.on-page #you-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--s7); align-items: start; }
+  #view-you.on-page #you-list { display: grid; position: sticky; top: calc(var(--safe-top) + var(--head-h) + var(--s5)); }
+  .you-back { display: none; }
+}
+/* A row that opens something (You's list, Go to, On Lilin): label and a quiet line, then a chevron */
+.lrow, .sr-row { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 56px; padding: 10px 16px; text-align: left; color: inherit; background: none; border: 0; transition: background-color var(--d-1); }
+.lrow:hover, .sr-row:hover, .lrow[aria-current="page"] { background: var(--surface-2); }
+.lrow-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.sr-row > .set-hint { margin-left: auto; }
+.lrow-chev { flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); transform: rotate(-45deg); }
 /* Groups of rows on one card, separated by hairlines; the heading above each card */
-.set-groups { display: grid; gap: var(--s6); min-width: 0; max-width: 780px; }
 .set-group { min-width: 0; scroll-margin-top: calc(var(--safe-top) + var(--head-h) + 16px); }
 .set-head { display: flex; align-items: center; gap: 8px; margin: 0 0 var(--s3); padding-left: 4px; font: 700 var(--t-h3)/1.3 var(--display); letter-spacing: -.01em; }
 .set-stack { display: grid; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
@@ -2522,8 +2551,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .set-stack > * + * { border-top: 1px solid var(--hairline); }
 .set-stack > :is(.set-row, .set-card, .profile, .rows, .swatches, .custom-colors, p, details, div:not([class])) { margin: 0; border-radius: 0; background: none; }
 .set-stack > :is(.swatches, .custom-colors, p, details, .rows) { padding: var(--s4); }
-.set-stack > .wrapped-open { width: auto; margin: var(--s3); border-radius: var(--r-md); }
-.set-stack > .wrapped-open + *, .set-stack > * + .wrapped-open { border-top: 0; }
 .set-hint { font-size: 13px; line-height: 1.45; color: var(--text-2); margin: 0; }
 .set-row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap;
@@ -2543,15 +2570,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .set-card { padding: 16px; background: var(--surface-1); border-radius: var(--r-md); }
 .set-card p { margin: 0 0 6px; }
 .set-card p:last-child { margin-bottom: 0; }
-/* the index beside the groups (wide screens) */
-.set-index { display: none; }
-@media (min-width: 900px) {
-  #settings-body { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: var(--s7); align-items: start; }
-  .set-index { display: block; position: sticky; top: calc(var(--safe-top) + var(--head-h) + var(--s5)); }
-  .set-index ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
-  .set-index a { display: block; padding: 8px 12px; border-radius: var(--r-sm); color: var(--text-2); font-weight: 600; text-decoration: none; transition: color var(--d-1), background-color var(--d-1); }
-  .set-index a:hover { color: var(--text); background: var(--surface-1); }
-}
 /* You: Sign out row + Change password, a row that opens into a small form */
 .set-account > .set-row { margin: 0; background: none; }
 .set-account > .set-details { border-top: 1px solid var(--hairline); }
@@ -2660,30 +2678,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
   --velvet: #111111; --curtain: #1C1C1C; --seat: #2A2A2A; --line: #3A3A3A;
   --paper: #F4F4F4; --dust: #B5B5B5;
   --ok: #6fcf8f; --info: #7fb2ff;
-}
-
-/* Owners have up to seven tabs: keep them on one line (phones: icons only once there are seven; the name stays for screen readers) */
-@media (max-width: 599px) {
-  .tabs:has(.tab:nth-child(7)) .tab { min-width: 0; flex: 1 1 0; }
-  .tabs:has(.tab:nth-child(7)) .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; }
-  .tabs:has(.tab:nth-child(7)) .tab svg { width: 25px; height: 25px; }
-}
-.tabs:has(.tab:nth-child(6)) .tab { font-size: 11px; }
-.tabs:has(.tab:nth-child(6)) .tab svg { width: 20px; height: 20px; }
-@media (max-width: 420px) {
-  .tabs:has(.tab:nth-child(6)) { padding-left: 2px; padding-right: 2px; }
-  .tabs:has(.tab:nth-child(6)) .tab { font-size: 10px; letter-spacing: -0.01em; }
-}
-@media (min-width: 900px) {
-  .tabs:has(.tab:nth-child(6)) .tab { font-size: clamp(14px, 12px + .2vw, 17px); padding: 0 11px; }
-}
-/* Owners on wide screens have eight sections: names never get cut; the search box gives up room first,
-   and if the header still runs out the row scrolls (with the edge fades) instead of turning names into "Disc..." */
-@media (min-width: 900px) {
-  .tabs:has(.tab:nth-child(8)) { flex: 0 .2 auto; }
-  .tabs:has(.tab:nth-child(8)) .tab { flex: none; padding: 0 clamp(8px, .45vw + 3px, 11px); }
-  .top-inner:has(.tab:nth-child(8)) .top-actions { flex-shrink: 4; }
-  .top-inner:has(.tab:nth-child(8)) .search { min-width: 150px; }
 }
 
 /* Library: poster grid, shelves, and clear controls for keeping a title longer. */
@@ -2964,8 +2958,11 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .st-c-development { --st: var(--st-development); } .st-c-productivity { --st: var(--st-productivity); }
 .st-c-creativity { --st: var(--st-creativity); } .st-c-education { --st: var(--st-education); }
 .st-c-utilities { --st: var(--st-utilities); } .st-c-other { --st: var(--st-other); }
-.house-tabs { margin: 0 0 16px; }
-.house-tabs .segmented button { height: 32px; }
+/* House: a tile per tool */
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(150px, 22%), 1fr)); gap: var(--s3); }
+.tool { display: grid; align-content: start; gap: 4px; min-height: 88px; padding: 14px 16px; text-align: left; color: inherit; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1); }
+.tool:hover { background: var(--surface-2); }
+.tool.has-alert { border-color: var(--bulb); }
 .st-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .st-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .st-controls .segmented button { height: 30px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
@@ -3191,15 +3188,6 @@ button.st-col:hover .st-stack { filter: brightness(1.12); }
   .chat-float { animation: none; }
 }
 
-/* Settings → Wrapped */
-.wrapped-open {
-  width: 100%; margin: 12px 0 4px; padding: 16px 18px; display: grid; gap: 2px; text-align: left;
-  color: var(--paper); border: 1px solid var(--line); border-radius: 16px;
-  background: radial-gradient(120% 140% at 100% 0%, var(--bulb-dim), transparent 60%), var(--curtain);
-}
-.wrapped-open:hover { border-color: var(--bulb); }
-.wrapped-open-kicker { font: 800 18px/1.25 var(--display); color: var(--bulb); }
-.wrapped-open span:last-child { color: var(--dust); font-size: 14px; }
 
 /* The Wrapped story */
 .wrapped {

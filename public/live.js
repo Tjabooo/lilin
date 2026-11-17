@@ -209,6 +209,6 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
   let onChange = () => {};
   function changed() { state.at = 0; onChange(); }
 
-  return { load, render, channels, byNumber, byId, neighbour, onNow, nextUp, displayName, artUrl,
+  return { load, render, channels, byNumber, byId, neighbour, onNow, nextUp, displayName, artUrl, openEditor, // openEditor: House → Your channels
     get guide() { return state.guide; }, onChanged: (fn) => { onChange = fn; }, invalidate: () => { state.at = 0; } };
 }
