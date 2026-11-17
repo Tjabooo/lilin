@@ -90,6 +90,7 @@ const ICONS = {
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   upgrade: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  laptop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg>',
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><path d="M12 6.5v7M9.2 10.8l2.8 2.8 2.8-2.8M10.5 18h3"/></svg>',
   volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg>',
   volumeHigh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
@@ -5025,6 +5026,52 @@ async function offerWatchRoom(token) {
   } catch (err) { toast(err.message); }
 }
 
+// Scan to sign in (src/signin-link.js): the QR on a computer's sign-in page or a TV opens Lilin as
+// ?signin=<code>&on=web|tv. Nothing happens until you say yes here, after seeing what's asking and roughly where.
+async function offerDeviceSignIn(rawCode, on, { rethrow = false } = {}) {
+  const code = String(rawCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  if (code.length < 6) return;
+  let info;
+  try { info = await api(`/api/tv/pair/info?code=${encodeURIComponent(code)}&on=${on === 'tv' || on === 'web' ? on : ''}`, { signal: AbortSignal.timeout(10000) }); }
+  catch (err) { if (rethrow) throw err; toast(err.message); return; }
+  const tv = info.on === 'tv';
+  const { browser, os } = info.label || {};
+  const what = tv ? T('The Lilin app on a TV') : browser && os ? T('{0} on {1}', browser, os) : browser || os || T('A web browser');
+  const where = info.where?.home ? T('On your home network')
+    : [info.where?.city, info.where?.country].filter(Boolean).join(', ') || T('Outside your home network');
+  const status = h('p', { class: 'muted signin-ask-status', role: 'status' });
+  const card = h('div', { class: 'signin-ask-device' },
+    h('span', { class: 'signin-ask-icon' }, icon(tv ? 'tv' : 'laptop')),
+    h('div', {}, h('p', { class: 'signin-ask-what' }, what), h('p', { class: 'signin-ask-where' }, where)));
+  let left = info.expiresIn;
+  const timer = h('span', { class: 'signin-ask-timer' });
+  const tick = () => {
+    timer.textContent = left > 0 ? T('Code expires in {0}', `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`) : T('The code expired.');
+    if (left <= 0) { clearInterval(clock); yes.disabled = true; }
+    left--;
+  };
+  const yes = h('button', { class: 'play-btn signin-ask-yes', onclick: async () => {
+    if (yes.disabled) return;
+    yes.disabled = true; yes.setAttribute('aria-busy', 'true'); status.textContent = T('Signing in…');
+    try {
+      await api('/api/tv/pair/approve', { ...jsonPost({ code, on: info.on }), signal: AbortSignal.timeout(10000) });
+      clearInterval(clock);
+      sheet.classList.add('is-done'); yes.hidden = true; timer.hidden = true; no.textContent = T('Done');
+      status.textContent = tv ? T('The TV is signed in as you.') : T('The computer is signed in as you. It opens Lilin by itself.');
+    } catch (err) { status.textContent = err.message; yes.disabled = left <= 0; }
+    finally { yes.removeAttribute('aria-busy'); }
+  } }, tv ? T('Sign in the TV') : T('Sign in the computer'));
+  const no = h('button', { class: 'chip signin-ask-no', onclick: () => dismissTopOverlay() }, T('Cancel'));
+  const sheet = h('div', { class: 'signin-ask' },
+    h('h2', { id: 'picker-title' }, tv ? T('Sign in a TV as you?') : T('Sign in a computer as you?')),
+    card,
+    h('p', { class: 'muted signin-ask-note' }, T('Only say yes if it’s in front of you. Whoever shows this code gets into Lilin as you.')),
+    timer, h('div', { class: 'signin-ask-actions' }, yes, no), status);
+  const clock = setInterval(tick, 1000); tick();
+  $('#picker-body').replaceChildren(sheet);
+  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => clearInterval(clock)));
+}
+
 function setWatchPanel(open) {
   watchPanelOpen = Boolean(open && party);
   if (watchPanelOpen) mountRoomInvite();
@@ -8358,23 +8405,26 @@ function settingsGroups(nodes, title) {
   return groups.map((g) => h('section', { class: 'set-group', 'data-anchor': g.head ? null : g.anchor }, g.head, h('div', { class: 'set-stack' }, g.items)));
 }
 
-// The Lilin app on a TV (tv/tizen) shows a code; entering it here signs that TV in as you.
+// The Lilin app on a TV (tv/tizen) or a computer's sign-in page shows a code; entering it here signs that device in
+// as you (the server works out which). Scanning their QR code does the same through offerDeviceSignIn.
 function tvSignInRow() {
-  const input = h('input', { type: 'text', class: 'invite-note tv-code', maxlength: '7', placeholder: T('Code'), 'aria-label': T('Code shown on the TV'),
+  const input = h('input', { type: 'text', class: 'invite-note tv-code', maxlength: '7', placeholder: T('Code'), 'aria-label': T('Code shown on the TV or computer'),
     autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', enterkeyhint: 'done' });
   const go = h('button', { type: 'submit', class: 'chip' }, T('Sign in'));
   const note = h('p', { class: 'set-hint tv-code-note', role: 'status' });
   const form = h('form', { class: 'tv-code-form', onsubmit: async (e) => {
     e.preventDefault();
     const code = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (code.length < 6) { note.textContent = T('The code on the TV has 6 letters and numbers.'); input.focus(); return; }
-    go.disabled = true; note.textContent = T('Signing in the TV…');
+    if (code.length < 6) { note.textContent = T('The code has 6 letters and numbers.'); input.focus(); return; }
+    go.disabled = true;
     try {
-      await api('/api/tv/pair/approve', jsonPost({ code }));
-      input.value = ''; note.textContent = T('Done. The TV is signed in as you.');
+      // Ask first, like a scanned code: the sheet shows what's asking and where.
+      note.textContent = '';
+      await offerDeviceSignIn(code, '', { rethrow: true });
+      input.value = '';
     } catch (err) { note.textContent = err.message; } finally { go.disabled = false; }
   } }, input, go);
-  return settingsRow(T('Sign in on a TV'), T('Open the Lilin app on the TV and enter the code it shows. The TV then sees your library.'),
+  return settingsRow(T('Sign in another device'), T('Scan the QR code a TV or computer shows with your phone’s camera, or enter the code it shows here.'),
     h('div', { class: 'tv-code-wrap' }, form, note));
 }
 
@@ -10784,6 +10834,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (token) { await offerWatchRoom(token); return; }
   if (url.searchParams.get('pick')) { pickUi.openPick(url.searchParams.get('pick')); return; } // pick: an invite or a match
   if (url.searchParams.get('update')) { await openUpdateNote(url.searchParams.get('update')); return; }
+  if (url.searchParams.get('signin')) { await offerDeviceSignIn(url.searchParams.get('signin'), url.searchParams.get('on')); return; }
   if (await openLink(url)) return;
   const id = resolve(url.hash, state.me, state.status);
   if (id && id !== state.route) await setView(id);
@@ -10852,6 +10903,13 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (wrappedYear) {
     const url = new URL(location.href); url.searchParams.delete('wrapped'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     if (wrappedYear > 2000 && wrappedYear < 3000) openWrapped(wrappedYear);
+  }
+  // A scanned sign-in QR (a computer's sign-in page, a TV) opens Lilin as ?signin=<code>&on=web|tv: ask first.
+  const signinCode = new URL(location.href).searchParams.get('signin');
+  if (signinCode) {
+    const url = new URL(location.href); const on = url.searchParams.get('on');
+    url.searchParams.delete('signin'); url.searchParams.delete('on'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    await offerDeviceSignIn(signinCode, on);
   }
   // An update notification opens Lilin as ?update=<id>: show those notes.
   const updateId = new URL(location.href).searchParams.get('update');

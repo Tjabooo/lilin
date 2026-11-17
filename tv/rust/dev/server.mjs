@@ -2,6 +2,7 @@
 // Lilin (LILIN_URL). Anything that would change data (POST, PUT, DELETE) is refused (but subtitles and tuning in to a
 // Live TV channel), so browsing a live
 // library from a desktop browser is safe.   LILIN_URL=http://host:8080 node tv/rust/dev/server.mjs [port]
+// TV_DEV_PAIR=1: start signed out on the sign-in screen (asking for a code is let through).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,6 +10,7 @@ import path from 'node:path';
 const root = path.resolve(new URL('../../..', import.meta.url).pathname);
 const upstream = String(process.env.LILIN_URL || '').replace(/\/+$/, '');
 const port = Number(process.argv[2] || 8099);
+const pairing = process.env.TV_DEV_PAIR === '1';
 if (!upstream) { console.error('Set LILIN_URL'); process.exit(2); }
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
   '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -19,7 +21,7 @@ http.createServer(async (req, res) => {
     // The Tizen shell, pointed at this server.
     let html = fs.readFileSync(path.join(root, 'tv/tizen/index.html'), 'utf8')
       .replace('<script src="$WEBAPIS/webapis/webapis.js"></script>', '')
-      .replace('<script src="config.js"></script>', `<script>window.LILIN_SERVER=location.origin;try{localStorage.setItem('lilin:tv-session', localStorage.getItem('lilin:tv-session')||'home')}catch(e){}</script>`)
+      .replace('<script src="config.js"></script>', `<script>window.LILIN_SERVER=location.origin;${pairing ? "try{localStorage.removeItem('lilin:tv-session')}catch(e){}" : "try{localStorage.setItem('lilin:tv-session', localStorage.getItem('lilin:tv-session')||'home')}catch(e){}"}</script>`)
       .replace('<script src="shell.js"></script>', (url.searchParams.has('mock') ? '<script src="/dev-avplay.js"></script>' : '') + '<script src="/shell.js"></script>');
     res.writeHead(200, { 'Content-Type': 'text/html' });
     return res.end(html);
@@ -36,7 +38,7 @@ http.createServer(async (req, res) => {
     // Subtitles: the TV asks the server to fetch them on every play; that only fills its cache.
     // Allowed writes: subtitles, and watching a Live TV channel (tune in, heartbeats, leave: room membership only).
     const allowed = req.method === 'POST' && (url.pathname === '/api/subs/fetch' || /^\/api\/live\/[\w-]+\/tune$/.test(url.pathname)
-      || /^\/api\/watch\/L[\w-]+\/(heartbeat|leave)$/.test(url.pathname));
+      || /^\/api\/watch\/L[\w-]+\/(heartbeat|leave)$/.test(url.pathname) || (pairing && url.pathname === '/api/tv/pair/start'));
     if (req.method !== 'GET' && !allowed) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'The dev server only reads (blocked ' + req.method + ').' }));

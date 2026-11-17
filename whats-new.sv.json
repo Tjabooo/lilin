@@ -1,4 +1,13 @@
 {
+  "2026-11-17-scan-to-sign-in": {
+    "title": "Logga in genom att skanna en kod",
+    "items": {
+      "No password on computers and TVs": {
+        "title": "Inget lösenord på datorer och TV-apparater",
+        "text": "Inloggningssidan på en dator och inloggningsskärmen på TV:n visar nu en QR-kod. Rikta kameran på en mobil som är inloggad i Lilin mot den, kolla att den visar rätt enhet och säg ja. Ingen kamera? Skriv in koden under Du → Enheter och aviseringar i stället."
+      }
+    }
+  },
   "2026-11-17-sharper-banners": {
     "title": "Skarpare banners",
     "items": {

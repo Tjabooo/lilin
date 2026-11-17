@@ -104,5 +104,48 @@ body > main:has(form[action$="/login"]) .err { padding: 12px 14px; color: #ffd6c
 body > main:has(form[action$="/login"]) .foot { text-align: center; }
 body > main:has(form[action$="/login"]) .foot a { color: var(--dust); }
 body > main:has(form[action$="/login"]) .foot b { color: var(--paper); }
+/* Scan to sign in (signin-link.js): on a computer the card opens up into the QR on the left, "or", and the
+   password on the right. Phones never see it (they're the device that scans). */
+body.qr-on > main:has(form[action$="/login"]) { max-width: 860px; padding: 34px 40px 26px; }
+.signin-split { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 36px; align-items: center; margin-top: 8px; }
+body:not(.qr-on) .signin-split { display: block; }
+.qr-side { text-align: center; }
+.qr-side[hidden], .qr-or[hidden] { display: none; }
+.qr-frame {
+  position: relative; width: 208px; height: 208px; margin: 0 auto 18px; padding: 10px;
+  background: #fff; border-radius: 22px;
+  box-shadow: 0 0 0 1px rgb(244 193 82 / .35), 0 0 46px -8px rgb(244 193 82 / .45), 0 24px 60px -24px rgb(0 0 0 / .8);
+  transition: opacity .25s, filter .25s;
+}
+.qr-code, .qr-code svg { display: block; width: 100%; height: 100%; }
+.qr-code:empty { border-radius: 12px; background: repeating-linear-gradient(45deg, #eee 0 8px, #f7f7f7 8px 16px); }
+/* the wordmark on a small velvet tab in the middle: the code's error correction covers it */
+.qr-mark {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 4px 9px 5px; border-radius: 9px; background: var(--velvet); box-shadow: 0 0 0 4px #fff;
+  font: 800 15px/1 var(--display); letter-spacing: -.02em; color: var(--bulb);
+}
+.qr-side.is-stale .qr-frame { opacity: .35; filter: blur(2px); }
+.qr-side.is-done .qr-frame { box-shadow: 0 0 0 2px var(--bulb), 0 0 60px -4px rgb(244 193 82 / .7); }
+.qr-side h2 { margin: 0 0 6px; font: 700 17px/1.3 var(--display); color: var(--paper); }
+.qr-side p { margin: 0 auto; max-width: 280px; font-size: 13px; color: var(--dust); }
+.qr-side .qr-how { margin-bottom: 10px; }
+.qr-side .qr-typed b { color: var(--paper); letter-spacing: .08em; white-space: nowrap; }
+.qr-side .qr-left {
+  display: inline-block; margin-top: 14px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--hairline-2); background: rgb(18 9 14 / .5); font-size: 12px; font-weight: 600; color: var(--dust);
+  font-variant-numeric: tabular-nums;
+}
+.qr-side .qr-left:empty { display: none; }
+body > main:has(form[action$="/login"]) .qr-side .qr-again {
+  display: block; width: auto; height: 40px; margin: 12px auto 0; padding: 0 18px; font-size: 14px;
+  color: var(--paper); background: rgb(246 234 223 / .08); border: 1px solid var(--hairline-2); box-shadow: none;
+}
+body > main:has(form[action$="/login"]) .qr-side .qr-again[hidden] { display: none; }
+.qr-or { display: flex; flex-direction: column; align-items: center; align-self: stretch; gap: 12px; color: var(--dust); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.qr-or::before, .qr-or::after { content: ""; flex: 1; width: 1px; background: linear-gradient(transparent, var(--hairline-2), transparent); }
+.pw-side form { margin: 0; }
+@media (max-width: 759px) { .qr-side, .qr-or { display: none !important; } body.qr-on > main:has(form[action$="/login"]) { max-width: 400px; } .signin-split { display: block; } }
+@media (prefers-reduced-motion: reduce) { .qr-frame { transition: none; } }
 code { padding: 1px 6px; border-radius: 6px; background: rgb(0 0 0 / .3); color: var(--paper); }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }

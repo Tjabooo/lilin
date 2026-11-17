@@ -1,5 +1,5 @@
-//! Starting up and signing the TV in: a code on the TV, approved on a phone (Settings → Sign in on a TV),
-//! or the shared Home network account.
+//! Starting up and signing the TV in: a QR code to scan with a signed-in phone, or a code typed on the phone
+//! (You › Devices and notifications), or the shared Home network account.
 use super::home::Home;
 use crate::gfx::{hexa, rect};
 use crate::host;
@@ -122,6 +122,8 @@ pub struct Pair {
     home_on: bool,
     code: String,
     poll: String,
+    /// The QR code (rows of dark modules) that opens Lilin on a phone to approve this TV.
+    qr: Vec<Vec<bool>>,
     note: String,
     fixed_note: Option<String>,
     timer: u32,
@@ -138,6 +140,7 @@ impl Pair {
             home_on: false,
             code: String::new(),
             poll: String::new(),
+            qr: Vec::new(),
             note: note.clone().unwrap_or_default(),
             fixed_note: note,
             timer: 0,
@@ -147,6 +150,40 @@ impl Pair {
         };
         p.new_code(cx);
         p
+    }
+    /// The QR code on a white card on the right, lit like the code boxes.
+    fn draw_qr(&mut self, cx: &mut Cx) {
+        let size = 440.0;
+        let card = rect(1920.0 - ui::EDGE - size, 300.0, size, size);
+        ui::shadow(cx, card, 32.0, 50.0, 0.45);
+        cx.g.glow(card, 32.0, 46.0, hexa(0xF4C152, 0.28));
+        cx.g.round(card, 32.0, hexa(0xFFFFFF, 1.0));
+        cx.g.ring(card, 32.0, 2.0, hexa(0xF4C152, 0.4));
+        let n = self.qr.len();
+        if n == 0 {
+            return;
+        }
+        // Whole pixels per module (crisp edges), quiet zone inside the card's padding.
+        let m = libm::floor(((size - 56.0) / n as f32) as f64) as f32;
+        let x0 = libm::round((card.x + (size - m * n as f32) / 2.0) as f64) as f32;
+        let y0 = libm::round((card.y + (size - m * n as f32) / 2.0) as f64) as f32;
+        let ink = hexa(0x000000, 1.0);
+        for (y, row) in self.qr.iter().enumerate() {
+            let mut x = 0;
+            while x < row.len() {
+                if !row[x] {
+                    x += 1;
+                    continue;
+                }
+                let start = x;
+                while x < row.len() && row[x] {
+                    x += 1;
+                }
+                cx.g.fill(rect(x0 + start as f32 * m, y0 + y as f32 * m, (x - start) as f32 * m, m), ink);
+            }
+        }
+        let cap = body(28.0, 700);
+        cx.tx.draw_center(&mut cx.g, cap, t!("Scan with your phone"), card.x + size / 2.0, card.b() + 30.0, ui::PAPER);
     }
     fn new_code(&mut self, cx: &mut Cx) {
         if self.alive {
@@ -193,8 +230,9 @@ impl Screen for Pair {
         let step = body(38.0, 400);
         let bold = body(38.0, 700);
         let num = display(38.0, 800);
-        rich(cx, ui::EDGE, 330.0, &[("1  ", num, ui::BULB), (t!("On your phone, open Lilin and go to "), step, ui::DUST), (t!("Settings"), bold, ui::PAPER), (".", step, ui::DUST)]);
-        rich(cx, ui::EDGE, 388.0, &[("2  ", num, ui::BULB), (t!("Under "), step, ui::DUST), (t!("Sign in on a TV"), bold, ui::PAPER), (t!(", enter this code:"), step, ui::DUST)]);
+        rich(cx, ui::EDGE, 330.0, &[("1  ", num, ui::BULB), (t!("Scan the QR code with your phone’s camera,"), step, ui::DUST)]);
+        rich(cx, ui::EDGE, 388.0, &[("2  ", num, ui::BULB), (t!("or enter this code in Lilin under "), step, ui::DUST), (t!("You › Devices"), bold, ui::PAPER), (":", step, ui::DUST)]);
+        self.draw_qr(cx);
         // The code: lit letters in little lilin boxes.
         let mut x = ui::EDGE;
         let y = 480.0;
@@ -223,7 +261,7 @@ impl Screen for Pair {
             x += 128.0 + 16.0;
         }
         let note = body(30.0, 400);
-        cx.tx.draw_fit(&mut cx.g, note, &self.note, ui::EDGE, 690.0, 1500.0, ui::DUST);
+        cx.tx.draw_fit(&mut cx.g, note, &self.note, ui::EDGE, 690.0, 1180.0, ui::DUST);
         if self.home {
             self.lit.set(if self.home_on { 1.0 } else { 0.0 });
             let lit = self.lit.step01(cx, 16.0);
@@ -267,6 +305,10 @@ impl Screen for Pair {
                 }
                 self.poll = crate::util::id(&res.json, "poll");
                 self.code = String::from(s(&res.json, "code"));
+                self.qr = match res.json.get("qr") {
+                    Some(Value::Array(rows)) => rows.iter().map(|r| r.as_str().unwrap_or("").bytes().map(|b| b == b'1').collect()).collect(),
+                    _ => Vec::new(),
+                };
                 let mins = libm::round(f(&res.json, "expiresIn").unwrap_or(600.0) / 60.0) as i64;
                 self.note = match &self.fixed_note {
                     Some(n) => n.clone(),

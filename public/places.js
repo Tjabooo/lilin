@@ -28,7 +28,7 @@ export const PLACES = [
   { id: 'account', route: 'you/account', syn: syn(['sign out', 'log out', 'password', 'change password'], ['logga ut', 'lösenord', 'byt lösenord', 'konto']) },
   { id: 'look', route: 'you/look', syn: syn(['language', 'theme', 'colours', 'colors', 'appearance', 'swedish', 'english'], ['språk', 'tema', 'färger', 'utseende', 'svenska', 'engelska']) },
   { id: 'watching', route: 'you/watching', syn: syn(['subtitles', 'intros', 'skip intro', 'theme music', 'start page', 'open lilin on'], ['undertexter', 'intron', 'hoppa över intro', 'ledmotiv', 'startsida', 'öppna lilin på']) },
-  { id: 'devices', route: 'you/devices', syn: syn(['notifications', 'push', 'tv code', 'sign in on a tv', 'android tv', 'jellyfin'], ['aviseringar', 'notiser', 'tv-kod', 'logga in på en tv']) },
+  { id: 'devices', route: 'you/devices', syn: syn(['notifications', 'push', 'tv code', 'sign in on a tv', 'sign in a computer', 'qr code', 'scan', 'android tv', 'jellyfin'], ['aviseringar', 'notiser', 'tv-kod', 'logga in på en tv', 'logga in en dator', 'qr-kod', 'skanna']) },
   { id: 'download-settings', route: 'you/download-settings', syn: syn(['quality', 'download quality', 'largest download', 'audio language', '4k'], ['kvalitet', 'största nedladdning', 'ljudspråk']) },
   { id: 'ideas', route: 'you/ideas', syn: syn(['idea box', 'bug', 'feedback', 'suggestion', 'something is off'], ['idélåda', 'bugg', 'förslag', 'något är fel']) },
   { id: 'house', route: 'house', syn: syn(['owner', 'admin', 'server', 'tools'], ['ägare', 'server', 'verktyg']) },

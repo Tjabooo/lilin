@@ -159,8 +159,22 @@
     });
   }
 
+  // Rows of '0'/'1' from /api/tv/pair/start, black on white, whole pixels per module.
+  function drawQr(canvas, rows) {
+    var g = canvas.getContext && canvas.getContext('2d');
+    if (!g) return;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+    if (!rows || !rows.length) return;
+    var n = rows.length, m = Math.floor(canvas.width / n), o = Math.floor((canvas.width - m * n) / 2);
+    g.fillStyle = '#000';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (rows[y].charAt(x) === '1') g.fillRect(o + x * m, o + y * m, m, m);
+  }
+
   function pairScreen(homeAvailable, note) {
     var codeEl = h('div', { class: 'pair-code', 'aria-live': 'polite' });
+    // The QR opens Lilin on a phone that's signed in, which asks before signing this TV in.
+    var qrCanvas = h('canvas', { class: 'pair-qr-code', width: '384', height: '384' });
+    var qrEl = h('div', { class: 'pair-qr' }, h('div', { class: 'pair-qr-card' }, qrCanvas), h('p', { class: 'pair-qr-cap', text: T('Scan with your phone') }));
     var noteEl = h('p', { class: 'pair-note', text: note || '' });
     var homeBtn = homeAvailable ? h('div', { class: 'pair-alt' }, h('span', { class: 'pair-alt-hint', text: T('No account? Press Down for') }),
       h('button', { class: 'pair-home', text: T('Use the shared Home network account') })) : null;
@@ -168,9 +182,9 @@
       h('div', { class: 'wordmark', text: 'Lilin' }),
       h('h1', { text: T('Sign in this TV') }),
       h('ol', { class: 'pair-steps' },
-        h('li', {}, T('On your phone, open Lilin and go to '), h('b', { text: T('Settings') }), '.'),
-        h('li', {}, T('Under '), h('b', { text: T('Sign in on a TV') }), T(', enter this code:'))),
-      codeEl, noteEl, homeBtn);
+        h('li', {}, T('Scan the QR code with your phone’s camera,')),
+        h('li', {}, T('or enter this code in Lilin under '), h('b', { text: T('You › Devices') }), ':')),
+      codeEl, noteEl, homeBtn, qrEl);
     var poll = null, timer = null, alive = true;
     function newCode() {
       if (!alive) return;
@@ -178,6 +192,7 @@
         poll = r.poll;
         codeEl.innerHTML = '';
         r.code.split('').forEach(function (c, i) { codeEl.appendChild(h('span', { class: i === 3 ? 'gap' : '', text: c })); });
+        drawQr(qrCanvas, r.qr);
         noteEl.textContent = note || T('The code changes every {0} minutes.', Math.round(r.expiresIn / 60));
         check();
       }).catch(function (err) { noteEl.textContent = err.message + ' ' + T('Trying again…'); timer = setTimeout(newCode, 5000); });

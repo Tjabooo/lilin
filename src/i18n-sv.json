@@ -701,5 +701,17 @@
  "{0} invited you (starts {1}). Taking you to the room…": "{0} bjöd in dig (börjar {1}). Du skickas till rummet…",
  "{0} at {1}": "{0} kl. {1}",
  "Join the room": "Gå med i rummet",
- "You’ll sign in to Lilin as usual first.": "Först loggar du in i Lilin som vanligt."
+ "You’ll sign in to Lilin as usual first.": "Först loggar du in i Lilin som vanligt.",
+ "QR code to sign in": "QR-kod för att logga in",
+ "Code expires in {0}": "Koden går ut om {0}",
+ "The code expired.": "Koden har gått ut.",
+ "Show a new code": "Visa en ny kod",
+ "Signed in. Opening Lilin…": "Inloggad. Öppnar Lilin…",
+ "Couldn’t get a code. Use your password instead.": "Kunde inte hämta en kod. Använd ditt lösenord i stället.",
+ "Scan with your phone": "Skanna med mobilen",
+ "Open the camera on a phone that’s signed in to Lilin and point it at the code.": "Öppna kameran på en mobil som är inloggad i Lilin och rikta den mot koden.",
+ "No camera? In Lilin, open You → Devices and notifications and enter": "Ingen kamera? Öppna Du → Enheter och aviseringar i Lilin och skriv in",
+ "or": "eller",
+ "That code has expired or was already used. Show a new one on the computer.": "Koden har gått ut eller redan använts. Visa en ny på datorn.",
+ "Sign in with your own account on this phone first: the shared home network account can’t sign in a computer.": "Logga in med ditt eget konto på mobilen först: det delade hemnätverkskontot kan inte logga in en dator."
 }

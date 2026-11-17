@@ -1,5 +1,16 @@
 [
 {
+  "id": "2026-11-17-scan-to-sign-in",
+  "date": "2026-11-17",
+  "title": "Sign in by scanning a code",
+  "items": [
+    {
+      "title": "No password on computers and TVs",
+      "text": "The sign-in page on a computer and the sign-in screen on the TV now show a QR code. Point the camera of a phone that's signed in to Lilin at it, check that it names the right device, and say yes. No camera? Enter the code under You → Devices and notifications instead."
+    }
+  ]
+},
+{
   "id": "2026-11-17-sharper-banners",
   "date": "2026-11-17",
   "title": "Sharper banners",

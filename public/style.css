@@ -3488,6 +3488,31 @@ html.wrapped-on { overflow: hidden; }
 .room-ticket-note { margin: 0 0 14px; }
 .room-join { width: 100%; }
 
+/* Scan to sign in: "Sign in a computer as you?" (offerDeviceSignIn). The device that's asking, framed like
+   the Watch Together ticket, then one bulb button. */
+.signin-ask { display: grid; gap: 14px; padding-top: 2px; }
+.signin-ask h2 { margin: 0; font: 800 22px/1.2 var(--display); letter-spacing: -.02em; }
+.signin-ask-device {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: radial-gradient(120% 100% at 0 0, var(--bulb-dim), transparent 62%), var(--seat);
+}
+.signin-ask-icon {
+  flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+  background: var(--curtain); color: var(--bulb); box-shadow: 0 0 0 1px var(--line), 0 0 18px -6px var(--glow-color);
+}
+.signin-ask-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.signin-ask-what { margin: 0; font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
+.signin-ask-where { margin: 2px 0 0; font-size: 14px; color: var(--dust); }
+.signin-ask-note { margin: 0; font-size: 14px; }
+.signin-ask-timer { justify-self: start; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--hairline-2); font-size: 12px; font-weight: 600; color: var(--dust); font-variant-numeric: tabular-nums; }
+.signin-ask-actions { display: flex; gap: 10px; align-items: center; }
+.signin-ask-yes { flex: 1; }
+.signin-ask-status { margin: 0; min-height: 1.4em; }
+.signin-ask.is-done .signin-ask-icon { background: var(--bulb); color: var(--on-bulb); }
+.signin-ask.is-done .signin-ask-status { color: var(--text); font-weight: 600; }
+.signin-ask.is-done .signin-ask-no { flex: 1; }
+
 /* Library → Watch parties */
 .party-host { align-self: flex-start; }
 .party-card .party-text { flex: 1 1 180px; }

@@ -5,6 +5,7 @@
 // start()   → { code, poll, expiresIn }: the code is shown on the TV, `poll` stays secret on the TV.
 // poll(id)  → { state: 'waiting' | 'approved' | 'expired', grant? }: the grant is handed over once.
 // approve(code, grant) by the signed-in person; a few wrong codes in a row wait a while.
+// The same handshake signs in a browser by scanning a QR code (signin-link.js): its own instance with a shorter life.
 import crypto from 'node:crypto';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I: read off a TV across the room
@@ -23,38 +24,38 @@ function randomCode() {
   return out;
 }
 
-export function createTvPairing({ now = () => Date.now() } = {}) {
+export function createTvPairing({ now = () => Date.now(), ttl = PAIR_TTL_MS, maxPending = MAX_PENDING } = {}) {
   const pending = new Map(); // code -> { code, poll, created, grant, taken }
   const fails = new Map();   // who -> { count, first }
 
   function sweep() {
     const t = now();
-    for (const [code, p] of pending) if (t - p.created > PAIR_TTL_MS || p.taken) pending.delete(code);
+    for (const [code, p] of pending) if (t - p.created > ttl || p.taken) pending.delete(code);
     for (const [who, f] of fails) if (t - f.first > FAIL_WINDOW_MS) fails.delete(who);
   }
 
-  // label: what the device calls itself (shown when approving; the TV app sends none).
-  function start({ label = null } = {}) {
+  // label: what the device is ("Firefox on Windows"), where: roughly where it is; both shown before approving.
+  function start({ label = null, where = null } = {}) {
     sweep();
-    while (pending.size >= MAX_PENDING) pending.delete(pending.keys().next().value);
+    while (pending.size >= maxPending) pending.delete(pending.keys().next().value);
     let code;
     do code = randomCode(); while (pending.has(code));
-    const entry = { code, label, poll: crypto.randomBytes(24).toString('base64url'), created: now(), grant: null, taken: false };
+    const entry = { code, label, where, poll: crypto.randomBytes(24).toString('base64url'), created: now(), grant: null, taken: false };
     pending.set(code, entry);
-    return { code, poll: entry.poll, expiresIn: Math.round(PAIR_TTL_MS / 1000) };
+    return { code, poll: entry.poll, expiresIn: Math.round(ttl / 1000) };
   }
 
   function poll(id) {
     const entry = [...pending.values()].find((p) => p.poll === String(id || ''));
-    if (!entry || now() - entry.created > PAIR_TTL_MS) { sweep(); return { state: 'expired' }; }
+    if (!entry || now() - entry.created > ttl) { sweep(); return { state: 'expired' }; }
     if (!entry.grant) return { state: 'waiting' };
     entry.taken = true; // the session token is handed over once
     sweep();
     return { state: 'approved', grant: entry.grant };
   }
 
-  // grant: (entry) => { token, name } made only once the code is known to be right.
-  function approve(who, code, makeGrant, { notFound } = {}) {
+  // The waiting entry for a code, or null. A miss counts as a wrong code (codes can't be guessed by looking).
+  function find(who, code) {
     sweep();
     const f = fails.get(who);
     if (f && f.count >= MAX_FAILS) {
@@ -63,12 +64,30 @@ export function createTvPairing({ now = () => Date.now() } = {}) {
     const entry = pending.get(normalCode(code));
     if (!entry || entry.grant) {
       fails.set(who, { count: (f?.count || 0) + 1, first: f?.first || now() });
-      throw Object.assign(new Error(notFound || 'That code isn’t showing on any TV. Check the code on the TV and try again.'), { status: 404 });
+      return null;
     }
     fails.delete(who);
+    return entry;
+  }
+  const missing = (text) => Object.assign(new Error(text || 'That code isn’t showing on any TV. Check the code on the TV and try again.'), { status: 404 });
+
+  // What the phone shows before you approve: which device, roughly where, and how long the code has left.
+  function peek(who, code, { notFound } = {}) {
+    const entry = find(who, code);
+    if (!entry) throw missing(notFound);
+    return { label: entry.label, where: entry.where, expiresIn: Math.max(0, Math.round((entry.created + ttl - now()) / 1000)) };
+  }
+
+  // Whether a code is waiting here, without counting a miss (to pick which pool a typed code belongs to).
+  const has = (code) => { sweep(); const e = pending.get(normalCode(code)); return Boolean(e && !e.grant); };
+
+  // grant: (entry) => { token, name } made only once the code is known to be right.
+  function approve(who, code, makeGrant, { notFound } = {}) {
+    const entry = find(who, code);
+    if (!entry) throw missing(notFound);
     entry.grant = makeGrant(entry);
     return { ok: true };
   }
 
-  return { start, poll, approve, pendingCount: () => (sweep(), pending.size) };
+  return { start, poll, peek, has, approve, pendingCount: () => (sweep(), pending.size) };
 }

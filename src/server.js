@@ -18,6 +18,7 @@ import * as subsync from './subsync.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
 import { createTvPairing } from './tv.js';
+import { startWeb as startWebSignIn, tvExtras as tvSignInExtras, placeOf as signInPlace, WEB_TTL_MS } from './signin-link.js';
 import { createJellyfin } from './jellyfin.js';
 import * as load from './load.js';
 import * as screenTime from './screentime.js';
@@ -201,6 +202,9 @@ function notify(userIds, kind, message) {
 const auth = createAuth({ dataDir: DATA_DIR });
 const tvPairing = createTvPairing();
 const tvPairLimit = createPairLimit(); // sign-in codes asked for from outside the home network (tv-gateway.js)
+// Scan to sign in on a computer (signin-link.js): the sign-in page's QR codes, approved from a signed-in phone.
+const webPairing = createTvPairing({ ttl: WEB_TTL_MS, maxPending: 300 });
+const webPairLimit = createPairLimit({ max: 40 });
 // The Jellyfin plugin (jellyfin.js, jellyfin/): someone's own Jellyfin server showing their Lilin library.
 const jellyfin = createJellyfin({
   dataDir: DATA_DIR,
@@ -3485,7 +3489,8 @@ async function handleApi(req, res, url) {
   if (p === '/api/tv/pair/start' && req.method === 'POST') {
     if (req.auth.remote && !req.tvGateway) throw new HttpError(403, 'Sign in a TV from the home network.');
     if (req.auth.remote && !tvPairLimit(clientAddress(req))) throw Object.assign(new HttpError(429, 'Too many sign-in codes. Wait a few minutes and try again.'), { retryAfter: 600 });
-    return sendJson(res, 200, tvPairing.start());
+    const started = tvPairing.start({ label: { kind: 'tv' }, where: signInPlace(req) });
+    return sendJson(res, 200, { ...started, ...tvSignInExtras(started.code, clips.baseUrl(req)) });
   }
   if (p === '/api/tv/pair/poll') {
     if (req.auth.remote && !req.tvGateway) throw new HttpError(403, 'Sign in a TV from the home network.');
@@ -3709,8 +3714,28 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { me: { ...accounts.publicUser(next), via: req.auth.via } });
   }
   if (p.startsWith('/api/jellyfin') && await jellyfin.handleApi(req, res, p, user)) return;
+  // Which pool a code is in: the QR says (on=web|tv); a typed code is looked up in both.
+  const signInPool = (code, on) => (on === 'web' || (on !== 'tv' && !tvPairing.has(code) && webPairing.has(code)) ? 'web' : 'tv');
+  // The phone, before saying yes to a scanned code: what's asking and roughly where it is.
+  if (p === '/api/tv/pair/info' && req.method === 'GET') {
+    const code = url.searchParams.get('code');
+    const on = signInPool(code, url.searchParams.get('on'));
+    const pool = on === 'web' ? webPairing : tvPairing;
+    const found = pool.peek(`u${user.id}`, code, { notFound: on === 'web' ? 'That code has expired or was already used. Show a new one on the computer.' : undefined });
+    return sendJson(res, 200, { on, ...found });
+  }
   if (p === '/api/tv/pair/approve' && req.method === 'POST') {
     const body = await readJson(req, 4096);
+    if (signInPool(body.code, body.on) === 'web') {
+      // A computer's sign-in page: it gets a normal session for this person when it next asks (/c/qr/poll).
+      const email = req.auth.via === 'home' ? null : req.auth.email;
+      if (!email) throw new HttpError(400, 'Sign in with your own account on this phone first: the shared home network account can’t sign in a computer.');
+      if (!auth.hasPassword(email)) throw new HttpError(400, 'Pick a Lilin password first.');
+      const result = webPairing.approve(`u${user.id}`, body.code, () => ({ email, name: user.name || accounts.displayNameFor(email) || '' }),
+        { notFound: 'That code has expired or was already used. Show a new one on the computer.' });
+      activity.record(req, 'signin', 'Signed in a computer by scanning a code');
+      return sendJson(res, 200, result);
+    }
     const email = req.auth.via === 'home' ? null : req.auth.email;
     const result = tvPairing.approve(`u${user.id}`, body.code, () => ({
       // The shared Home network account has no email: its TV simply uses home network access.
@@ -5031,6 +5056,30 @@ function publicPath(req, url) {
   return Boolean(ext) && ext !== '.html';
 }
 
+// Scan to sign in (signin-link.js), for the sign-in page on a computer. Public: whoever shows the code is signed
+// out by definition. The code only becomes a session once a signed-in person approves it on their phone, and
+// the session is handed to the page holding the secret poll id, once.
+function handleQrSignIn(req, res, url) {
+  const p = url.pathname;
+  if (p === '/c/qr/start' && req.method === 'POST') {
+    if (!auth.hasLogins()) throw new HttpError(404, 'Not found.');
+    if (!webPairLimit(clientAddress(req))) throw Object.assign(new HttpError(429, 'Too many sign-in codes. Wait a few minutes and try again.'), { retryAfter: 600 });
+    sendJson(res, 200, startWebSignIn(webPairing, req, clips.baseUrl(req)));
+    return true;
+  }
+  if (p === '/c/qr/poll' && req.method === 'GET') {
+    const r = webPairing.poll(url.searchParams.get('id'));
+    if (r.state !== 'approved') { sendJson(res, 200, { state: r.state }); return true; }
+    const { setCookie, email } = auth.startSession(req, r.grant.email);
+    activity.record(req, 'signin', 'Signed in to Lilin by scanning a code', { user: email });
+    console.log(`[signin] ${email} signed in a computer by QR from ${clientAddress(req)}`);
+    res.setHeader('Set-Cookie', setCookie);
+    sendJson(res, 200, { state: 'approved', name: r.grant.name });
+    return true;
+  }
+  return false;
+}
+
 function refuseSignedOut(req, res, url) {
   if (url.pathname.startsWith('/api/') || req.method !== 'GET') return sendJson(res, 401, { error: 'Sign in to use Lilin.', signin: true });
   res.writeHead(303, { Location: `/signin?next=${encodeURIComponent(url.pathname + url.search)}`, 'Cache-Control': 'no-store' });
@@ -5047,7 +5096,7 @@ function drawSignIn(req, res, url) {
   if (req.auth.via) { res.writeHead(303, { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
   const errors = { wrong: 'That email and password don’t match.', wait: 'Too many tries. Wait a few minutes and try again.', missing: 'Enter your email and password.' };
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-  res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote, email: url.searchParams.get('email') || '' }));
+  res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote, email: url.searchParams.get('email') || '', qr: auth.hasLogins() }));
 }
 
 // JSON from the app, or a plain form post from /signin.
@@ -5131,7 +5180,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
-        || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
+        || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
         || /^\/api\/admin\/notes(?:\/import|\/\d+(?:\/(?:trash|restore|share|unshare))?)?$/.test(url.pathname)
@@ -5151,6 +5200,7 @@ async function handleRequest(req, res) {
       else if (/^\/c\/icons\/(apple-touch-icon|icon-192|icon-512|maskable-192|maskable-512)\.png$/.test(url.pathname) && req.method === 'GET') {
         await serveStatic(req, res, url.pathname.slice('/c/icons'.length));
       }
+      else if (handleQrSignIn(req, res, url)) { /* scan to sign in: the sign-in page's QR code (signin-link.js) */ }
       else if (await oidc.handle(req, res, url)) { /* sign-in provider for Cloudflare Access */ }
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
         && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))

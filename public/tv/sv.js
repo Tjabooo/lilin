@@ -170,4 +170,9 @@ window.LilinTvStrings = {
   "Action & Adventure": "Action & äventyr",
   "Your picks": "Dina favoriter",
   "{0}’s picks": "{0}s favoriter",
+  // scan to sign in (pair screen)
+  'Scan the QR code with your phone’s camera,': 'Skanna QR-koden med mobilens kamera,',
+  'or enter this code in Lilin under ': 'eller skriv in koden i Lilin under ',
+  'You › Devices': 'Du › Enheter',
+  'Scan with your phone': 'Skanna med mobilen',
 };

@@ -152,7 +152,7 @@ export function createOidc({
       if (request.redirect) { res.writeHead(302, { Location: request.redirect }); res.end(); return true; }
       // Only Lilin's own session counts here: under /c/ nobody carries a Cloudflare identity.
       if (req.auth?.via === 'session' && req.auth.email) return issueCode(res, request, req.auth.email);
-      return html(res, 200, signInPage({ next: `${p}${url.search}`, hasLogins: true, remote: false, action: `${PREFIX}/login` }));
+      return html(res, 200, signInPage({ next: `${p}${url.search}`, hasLogins: true, remote: false, action: `${PREFIX}/login`, qr: true }));
     }
 
     if (p === `${PREFIX}/login` && req.method === 'POST') {
@@ -171,7 +171,7 @@ export function createOidc({
         return issueCode(res, request, email);
       } catch (err) {
         if (!err.status) throw err;
-        return html(res, err.status === 429 ? 429 : 200, signInPage({ next, error: err.message, hasLogins: true, action: `${PREFIX}/login`, email: body.email }));
+        return html(res, err.status === 429 ? 429 : 200, signInPage({ next, error: err.message, hasLogins: true, action: `${PREFIX}/login`, email: body.email, qr: true }));
       }
     }
 
