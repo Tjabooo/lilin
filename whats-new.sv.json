@@ -1,4 +1,17 @@
 {
+  "2026-11-17-play-now-steadier": {
+    "title": "Första tittningar startar snabbare",
+    "items": {
+      "No more waiting on one slow piece": {
+        "title": "Ingen väntan på en långsam bit",
+        "text": "En video du tittar på för första gången kunde ta flera minuter att starta medan en liten del av den kom från en enda långsam källa. Nu hämtar Lilin den delen från andra källor samtidigt, och startar de flesta videor utan att vänta på slutet av filen."
+      },
+      "A dead copy gets replaced": {
+        "title": "En död kopia byts ut",
+        "text": "Om kopian Lilin valde aldrig börjar laddas ner alls provar Lilin nu en annan av sig själv efter ungefär en minut, i stället för att vänta för evigt."
+      }
+    }
+  },
   "2026-11-17-episodes-from-packs": {
     "title": "Fler saker spelas direkt första gången",
     "items": {

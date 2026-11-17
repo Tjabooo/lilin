@@ -1,5 +1,20 @@
 [
   {
+    "id": "2026-11-17-play-now-steadier",
+    "date": "2026-11-17",
+    "title": "First watches start sooner",
+    "items": [
+      {
+        "title": "No more waiting on one slow piece",
+        "text": "A video you watch for the first time sometimes took minutes to start while one small part of it came from a single slow source. Lilin now fetches that part from other sources at the same time, and starts most videos without waiting for the very end of the file."
+      },
+      {
+        "title": "A dead copy gets replaced",
+        "text": "If the copy Lilin picked never starts downloading at all, it now tries another one by itself after about a minute instead of waiting for ever."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-episodes-from-packs",
     "date": "2026-11-17",
     "title": "More first watches just play",
