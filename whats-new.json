@@ -1,5 +1,20 @@
 [
   {
+    "id": "2026-11-17-episodes-from-packs",
+    "date": "2026-11-17",
+    "title": "More first watches just play",
+    "items": [
+      {
+        "title": "Episodes of older shows play too",
+        "text": "Many episodes, mostly of older shows like Friends, only exist inside a download of the whole season. Press one of them now and Lilin gets just that episode first and starts it, then the episodes after it follow in order. Before, it said it couldn't find a good copy. Shows with an apostrophe in the name, like Grey's Anatomy, are found now too."
+      },
+      {
+        "title": "Best Quality starts quickly",
+        "text": "With Best Quality on, a film you haven't watched before now starts from a copy that can play while it downloads, instead of a huge one that never got ready. The best copy follows in the background and shows up as another version you can switch to."
+      }
+    ]
+  },
+  {
     "id": "2026-11-17-moment-subs",
     "date": "2026-11-17",
     "title": "Moments subtitles fixed",

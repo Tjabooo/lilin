@@ -1,4 +1,17 @@
 {
+  "2026-11-17-episodes-from-packs": {
+    "title": "Fler saker spelas direkt första gången",
+    "items": {
+      "Episodes of older shows play too": {
+        "title": "Avsnitt av äldre serier spelas också",
+        "text": "Många avsnitt, mest av äldre serier som Vänner, finns bara i en nedladdning av hela säsongen. Trycker du på ett sådant avsnitt hämtar Lilin nu bara det avsnittet först och startar det, sedan följer avsnitten efter det i ordning. Förut sa Lilin att den inte hittade någon bra kopia. Serier med apostrof i namnet, som Grey's Anatomy, hittas nu också."
+      },
+      "Best Quality starts quickly": {
+        "title": "Bästa kvalitet startar snabbt",
+        "text": "Med Bästa kvalitet påslaget startar en film du inte sett förut nu från en kopia som kan spelas medan den laddas ner, i stället för en enorm som aldrig blev klar. Den bästa kopian kommer sedan i bakgrunden och dyker upp som en egen version du kan byta till."
+      }
+    }
+  },
   "2026-11-17-moment-subs": {
     "title": "Undertexter i Moments fixade",
     "items": {
