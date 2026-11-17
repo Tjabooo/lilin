@@ -32,6 +32,14 @@
         "title": "Namn och bild på din profil",
         "text": "Byt bild genom att trycka på den på din profil, och namnet under Redigera profil. Inställningarna är kortare: bild, namn och Nyheter är borta från toppen."
       },
+      "Save stays out of the way": {
+        "title": "Spara står i vägen mindre",
+        "text": "Spara-knappen under Redigera profil ligger nu på en egen list längst ner, så affischerna och typsnitten syns inte längre runt den."
+      },
+      "Tidier bio box": {
+        "title": "Snyggare bio-ruta",
+        "text": "Bio-rutan på din profil är nu en vanlig rundad ruta i stället för en utdragen kapsel, så längre texter krockar inte längre med de böjda kanterna."
+      },
       "No Add on films that aren't out yet": {
         "title": "Inget Lägg till på filmer som inte kommit ut",
         "text": "Filmer som bara går på bio och serier som inte börjat sändas visar inte längre Lägg till i biblioteket på sina kort. Spara eller följ dem i stället, så lägger Lilin till dem när de kommit ut."
