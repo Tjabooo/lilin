@@ -80,12 +80,30 @@ export function createStaticFiles({ maxTotal = MAX_TOTAL, maxFile = MAX_FILE, br
 
   // Sends `full` (an existing path, already checked to be inside a public folder). Returns false if it isn't a file.
   // headers: the response headers besides the content ones (Cache-Control and friends).
-  async function send(req, res, full, contentType, headers = {}) {
-    let stat;
-    try { stat = await fs.promises.stat(full); } catch { return false; }
-    if (!stat.isFile()) return false;
+  // A body made in memory (index.html with versioned asset URLs): cached like a file while the same Buffer comes back.
+  function loadBuffer(full, raw) {
+    const hit = cache.get(full);
+    if (hit && hit.src === raw) { cache.delete(full); cache.set(full, hit); return hit; }
+    drop(full);
+    const entry = { key: null, src: raw, hash: crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 27), raw, gz: null, br: null, brPending: null, bytes: 0 };
+    cache.set(full, entry);
+    grow(entry, raw);
+    return entry;
+  }
+
+  // opts.body: send this Buffer instead of the file (full is then only its cache name).
+  // opts.immutableIf: a ?v version; when the content hash starts with it, the copy is cached for good.
+  async function send(req, res, full, contentType, headers = {}, { body: given = null, immutableIf = null } = {}) {
+    let stat = null;
+    if (!given) {
+      try { stat = await fs.promises.stat(full); } catch { return false; }
+      if (!stat.isFile()) return false;
+    }
     let entry;
-    if (stat.size > maxFile) {
+    if (given) {
+      entry = loadBuffer(full, given);
+      entry.full = full;
+    } else if (stat.size > maxFile) {
       const raw = await fs.promises.readFile(full);
       entry = { hash: crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 27), raw, gz: null, br: null, loose: true, bytes: 0 };
     } else {
@@ -94,6 +112,7 @@ export function createStaticFiles({ maxTotal = MAX_TOTAL, maxFile = MAX_FILE, br
     }
     const compressible = !entry.loose && COMPRESSIBLE.test(contentType) && entry.raw.length >= MIN_SIZE;
     const base = { 'Content-Type': contentType, ...headers };
+    if (immutableIf && entry.hash.startsWith(immutableIf) && immutableIf.length >= 8) base['Cache-Control'] = 'private, max-age=31536000, immutable';
     if (compressible) base.Vary = base.Vary ? `${base.Vary}, Accept-Encoding` : 'Accept-Encoding';
     if (matches(req.headers['if-none-match'], entry.hash)) {
       res.writeHead(304, { ...base, ETag: `"${entry.hash}"` });
