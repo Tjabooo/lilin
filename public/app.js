@@ -10239,7 +10239,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   applyTheme(prefs().theme);
   $('#find-torrents').hidden = !state.status.torrents || !canDownload();
   $('#manage-downloads').hidden = !state.me?.isOwner;
-  if (state.status.admin) { enableActivityTab(); enableHouseTab(); enableNotesTab(); } else if (state.me?.canSeeActivity) enableActivityTab();
+  if (state.status.admin) { enableActivityTab(); enableHouseTab(); if (state.status.notes) enableNotesTab(); } else if (state.me?.canSeeActivity) enableActivityTab();
   if (state.status.clips) enableClipsTab();
   enableLiveTab();
   updateTabOverflow();
@@ -10253,7 +10253,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   const noteId = new URL(location.href).searchParams.get('note');
   if (noteId) {
     const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(null, '', url.pathname + url.search + url.hash);
-    if (state.status.admin && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
+    if (state.status.notes && /^\d+$/.test(noteId)) { await setView('notes'); await notesView.focus(Number(noteId)); }
   }
   // friends: a "sent you a moment" notification opens Lilin as ?moment=<id>: Settings → Moments, and it plays.
   if (new URL(location.href).searchParams.get('moment')) {

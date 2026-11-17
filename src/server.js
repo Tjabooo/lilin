@@ -171,7 +171,8 @@ const PICKS_RESERVE = 300 * 1024 ** 3; // the media drive always keeps this much
 const TV_PICK_TAG = 'lilin-tv';
 const FRESH_DAYS = 14;                 // the Fresh channel: picks, plus anything that arrived this recently
 activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail });
-accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR });
+accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR,
+  notesEmails: String(process.env.NOTES_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean) });
 reviews.initReviews(); // reviews: own table in the accounts database
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
 const push = new PushStore(DATA_DIR);
@@ -3417,7 +3418,7 @@ async function handleApi(req, res, url) {
   }
   const user = accounts.userFor(req);
   // Live updates (live.js): one stream per open page, and every successful change announces itself.
-  if (p === '/api/events' && req.method === 'GET') return live.subscribe(req, res, { userId: user.id, admin: activity.isAdmin(req), tab: url.searchParams.get('tab') });
+  if (p === '/api/events' && req.method === 'GET') return live.subscribe(req, res, { userId: user.id, admin: activity.isAdmin(req), notes: activity.isAdmin(req) && Boolean(user.canSeeNotes), tab: url.searchParams.get('tab') });
   if (req.method === 'POST') res.once('finish', () => live.afterRequest(p, res.statusCode, { userId: user.id, tab: req.headers['x-lilin-tab'] }));
 
   // Watch-room links still require the normal Cloudflare sign-in. A room grants access to this
@@ -3748,6 +3749,8 @@ async function handleApi(req, res, url) {
   // ---- the owner's settings: server rules and people ----
   if (p.startsWith('/api/admin/')) {
     if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can change this.');
+    // Owners outside NOTES_EMAILS don't get Notes at all: no tab, and its API looks absent.
+    if (p.startsWith('/api/admin/notes') && !user.canSeeNotes) throw new HttpError(404, 'Not found.');
     // All configured admins share this inbox. No note content is put in Activity logs.
     const noteFor = (note) => ({ ...note, authorName: accounts.displayNameFor(note.author),
       shareMedia: note.shareToken && !note.deletedAt ? sharedMedia.state(note) : null });
@@ -4088,6 +4091,7 @@ async function handleApi(req, res, url) {
       subtitles: subtitles.subtitlesConfigured(),
       casting: await castAllowed(req),
       admin: activity.isAdmin(req),
+      notes: activity.isAdmin(req) && Boolean(user?.canSeeNotes),
       clips: activity.isAdmin(req) && clips.clipsConfigured(),
       me: { ...accounts.publicUser(user), via: req.auth.via, hasPassword: auth.hasPassword(req.auth.email), needsPassword: needsPassword(req) },
       rules: accounts.serverSettings(),

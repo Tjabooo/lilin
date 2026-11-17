@@ -61,13 +61,15 @@ const THEME_KEYS = ['bg', 'surface', 'text', 'accent'];
 
 let db = null;
 let admins = [];
+let notesEmails = []; // NOTES_EMAILS: owners who may use Notes; empty = every owner
 let mediaDir = null;
 const lastTouch = new Map(); // user id -> last time last_seen was written
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
-export function initAccounts({ dataDir, adminEmails, mediaDir: dir }) {
+export function initAccounts({ dataDir, adminEmails, notesEmails: notes = [], mediaDir: dir }) {
   admins = adminEmails.map((e) => e.toLowerCase());
+  notesEmails = notes.map((e) => e.toLowerCase());
   mediaDir = dir;
   avatarDir = path.join(dataDir, '.lilin-avatars');
   db = new DatabaseSync(path.join(dataDir, '.lilin.db'));
@@ -321,6 +323,8 @@ function rowToUser(r) {
     restricted: !isOwner && Boolean(r.restricted), // friends: the owner is never restricted
     // the owner always sees Activity; others only once the owner allows it
     canSeeActivity: isOwner || Boolean(r.can_see_activity),
+    // Notes: owners only, and only those in NOTES_EMAILS when it is set
+    canSeeNotes: isOwner && (!notesEmails.length || notesEmails.includes(r.email)),
     keep: Boolean(r.keep),
     settings: { ...USER_DEFAULTS, ...settings },
     createdAt: r.created_at,
@@ -426,7 +430,7 @@ function cleanTheme(t) {
 
 // What the browser gets about the person signed in.
 export function publicUser(u) {
-  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), canSeeActivity: u.canSeeActivity, keep: u.keep, settings: u.settings,
+  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), canSeeActivity: u.canSeeActivity, canSeeNotes: Boolean(u.canSeeNotes), keep: u.keep, settings: u.settings,
     sharedWith: libraryMates(u.id).filter((id) => id !== u.id).map((id) => userById(id)).filter(Boolean).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar })) };
 }
 

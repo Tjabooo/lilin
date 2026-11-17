@@ -2,7 +2,7 @@
 // the app changed ("library", "progress", "notes", ...), so they refetch it right away instead of
 // waiting for the next poll or a reload. Events carry topic names only, never data.
 
-const clients = new Set(); // { res, userId, admin, tab }
+const clients = new Set(); // { res, userId, admin, notes, tab }
 const pending = new Map(); // coalesces bursts: one event per topic and audience every 250 ms
 
 // Which topic a successful POST changed, and who needs to hear about it.
@@ -19,7 +19,7 @@ const RULES = [
   [/^\/api\/watch\/(plan|[A-Za-z0-9_-]{24}\/(cancel|schedule|join))$/, 'parties', 'all'],
   [/^\/api\/(library|downloads)\/(?!.*-info$)/, 'library', 'all'], // not the read-only delete-info checks
   [/^\/api\/media\/\w+\/[\w-]+\/sync$/, 'library', 'all'],
-  [/^\/api\/admin\/notes(?:\/import|\/\d+(?:\/\w+)?|\/uploads\/[a-f0-9]{32}\/finish)?$/, 'notes', 'admin'],
+  [/^\/api\/admin\/notes(?:\/import|\/\d+(?:\/\w+)?|\/uploads\/[a-f0-9]{32}\/finish)?$/, 'notes', 'notes'], // notes: owners allowed Notes (NOTES_EMAILS)
   [/^\/api\/(admin\/settings|admin\/users\/\d+|access\/)/, 'people', 'all'],
   [/^\/api\/clips\//, 'clips', 'admin'],
   [/^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/, 'ideas', 'all'], // the owner's inbox and each sender's list
@@ -38,13 +38,13 @@ export function topicFor(pathname) {
 
 // Opens the stream for one page. `tab` identifies the page so it isn't told about its own changes
 // where it already updated itself (progress, settings).
-export function subscribe(req, res, { userId, admin, tab }) {
+export function subscribe(req, res, { userId, admin, notes = false, tab }) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store, no-transform',
     'CDN-Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   req.socket.setNoDelay(true);
   res.flushHeaders();
   res.write('retry: 3000\n\n');
-  const client = { res, userId, admin, tab: String(tab || '') };
+  const client = { res, userId, admin, notes: Boolean(notes), tab: String(tab || '') };
   clients.add(client);
   const ping = setInterval(() => { if (!res.destroyed) res.write(': keepalive\n\n'); }, 20000);
   res.on('close', () => { clearInterval(ping); clients.delete(client); });
@@ -60,6 +60,7 @@ export function publish(topic, { audience = 'all', userId = null, exceptTab = ''
     for (const c of clients) {
       if (audience === 'user' && c.userId !== userId) continue;
       if (audience === 'admin' && !c.admin) continue;
+      if (audience === 'notes' && !c.notes) continue;
       if (exceptTab && c.tab === exceptTab) continue;
       if (c.res.destroyed || c.res.writableEnded) { clients.delete(c); continue; }
       c.res.write(line);
