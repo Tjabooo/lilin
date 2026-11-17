@@ -1,4 +1,21 @@
 {
+  "2026-11-17-profiles": {
+    "title": "Din egen profil",
+    "items": {
+      "A page that's yours": {
+        "title": "En sida som är din",
+        "text": "Tryck på ditt ansikte högst upp (eller Din profil i Inställningar) för att se din profil: bild, namn, ett användarnamn, pronomen och en kort bio, dina fyra favoritfilmer eller -serier, vad du har tittat på nyligen med dina stjärnor och gillanden, dina recensioner och dina vänner. Mer aktivitet öppnar hela din dagbok."
+      },
+      "Make it look like you": {
+        "title": "Gör den till din",
+        "text": "Med Redigera profil väljer du accentfärg, banner (en bild från en film eller serie, eller en färg), typsnittet för ditt namn, formen på affischerna, bakgrunden och layouten, och vilka delar som visas i vilken ordning. Du ser varje ändring bakom redigeraren innan du sparar."
+      },
+      "You decide who sees it": {
+        "title": "Du bestämmer vem som ser den",
+        "text": "Profiler visas bara för vänner tills du ändrar det: välj Alla, Vänner eller Bara jag. Andra ser bara ditt namn och din bild. Tryck på någons ansikte vid en recension eller i din vänlista för att besöka deras."
+      }
+    }
+  },
   "2026-11-17-pack-folder-names": {
     "title": "Affischer för fler serier",
     "items": {

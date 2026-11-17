@@ -5,7 +5,7 @@
 // app.js passes in its helpers; this file keeps its own little state and asks app.js to redraw Settings.
 import { T } from './i18n.js';
 
-export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender }) {
+export function createFriends({ h, api, jsonPost, toast, icon, people, me, rerender, openProfile = null }) {
   const view = { loaded: false, loading: null, data: { friends: [], incoming: [], outgoing: [] }, query: '', results: null, searching: 0, jump: false };
 
   function load() {
@@ -118,9 +118,12 @@ export function createFriends({ h, api, jsonPost, toast, icon, people, me, reren
       return row(p, null, action);
     }))];
   }
+  // profiles: the face and name open the person's profile.
   function row(p, meta, ...actions) {
-    return h('li', { class: 'friend' }, people.face(p, { size: 40 }),
-      h('div', { class: 'friend-text' }, h('div', { class: 'friend-name' }, p.name), meta && h('div', { class: 'friend-meta' }, meta)),
+    const who = [people.face(p, { size: 40 }),
+      h('div', { class: 'friend-text' }, h('div', { class: 'friend-name' }, p.name), meta && h('div', { class: 'friend-meta' }, meta))];
+    return h('li', { class: 'friend' },
+      openProfile ? h('button', { type: 'button', class: 'friend-open', 'aria-label': T('Open {0}’s profile', p.name), onclick: (e) => openProfile(p, e.currentTarget) }, ...who) : who,
       h('div', { class: 'friend-actions' }, ...actions));
   }
 

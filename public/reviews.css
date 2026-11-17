@@ -86,3 +86,8 @@
 .compose-delete { min-height: 48px; }
 #picker-body .reviews-summary { margin-bottom: 12px; }
 .reviews-write-chip { margin-bottom: 14px; }
+
+/* profiles: the writer's face and name open their profile */
+.review-face-btn { flex: none; align-self: flex-start; padding: 0; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+.review-name-btn { padding: 0; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.review-name-btn:hover strong { text-decoration: underline; text-underline-offset: 3px; }

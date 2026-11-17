@@ -25,7 +25,7 @@ export function summaryText({ average, ratings = 0, count = 0 }) {
   return parts.join(' · ');
 }
 
-export function createReviews({ h, api, jsonPost, toast, people, me = () => null, sheet }) {
+export function createReviews({ h, api, jsonPost, toast, people, me = () => null, sheet, openProfile = null }) {
   const face = (p, opts) => people?.face(p, opts) || null;
   const blocked = () => Boolean(me()?.restricted);
   const cache = new Map();      // key -> last answer from /api/reviews
@@ -212,10 +212,13 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
         });
         return b;
       })());
+    // profiles: the writer's face and name open their profile.
+    const toProfile = openProfile && r.userId != null ? (e) => openProfile({ id: r.userId, name: r.name, avatar: r.avatar }, e.currentTarget) : null;
+    const faceEl = face(r, { size: full ? 40 : 34, cls: 'review-face' });
     return h('li', { class: `review${r.mine ? ' mine' : ''}` },
-      face(r, { size: full ? 40 : 34, cls: 'review-face' }),
+      toProfile ? h('button', { type: 'button', class: 'review-face-btn', 'aria-label': T('Open {0}’s profile', r.name), onclick: toProfile }, faceEl) : faceEl,
       h('div', { class: 'review-body' },
-        h('div', { class: 'review-who' }, h('strong', {}, r.mine ? T('You') : r.name), r.friend && h('span', { class: 'review-friend' }, T('Friend'))),
+        h('div', { class: 'review-who' }, toProfile ? h('button', { type: 'button', class: 'review-name-btn', onclick: toProfile }, h('strong', {}, r.mine ? T('You') : r.name)) : h('strong', {}, r.mine ? T('You') : r.name), r.friend && h('span', { class: 'review-friend' }, T('Friend'))),
         h('div', { class: 'review-meta' }, ...meta.flatMap((m, i) => (i ? [h('span', { class: 'dot', 'aria-hidden': 'true' }, '·'), m] : [m]))),
         reveal, textEl, actions));
   }

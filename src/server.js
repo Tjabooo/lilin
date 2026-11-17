@@ -25,6 +25,7 @@ import * as clips from './clips.js';
 import * as invites from './invites.js';
 import * as ideas from './ideas.js';
 import * as friends from './friends.js'; // friends
+import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
 import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
@@ -334,6 +335,7 @@ screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
 ideas.initIdeas({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
+profiles.initProfiles(); // profiles: profiles in .lilin.db
 scout.initScout({ dataDir: DATA_DIR }); // scout
 moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, // friends: Moments
   resolve: async (key) => { const i = key && (await scanLibrary())?.find((x) => accounts.mediaKey(x.full) === key); return i ? converter.preferConverted(i.full) : null; },
@@ -1730,6 +1732,28 @@ setInterval(() => upgradeRound(), 30_000).unref();
 
 // ---- Save for later and Follow (watchlist.js) ----
 const tmdbOn = () => Boolean(TMDB_TOKEN || TMDB_KEY);
+// ---- profiles (profiles.js): title cards for favourites, activity, reviews and likes ----
+async function profileCard(key) {
+  if (!social.validTitleKey(key) || !tmdbOn()) return null;
+  const [kind, id] = key.split(':');
+  try { return mapTitle(await cachedTmdb(`/${kind}/${id}`, {}, 24 * 3600 * 1000), kind); } catch { return null; }
+}
+// Adds card (or null when TMDB doesn't answer: the app shows the saved title) to each { key }.
+async function withCards(list) {
+  const cards = await Promise.all(list.map((x) => profileCard(x.key)));
+  return list.map((x, i) => ({ ...x, card: cards[i] }));
+}
+async function profileView(viewer, target) {
+  const v = profiles.view(viewer, target);
+  if (v.locked) return v;
+  const [recent, reviewList, liked] = await Promise.all([withCards(v.recent), withCards(v.reviews.reviews), withCards(v.liked)]);
+  const look = v.look;
+  // The banner: a picked title's picture, else (auto) a favourite's or the last thing they watched.
+  const auto = v.favorites.find((f) => f.backdrop)?.backdrop || recent.find((r) => r.card?.backdrop)?.card.backdrop || liked.find((r) => r.card?.backdrop)?.card.backdrop || null;
+  const banner = look.banner === 'title' ? look.bannerImage : look.banner === 'auto' && auto ? auto.replace(/\/t\/p\/w\d+\//, '/t/p/w1280/') : null;
+  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card) };
+}
+
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());
 function watchMeta(type, d) {
   const date = type === 'tv' ? d.first_air_date : d.release_date;
@@ -3951,6 +3975,34 @@ async function handleApi(req, res, url) {
     } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
     throw new HttpError(404, 'Not found.');
   }
+  // profiles: everyone's own page (profiles.js). Who sees what is decided there; this adds the title cards.
+  if (p === '/api/profiles' || p.startsWith('/api/profiles/')) {
+    try {
+      if (p === '/api/profiles/me' && req.method === 'POST') {
+        await profiles.save(user, await readJson(req, 64 * 1024), { resolve: profileCard });
+        return sendJson(res, 200, await profileView(user, user));
+      }
+      if (p === '/api/profiles/me') return sendJson(res, 200, await profileView(user, user));
+      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews))?$/)) && req.method === 'GET') {
+        const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
+        const target = id ? accounts.userById(id) : null;
+        if (!target) throw new HttpError(404, 'No such profile.');
+        if (!m[3]) return sendJson(res, 200, await profileView(user, target));
+        const sight = profiles.access(user, target);
+        const shown = (section) => sight === 'self' || (sight === 'full' && profiles.profileOf(target).sections.some((s) => s.id === section && s.on));
+        const offset = Number(url.searchParams.get('offset')) || 0;
+        if (m[3] === 'diary') {
+          if (!shown('recent')) throw new HttpError(403, 'This diary is private.');
+          const d = profiles.diary(target.id, { offset });
+          return sendJson(res, 200, { ...d, entries: await withCards(d.entries) });
+        }
+        if (!shown('reviews')) throw new HttpError(403, 'These reviews are private.');
+        const r = profiles.reviewsBy(target.id, { offset, limit: 20 });
+        return sendJson(res, 200, { ...r, reviews: await withCards(r.reviews) });
+      }
+    } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+    throw new HttpError(404, 'Not found.');
+  }
   // friends: the friends list (friends.js). Requests need the other person's yes; restricted people have none.
   if (p === '/api/friends' || p.startsWith('/api/friends/')) {
     if (p === '/api/friends' && req.method === 'GET') return sendJson(res, 200, friends.view(user));
@@ -5027,7 +5079,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname)
         || /^\/api\/(me|me\/progress|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

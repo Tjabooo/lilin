@@ -22,6 +22,7 @@ import { createDocumentaries } from './documentaries.js';
 import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pages
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
+import { createProfiles } from './profiles.js'; // profiles: everyone's own page
 import { createMoments } from './moments.js'; // friends: Moments
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { createBillboard } from './billboard.js';
@@ -98,6 +99,14 @@ const ICONS = {
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>',
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M6 12.5v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  // profiles
+  pencil: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5S9.6 5.9 12 3.5z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
+  rewatch: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12A7.5 7.5 0 0 1 17.7 7.1"/><path d="M18 3v4.5h-4.5M6 21v-4.5h4.5"/></svg>',
+  up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
 };
 const icon = (name) => { const s = h('span'); s.innerHTML = ICONS[name]; return s.firstChild; };
 
@@ -3461,7 +3470,7 @@ const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'applic
 const people = createPeople({ h, api, toast, me: () => state.me }); // faces and profile pictures (people.js)
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: Settings → Friends (friends.js)
-const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
+const friendsUI = createFriends({ h, api, jsonPost, toast, icon, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), rerender: () => { if (state.view === 'settings') renderSettingsWhenStill(); } });
 // friends: unanswered friend requests pop up (friends.js askSheet) when Lilin opens and when one arrives
 // while it's open. It waits while a video plays or another sheet is open (What's new goes first), and
 // stays away from Settings, where the requests are already on screen.
@@ -3485,7 +3494,7 @@ const comingSoon = createComingSoonView({ h, icon, toast, watchItem, setWatch, a
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
   openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 // reviews: stars + written reviews (reviews.js); its sheets open in the picker
-const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state.me, sheet: {
+const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), sheet: {
   open: (nodes, opener, onClosed) => {
     $('#picker-body').replaceChildren(...nodes.filter(Boolean));
     if ($('#picker').hidden || !$('#picker').classList.contains('open')) {
@@ -3496,6 +3505,45 @@ const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state
   close: () => closeTopOverlay(),
 } });
 rateHooks.extra = (key, title, hooks) => reviews.rateButton(key, title, hooks);
+// profiles: everyone's own page (profiles.js). Its editor opens in the picker; over a profile that sits above a
+// title page (nested), the picker is lifted above it too (.over-pf).
+const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyText,
+  openTitle: openTitleFromProfile,
+  overlay: { push: pushOverlay, close: closeTopOverlay },
+  picker: {
+    open: (nodes, opener, onClosed, over) => {
+      $('#picker-body').replaceChildren(...nodes.filter(Boolean));
+      for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.toggle('over-pf', Boolean(over));
+      pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => {
+        onClosed?.();
+        setTimeout(() => { for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.remove('over-pf'); }, 320);
+        opener?.isConnected && opener.focus({ preventScroll: true });
+      }));
+    },
+    close: () => closeTopOverlay(),
+  },
+  friendsChanged: () => { friendsUI.invalidate(); if (state.view === 'settings') renderSettingsWhenStill(); } });
+// A poster on a profile. Profiles opened over a title page close first, and the title opens in that page (Back
+// returns to the title it was on).
+async function openTitleFromProfile(card, opener, nested) {
+  if (!nested) { openDetails(card, opener); return; }
+  try {
+    for (let n = document.querySelectorAll('.pf.pf-nested.open').length; n > 0; n--) await dismissTopOverlay();
+    if ($('#picker').classList.contains('open')) await dismissTopOverlay();
+  } catch { return; }
+  openDetails(card, $('#sheet').classList.contains('open') ? $('#sheet-body') : null);
+}
+// The header's face: your own profile.
+function renderMeButton() {
+  const btn = $('#me-btn');
+  const m = state.me;
+  btn.hidden = !m?.email;
+  if (!m?.email) return;
+  btn.replaceChildren(people.face(m, { size: 32 }));
+  btn.setAttribute('aria-label', T('Your profile'));
+  btn.title = T('Your profile');
+}
+$('#me-btn').addEventListener('click', (e) => profiles.openMine(e.currentTarget));
 // details: crew, music, facts and links, folded away at the bottom of title pages (details.js)
 const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: () => Boolean(state.status.search), fmtRuntime });
 const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => billboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi,
@@ -7757,7 +7805,9 @@ function renderSettings() {
       nameInput,
       h('div', { class: 'set-hint' }, !me.email ? T('Home network: everyone at home who opens the server’s local address shares this')
         : me.via === 'session' ? T('Signed in as {0}', me.email) : T('Signed in as {0} through Cloudflare', me.email)),
-      h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))))));
+      h('div', { class: 'profile-tags' }, me.isOwner && h('span', { class: 'tag' }, T('Owner')), !me.canDownload && h('span', { class: 'tag' }, T('Can’t download'))),
+      me.email && h('button', { type: 'button', class: 'chip profile-open', onclick: (e) => profiles.openMine(e.currentTarget) }, icon('pencil'), T('Your profile')))));
+  renderMeButton();
 
   {
     const unseen = state.status?.whatsNew?.unseen?.length || 0;
@@ -10231,6 +10281,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
 });
 
 (async function init() {
+  const linkHash = location.hash; // a profile link (/#@ebicat) opens once Lilin has started
   try {
     state.status = await api('/api/status');
   } catch {
@@ -10238,6 +10289,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     return;
   }
   state.me = state.status.me;
+  renderMeButton();
   // The preview of a redesign (PREVIEW_DIR on the server): a small way back to the live app.
   if (state.status.preview) document.body.append(h('a', { class: 'preview-pill', href: '/preview/off', title: T('Leave the preview and go back to the live app') },
     h('span', { class: 'preview-pill-bulb', 'aria-hidden': 'true' }), h('strong', {}, T('Preview mode')), h('span', { class: 'preview-pill-sep', 'aria-hidden': 'true' }, '·'), T('Back to live')));
@@ -10255,6 +10307,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   // A reload stays on the tab it was on (#library); a fresh visit opens the chosen start tab.
   const start = linkedView() || prefs().startView;
   if (start && start !== 'discover') { state.view = null; await setView(start); } else { rememberView('discover'); renderDiscover(); }
+  profiles.fromHash(linkHash);
   const watchToken = new URL(location.href).searchParams.get('watch');
   if (watchToken) await offerWatchRoom(watchToken);
   // A shared note link (/c/n/<token>) lands here as ?note=<id>.

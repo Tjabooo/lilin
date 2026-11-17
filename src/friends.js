@@ -129,4 +129,12 @@ export function remove(user, otherId) {
   return { ok: true };
 }
 
+// profiles: where two people stand: 'friend', 'sent' (a asked b), 'received' (b asked a) or null.
+export function stateBetween(a, b) {
+  const l = link(Number(a), Number(b));
+  if (!l) return null;
+  if (l.status === 'accepted') return areFriends(a, b) ? 'friend' : null;
+  return l.from_id === Number(a) ? 'sent' : 'received';
+}
+
 export const incomingCount = (user) => (social(user) ? view(user).incoming.length : 0);

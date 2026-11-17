@@ -1,5 +1,24 @@
 [
 {
+  "id": "2026-11-17-profiles",
+  "date": "2026-11-17",
+  "title": "Your own profile",
+  "items": [
+    {
+      "title": "A page that's yours",
+      "text": "Tap your face at the top (or Your profile in Settings) to see your profile: picture, name, a username, pronouns and a short bio, your four favourite films or shows, what you watched lately with your stars and likes, your reviews and your friends. More activity opens your whole diary."
+    },
+    {
+      "title": "Make it look like you",
+      "text": "Edit profile lets you pick an accent colour, a banner (a picture from a film or show, or a colour), the font of your name, the shape of the posters, the background and the layout, and which sections show in which order. You see each change behind the editor before you save."
+    },
+    {
+      "title": "You decide who sees it",
+      "text": "Profiles are for friends only until you change it: pick Everyone, Friends or Only me. Others just see your name and picture. Tap someone's face on a review or in your friends list to visit theirs."
+    }
+  ]
+},
+{
   "id": "2026-11-17-pack-folder-names",
   "date": "2026-11-17",
   "title": "Posters for more shows",

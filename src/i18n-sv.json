@@ -637,5 +637,17 @@
  "{0} is planned": "{0} är planerad",
  "{0} planned it for later. Tap to see when it starts.": "{0} planerade den till senare. Tryck för att se när den börjar.",
  "{0} is starting": "{0} börjar",
- "{0} started the room. Tap to join.": "{0} startade rummet. Tryck för att gå med."
+ "{0} started the room. Tap to join.": "{0} startade rummet. Tryck för att gå med.",
+ "No such profile.": "Profilen finns inte.",
+ "Profiles need a signed-in account.": "Profiler kräver ett inloggat konto.",
+ "A username is 3 to 20 characters.": "Ett användarnamn har 3 till 20 tecken.",
+ "Use letters, numbers, dots and underscores (not at the start or end).": "Använd bokstäver, siffror, punkter och understreck (inte först eller sist).",
+ "That username is taken.": "Användarnamnet är upptaget.",
+ "Keep the bio under 300 characters.": "Håll bion under 300 tecken.",
+ "Choose who can see your profile.": "Välj vem som kan se din profil.",
+ "Pick up to four favourites.": "Välj upp till fyra favoriter.",
+ "Couldn’t look that title up. Try again in a moment.": "Kunde inte slå upp titeln. Försök igen om en stund.",
+ "That title has no picture to use. Pick another one.": "Den titeln har ingen bild att använda. Välj en annan.",
+ "This diary is private.": "Dagboken är privat.",
+ "These reviews are private.": "Recensionerna är privata."
 }

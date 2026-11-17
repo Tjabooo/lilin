@@ -13,6 +13,12 @@ All notable changes to Lilin. Versions follow [Semantic Versioning](https://semv
   person's `watch_log` and thumbs (titles shared between people first), the household's Popular on Lilin and
   crowd-pleasers when there's little history, and learns from the group's yes votes hand by hand. Filters: films
   or shows, genre, longest running time, nothing anyone has seen, server only. Swipes stay private and aren't thumbs.
+- **Profiles.** Everyone gets a page of their own (header face, Settings, Friends, review authors, `/#@username`):
+  picture, name, a username, pronouns, bio, four favourite films or shows, recent activity with stars, likes and
+  rewatches (plus a diary), a ratings histogram, reviews, likes and friends. The look is customisable (accent,
+  banner, name font, poster shape, background, layout, section order) with a live preview, and visibility is
+  Everyone / Friends (default) / Only me (`src/profiles.js`, `public/profiles.js`, `GET /api/profiles/<id|@handle>`,
+  `/diary`, `/reviews`, `POST /api/profiles/me`).
 - **Moods on Discover.** A row of mood tiles after Trending ("Slow-burn rainy day thriller", "90s indie nostalgia",
   about 28 in all) opens a page of films and shows built from TMDB keywords, genres, decades and vote floors plus
   hand-picked anchors (`src/vibes.js`, `GET /api/vibes`, `GET /api/vibes/<id>`). Your titles first, daily order,
