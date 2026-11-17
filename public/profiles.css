@@ -315,5 +315,4 @@
      the sheet's sides), a step lighter with a shadow cast upward so the options read as sliding under it */
   margin-inline: calc(50% - 50cqw); padding-inline: calc(50cqw - 50%);
   background: var(--surface-2); border-top: 1px solid var(--hairline-2); box-shadow: 0 -14px 28px -14px rgb(0 0 0 / .55); }
-.pf-save-bar .play-btn { min-width: 140px; }
-@media (max-width: 599px) { .pf-save-bar .play-btn { width: 100%; } }
+.pf-save-bar .play-btn { width: 100%; } /* spans the fields' column, so it sits centred in the full-width bar */
