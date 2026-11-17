@@ -88,6 +88,35 @@ test('restricted people get no channel chat: no posting, no history, no messages
   assert.equal(e.said().at(-1).chat.text, 'open again');
 });
 
+test('Restrict on a channel: nobody is sent a restricted viewer, and a restricted viewer is sent nobody', async () => {
+  const r = rig();
+  const [oliver, ebi, mamma] = r.users;
+  const o = await r.watch(oliver, C.oliver);
+  const e = await r.watch(ebi, C.ebi);
+  const m = await r.watch(mamma, C.mamma);
+  const last = (x) => x.heard.filter((s) => s.members).at(-1);
+  const names = (state) => state.members.map((v) => v.name).sort();
+  const everything = () => JSON.stringify([...o.heard, ...e.heard]);
+  assert.deepEqual(names(last(o)), ['Ebi', 'Oliver'], 'the owner never gets Mamma');
+  assert.deepEqual(names(last(e)), ['Ebi', 'Oliver']);
+  assert.equal(everything().includes('Mamma'), false, 'not her name, anywhere on their streams');
+  assert.deepEqual(names(last(m)), ['Mamma'], 'Mamma only gets herself');
+  for (const x of [o, e, m]) assert.equal(last(x).watching, 3, 'everyone still gets the head count');
+  assert.deepEqual(names(r.rooms.heartbeat(m.token, mamma, C.mamma, { ready: true })), ['Mamma'], 'the heartbeat answer too');
+  assert.deepEqual(names(r.rooms.join(o.token, oliver, C.oliver)), ['Ebi', 'Oliver'], 'and the join answer');
+  r.rooms.heartbeat(m.token, mamma, C.mamma, { buffering: true });
+  assert.deepEqual(last(o).waitingFor, [], 'a channel never names who it waits for');
+
+  // Two devices are one person in the count; Restrict on someone already tuned in hides them at their next heartbeat.
+  await r.watch(ebi, C.ebi2);
+  assert.equal(last(o).watching, 3);
+  ebi.restricted = true;
+  r.rooms.heartbeat(e.token, ebi, C.ebi, { ready: true });
+  assert.deepEqual(names(last(o)), ['Oliver']);
+  assert.deepEqual(names(last(e)), ['Ebi', 'Ebi'], 'Ebi sees her own two devices only');
+  ebi.restricted = false;
+});
+
 test('normal Watch Together rooms keep their own chat, restricted people included', () => {
   let now = 1e12;
   const rooms = new WatchRooms({ now: () => now });
