@@ -5,6 +5,11 @@
     "title": "TV playback on slower internet",
     "items": [
       {
+        "kind": "improved",
+        "title": "Roomier title pages on Samsung TVs",
+        "text": "Film and show pages on the Samsung TV app have more room to breathe: the whole description, running time and age rating, the cast with their photos, and a More like this row. Press down from Play to scroll through them. Restart the TV app to see it."
+      },
+      {
         "kind": "fix",
         "title": "No more Go to library on the TV",
         "text": "The TV apps have no library page, so the leftover Go to library buttons are gone. On SVT Play pages, Add to library is now Save, and something that's on its way just says so."

@@ -2,6 +2,10 @@
   "2026-11-18-tv-slow-connection": {
     "title": "TV-uppspelning på långsammare internet",
     "items": {
+      "Roomier title pages on Samsung TVs": {
+        "title": "Luftigare titelsidor på Samsung-TV",
+        "text": "Film- och seriesidor i Samsung-TV-appen har fått mer luft: hela beskrivningen, speltid och åldersgräns, medverkande med bilder och en rad med Mer som det här. Tryck ned från Spela för att bläddra bland dem. Starta om TV-appen för att se det."
+      },
       "No more Go to library on the TV": {
         "title": "Inget mer Till biblioteket på TV:n",
         "text": "TV-apparna har ingen bibliotekssida, så de kvarglömda Till biblioteket-knapparna är borta. På SVT Play-sidor heter Lägg till i biblioteket nu Spara, och något som är på väg säger bara det."
