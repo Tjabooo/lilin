@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-18-continue-remove-works",
+    "date": "2026-11-18",
+    "title": "Removing from Continue watching really works",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Removed titles stay removed",
+        "text": "Remove from Continue watching didn’t save, so the title came back when you reloaded. It saves now and stays gone on all your devices until you watch it again. Sign out everywhere on the Account page works again too."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-tv-apps-play-first",
     "date": "2026-11-18",
     "title": "The TV apps caught up",

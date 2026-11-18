@@ -1,4 +1,13 @@
 {
+  "2026-11-18-continue-remove-works": {
+    "title": "Ta bort från Fortsätt titta fungerar på riktigt",
+    "items": {
+      "Removed titles stay removed": {
+        "title": "Borttagna titlar förblir borta",
+        "text": "Ta bort från Fortsätt titta sparades inte, så titeln kom tillbaka när du laddade om. Nu sparas det och den förblir borta på alla dina enheter tills du tittar igen. Logga ut överallt på kontosidan fungerar också igen."
+      }
+    }
+  },
   "2026-11-18-tv-apps-play-first": {
     "title": "Tv-apparna har kommit ikapp",
     "items": {
