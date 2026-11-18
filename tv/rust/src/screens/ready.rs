@@ -28,6 +28,8 @@ pub struct Target {
     pub title: String,
     pub sub: String,
     pub art: String,
+    /// They said yes to a cinema recording (CamAsk): the smart download may pick one when nothing proper exists.
+    pub allow_cam: bool,
 }
 impl Target {
     fn query(&self) -> String {
@@ -56,6 +58,73 @@ pub fn play_first(cx: &mut Cx, x: Target) {
 pub fn replace_with(cx: &mut Cx, x: Target) {
     let r = Ready::new(cx, x);
     cx.nav.push(Nav::Replace(Box::new(r)));
+}
+
+/// Only cinema recordings of this film so far (src/copy-check.js): say so before anything downloads.
+pub struct CamAsk {
+    sid: u32,
+    x: Option<Target>,
+    choice: usize,
+    lit: ui::Lit,
+    shown: ui::Ease,
+}
+impl CamAsk {
+    pub fn new(cx: &mut Cx, x: Target) -> CamAsk {
+        CamAsk { sid: cx.sid(), x: Some(x), choice: 0, lit: ui::Lit::default(), shown: ui::Ease::at(0.0) }
+    }
+}
+impl Screen for CamAsk {
+    fn sid(&self) -> u32 {
+        self.sid
+    }
+    fn overlay(&self) -> bool {
+        true
+    }
+    fn draw(&mut self, cx: &mut Cx) {
+        self.shown.set(1.0);
+        let a = self.shown.step01(cx, 12.0);
+        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), hexa(0x160B12, 0.9 * a));
+        cx.g.push_alpha(a);
+        let r = rect(460.0, 270.0 + 20.0 * (1.0 - a), 1000.0, 540.0);
+        ui::shadow(cx, r, 30.0, 100.0, 0.6);
+        cx.g.round_v(r, 30.0, ui::SEAT, ui::CURTAIN);
+        cx.g.ring(r, 30.0, 2.0, ui::HAIR);
+        cx.tx.draw_fit(&mut cx.g, display(44.0, 800), t!("Only a cinema recording so far"), r.x + 56.0, r.y + 50.0, r.w - 112.0, ui::PAPER);
+        cx.tx.para(&mut cx.g, body(28.0, 400), t!("Someone filmed this in a cinema, so the picture and sound are poor. A proper copy usually turns up once it’s out to stream or buy."),
+            r.x + 56.0, r.y + 124.0, r.w - 112.0, 3, 38.0, ui::DUST);
+        self.lit.focus(self.choice as u64 + 1);
+        self.lit.step(cx);
+        let labels = [t!("Play the cinema recording"), t!("Back")];
+        let f = body(32.0, 700);
+        for (n, l) in labels.iter().enumerate() {
+            let b = rect(r.x + 56.0, r.y + 270.0 + n as f32 * 108.0, r.w - 112.0, 92.0);
+            let lit = self.lit.get(n as u64 + 1);
+            if lit > 0.0 {
+                cx.g.glow(b, 46.0, 40.0, ui::BULB.alpha(0.35 * lit));
+            }
+            cx.g.pill(b, hexa(0xF6EADF, 0.08).mix(ui::BULB, lit));
+            cx.tx.draw(&mut cx.g, f, l, b.x + 34.0, b.y + (92.0 - f.line()) / 2.0, ui::PAPER.mix(ui::ON_BULB, lit));
+        }
+        cx.g.pop_alpha();
+    }
+    fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
+        cx.redraw();
+        match k.code {
+            key::UP | key::LEFT => self.choice = 0,
+            key::DOWN | key::RIGHT => self.choice = 1,
+            key::ENTER => {
+                if self.choice == 1 {
+                    cx.back();
+                } else if let Some(mut x) = self.x.take() {
+                    x.allow_cam = true;
+                    replace_with(cx, x);
+                }
+            }
+            key::BACK => cx.back(),
+            _ => return false,
+        }
+        true
+    }
 }
 
 fn about_time(sec: f64) -> String {
@@ -112,6 +181,9 @@ impl Ready {
         if x.tv {
             b["season"] = Value::from(x.season);
             b["episode"] = Value::from(x.episode);
+        }
+        if x.allow_cam {
+            b["allowCam"] = Value::from(true);
         }
         cx.post("/api/tv/play", b, sid, STARTED);
         cx.get(&alloc::format!("/api/title/{}/{}/page", if x.tv { "tv" } else { "movie" }, x.tmdb), sid, LOGO);

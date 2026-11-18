@@ -1,4 +1,17 @@
 {
+  "2026-11-18-cinema-recordings": {
+    "title": "Inga oväntade biografinspelningar",
+    "items": {
+      "Cinema recordings are caught": {
+        "title": "Biografinspelningar upptäcks",
+        "text": "Vissa kopior som filmats på bio var märkta som vanliga webbsläpp och valdes ut. Lilin känner nu igen dem och väljer en riktig kopia i stället när det finns en."
+      },
+      "A warning on the TV before Play": {
+        "title": "En varning på tv:n före Spela upp",
+        "text": "När en ny film bara finns som biografinspelningar än så länge står det under Spela upp på tv:n. När du trycker på Spela upp frågar den först, och du kan fortfarande titta på inspelningen om du vill."
+      }
+    }
+  },
   "2026-11-18-continue-remove-works": {
     "title": "Ta bort från Fortsätt titta fungerar på riktigt",
     "items": {

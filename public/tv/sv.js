@@ -195,4 +195,10 @@ window.LilinTvStrings = {
   'Chat': 'Chatt',
   'Show messages': 'Visa meddelanden',
   'Coming soon': 'Kommer snart',
+  // copy-check: only cinema recordings so far
+  'Play the cinema recording': 'Spela biografinspelningen',
+  'Only a cinema recording so far': 'Bara en biografinspelning än så länge',
+  'Someone filmed this in a cinema, so the picture and sound are poor. A proper copy usually turns up once it’s out to stream or buy.': 'Någon har filmat den på bio, så bild och ljud är dåliga. En riktig kopia brukar dyka upp när den går att streama eller köpa.',
+  'Only cinema recordings so far: filmed in a cinema, poor picture and sound.': 'Bara biografinspelningar än så länge: filmade på bio, dålig bild och dåligt ljud.',
+  'Not out to stream or buy yet.': 'Går inte att streama eller köpa än.',
 };

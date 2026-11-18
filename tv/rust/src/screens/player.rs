@@ -478,7 +478,7 @@ impl Player {
             let tmdb = show_tmdb(cx, &self.f);
             let sub = logic::episode_label(&next);
             let x = super::ready::Target { tv: true, tmdb, season: f(&next, "season").unwrap_or(1.0) as i64, episode: f(&next, "episode").unwrap_or(1.0) as i64,
-                title: file_title(cx, &self.f), sub, art: String::from(s(&next, "still")) };
+                title: file_title(cx, &self.f), sub, art: String::from(s(&next, "still")), allow_cam: false };
             super::ready::replace_with(cx, x);
             return;
         }

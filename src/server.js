@@ -19,6 +19,7 @@ import * as activity from './activity.js';
 import * as house from './house.js';
 import { createTvPairing } from './tv.js';
 import { tvPlay } from './tv-play.js'; // the TV apps' Play (play first)
+import { createCopyCheck } from './copy-check.js'; // only cinema recordings of a recent film? (warned before Play)
 import { startWeb as startWebSignIn, tvExtras as tvSignInExtras, placeOf as signInPlace, WEB_TTL_MS } from './signin-link.js';
 import { createJellyfin } from './jellyfin.js';
 import * as load from './load.js';
@@ -670,6 +671,12 @@ const HOME_ROWS = {
 };
 // comingsoon: films and shows about to come out, ranked by closeness and buzz (src/coming-soon.js)
 const TMDB_REGION = (process.env.TMDB_REGION || TMDB_LANG.split('-')[1] || 'US').trim().toUpperCase();
+const copyCheck = createCopyCheck({
+  details: (id) => cachedTmdb(`/movie/${id}`, { append_to_response: 'release_dates' }, 6 * 3600 * 1000),
+  filmOut, now: () => Date.now(),
+  search: (query) => torrents.searchTorrents(query, 'movie', { quick: true }).then((f) => f.results || []),
+  matches: (query, name) => matchesRelease(query, name, parseName),
+});
 const comingSoon = createComingSoon({ tmdb, listTmdb: (endpoint, params) => cachedTmdb(endpoint, params, 3 * 3600 * 1000), mapTitle,
   region: TMDB_REGION, language: currentLanguage, log: (line) => console.warn(line) });
 if (TMDB_TOKEN || TMDB_KEY) setTimeout(() => comingSoon.warm(), 20_000).unref();
@@ -1655,7 +1662,7 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
   if (animeCtx && !upgrade && typeof body.dub === 'boolean') rememberDub(user, type, tmdbId, dub);
   // Running time (minutes, a film's or an episode's): Best Quality checks a pick can play while it downloads.
   const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
-  const want = { ...downloadWant(user, body, { background }), runtime };
+  const want = { ...downloadWant(user, body, { background }), runtime, ...(body.allowCam === true && type === 'movie' ? { allowCam: true } : {}) };
   const documentary = (details.genres || []).some((g) => g.id === 99);
   const id = smart.startSmartJob({
     type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub, background, lift,
@@ -4954,6 +4961,11 @@ async function handleApi(req, res, url) {
     invalidateLibrary();
     activity.record(req, 'remove', t.name);
     return sendJson(res, 200, { ok: true, kept: true });
+  }
+  // Before Play on a recent film: a proper copy, or only cinema recordings (src/copy-check.js)?
+  if ((m = p.match(/^\/api\/title\/movie\/(\d{1,9})\/copies$/))) {
+    if (!tmdbOn() || !torrents.torrentsEnabled()) return sendJson(res, 200, { verdict: 'skip' });
+    try { return sendJson(res, 200, await copyCheck.check(m[1])); } catch { return sendJson(res, 200, { verdict: 'skip' }); }
   }
   // The TV apps' Play (play first, src/tv-play.js): POST starts what's needed, GET follows it.
   if (p === '/api/tv/play') {

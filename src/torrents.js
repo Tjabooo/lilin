@@ -88,9 +88,23 @@ function describe(name) {
   if (/\b(x265|h\.?265|hevc)\b/i.test(name)) tags.push('HEVC');
   if (/\bhdr(10)?\b|\bdolby ?vision\b|\bdv\b/i.test(name)) tags.push('HDR');
   if (/\bremux\b/i.test(name)) tags.push('Remux');
-  // Cinema recordings are flagged and sorted last.
-  const cam = /\b(cam|camrip|hdcam|ts|telesync|hdts|tc|telecine)\b/i.test(name);
+  // Cinema recordings are flagged and sorted last (smart downloads never pick them).
+  const cam = isCinemaRecording(name);
   return { quality, tags, cam };
+}
+
+// A cinema recording, by its release name: the camera and telesync tags in their many spellings, and "LINE"
+// audio (sound taken from a cinema's line feed), which uploaders keep even when they call the picture "WEB"
+// ("Project Hail Mary 2026 1080p WEB Line AC3 H264-DJT"). LINE, MIC and MD only count after the year or the
+// resolution, so titles like "The Thin Red Line" or "Line of Duty" stay clean.
+const CAM_TAGS = /(?:^|[^a-z0-9])(cams?|cam-?rip|hd-?cam|hq-?cam|hdcamrip|newcam|ts|hd-?ts|ts-?rip|hdtsrip|tele-?sync|hdtc|tc|tele-?cine|pdvd|pre-?dvd)(?=$|[^a-z0-9])/i;
+const AFTER_TITLE = /(?:^|[^a-z0-9])(?:(?:19|20)\d{2}|(?:2160|1440|1080|720|576|480)p)(?=$|[^a-z0-9])/i;
+const CINEMA_AUDIO = /(?:^|[^a-z0-9])(line|line[ ._-]?audio|mic|md)(?=$|[^a-z0-9])/i;
+export function isCinemaRecording(name) {
+  const n = String(name || '');
+  if (CAM_TAGS.test(n)) return true;
+  const m = AFTER_TITLE.exec(n);
+  return Boolean(m) && CINEMA_AUDIO.test(n.slice(m.index + m[0].length));
 }
 
 const magnetFor = (hash, name) => `magnet:?xt=urn:btih:${hash}&dn=${encodeURIComponent(name)}${TPB_TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join('')}`;

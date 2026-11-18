@@ -104,6 +104,8 @@ export async function tvPlay(deps, user, q, { start = false } = {}) {
   if (!job && start) {
     if (user.canDownload === false) return { phase: 'failed', message: 'This isn’t on Lilin yet.' };
     const body = x.type === 'movie' ? { type: 'movie', tmdbId: x.tmdbId } : { type: 'tv', tmdbId: x.tmdbId, season: x.season, episodes: [x.episode] };
+    // They were told only cinema recordings exist (copy-check.js) and pressed Play anyway.
+    if (x.type === 'movie' && (q.allowCam === true || q.allowCam === 'true')) body.allowCam = true;
     let started;
     try { started = await deps.startSmart(user, body); } catch (e) { return { phase: 'failed', message: e.message }; }
     return { phase: 'finding', job: started.id };

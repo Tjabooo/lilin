@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-18-cinema-recordings",
+    "date": "2026-11-18",
+    "title": "No surprise cinema recordings",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Cinema recordings are caught",
+        "text": "Some copies filmed in a cinema were labelled as normal web releases and got picked. Lilin now recognises them, and picks a proper copy instead whenever one exists."
+      },
+      {
+        "kind": "new",
+        "title": "A warning on the TV before Play",
+        "text": "When a new film only exists as cinema recordings so far, the TV says so under Play. Pressing Play asks first, and you can still watch the recording if you want to."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-continue-remove-works",
     "date": "2026-11-18",
     "title": "Removing from Continue watching really works",

@@ -20,6 +20,7 @@ const JOB: u32 = 5;
 const JOB_T: u32 = 6;
 const FOLLOW_T: u32 = 7;
 const FOLLOWED: u32 = 8;
+const COPIES: u32 = 9;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Do {
@@ -58,6 +59,8 @@ pub struct TitleScreen {
     follow: u32,
     lit: Lit,
     chip_scroll: ui::Ease,
+    /// copy-check (src/copy-check.js): "cam" = only cinema recordings so far, "soon" = not out to stream yet.
+    copies: String,
 }
 
 const QUALITIES: [&str; 5] = ["", "2160p", "1440p", "1080p", "720p"];
@@ -129,7 +132,11 @@ impl TitleScreen {
             follow: 0,
             lit: Lit::default(),
             chip_scroll: ui::Ease::at(0.0),
+            copies: String::new(),
         };
+        if !me.tv && me.mine.is_none() && me.actions.contains(&Do::Play) {
+            cx.get(&alloc::format!("/api/title/movie/{}/copies", crate::util::enc(&me.tid)), sid, COPIES);
+        }
         if me.on_way.is_some() {
             me.offer_library();
         }
@@ -218,9 +225,17 @@ impl TitleScreen {
             let season = f(se, "number").unwrap_or(1.0) as i64;
             let first = f(se, "first").filter(|v| *v >= 1.0).unwrap_or(1.0) as i64;
             let sub = alloc::format!("{} · {}", t!("Season {0}", alloc::format!("{}", season)), t!("Episode {0}", alloc::format!("{}", first)));
-            super::ready::play_first(cx, super::ready::Target { tv: true, tmdb, season, episode: first, title, sub, art });
+            super::ready::play_first(cx, super::ready::Target { tv: true, tmdb, season, episode: first, title, sub, art, allow_cam: false });
         } else {
-            super::ready::play_first(cx, super::ready::Target { tv: false, tmdb, season: 0, episode: 0, title, sub: String::new(), art });
+            let x = super::ready::Target { tv: false, tmdb, season: 0, episode: 0, title, sub: String::new(), art, allow_cam: false };
+            match self.copies.as_str() {
+                "soon" => cx.toast(t!("Not out to stream or buy yet.")),
+                "cam" => {
+                    let a = super::ready::CamAsk::new(cx, x);
+                    cx.push(Box::new(a));
+                }
+                _ => super::ready::play_first(cx, x),
+            }
         }
     }
     fn download(&mut self, cx: &mut Cx) {
@@ -381,6 +396,15 @@ impl Screen for TitleScreen {
             ax += w + 18.0;
         }
         y += 100.0;
+        let note = match self.copies.as_str() {
+            "cam" => t!("Only cinema recordings so far: filmed in a cinema, poor picture and sound."),
+            "soon" => t!("Not out to stream or buy yet."),
+            _ => "",
+        };
+        if !note.is_empty() {
+            cx.tx.draw_fit(&mut cx.g, body(26.0, 400), note, x, y - 8.0, 1100.0, ui::ALERT);
+            y += 44.0;
+        }
         if let Some(p) = self.on_way.clone() {
             y += strip(cx, &p, x, y, 760.0) + 10.0;
         }
@@ -486,6 +510,11 @@ impl Screen for TitleScreen {
                     if !failed && s(j, "outcome") != "none" {
                         self.offer_library();
                     }
+                }
+            }
+            COPIES => {
+                if res.ok() {
+                    self.copies = String::from(s(&res.json, "verdict"));
                 }
             }
             FOLLOWED => {

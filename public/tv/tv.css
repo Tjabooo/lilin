@@ -407,3 +407,8 @@ img.is-empty { visibility: hidden; }
   transition: opacity .6s; word-wrap: break-word; }
 .chat-line b { color: var(--bulb); }
 .chat-line.gone { opacity: 0; }
+
+/* copy-check: only cinema recordings of this film so far */
+.copy-note { margin-top: 18px; color: var(--alert); font-size: 26px; min-height: 0; }
+.copy-note:empty { display: none; }
+.dialog-text { margin: 0 0 30px; color: var(--dust); font-size: 28px; line-height: 1.35; }

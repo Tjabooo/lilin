@@ -261,7 +261,10 @@ const diskSize = (r, want) => (r.packEpisodes > 0 && r.size ? r.size / r.packEpi
 // Returns { pick, why } (pick null when nothing fits; why says why in plain words).
 export function pickBest(results, want, parseName) {
   const key = showKey(want.title);
-  const live = results.filter((r) => !r.cam && r.seeders >= ALIVE);
+  // want.allowCam: the person said yes to a cinema recording (copy-check.js warned them first); still only when
+  // there's no proper copy at all.
+  const proper = results.filter((r) => !r.cam && r.seeders >= ALIVE);
+  const live = proper.length || !want.allowCam ? proper : results.filter((r) => r.seeders >= ALIVE);
   if (want.type === 'tv') {
     const keyOf = (r) => { const t = packTitle(r.name, want.season); return t == null ? null : showKey(parseName(t, { file: false }).title); };
     // "The Office US" for TMDB's "The Office": only when no pack uses the plain name.

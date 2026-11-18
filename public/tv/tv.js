@@ -1413,7 +1413,20 @@
       actions.push({ el: qualityBtn, act: function () { cycleQuality(1); }, quality: true });
     }
     downloadBtn.classList.remove('primary');
+    // A recent film: is there a proper copy, or only cinema recordings? Said under Play, asked on Play.
+    var copies = null, copyNote = h('div', { class: 'copy-note' });
+    if (t.type === 'movie' && !lib && !soon) api('/api/title/movie/' + t.id + '/copies').then(function (c) {
+      if (!alive) return;
+      copies = c;
+      if (c.verdict === 'cam') copyNote.textContent = T('Only cinema recordings so far: filmed in a cinema, poor picture and sound.');
+      else if (c.verdict === 'soon') copyNote.textContent = T('Not out to stream or buy yet.');
+    }).catch(function () {});
     function playIt() {
+      if (copies && copies.verdict === 'soon') { toast(T('Not out to stream or buy yet.')); return; }
+      if (t.type === 'movie' && copies && copies.verdict === 'cam') {
+        camAsk({ type: 'movie', tmdbId: t.id, title: t.title, art: bigger(t.backdrop || t.poster) });
+        return;
+      }
       if (t.type === 'tv') {
         if (!seasons.length) { toast(T('The season list is still loading.')); return; }
         var se = seasons[si];
@@ -1438,7 +1451,7 @@
     if (lib) zone = 'actions';
     var actionsEl = h('div', { class: 'title-actions' }, actions.map(function (a) { return a.el; }));
     var panel = h('div', { class: 'discover-panel' }, h('div', { class: 'discover-copy' }, title, meta, overview, cast, seasonBox,
-      actionsEl, strip.el, status));
+      actionsEl, copyNote, strip.el, status));
     var el = h('div', { class: 'screen discover-title' }, backdrop, panel);
     followPending(function () { return alive; }, function () {
       var was = onWay;
@@ -2031,6 +2044,28 @@
   function targetQuery(x) {
     return 'type=' + x.type + '&tmdbId=' + x.tmdbId + (x.type === 'tv' ? '&season=' + x.season + '&episode=' + x.episode : '');
   }
+  // Only cinema recordings of this film so far (src/copy-check.js): say so before anything downloads.
+  function camAsk(x) {
+    var choice = 0;
+    var buttons = [h('button', { class: 'choice', text: T('Play the cinema recording') }), h('button', { class: 'choice', text: T('Back') })];
+    var el = h('div', { class: 'screen dialog' }, h('div', { class: 'dialog-box' },
+      h('h2', { text: T('Only a cinema recording so far') }),
+      h('p', { class: 'dialog-text', text: T('Someone filmed this in a cinema, so the picture and sound are poor. A proper copy usually turns up once it’s out to stream or buy.') }),
+      buttons));
+    function paint() { buttons.forEach(function (b, i) { b.classList.toggle('focus', i === choice); }); }
+    show({ el: el, focus: paint, key: function (code) {
+      if (code === KEY.UP || code === KEY.LEFT) { choice = 0; paint(); return true; }
+      if (code === KEY.DOWN || code === KEY.RIGHT) { choice = 1; paint(); return true; }
+      if (code === KEY.ENTER) {
+        if (choice === 1) { back(); return true; }
+        screen = history.pop(); // the ask is replaced by Getting it ready
+        x.allowCam = true;
+        getReady(x);
+        return true;
+      }
+      return false;
+    } }, true);
+  }
   function playFirst(x) {
     // Yours already: straight to the player (the server would say the same, a round trip later).
     var mine = x.type === 'movie' ? owned().films[x.tmdbId] : null;
@@ -2098,6 +2133,7 @@
     } }, true);
     var body = { type: x.type, tmdbId: x.tmdbId, title: x.title };
     if (x.type === 'tv') { body.season = x.season; body.episode = x.episode; }
+    if (x.allowCam) body.allowCam = true; // they said yes to a cinema recording (camAsk)
     api('/api/tv/play', body).then(answer, function (err) { answer({ phase: 'failed', message: err.message }); });
   }
 
