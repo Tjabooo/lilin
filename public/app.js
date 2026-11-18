@@ -8227,7 +8227,7 @@ async function loadPeople() {
 // After an update, everyone sees its notes once (whats-new.json on the server, via /api/status). The
 // popup waits while a video plays or another sheet is open, and closing it marks the update as seen.
 // A page left open across an update offers a reload, since it still runs the old app.
-const whatsNewView = { open: false, retry: null, build: null, staleNoted: false, opener: null };
+const whatsNewView = { open: false, retry: null, build: null, staleNoted: false, opener: null, kind: 'all' };
 const updateDate = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: new Date().getFullYear() === Number(d.slice(0, 4)) ? undefined : 'numeric' });
 // The header's What's new button opens the whole history at any time, and lights up while an update
 // hasn't been seen yet.
@@ -8271,13 +8271,18 @@ function markUpdatesSeen(latest) {
   renderWhatsNewButton();
   saveMe({ seenUpdate: latest }, null);
 }
-function updateEntry(e, heading = true) {
+// Each note is a new feature, an improvement or a bug fix (its "kind"); the sheet's tabs show one kind at a time.
+const UPDATE_KINDS = [['all', 'All'], ['new', 'New'], ['improved', 'Improved'], ['fix', 'Fixes']];
+const updateKind = (i) => (i.kind === 'new' || i.kind === 'fix' ? i.kind : 'improved');
+function updateEntry(e, heading = true, kind = 'all') {
+  const items = kind === 'all' ? e.items : e.items.filter((i) => updateKind(i) === kind);
+  if (!items.length) return null;
   return h('section', { class: 'update' },
     heading && h('div', { class: 'update-head' },
       h('h3', {}, e.title || T('Update')),
       h('time', { datetime: e.date }, updateDate(e.date))),
-    h('ul', { class: 'update-items' }, e.items.map((i) => h('li', {},
-      h('span', { class: 'update-bulb', 'aria-hidden': 'true' }),
+    h('ul', { class: 'update-items' }, items.map((i) => h('li', { class: `is-${updateKind(i)}` },
+      h('span', { class: 'update-bulb', title: T(UPDATE_KINDS.find(([k]) => k === updateKind(i))[1]) }),
       h('div', {}, i.title && h('strong', {}, i.title), i.text && h('p', {}, i.text))))));
 }
 // updates: newest first. latest: the id to mark seen when the sheet closes (none for the history view).
@@ -8295,11 +8300,29 @@ function openWhatsNew(updates, { latest = null, stale = false, history = false, 
   // From the popup, the full history is one tap away (closing it marks these updates seen first).
   const allBtn = h('button', { class: 'chip whats-new-all', type: 'button' }, T('All updates'));
   allBtn.addEventListener('click', () => { markUpdatesSeen(latest); showUpdateHistory({ replace: true }); });
+  // Tabs (All / New / Improved / Fixes) once there's more than one kind to choose from.
+  const counts = { all: 0, new: 0, improved: 0, fix: 0 };
+  for (const e of updates) for (const i of e.items) { counts.all++; counts[updateKind(i)]++; }
+  const kinds = UPDATE_KINDS.filter(([k]) => counts[k]);
+  if (!counts[whatsNewView.kind]) whatsNewView.kind = 'all';
+  const list = h('div', { class: 'whats-new-list' });
+  const tabs = kinds.length > 2 && h('div', { class: 'segmented whats-new-tabs', role: 'group', 'aria-label': T('Show') });
+  const draw = () => {
+    const kind = whatsNewView.kind;
+    tabs?.replaceChildren(...kinds.map(([k, label]) => h('button', {
+      type: 'button', class: `is-${k}`, 'aria-pressed': String(k === kind),
+      onclick: () => { if (whatsNewView.kind === k) return; whatsNewView.kind = k; draw(); list.closest('.sheet')?.scrollTo({ top: 0 }); },
+    }, k !== 'all' && h('span', { class: 'update-bulb', 'aria-hidden': 'true' }), T(label), h('span', { class: 'whats-new-count' }, counts[k]))));
+    const shown = updates.map((e) => updateEntry(e, !single, kind)).filter(Boolean);
+    list.replaceChildren(...(shown.length ? shown : [h('p', { class: 'muted' }, T('No updates yet.'))]));
+  };
+  draw();
   $('#picker-body').replaceChildren(h('div', { class: 'whats-new' },
     h('p', { class: 'whats-new-eyebrow' }, history ? T('Updates') : T('New in Lilin')),
     h('h2', { id: 'picker-title' }, history ? T('What’s new') : single ? updates[0].title || T('What’s new') : T('What’s new')),
     single && h('p', { class: 'picker-sub muted' }, updateDate(updates[0].date)),
-    updates.length ? updates.map((e) => updateEntry(e, !single)) : h('p', { class: 'muted' }, T('No updates yet.')),
+    tabs && h('div', { class: 'whats-new-tabbar' }, tabs),
+    list,
     stale && h('p', { class: 'set-hint whats-new-stale' }, T('This page is from before the update. Reload it to use what’s new.')),
     h('div', { class: 'whats-new-actions' }, !history && allBtn, done)));
   const close = showSheet($('#picker'), $('#picker-backdrop'), () => {

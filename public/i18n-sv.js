@@ -934,6 +934,8 @@ export default {
   "Got it": "Okej",
   "All updates": "Alla uppdateringar",
   "Updates": "Uppdateringar",
+  "Improved": "Förbättrat",
+  "Fixes": "Fixar",
   "New in Lilin": "Nytt i Lilin",
   "What’s new": "Nyheter",
   "No updates yet.": "Inga uppdateringar än.",

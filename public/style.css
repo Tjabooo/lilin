@@ -2942,6 +2942,22 @@ button.st-col:hover .st-stack { filter: brightness(1.12); }
   width: 8px; height: 8px; margin-top: 6px; border-radius: 50%;
   background: var(--bulb); box-shadow: 0 0 0 3px var(--bulb-dim), 0 0 10px var(--bulb-dim);
 }
+/* Each note's kind tints its bulb: new = the lilin's gold, improved = blue, fix = green */
+.update-items li.is-improved .update-bulb, .whats-new-tabs .is-improved .update-bulb { background: var(--info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 22%, transparent), 0 0 10px color-mix(in srgb, var(--info) 22%, transparent); }
+.update-items li.is-fix .update-bulb, .whats-new-tabs .is-fix .update-bulb { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent), 0 0 10px color-mix(in srgb, var(--ok) 22%, transparent); }
+/* All / New / Improved / Fixes tabs stay at the top while the long history scrolls under them */
+.whats-new-tabbar {
+  position: sticky; top: 0; z-index: 1;
+  margin: 10px calc(-1 * var(--gutter)) 0; padding: 10px var(--gutter) 12px;
+  background: linear-gradient(to top, transparent, var(--surface-1) 30%);
+}
+.whats-new-tabs { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; }
+.whats-new-tabs::-webkit-scrollbar { display: none; }
+.whats-new-tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; }
+.whats-new-tabs .update-bulb { width: 7px; height: 7px; margin: 0; }
+.whats-new-count { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .6; }
+.whats-new-tabbar + .whats-new-list > .update:first-child .update-head { margin-top: 6px; }
+@media (max-width: 420px) { .whats-new-tabs button { padding: 0 9px; gap: 5px; font-size: 13px; } .whats-new-count { display: none; } }
 .whats-new-stale { margin-top: 14px; }
 .whats-new-actions {
   position: sticky; bottom: 0;

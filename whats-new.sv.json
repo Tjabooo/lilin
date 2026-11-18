@@ -1,4 +1,13 @@
 {
+  "2026-11-18-whats-new-tabs": {
+    "title": "Nyheter, sorterade",
+    "items": {
+      "Tabs for New, Improved and Fixes": {
+        "title": "Flikar för Nytt, Förbättrat och Fixar",
+        "text": "Listan med nyheter har nu flikar högst upp, så att du kan se bara nya funktioner, bara förbättringar eller bara buggfixar. Pricken vid varje notis visar också vilken sort det är: guld för nytt, blått för förbättrat, grönt för fixar."
+      }
+    }
+  },
   "2026-11-18-theme-speaker": {
     "title": "Ledmotivsknappen har flyttat",
     "items": {

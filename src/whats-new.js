@@ -3,7 +3,11 @@
 // app root (newest first), separate from CHANGELOG.md, which is for the people running the server:
 //
 //   [{ "id": "2026-11-05", "date": "2026-11-05", "title": "…",
-//      "items": [{ "title": "…", "text": "…", "audience": "owner" (optional: only the owner sees it) }] }]
+//      "items": [{ "kind": "new" | "improved" | "fix", "title": "…", "text": "…",
+//                  "audience": "owner" (optional: only the owner sees it) }] }]
+//
+// "kind" sorts each note under a tab in the What's new sheet (New features, Improvements, Bug fixes);
+// a missing or unknown kind counts as "improved".
 //
 // "announce": false keeps an entry in the history (the What's new button) without ever popping it up,
 // for notes written after the fact about older updates. An entry dated in the future stays hidden until
@@ -18,6 +22,7 @@ import crypto from 'node:crypto';
 
 const ID = /^[A-Za-z0-9._-]{1,40}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const KINDS = ['new', 'improved', 'fix']; // the What's new tabs, in order
 export const MAX_UNSEEN = 3; // a popup never shows more than the three newest updates
 
 let file = null;
@@ -38,7 +43,7 @@ export function parseEntries(raw) {
   for (const e of raw) {
     if (!e || !ID.test(String(e.id)) || !DATE.test(String(e.date)) || seen.has(e.id)) continue;
     const items = (Array.isArray(e.items) ? e.items : [])
-      .map((i) => ({ title: text(i?.title, 120), text: text(i?.text, 600), audience: i?.audience === 'owner' ? 'owner' : 'all' }))
+      .map((i) => ({ kind: KINDS.includes(i?.kind) ? i.kind : 'improved', title: text(i?.title, 120), text: text(i?.text, 600), audience: i?.audience === 'owner' ? 'owner' : 'all' }))
       .filter((i) => i.title || i.text);
     if (!items.length) continue;
     seen.add(e.id);
@@ -78,7 +83,7 @@ function inViewersLanguage(entry) {
 
 function visible(list, user) {
   return list
-    .map(({ announce, push, ...e }) => ({ ...e, items: e.items.filter((i) => i.audience === 'all' || user?.isOwner).map(({ title, text }) => ({ title, text })) }))
+    .map(({ announce, push, ...e }) => ({ ...e, items: e.items.filter((i) => i.audience === 'all' || user?.isOwner).map(({ kind, title, text }) => ({ kind, title, text })) }))
     .filter((e) => e.items.length)
     .map(inViewersLanguage);
 }
