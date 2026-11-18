@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-phone-depth",
+    "date": "2026-11-18",
+    "title": "Depth on the big picture on phones",
+    "items": [
+      {
+        "title": "The Discover picture sinks as you scroll",
+        "text": "On phones the big picture at the top of Discover now slides away slower than the rows, so they glide over it, like on a computer."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-one-search",
     "date": "2026-11-18",
     "title": "One search button on phones",

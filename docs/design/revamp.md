@@ -83,7 +83,7 @@ fixed-over-picture surfaces (scrims, player chrome), which are always dark whate
 What moves: what you touch (press scales to .97), what you point at (cards lift 4 % with a glow),
 sheets and pages (slide and fade), the billboard (slow cross-fade and a gentle zoom on wide screens),
 tab changes (View Transitions cross-fade where supported, nothing elsewhere), progress, and lit bulbs.
-What doesn't: text never moves on scroll, no parallax on phones, nothing loops except loading and live
+What doesn't: text never moves on scroll (the billboard picture sinks at 30 % on every screen size), nothing loops except loading and live
 indicators, and the billboard stops while you hover or focus it. With `prefers-reduced-motion` every
 movement becomes an instant change or a short fade, autoplaying trailers and slide advancing stop.
 

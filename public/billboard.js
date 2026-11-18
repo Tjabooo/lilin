@@ -161,20 +161,20 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
     // Depth while the page scrolls: the picture (and trailer) sinks at 30 % of the scroll speed, so the rows slide
     // over the banner instead of the whole page moving as one sheet. One rAF per frame, written straight onto the
     // pictures (a CSS variable on the banner restyled all of it every frame); style.css gives them their own layer.
-    // Wide screens only: phones keep the picture still (no parallax on phones, docs/design/revamp.md).
+    // Phones too (Oliver 2026-11-18): the art clips the shifted picture, so the gap it leaves stays above the screen.
     let shiftFrame = 0, shiftLast = 0;
     const pictures = slideEls.map((s) => s.querySelector('.bb-img'));
     const shift = () => {
       shiftFrame = 0;
       const r = root.getBoundingClientRect();
-      const y = wide() ? Math.round(Math.min(Math.max(0, -r.top), r.height) * 3) / 10 : 0;
+      const y = Math.round(Math.min(Math.max(0, -r.top), r.height) * 3) / 10;
       if (y === shiftLast) return;
       shiftLast = y;
       const t = y ? `0 ${y}px` : '';
       for (const p of pictures) p.style.translate = t;
       if (frame) frame.style.translate = t;
     };
-    const onPageScroll = () => { if (!shiftFrame && !reduced() && (shiftLast || wide())) shiftFrame = requestAnimationFrame(shift); };
+    const onPageScroll = () => { if (!shiftFrame && !reduced()) shiftFrame = requestAnimationFrame(shift); };
     window.addEventListener('scroll', onPageScroll, { passive: true });
     function stop() {
       clearInterval(timer); stopTrailer();

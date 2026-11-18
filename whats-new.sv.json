@@ -1,4 +1,22 @@
 {
+  "2026-11-18-phone-depth": {
+    "title": "Djup i den stora bilden på mobilen",
+    "items": {
+      "The Discover picture sinks as you scroll": {
+        "title": "Bilden på Upptäck sjunker när du scrollar",
+        "text": "På mobilen glider den stora bilden högst upp på Upptäck nu undan långsammare än raderna, så de glider över den, precis som på datorn."
+      }
+    }
+  },
+  "2026-11-18-one-search": {
+    "title": "En sökknapp på mobilen",
+    "items": {
+      "The big search field on Discover is gone": {
+        "title": "Det stora sökfältet på Upptäck är borta",
+        "text": "Mobiler visade två sätt att söka högst upp på Upptäck. Nu finns bara förstoringsglaset i hörnet, så bilden får mer plats."
+      }
+    }
+  },
   "2026-11-18-no-stuck-wait": {
     "title": "Ingen evig \"Väntar på att starta\" längre",
     "items": {
