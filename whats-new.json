@@ -1,5 +1,40 @@
 [
   {
+    "id": "2026-11-18-polish",
+    "date": "2026-11-18",
+    "title": "A smoother, more cinematic Lilin",
+    "items": [
+      {
+        "title": "Posters grow into the title page",
+        "text": "Tap a poster and it grows into the title page’s big picture instead of the page just appearing."
+      },
+      {
+        "title": "Title pages take on the film’s colour",
+        "text": "Each title page picks up the main colour of its picture, now in the Play button’s glow too, and remembers it so it’s there right away next time."
+      },
+      {
+        "title": "A pause screen",
+        "text": "Pause for a few seconds and the picture dims while the title, episode and a short description fade in. Touch anything to make it go away."
+      },
+      {
+        "title": "Continue watching shows where you stopped",
+        "text": "Cards in Continue watching show the actual frame where you left off, when Lilin has one."
+      },
+      {
+        "title": "Smoother loading",
+        "text": "Posters fade in from their own colour instead of grey boxes popping in, and rows fade out softly at the edges when there’s more to scroll."
+      },
+      {
+        "title": "Up next fills in",
+        "text": "During the Up next countdown, the next episode’s picture fills in with colour, like the logo on Getting it ready."
+      },
+      {
+        "title": "Live TV feels like TV",
+        "text": "Switching channels cuts to black for a moment, then the channel and what’s on now slide in."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-start-1080p",
     "date": "2026-11-18",
     "title": "New films start faster, then sharpen",

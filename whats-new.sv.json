@@ -1,4 +1,37 @@
 {
+  "2026-11-18-polish": {
+    "title": "Ett mjukare Lilin, mer som bio",
+    "items": {
+      "Posters grow into the title page": {
+        "title": "Affischer växer in i titelsidan",
+        "text": "Tryck på en affisch så växer den in i titelsidans stora bild i stället för att sidan bara dyker upp."
+      },
+      "Title pages take on the film’s colour": {
+        "title": "Titelsidor får filmens färg",
+        "text": "Varje titelsida tar färg från sin bild, nu även i Spela-knappens sken, och kommer ihåg den så att den finns där direkt nästa gång."
+      },
+      "A pause screen": {
+        "title": "En pausskärm",
+        "text": "Pausa några sekunder så dämpas bilden och titeln, avsnittet och en kort beskrivning tonar in. Rör vad som helst så försvinner den."
+      },
+      "Continue watching shows where you stopped": {
+        "title": "Fortsätt titta visar var du slutade",
+        "text": "Korten i Fortsätt titta visar själva bilden där du slutade, när Lilin har en."
+      },
+      "Smoother loading": {
+        "title": "Mjukare laddning",
+        "text": "Affischer tonar in från sin egen färg i stället för grå rutor som poppar upp, och rader tonar ut mjukt i kanterna när det finns mer att bläddra."
+      },
+      "Up next fills in": {
+        "title": "Nästa fylls i",
+        "text": "Under nedräkningen till nästa avsnitt fylls dess bild i med färg, som loggan på Gör i ordning."
+      },
+      "Live TV feels like TV": {
+        "title": "Live-TV känns som TV",
+        "text": "När du byter kanal blir det svart en kort stund, sedan glider kanalen och vad som visas nu in."
+      }
+    }
+  },
   "2026-11-18-start-1080p": {
     "title": "Nya filmer startar snabbare och blir sedan skarpare",
     "items": {

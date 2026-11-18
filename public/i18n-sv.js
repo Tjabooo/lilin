@@ -2660,4 +2660,6 @@ export default {
   "Getting {0} titles ready": "{0} titlar görs i ordning",
   "1 of these plays instantly, so it comes first.": "1 av dem spelas direkt, så den kommer först.",
   "{0} of these play instantly, so they come first.": "{0} av dem spelas direkt, så de kommer först.",
+  // pause screen
+  "You’re watching": "Du tittar på",
 };

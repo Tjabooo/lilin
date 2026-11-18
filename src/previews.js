@@ -72,7 +72,8 @@ export class Previews {
 
   // What the player needs: frame times, sheet layout and how many sheets are ready. Starts the
   // pass if this video has none yet.
-  async index(file) {
+  // `peek`: only what's already made (Continue watching cards), never starts a pass.
+  async index(file, { peek = false } = {}) {
     const key = await this.keyFor(file);
     const out = path.join(this.dir, key);
     const job = this.jobs.get(key);
@@ -87,6 +88,7 @@ export class Previews {
         return { key, ...saved };
       }
     } catch { /* not made yet */ }
+    if (peek) return { key, v: VERSION, done: false, none: true, cols: COLS, rows: ROWS, times: [], sheets: 0 };
     const fresh = { key, file, out, state: 'queued', times: [], w: null, h: null, step: null, sheets: 0 };
     this.jobs.set(key, fresh);
     this.bump(key);

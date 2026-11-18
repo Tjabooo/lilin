@@ -6,7 +6,7 @@ import { createLiveView, channelName, clock as liveClock, programmeLine } from '
 import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
 import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
-import { createSeekPreview } from './seek-preview.js';
+import { createSeekPreview, frameAt } from './seek-preview.js';
 import * as pushDevice from './notifications.js';
 import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
@@ -38,6 +38,7 @@ import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme m
 import { ROUTES, allowedRoute, tabsFor, pagesOf, resolve, linkRoute, startRoute } from './routes.js'; // the shell: tabs, addresses, Back
 import { createSearch } from './search.js'; // search: titles + Go to (places.js)
 import { titleModel } from './title-model.js'; // the one title page: its state, gold button, chips and ⋯ menu
+import { createPauseScreen } from './pause-screen.js'; // the pause screen: logo + synopsis after a few seconds paused
 import { createGettingReady } from './getting-ready.js'; // play first: the player's Getting it ready screen
 
 translatePage();
@@ -846,16 +847,56 @@ function ownershipBadge(t, { words = false } = {}) {
     icon('bolt'), words && h('span', {}, T('Plays instantly')));
 }
 
+// Posters fade in from their own colour: a card starts as a block of its poster's main colour (worked out once, the
+// first time the poster loads, and remembered on this device) and crossfades into the picture, instead of grey
+// boxes popping in. TMDB sends CORS headers, so its posters can be read; other art just fades in.
+const TONE_KEY = 'lilin.posterTones';
+let tones = null, toneSave = 0;
+const toneStore = () => (tones ||= (() => { try { return JSON.parse(localStorage.getItem(TONE_KEY)) || {}; } catch { return {}; } })());
+const tmdbArt = (url) => /^https:\/\/image\.tmdb\.org\/t\/p\//.test(url);
+const toneId = (url) => String(url).replace(/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//, '');
+const posterTone = (url) => (tmdbArt(url) ? toneStore()[toneId(url)] || null : null);
+function rememberTone(url, img) {
+  const store = toneStore(), id = toneId(url);
+  if (store[id]) return;
+  try {
+    const c = document.createElement('canvas'); c.width = 6; c.height = 9;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 6, 9);
+    const d = g.getImageData(0, 0, 6, 9).data, n = d.length / 4, sum = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
+    store[id] = `#${sum.map((v) => Math.round(v / n * 0.82).toString(16).padStart(2, '0')).join('')}`;
+  } catch { return; }
+  clearTimeout(toneSave);
+  toneSave = setTimeout(() => {
+    const keys = Object.keys(store);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 1500))) delete store[k]; // the newest 1500 posters
+    try { localStorage.setItem(TONE_KEY, JSON.stringify(store)); } catch { /* full: next time */ }
+  }, 2000);
+}
+function toneArt(url, tone) {
+  const tmdb = tmdbArt(url);
+  const img = h('img', { crossorigin: tmdb ? 'anonymous' : null, src: url, alt: '', loading: 'lazy', decoding: 'async', class: 'tone-art',
+    onload: () => {
+      img.classList.add('is-in');
+      if (tmdb && !tone) (window.requestIdleCallback || setTimeout)(() => rememberTone(url, img));
+    },
+    onerror: () => img.classList.add('is-in') });
+  if (img.complete && img.naturalWidth) img.classList.add('is-in', 'is-instant'); // already in memory: no fade
+  return img;
+}
+
 // SVT Play's art is wide and comes without posters, so its cards are wide and carry its name.
 const isSeries = (t) => t.type === 'tv' || t.kind === 'series';
 // The rating sits in the caption, not on the art, so it never fights the status badge on small cards.
 function titleCard(t) {
   const svt = t.type === 'svt';
   const art = svt ? t.wide || t.poster : t.poster;
+  const tone = art ? posterTone(art) : null;
   const button = h('button', { class: `title-card${svt ? ' is-wide' : ''}`, onclick: (e) => { if (peek.swallow(e)) return; openDetails(t, e.currentTarget); } },
-    h('div', { class: 'poster' },
+    h('div', { class: 'poster', style: tone ? `--tone:${tone}` : null },
       art
-        ? h('img', { src: art, alt: '', loading: 'lazy', decoding: 'async' })
+        ? toneArt(art, tone)
         : h('div', { class: 'poster-fallback' }, t.title),
       ownershipBadge(t),
       svt && h('span', { class: 'svt-mark' }, 'SVT Play')),
@@ -940,6 +981,9 @@ function carousel(title, list, seeAll = null, cls = '') {
     prev.disabled = list.scrollLeft <= 2;
     next.disabled = list.scrollLeft + list.clientWidth >= list.scrollWidth - 2;
     prev.hidden = next.hidden = prev.disabled && next.disabled; // everything fits: no arrows
+    // soft edges: the row fades out on a side that has more to scroll to
+    list.classList?.toggle('fade-start', !prev.disabled);
+    list.classList?.toggle('fade-end', !next.disabled);
   };
   list.addEventListener('scroll', update, { passive: true });
   section = h('section', { class: `shelf carousel ${cls}`.trim(), 'aria-label': title },
@@ -1734,6 +1778,31 @@ function wideArt(sources, cls = '', sizes = null) {
 // TMDB art for an episode: its own still, then the show's backdrop.
 const episodeArt = (still, show, cls, sizes) => wideArt([still, show?.backdrop], cls, sizes);
 
+// Continue watching: the frame where you stopped, cut from the timeline previews the player already made (?peek=1 only
+// reads what exists, it never starts a pass). It fades in over the still once its sheet has loaded.
+const frameIndexes = new Map();
+function stoppedFrame(id, time, art) {
+  const base = `/api/media/lib/${encodeURIComponent(id)}/preview`;
+  if (!frameIndexes.has(id)) frameIndexes.set(id, fetch(`${base}?peek=1`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  frameIndexes.get(id).then((index) => {
+    if (!index?.w || !index.h || !index.times?.length) return;
+    const i = frameAt(index.times, time), per = index.cols * index.rows;
+    if (i < 0 || Math.floor(i / per) >= index.sheets) return;
+    const cell = i % per, col = cell % index.cols, row = Math.floor(cell / index.cols);
+    const url = `${base}/${Math.floor(i / per)}.jpg?k=${index.key}`;
+    const ratio = index.w / index.h, box = 16 / 9, wide = ratio >= box;
+    const pos = (n, of) => (of > 1 ? n / (of - 1) * 100 : 0);
+    const img = new Image();
+    img.onload = () => {
+      if (!art.isConnected && !art.parentNode) return;
+      const frame = h('span', { class: 'continue-frame', 'aria-hidden': 'true' }, h('i', { style: `width:${wide ? ratio / box * 100 : 100}%;height:${wide ? 100 : box / ratio * 100}%;`
+        + `background-image:url("${url}");background-size:${index.cols * 100}% ${index.rows * 100}%;background-position:${pos(col, index.cols)}% ${pos(row, index.rows)}%` }));
+      art.insertBefore(frame, art.querySelector('.poster-progress'));
+      requestAnimationFrame(() => requestAnimationFrame(() => frame.classList.add('is-in')));
+    };
+    img.src = url;
+  });
+}
 const CONTINUE_SIZES = '(max-width: 420px) 200px, 240px'; // matches .continue-shelf column widths
 // Continue watching: landscape cards that resume playback. Episodes show their still, films a backdrop.
 function continueCard(f, progress) {
@@ -1745,6 +1814,7 @@ function continueCard(f, progress) {
   // No countdown to the automatic delete (play first): one that leaves just gets ready again when it's played.
   const art = f.season != null ? episodeArt(f.still, show, '', CONTINUE_SIZES) : wideArt([f.backdrop, { src: f.poster, contain: true }]);
   if (progress) art.append(h('span', { class: 'poster-progress', 'aria-label': T('{0}% watched', Math.round(pct)) }, h('i', { style: `width:${pct}%` })));
+  if (progress?.time > 20 && f.id) stoppedFrame(f.id, progress.time, art);
   return h('li', { class: `continue-card${progress ? '' : ' is-up-next'}` },
     h('button', { type: 'button', class: 'continue-more', 'aria-label': T('More for {0}', name), title: T('More'), onclick: (e) => openContinueMenu(f, progress, name, e.currentTarget) }, icon('more')),
     h('button', { type: 'button', class: 'title-card', 'data-library-focus': `play-${f.id}`, onclick: () => openPlayer(libraryFile(f)) },
@@ -2013,12 +2083,48 @@ function openTitle(ref, opener) {
     return;
   }
   titleView.ref = ref; titleView.hero = null;
-  renderTitle();
-  pushOverlay(showSheet(sheet, $('#sheet-backdrop'), () => {
+  const onClosed = () => {
     stopTrailer(); // closing the sheet stops the trailer
     titleView.ref = null; titleView.showId = null; titleView.hero = null;
     opener?.focus({ preventScroll: true });
-  }));
+  };
+  const from = morphFrom(opener);
+  if (!from) {
+    renderTitle();
+    pushOverlay(showSheet(sheet, $('#sheet-backdrop'), onClosed));
+    return;
+  }
+  // Poster → title page: the tapped poster grows into the page's backdrop (View Transitions; browsers without
+  // them take the path above). The poster stands in for the backdrop until the real picture has loaded.
+  let close = null;
+  from.style.viewTransitionName = 'title-morph';
+  const run = document.startViewTransition(() => {
+    from.style.viewTransitionName = '';
+    renderTitle();
+    close = showSheet(sheet, $('#sheet-backdrop'), onClosed, { instant: true });
+    morphInto(sheet, from.currentSrc || from.src);
+  });
+  run.finished.finally(() => { const hero = sheet.querySelector('.sheet-hero'); if (hero) hero.style.viewTransitionName = ''; });
+  pushOverlay(() => close?.());
+}
+// The picture a title page can grow out of: a card's poster (or a hero card's backdrop) that's on screen.
+function morphFrom(opener) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  if (!opener?.matches?.('.title-card, .hero-card') || opener.closest('#sheet, #picker')) return null;
+  const img = opener.querySelector('.poster img, .wide-art img, :scope > img');
+  if (!img?.naturalWidth) return null;
+  const r = img.getBoundingClientRect();
+  return r.width > 20 && r.bottom > 0 && r.top < innerHeight ? img : null;
+}
+function morphInto(sheet, poster) {
+  const hero = sheet.querySelector('.sheet-hero:not(.no-image)');
+  if (!hero) return;
+  hero.style.viewTransitionName = 'title-morph';
+  const img = hero.querySelector('.hero-img');
+  if (!img || img.classList.contains('is-loaded')) return;
+  hero.classList.add('is-morphing');
+  hero.style.backgroundImage = `url("${poster}")`;
+  img.addEventListener('load', () => setTimeout(() => { hero.classList.remove('is-morphing'); hero.style.backgroundImage = ''; }, 700), { once: true });
 }
 // The old ways in stay, so cards, the billboard, peek, Coming soon and House › Downloads open titles as before.
 function openDetails(t, opener) {
@@ -2982,11 +3088,12 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- sheets ----------
 const sheetHideTimers = new Map();
-function showSheet(sheet, backdrop, onClosed) {
+function showSheet(sheet, backdrop, onClosed, { instant = false } = {}) {
   clearTimeout(sheetHideTimers.get(sheet));
   sheet.hidden = backdrop.hidden = false;
   sheet.scrollTop = 0;
-  requestAnimationFrame(() => { sheet.classList.add('open'); backdrop.classList.add('open'); });
+  const open = () => { sheet.classList.add('open'); backdrop.classList.add('open'); };
+  if (instant) open(); else requestAnimationFrame(open); // instant: inside a view transition, which animates it
   sheet.querySelector('.sheet-close').focus({ preventScroll: true });
   return () => {
     sheet.classList.remove('open');
@@ -3060,8 +3167,21 @@ function pageHero(backdrop) {
 // A colour sampled from the backdrop (a 24×14 read of TMDB's small copy, fetched through /api/art), kept in the
 // lightness the theme needs, so every title page has its own room tone. Falls back to the theme's own.
 const washes = new Map();
+// Worked out once per title and remembered on this device, so a title page has its colour from the first frame.
+const WASH_KEY = 'lilin.washes';
+let washStore = null;
+const washSaved = () => (washStore ||= (() => { try { return JSON.parse(localStorage.getItem(WASH_KEY)) || {}; } catch { return {}; } })());
+function saveWash(key, rgb) {
+  const store = washSaved();
+  store[key] = rgb && rgb.map(Math.round);
+  const keys = Object.keys(store);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 600))) delete store[k];
+  try { localStorage.setItem(WASH_KEY, JSON.stringify(store)); } catch { /* full */ }
+}
 function washColour(url) {
   const small = String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w300/');
+  const key = new URL(small).pathname;
+  if (!washes.has(small) && key in washSaved()) washes.set(small, Promise.resolve(washSaved()[key]));
   if (!washes.has(small)) washes.set(small, new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -3077,7 +3197,9 @@ function washColour(url) {
           const weight = 0.2 + ((max - min) / 255) ** 2 * 4; // colourful pixels count more
           r += d[i] * weight; gr += d[i + 1] * weight; b += d[i + 2] * weight; w += weight;
         }
-        resolve(w ? [r / w, gr / w, b / w] : null);
+        const rgb = w ? [r / w, gr / w, b / w] : null;
+        saveWash(key, rgb);
+        resolve(rgb);
       } catch { resolve(null); }
     };
     img.onerror = () => resolve(null);
@@ -3088,6 +3210,7 @@ function washColour(url) {
 function washPage(backdrop) {
   const sheet = $('#sheet');
   sheet.style.removeProperty('--wash');
+  sheet.style.removeProperty('--wash-glow');
   if (!backdrop || !/^https:\/\/image\.tmdb\.org\//.test(backdrop)) return; // only TMDB lets a page read its pixels
   washColour(backdrop).then((rgb) => {
     if (!rgb || !sheet.querySelector('.sheet-hero')) return;
@@ -3096,7 +3219,10 @@ function washPage(backdrop) {
     const dlt = max - min, sat = dlt ? dlt / (1 - Math.abs(2 * l - 1)) : 0;
     const hue = !dlt ? 0 : max === r ? 60 * (((g - b) / dlt) % 6) : max === g ? 60 * ((b - r) / dlt + 2) : 60 * ((r - g) / dlt + 4);
     const light = document.documentElement.dataset.scheme === 'light';
-    sheet.style.setProperty('--wash', `hsl(${Math.round((hue + 360) % 360)} ${Math.round(Math.min(sat, light ? 0.45 : 0.6) * 100)}% ${light ? 82 : 30}%)`);
+    const h360 = Math.round((hue + 360) % 360);
+    sheet.style.setProperty('--wash', `hsl(${h360} ${Math.round(Math.min(sat, light ? 0.45 : 0.6) * 100)}% ${light ? 82 : 30}%)`);
+    // The same colour, lit, for the Play button's glow (a grey picture keeps the theme's own glow).
+    if (sat > 0.12) sheet.style.setProperty('--wash-glow', `hsl(${h360} ${Math.round(Math.min(Math.max(sat, 0.5), 0.85) * 100)}% ${light ? 45 : 58}%)`);
   });
 }
 // The title as logo art when TMDB has some (the heading keeps the name as the picture's alt text).
@@ -4945,11 +5071,62 @@ const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, 
 let tuning = null, lastChannel = null, liveDigits = '', liveDigitsTimer = null;
 const liveChannelId = () => (current?.live ? party?.state.live?.channel?.id || current.live.channel?.id : null);
 
+// Switching channels: a short black cut, then the channel's number, name and what's on now slide in like a TV's
+// on-screen info (also when a channel is first tuned in).
+const channelUi = { cut: null, info: null, timer: 0, since: 0 };
+function channelEls() {
+  if (!channelUi.cut) {
+    channelUi.cut = h('div', { class: 'channel-cut', 'aria-hidden': 'true' });
+    channelUi.info = h('div', { class: 'channel-info', 'aria-hidden': 'true' });
+    $('#player-stage').append(channelUi.cut, channelUi.info);
+  }
+  return channelUi;
+}
+function startChannelCut() {
+  const { cut } = channelEls();
+  channelUi.since = Date.now();
+  cut.classList.add('is-on');
+}
+function endChannelCut(waitForPicture) {
+  const { cut } = channelEls();
+  if (!cut.classList.contains('is-on')) return;
+  const off = () => setTimeout(() => cut.classList.remove('is-on'), Math.max(0, 260 - (Date.now() - channelUi.since)));
+  if (!waitForPicture || !video.paused && video.readyState >= 3) { off(); return; }
+  let done = false;
+  const once = () => { if (done) return; done = true; video.removeEventListener('playing', once); off(); };
+  video.addEventListener('playing', once);
+  setTimeout(once, 3000);
+}
+function showChannelInfo(live) {
+  const ch = live?.channel;
+  if (!ch) return;
+  const { info } = channelEls();
+  const now = live.now;
+  const line = now && programmeLine(now, episodeLabel);
+  const done = now ? Math.min(1, Math.max(0, (Date.now() - now.s) / (now.e - now.s))) : 0;
+  info.replaceChildren(
+    h('span', { class: 'ci-number' }, String(ch.number ?? '')),
+    h('div', { class: 'ci-text' },
+      h('b', { class: 'ci-name' }, channelName(ch, state.me)),
+      h('p', { class: 'ci-now' }, now ? [now.title, line ? h('span', {}, ` · ${line}`) : null] : T('Off air')),
+      now && h('div', { class: 'ci-row' },
+        h('span', { class: 'ci-bar', style: `--done:${done}` }, h('i', {})),
+        h('small', {}, `${liveClock(now.s)}–${liveClock(now.e)}`))));
+  info.classList.remove('is-in');
+  void info.offsetWidth; // restart the slide
+  info.classList.add('is-in');
+  clearTimeout(channelUi.timer);
+  channelUi.timer = setTimeout(() => info.classList.remove('is-in'), 4500);
+}
+
 async function tuneIn(id, again = false) {
   if (!id || tuning) return;
   const was = liveChannelId();
   if (was === id && !playerEl.hidden && !again) { showPlayerUi(); return; }
   tuning = id;
+  const switching = !playerEl.hidden && Boolean(current);
+  if (switching) startChannelCut();
+  let tuned = false;
   try {
     const room = await api(`/api/live/${encodeURIComponent(id)}/tune`, jsonPost({ clientId: watchClient }));
     if (!room.media) {
@@ -4961,8 +5138,10 @@ async function tuneIn(id, again = false) {
     if (was && was !== id) lastChannel = was;
     if (!playerEl.hidden && current) await loadPlayerMedia(liveMediaOf(room), { watchRoom: room, roomJoined: !party?.blocked });
     else await openPlayer(liveMediaOf(room), { watchRoom: room });
+    tuned = true;
+    showChannelInfo(room.live);
   } catch (e) { toast(e.message); }
-  finally { tuning = null; }
+  finally { tuning = null; if (switching) endChannelCut(tuned); }
 }
 
 // A new state for the channel: the next programme loads in place (no new tap), and an empty slot says when it's back.
@@ -6932,6 +7111,30 @@ controlsEl.addEventListener('pointerenter', (e) => { overControls = e.pointerTyp
 controlsEl.addEventListener('pointerleave', () => { overControls = false; });
 video.addEventListener('play', showPlayerUi);
 video.addEventListener('pause', showPlayerUi);
+// Paused for a few seconds: the picture dims and the title's logo, episode and synopsis show (pause-screen.js).
+const pauseScreen = createPauseScreen({ h, playerEl, stage, video,
+  canRest: () => Boolean(current?.ready) && !menuOpen() && seeking == null && !gettingReady.active() && !playerEl.classList.contains('has-up-next') && !inPip(),
+  info: pauseInfo,
+  onRest: (on) => { if (on) { clearTimeout(uiTimer); setUi(false); } else showPlayerUi(); } });
+async function pauseInfo(s) {
+  const show = s.show != null ? state.libraryShows.find((x) => x.id === s.show) : null;
+  const type = show ? 'tv' : 'movie', id = show ? show.tmdbId : s.tmdbId;
+  let synopsis = show ? '' : s.overview || '', logo = null;
+  if (id && state.status.search) {
+    const page = await pageInfo(type, id).catch(() => null);
+    if (page?.logo?.url) {
+      const big = innerWidth * (devicePixelRatio || 1) > 900;
+      const tone = await logoTone(page.logo.url).catch(() => null);
+      logo = { url: big ? page.logo.url.replace('/t/p/w500/', '/t/p/original/') : page.logo.url, dark: tone !== null && tone < 0.3 };
+    }
+    if (show && s.season != null && s.episode != null) {
+      const d = await cachedFor(`/api/tv/${id}/season/${s.season}`, 60 * 60 * 1000).catch(() => null);
+      synopsis = d?.episodes?.find((e) => e.number === s.episode)?.overview || '';
+    } else if (!show && !synopsis) synopsis = state.library.find((f) => f.id === s.id)?.overview || '';
+  }
+  return { kicker: T('You’re watching'), name: show?.title || s.filmTitle || s.title || '', episode: show ? playerEpisodeText(s) : '',
+    synopsis: synopsis || show?.overview || '', logo };
+}
 
 // Mouse: click to play or pause, double-click for fullscreen. Touch: a tap shows or hides the
 // controls, and a double tap on the left or right third skips 10 s (more taps keep skipping).
@@ -7542,6 +7745,7 @@ async function loadPlayerMedia(f, opts = {}) {
   const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
   setPlayerTitle(f);
+  pauseScreen.load(f.live || !['lib', 'part'].includes(f.kind) ? null : session); // the pause screen's title
   momentsUI.sync(); // friends: the ⋯ menu (Clip a moment) for library videos
   playerEl.classList.toggle('is-clip', plainMedia(f));
   updatePlayState();
@@ -7803,6 +8007,9 @@ function updateUpNext() {
     if (upNextPlay.textContent !== label) upNextPlay.textContent = label;
     upNextPlay.classList.toggle('counting', left != null);
     upNextPlay.style.setProperty('--auto-progress', left == null ? '0' : String(1 - session.autoLeft / AUTOPLAY_SECONDS));
+    // The still fills in with colour during the countdown, like the logo on Getting it ready.
+    upNextArt.style?.setProperty('--auto-progress', left == null ? '1' : String(1 - session.autoLeft / AUTOPLAY_SECONDS));
+    upNextArt.classList?.toggle('is-filling', left != null);
     upNextPlay.setAttribute('aria-busy', String(session.upNextBusy));
     upNextDismiss.textContent = video.ended ? T('Dismiss') : T('Keep watching');
     upNextError.textContent = session.upNextError;

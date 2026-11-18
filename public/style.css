@@ -439,10 +439,13 @@ main {
   aspect-ratio: 2 / 3;
   border-radius: var(--r-md);
   overflow: hidden;
-  background: var(--surface-2);
+  background: var(--tone, var(--surface-2)); /* --tone: the poster's own colour (app.js toneArt) */
   box-shadow: var(--e1);
   transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-2) var(--ease-out);
 }
+.poster img.tone-art { opacity: 0; transition: opacity .45s var(--ease-out); }
+.poster img.tone-art.is-in { opacity: 1; }
+.poster img.tone-art.is-instant { transition: none; }
 /* a hairline frame, so art reads as a print on velvet */
 .poster::after, .wide-art::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--hairline); pointer-events: none; }
 .poster img { width: 100%; height: 100%; object-fit: cover; }
@@ -511,6 +514,10 @@ main {
   transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-2) var(--ease-out);
 }
 .wide-art img { width: 100%; height: 100%; object-fit: cover; }
+/* Continue watching: the frame where you stopped (app.js stoppedFrame), cut from a timeline-preview sheet, over the still */
+.continue-frame { position: absolute; inset: 0; overflow: hidden; opacity: 0; transition: opacity .5s var(--ease-out); }
+.continue-frame.is-in { opacity: 1; }
+.continue-frame i { position: absolute; left: 50%; top: 50%; translate: -50% -50%; background-repeat: no-repeat; }
 .wide-art img.is-contained { object-fit: contain; background: var(--surface-2); }
 .wide-art-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); background: radial-gradient(100% 90% at 30% 0%, color-mix(in srgb, var(--bulb) 9%, transparent), transparent 60%), var(--surface-2); }
 .wide-art-fallback svg { width: 30%; height: 30%; max-width: 48px; }
@@ -577,6 +584,13 @@ main {
   overscroll-behavior-x: contain;
 }
 .shelf-items::-webkit-scrollbar { display: none; }
+/* Soft edges (app.js carousel): a row fades out on a side with more to scroll, instead of a hard cut. */
+.shelf-items { --fade-w: calc(var(--gutter) + 28px); --fade-l: 0px; --fade-r: 0px; }
+.shelf-items.fade-start { --fade-l: var(--fade-w); }
+.shelf-items.fade-end { --fade-r: var(--fade-w); }
+.shelf-items:is(.fade-start, .fade-end) {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); }
 .shelf-items > li { scroll-snap-align: start; min-width: 0; }
 .shelf-items:focus-visible { outline: none; }
 .discover-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: var(--s5); }
@@ -913,6 +927,9 @@ html.has-vt .view { animation: none; }
   transition: transform var(--d-3) var(--ease-out), opacity var(--d-3) var(--ease-out);
 }
 #sheet.open { transform: none; opacity: 1; }
+/* Ambient colour: the backdrop's colour (app.js washPage) also lights the Play button's glow */
+#sheet .sheet-content .play-btn:not(:disabled) { --glow-color: color-mix(in srgb, var(--wash-glow, var(--bulb)) 70%, transparent);
+  box-shadow: 0 10px 34px -8px var(--glow-color), 0 0 0 1px color-mix(in srgb, var(--wash-glow, transparent) 35%, transparent), inset 0 1px 0 rgb(255 255 255 / .28); }
 #sheet .sheet-handle { top: calc(8px + var(--safe-top)); }
 #sheet .sheet-close { top: calc(10px + var(--safe-top)); margin-top: calc(10px + var(--safe-top)); margin-right: max(12px, env(safe-area-inset-right, 0px)); background: rgb(var(--picture-dark) / .55); color: #fff; border-color: rgb(255 255 255 / .2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
@@ -2786,6 +2803,13 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .up-next-art { flex: none; width: 96px; }
 .up-next-art .wide-art { border-radius: 8px; }
 .up-next-art:empty { display: none; }
+/* During the countdown the still fills in with colour left to right (--auto-progress), with a bright edge, the same way
+   the logo fills on Getting it ready: what's not filled yet is grey and dim. */
+.up-next-art { position: relative; --auto-progress: 1; }
+.up-next-art::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; left: calc(var(--auto-progress) * 100%); pointer-events: none;
+  border-radius: 0 8px 8px 0; -webkit-backdrop-filter: grayscale(1) brightness(.5); backdrop-filter: grayscale(1) brightness(.5);
+  box-shadow: inset 2px 0 0 rgb(255 255 255 / .85), -4px 0 12px -2px var(--bulb); opacity: 0; transition: left .3s linear, opacity .3s; }
+.up-next-art.is-filling::after { opacity: 1; }
 
 @media (max-height: 450px) and (min-width: 480px) {
   .up-next-art { display: none; }
@@ -4007,3 +4031,57 @@ html.wrapped-on { overflow: hidden; }
 .is-leaving .gr-logo { scale: 1.04; }
 @keyframes gr-logo-in { from { opacity: 0; scale: .96; filter: blur(8px); } }
 @media (prefers-reduced-motion: reduce) { .getting-ready { transition: opacity .45s; } .gr-art, .gr-logo { animation: none; } .gr-logo { transition: none; } }
+
+/* ---------- the pause screen (pause-screen.js): paused ~3 s, the picture dims and the title's logo, the episode and a
+   short synopsis fade in at the bottom left. Same logo art as Getting it ready. Any input clears it. ---------- */
+.pause-card { position: absolute; inset: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
+  padding: 0 max(var(--gutter), 5vw) clamp(40px, 11vh, 120px); color: #fff; opacity: 0; transition: opacity .25s var(--ease-out);
+  background: linear-gradient(to top, rgb(0 0 0 / .78), rgb(0 0 0 / .32) 55%, rgb(0 0 0 / .18)), linear-gradient(to right, rgb(0 0 0 / .5), transparent 60%); }
+.pause-card > * { max-width: min(560px, 78vw); margin: 0; opacity: 0; translate: 0 10px; transition: opacity .3s var(--ease-out), translate .3s var(--ease-out); }
+.player.is-resting .pause-card { opacity: 1; transition-duration: .9s; }
+.player.is-resting .pause-card > * { opacity: 1; translate: none; transition-duration: .7s; }
+.player.is-resting .pause-card > :nth-child(2) { transition-delay: .25s; }
+.player.is-resting .pause-card > :nth-child(3) { transition-delay: .4s; }
+.player.is-resting .pause-card > :nth-child(4) { transition-delay: .55s; }
+.player.is-resting { cursor: none; }
+.player.is-resting .player-subs { opacity: 0; }
+.pause-kicker { margin-bottom: var(--s3) !important; font: 700 var(--t-kicker)/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: rgb(255 255 255 / .62); }
+.pause-logo { display: block; width: auto; height: auto; max-width: min(440px, 62vw) !important; max-height: clamp(64px, 16vh, 170px); object-fit: contain; object-position: left bottom;
+  filter: drop-shadow(0 2px 22px rgb(0 0 0 / .55)); }
+.pause-logo.is-dark { filter: brightness(0) invert(1) drop-shadow(0 2px 22px rgb(0 0 0 / .55)); }
+.pause-name { font: 800 clamp(28px, 22px + 2vw, 52px)/1.05 var(--display); letter-spacing: -.02em; text-wrap: balance; text-shadow: 0 2px 24px rgb(0 0 0 / .5); }
+.pause-episode { margin-top: var(--s4) !important; font-weight: 700; font-size: clamp(15px, 14px + .3vw, 18px); }
+.pause-synopsis { margin-top: var(--s2) !important; font-size: clamp(14px, 13px + .25vw, 16px); line-height: 1.5; color: rgb(255 255 255 / .78);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+@media (max-width: 600px) { .pause-synopsis { -webkit-line-clamp: 2; line-clamp: 2; } }
+@media (prefers-reduced-motion: reduce) { .pause-card > * { translate: none; transition-delay: 0s !important; } }
+
+/* Poster → title page (app.js openTitle): the tapped poster grows into the page's backdrop. Both pictures fill the
+   moving box (cover, not stretched); the poster stands in as the hero's background until the backdrop has loaded. */
+::view-transition-group(title-morph) { animation-duration: .46s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+::view-transition-old(title-morph), ::view-transition-new(title-morph) { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
+::view-transition-old(title-morph) { animation-duration: .3s; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; }
+#sheet .sheet-hero.is-morphing { background-size: cover; background-position: center 30%; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+#sheet .sheet-hero.is-morphing::before { content: ""; position: absolute; inset: 0; -webkit-backdrop-filter: blur(18px) brightness(.8); backdrop-filter: blur(18px) brightness(.8); }
+
+/* Live TV channel switch (app.js tuneIn): a short black cut, then the channel's number, name and what's on now slide in
+   at the top left like a TV's on-screen info, and leave after a few seconds. */
+.channel-cut { position: absolute; inset: 0; z-index: 3; background: #000; opacity: 0; pointer-events: none; }
+.channel-cut.is-on { opacity: 1; }
+.channel-info { position: absolute; z-index: 4; top: clamp(64px, 9vh, 96px); left: max(var(--gutter), 3vw); display: flex; align-items: stretch; gap: 14px;
+  max-width: min(520px, calc(100% - 2 * var(--gutter))); padding: 12px 18px 12px 12px; color: #fff; pointer-events: none;
+  background: linear-gradient(90deg, rgb(0 0 0 / .78), rgb(0 0 0 / .55)); border-radius: 14px; box-shadow: 0 12px 40px -12px rgb(0 0 0 / .7), inset 0 0 0 1px rgb(255 255 255 / .1);
+  opacity: 0; translate: -24px 0; transition: opacity .35s var(--ease-out), translate .35s var(--ease-out); }
+.channel-info.is-in { opacity: 1; translate: none; transition-duration: .45s; transition-delay: .12s; }
+.ci-number { display: grid; place-items: center; min-width: 52px; padding: 0 8px; border-radius: 10px; font: 800 28px/1 var(--display); font-variant-numeric: tabular-nums;
+  color: var(--on-bulb); background: var(--bulb); box-shadow: 0 0 18px -4px var(--glow-color); }
+.ci-text { display: grid; gap: 3px; min-width: 0; }
+.ci-name { font: 800 17px/1.2 var(--display); letter-spacing: -.01em; }
+.ci-now { margin: 0; font-size: 14px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-now span { color: rgb(255 255 255 / .7); }
+.ci-row { display: flex; align-items: center; gap: 10px; margin-top: 3px; }
+.ci-row small { font-size: 12px; color: rgb(255 255 255 / .66); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ci-bar { flex: 1; min-width: 80px; height: 3px; border-radius: 2px; background: rgb(255 255 255 / .2); overflow: hidden; }
+.ci-bar i { display: block; height: 100%; width: calc(var(--done) * 100%); background: var(--bulb); }
+@media (prefers-reduced-motion: reduce) { .channel-info { translate: none; } }

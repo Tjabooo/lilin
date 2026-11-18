@@ -5113,7 +5113,7 @@ async function handleApi(req, res, url) {
 
   // Timeline previews of the copy the browser plays (its timeline is the one the seek bar shows).
   if ((m = p.match(/^\/api\/media\/(lib|dl)\/([A-Za-z0-9_-]+)\/preview(?:\/(\d{1,4})\.jpg)?$/))) {
-    return sendPreview(res, await streamFile(m[1], m[2], 'browser'), m[3]);
+    return sendPreview(res, await streamFile(m[1], m[2], 'browser'), m[3], { peek: url.searchParams.get('peek') === '1' });
   }
 
   if (p === '/api/stream-info') {
@@ -5314,8 +5314,8 @@ async function serveStatic(req, res, pathname, query = null) {
 
 // Index (no sheet): frame times and sheet layout, made in the background on first ask (previews.js).
 // Sheet URLs carry the storyboard key, so a sheet can be cached for good.
-async function sendPreview(res, file, sheet) {
-  if (sheet == null) return sendJson(res, 200, await previews.index(file));
+async function sendPreview(res, file, sheet, opts = {}) {
+  if (sheet == null) return sendJson(res, 200, await previews.index(file, opts));
   const jpg = await previews.sheet(file, Number(sheet));
   if (!jpg) throw new HttpError(404, 'That preview isn’t ready yet.');
   res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=2592000, immutable' });
