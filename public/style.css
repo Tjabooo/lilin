@@ -1066,8 +1066,11 @@ html.has-vt .view { animation: none; }
 .row-actions .chip svg { color: var(--text-2); }
 .row-actions .chip.is-danger, .row-actions .chip.is-danger svg { color: var(--alert); }
 .row-tools > .row-more { display: none; }
+/* .row-tools > (not just .row-actions): the casting section's later .row-actions { display: flex; flex: none } must not
+   bring the chips back on phones or stop them wrapping (the title page then panned sideways) */
+.row-tools > .row-actions { flex: 0 1 auto; min-width: 0; }
 @media (max-width: 719px) {
-  .row-actions { display: none; }
+  .row-actions, .row-tools > .row-actions { display: none; }
   .row-tools > .row-more { display: block; }
 }
 .episode-list { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
