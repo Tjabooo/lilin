@@ -1,6 +1,10 @@
 // Swedish for the TV app, keyed by the English line in tv.js and logic.js (loaded first by the shell).
 // tests/tv-app.test.mjs fails if a line in the app is missing here.
 window.LilinTvStrings = {
+  'Loading episodes…': 'Hämtar avsnitt…',
+  'No episodes listed yet.': 'Inga avsnitt listade än.',
+  'Couldn’t load the episodes.': 'Kunde inte hämta avsnitten.',
+  'This episode isn’t out yet.': 'Avsnittet har inte kommit ut än.',
   'Cast': 'Medverkande',
   '{0} h {1} min': '{0} h {1} min',
   'More like this': 'Mer som det här',

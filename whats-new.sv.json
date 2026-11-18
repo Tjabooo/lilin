@@ -1,4 +1,13 @@
 {
+  "2026-11-18-tv-logo-fill": {
+    "title": "En trevligare väntan på TV:n",
+    "items": {
+      "The title fills in on the TV too": {
+        "title": "Titeln fylls i på TV:n också",
+        "text": "När något görs redo att spelas i Android TV- eller Samsung-TV-appen fylls titelns logga i med färg medan den laddar, precis som på mobilen och datorn. Starta om TV-appen för att se det."
+      }
+    }
+  },
   "2026-11-18-tv-slow-connection": {
     "title": "TV-uppspelning på långsammare internet",
     "items": {

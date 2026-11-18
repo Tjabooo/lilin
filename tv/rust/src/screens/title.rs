@@ -17,11 +17,17 @@ const SEASONS: u32 = 3;
 const FOLLOW_T: u32 = 7;
 const FOLLOWED: u32 = 8;
 const COPIES: u32 = 9;
+const EP_T: u32 = 10;
+/// A season's episodes come back tagged EPS + its number.
+const EPS: u32 = 1000;
+const EP_STEP: f32 = 400.0 + browse::CARD_GAP;
 
 /// Where the remote is on the page: the hero (seasons, buttons) or one of the rows under it.
 #[derive(Clone, Copy, PartialEq)]
 enum Zone {
     Hero,
+    /// A show: the chosen season's episodes, in a row under the season chips.
+    Episodes,
     Cast,
     Similar,
 }
@@ -78,6 +84,36 @@ pub struct TitleScreen {
     chip_scroll: ui::Ease,
     /// copy-check (src/copy-check.js): "cam" = only cinema recordings so far, "soon" = not out to stream yet.
     copies: String,
+    /// A show's episodes by season number (TMDB, /api/tv/:id/season/:n), fetched once the remote rests on a season.
+    eps: Vec<(i64, Vec<Value>)>,
+    ei: usize,
+    ep_x: ui::Ease,
+    ep_top: f32,
+    ep_timer: u32,
+    /// Episodes you have here (season, episode, file): they play straight away with Resume.
+    lib_eps: Vec<(i64, i64, Value)>,
+    /// Where you are in the show (your copy), as season and episode numbers.
+    start: Option<(i64, i64)>,
+}
+
+/// Today as YYYY-MM-DD (UTC), for telling aired episodes from coming ones.
+fn today() -> String {
+    let days = libm::floor(crate::host::epoch_ms() / 86_400_000.0) as i64;
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
+    alloc::format!("{:04}-{:02}-{:02}", y, m, d)
+}
+fn not_out(e: &Value, today: &str) -> bool {
+    let d = s(e, "airDate");
+    d.is_empty() || d > today
 }
 
 
@@ -102,8 +138,28 @@ impl TitleScreen {
             _ if !soon => actions.push(Do::Play),
             _ => {}
         }
-        if let Some(Mine::Show(_)) = mine {
-            actions.push(Do::Mine);
+        if tv {
+            // A show has no buttons: hover a season, its episodes show underneath, Down and Enter plays one.
+            actions.clear();
+        }
+        let mut lib_eps = Vec::new();
+        let mut start = None;
+        if let Some(Mine::Show(show_id)) = &mine {
+            let watched: Value = crate::host::load(crate::WATCHED_KEY).and_then(|w| serde_json::from_str(&w).ok()).unwrap_or(Value::Null);
+            let ls = crate::logic::show_seasons(&cx.state.library, show_id);
+            for se in &ls {
+                for e in &se.episodes {
+                    if let Some(n) = f(e, "episode") {
+                        lib_eps.push((se.number, n as i64, (*e).clone()));
+                    }
+                }
+            }
+            if !ls.is_empty() {
+                let (si, ei) = crate::logic::start_episode(&ls, &cx.state.progress, &watched);
+                if let Some(e) = ls.get(si).and_then(|se| se.episodes.get(ei)) {
+                    start = Some((ls[si].number, f(e, "episode").unwrap_or(1.0) as i64));
+                }
+            }
         }
         if soon && actions.is_empty() {
             actions.push(Do::Soon);
@@ -113,7 +169,7 @@ impl TitleScreen {
             t,
             tv,
             tid,
-            at_seasons: tv && mine.is_none(),
+            at_seasons: tv,
             mine,
             logo: String::new(),
             cast: Vec::new(),
@@ -142,6 +198,13 @@ impl TitleScreen {
             lit: Lit::default(),
             chip_scroll: ui::Ease::at(0.0),
             copies: String::new(),
+            eps: Vec::new(),
+            ei: 0,
+            ep_x: ui::Ease::at(0.0),
+            ep_top: 0.0,
+            ep_timer: 0,
+            lib_eps,
+            start,
         };
         if !me.tv && me.mine.is_none() && me.actions.contains(&Do::Play) {
             cx.get(&alloc::format!("/api/title/movie/{}/copies", crate::util::enc(&me.tid)), sid, COPIES);
@@ -151,15 +214,12 @@ impl TitleScreen {
     }
     fn label(&self, a: Do) -> String {
         match a {
-            Do::Play => String::from(if self.tv { t!("Play season") } else { t!("Play") }),
+            Do::Play => String::from(t!("Play")),
             Do::Soon => match self.t.get("soon") {
                 Some(x) => browse::soon_sub(x),
                 None => String::from(t!("Coming soon")),
             },
-            Do::Mine => String::from(match self.mine {
-                Some(Mine::Film(_)) => t!("Play"),
-                _ => t!("Episodes"),
-            }),
+            Do::Mine => String::from(t!("Play")),
         }
     }
     fn act(&mut self, cx: &mut Cx) {
@@ -167,36 +227,20 @@ impl TitleScreen {
         match a {
             Do::Play => self.play(cx),
             Do::Soon => cx.toast(t!("This film isn’t out yet.")),
-            Do::Mine => match &self.mine {
-                Some(Mine::Film(fid)) => {
+            Do::Mine => {
+                if let Some(Mine::Film(fid)) = &self.mine {
                     if let Some(file) = cx.state.file(fid).cloned() {
                         super::player::play_asked(cx, &file, false);
                     }
                 }
-                Some(Mine::Show(sid)) => {
-                    if let Some(sh) = cx.state.show(sid).cloned() {
-                        let s = super::show::ShowScreen::new(cx, sh);
-                        cx.push(Box::new(s));
-                    }
-                }
-                None => {}
-            },
+            }
         }
     }
     fn play(&mut self, cx: &mut Cx) {
         let title = String::from(s(&self.t, "title"));
         let art = String::from(if !s(&self.t, "backdrop").is_empty() { s(&self.t, "backdrop") } else { s(&self.t, "poster") });
         let tmdb = f(&self.t, "id").unwrap_or(0.0) as i64;
-        if self.tv {
-            let Some(se) = self.seasons.get(self.si) else {
-                cx.toast(t!("The season list is still loading."));
-                return;
-            };
-            let season = f(se, "number").unwrap_or(1.0) as i64;
-            let first = f(se, "first").filter(|v| *v >= 1.0).unwrap_or(1.0) as i64;
-            let sub = alloc::format!("{} · {}", t!("Season {0}", alloc::format!("{}", season)), t!("Episode {0}", alloc::format!("{}", first)));
-            super::ready::play_first(cx, super::ready::Target { tv: true, tmdb, season, episode: first, title, sub, art, allow_cam: false });
-        } else {
+        {
             let x = super::ready::Target { tv: false, tmdb, season: 0, episode: 0, title, sub: String::new(), art, allow_cam: false };
             match self.copies.as_str() {
                 "soon" => cx.toast(t!("Not out to stream or buy yet.")),
@@ -207,6 +251,55 @@ impl TitleScreen {
                 _ => super::ready::play_first(cx, x),
             }
         }
+    }
+    fn season_no(&self) -> Option<i64> {
+        self.seasons.get(self.si).map(|se| f(se, "number").unwrap_or(1.0) as i64)
+    }
+    /// The chosen season's episodes, once fetched.
+    fn episodes(&self) -> Option<&Vec<Value>> {
+        let n = self.season_no()?;
+        self.eps.iter().find(|(k, _)| *k == n).map(|(_, v)| v)
+    }
+    /// A new season under the remote: back to its first episode (or where you are in it), fetch it if new.
+    fn season_moved(&mut self, cx: &mut Cx, now: bool) {
+        self.ei = 0;
+        self.ep_x.jump(0.0);
+        self.pick_start();
+        cx.cancel(self.ep_timer);
+        if self.season_no().is_some() && self.episodes().is_none() {
+            self.ep_timer = cx.timer(if now { 0.0 } else { 250.0 }, self.sid, EP_T);
+        }
+    }
+    fn pick_start(&mut self) {
+        let (Some(n), Some((sn, en))) = (self.season_no(), self.start) else { return };
+        if n != sn {
+            return;
+        }
+        if let Some(i) = self.episodes().and_then(|list| list.iter().position(|e| f(e, "number").map(|v| v as i64) == Some(en))) {
+            self.ei = i;
+        }
+    }
+    fn play_episode(&mut self, cx: &mut Cx) {
+        let Some(n) = self.season_no() else { return };
+        let Some(e) = self.episodes().and_then(|l| l.get(self.ei)).cloned() else { return };
+        if not_out(&e, &today()) {
+            cx.toast(t!("This episode isn’t out yet."));
+            return;
+        }
+        let en = f(&e, "number").unwrap_or(1.0) as i64;
+        if let Some((_, _, file)) = self.lib_eps.iter().find(|(a, b2, _)| *a == n && *b2 == en) {
+            if !b(file, "converting") {
+                let file = file.clone();
+                super::player::play_asked(cx, &file, false);
+                return;
+            }
+        }
+        let title = String::from(s(&self.t, "title"));
+        let back = if !s(&self.t, "backdrop").is_empty() { s(&self.t, "backdrop") } else { s(&self.t, "poster") };
+        let art = String::from(if s(&e, "still").is_empty() { back } else { s(&e, "still") });
+        let tmdb = f(&self.t, "id").unwrap_or(0.0) as i64;
+        let sub = alloc::format!("{} · {}", t!("Season {0}", alloc::format!("{}", n)), t!("Episode {0}", alloc::format!("{}", en)));
+        super::ready::play_first(cx, super::ready::Target { tv: true, tmdb, season: n, episode: en, title, sub, art, allow_cam: false });
     }
 }
 
@@ -251,6 +344,69 @@ pub fn heading(cx: &mut Cx, logo: &str, name: &str, x: f32, y: f32, size: f32, m
     lines.len() as f32 * lh + 16.0
 }
 
+impl TitleScreen {
+    /// What Up from the cast or More like this lands on: a show's episode row, else the hero.
+    fn above_rows(&self) -> Zone {
+        if self.tv && self.episodes().map(|l| !l.is_empty()).unwrap_or(false) {
+            Zone::Episodes
+        } else {
+            Zone::Hero
+        }
+    }
+    /// The chosen season's episodes as a row of stills; returns the y under it.
+    fn draw_episodes(&mut self, cx: &mut Cx, x: f32, y: f32) -> f32 {
+        self.ep_top = y + self.scroll.v;
+        let Some(list) = self.episodes().cloned() else {
+            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("Loading episodes…"), x, y, ui::DUST);
+            return y + 60.0;
+        };
+        if list.is_empty() {
+            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("No episodes listed yet."), x, y, ui::DUST);
+            return y + 60.0;
+        }
+        let n = self.season_no().unwrap_or(0);
+        let day = today();
+        let row_w = 1920.0 - 2.0 * x;
+        let max_x = (list.len() as f32 * EP_STEP - browse::CARD_GAP - row_w).max(0.0);
+        self.ep_x.set(((self.ei as f32 - 1.0).max(0.0) * EP_STEP).min(max_x));
+        let sx = self.ep_x.step(cx, 13.0);
+        let back = String::from(if !s(&self.t, "backdrop").is_empty() { s(&self.t, "backdrop") } else { s(&self.t, "poster") });
+        let progress = cx.state.progress.clone();
+        for (i, e) in list.iter().enumerate() {
+            let px = x + i as f32 * EP_STEP - sx;
+            if px > 1920.0 || px + EP_STEP < 0.0 {
+                continue;
+            }
+            let en = f(e, "number").unwrap_or(0.0) as i64;
+            let mut c = browse::Card::new(alloc::format!("ep{}", en), browse::Kind::Svt, String::new(), browse::Act::Nothing);
+            let name = s(e, "name");
+            c.title = if name.is_empty() { t!("Episode {0}", alloc::format!("{}", en)) } else { alloc::format!("{}. {}", en, name) };
+            let out = !not_out(e, &day);
+            c.sub = if !out {
+                let d = s(e, "airDate");
+                if d.is_empty() { String::from(t!("Coming soon")) } else { browse::soon_sub(&serde_json::json!({ "date": d })) }
+            } else if let Some(m) = f(e, "runtime").filter(|m| *m > 0.0) {
+                t!("{0} min", alloc::format!("{}", m as i64))
+            } else {
+                String::new()
+            };
+            c.img = String::from(if s(e, "still").is_empty() { back.as_str() } else { s(e, "still") });
+            if let Some((_, _, file)) = self.lib_eps.iter().find(|(a, b2, _)| *a == n && *b2 == en) {
+                let p = progress.get(crate::logic::progress_ref(file));
+                if crate::logic::resumable(p) {
+                    let p = p.unwrap();
+                    c.bar = Some(Some((f(p, "time").unwrap_or(0.0) / f(p, "duration").unwrap_or(1.0)) as f32));
+                }
+            }
+            let lit = self.lit.get(4000 + i as u64);
+            cx.g.push_alpha(if out { 1.0 } else { 0.5 });
+            browse::draw_card(cx, &c, px, y, lit);
+            cx.g.pop_alpha();
+        }
+        y + browse::Kind::Svt.size().1 + 96.0
+    }
+}
+
 impl Screen for TitleScreen {
     fn sid(&self) -> u32 {
         self.sid
@@ -292,12 +448,22 @@ impl Screen for TitleScreen {
             cx.tx.draw_fit(&mut cx.g, body(28.0, 700), &tl, x, y, 1100.0, ui::BULB.mix(ui::PAPER, 0.35));
             y += 50.0;
         }
-        let overview = if s(&self.t, "overview").is_empty() { String::from(t!("No description available.")) } else { String::from(s(&self.t, "overview")) };
-        let h = cx.tx.para(&mut cx.g, body(28.0, 400), &overview, x, y, 1060.0, 5, 40.0, ui::PAPER.mix(ui::DUST, 0.35));
-        y += h + 34.0;
+        let on_eps = self.zone == Zone::Episodes;
+        let ep_text = if on_eps { self.episodes().and_then(|l| l.get(self.ei)).map(|e| String::from(s(e, "overview"))).unwrap_or_default() } else { String::new() };
+        let overview = if !ep_text.is_empty() {
+            ep_text
+        } else if s(&self.t, "overview").is_empty() {
+            String::from(t!("No description available."))
+        } else {
+            String::from(s(&self.t, "overview"))
+        };
+        // On the episode row the text keeps three lines' room, so the page doesn't jump between episodes.
+        let h = cx.tx.para(&mut cx.g, body(28.0, 400), &overview, x, y, 1060.0, if on_eps { 3 } else { 5 }, 40.0, ui::PAPER.mix(ui::DUST, 0.35));
+        y += if on_eps { h.max(120.0) } else { h } + 34.0;
         let focus = match self.zone {
             Zone::Hero if self.at_seasons => 1000 + self.si as u64,
             Zone::Hero => self.ai as u64 + 1,
+            Zone::Episodes => 4000 + self.ei as u64,
             Zone::Cast => 2000 + self.ci as u64,
             Zone::Similar => 3000 + self.mi as u64,
         };
@@ -327,9 +493,10 @@ impl Screen for TitleScreen {
                 }
                 cx.g.pop_clip();
                 y += 90.0;
+                y = self.draw_episodes(cx, x, y);
             }
         }
-        // actions
+        // actions (films)
         let pf = body(30.0, 700);
         let mut ax = x;
         for (n, a) in self.actions.clone().iter().enumerate() {
@@ -344,7 +511,9 @@ impl Screen for TitleScreen {
             ui::pill(cx, rect(ax, y, w, 78.0), &label, pf, kind, lit);
             ax += w + 18.0;
         }
-        y += 106.0;
+        if !self.actions.is_empty() {
+            y += 106.0;
+        }
         let note = match self.copies.as_str() {
             "cam" => t!("Only cinema recordings so far: filmed in a cinema, poor picture and sound."),
             "soon" => t!("Not out to stream or buy yet."),
@@ -439,6 +608,7 @@ impl Screen for TitleScreen {
         // Follow the remote down the page.
         let target = match self.zone {
             Zone::Hero => 0.0,
+            Zone::Episodes => (self.ep_top - 600.0).max(0.0),
             Zone::Cast => (self.cast_top - 420.0).max(0.0),
             Zone::Similar => (self.sim_top - if self.cast.is_empty() { 420.0 } else { 300.0 }).max(0.0),
         };
@@ -447,11 +617,29 @@ impl Screen for TitleScreen {
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
         cx.redraw();
         match self.zone {
+            Zone::Episodes => {
+                let n = self.episodes().map(|l| l.len()).unwrap_or(0);
+                match k.code {
+                    key::LEFT => self.ei = self.ei.saturating_sub(1),
+                    key::RIGHT => self.ei = (self.ei + 1).min(n.saturating_sub(1)),
+                    key::UP | key::BACK | key::ESC | key::BACKSPACE => self.zone = Zone::Hero,
+                    key::DOWN => {
+                        if !self.cast.is_empty() {
+                            self.zone = Zone::Cast;
+                        } else if !self.similar.is_empty() {
+                            self.zone = Zone::Similar;
+                        }
+                    }
+                    key::ENTER => self.play_episode(cx),
+                    _ => return false,
+                }
+                return true;
+            }
             Zone::Cast => {
                 match k.code {
                     key::LEFT => self.ci = self.ci.saturating_sub(1),
                     key::RIGHT => self.ci = (self.ci + 1).min(self.cast.len().saturating_sub(1)),
-                    key::UP => self.zone = Zone::Hero,
+                    key::UP => self.zone = self.above_rows(),
                     key::DOWN if !self.similar.is_empty() => self.zone = Zone::Similar,
                     key::DOWN | key::ENTER => {}
                     key::BACK | key::ESC | key::BACKSPACE => self.zone = Zone::Hero,
@@ -463,7 +651,7 @@ impl Screen for TitleScreen {
                 match k.code {
                     key::LEFT => self.mi = self.mi.saturating_sub(1),
                     key::RIGHT => self.mi = (self.mi + 1).min(self.similar.len().saturating_sub(1)),
-                    key::UP => self.zone = if self.cast.is_empty() { Zone::Hero } else { Zone::Cast },
+                    key::UP => self.zone = if self.cast.is_empty() { self.above_rows() } else { Zone::Cast },
                     key::DOWN => {}
                     key::ENTER => {
                         if let Some(c) = self.similar.get(self.mi).cloned() {
@@ -486,12 +674,23 @@ impl Screen for TitleScreen {
         };
         if self.at_seasons {
             match k.code {
-                key::LEFT if self.si > 0 => self.si -= 1,
-                key::RIGHT if self.si + 1 < self.seasons.len() => self.si += 1,
-                key::ENTER if self.mine.is_none() => self.play(cx),
+                key::LEFT if self.si > 0 => {
+                    self.si -= 1;
+                    self.season_moved(cx, false);
+                }
+                key::RIGHT if self.si + 1 < self.seasons.len() => {
+                    self.si += 1;
+                    self.season_moved(cx, false);
+                }
                 key::DOWN | key::ENTER => {
-                    self.at_seasons = false;
-                    self.ai = 0;
+                    if self.episodes().map(|l| !l.is_empty()).unwrap_or(false) {
+                        self.zone = Zone::Episodes;
+                    } else if !self.actions.is_empty() {
+                        self.at_seasons = false;
+                        self.ai = 0;
+                    } else if let Some(z) = down {
+                        self.zone = z;
+                    }
                 }
                 key::UP | key::LEFT | key::RIGHT => {}
                 _ => return false,
@@ -500,6 +699,7 @@ impl Screen for TitleScreen {
         }
         match k.code {
             key::UP if self.tv && !self.seasons.is_empty() => self.at_seasons = true,
+            _ if self.actions.is_empty() => return k.code == key::UP,
             key::LEFT => self.ai = self.ai.saturating_sub(1),
             key::RIGHT => self.ai = (self.ai + 1).min(self.actions.len().saturating_sub(1)),
             key::ENTER => self.act(cx),
@@ -569,11 +769,30 @@ impl Screen for TitleScreen {
                     if list.is_empty() {
                         list = all.to_vec();
                     }
-                    self.si = list.len().saturating_sub(1);
+                    // Start on the season you're watching (your copy), else the first.
+                    let at = self.start.and_then(|(sn, _)| list.iter().position(|x| f(x, "number").map(|v| v as i64) == Some(sn)));
+                    self.si = at.unwrap_or(0);
                     self.seasons = list;
                     if self.seasons.is_empty() {
                         self.at_seasons = false;
+                    } else {
+                        self.season_moved(cx, true);
                     }
+                }
+            }
+            t if t >= EPS => {
+                let n = (t - EPS) as i64;
+                if !res.ok() {
+                    if self.season_no() == Some(n) {
+                        cx.toast(t!("Couldn’t load the episodes."));
+                    }
+                    return;
+                }
+                if !self.eps.iter().any(|(k, _)| *k == n) {
+                    self.eps.push((n, arr(&res.json, "episodes").to_vec()));
+                }
+                if self.season_no() == Some(n) {
+                    self.pick_start();
                 }
             }
             COPIES => {
@@ -599,12 +818,20 @@ impl Screen for TitleScreen {
         }
         match tag {
             FOLLOW_T => cx.load_pending(Some((self.sid, FOLLOWED))),
+            EP_T => {
+                if let Some(n) = self.season_no() {
+                    if self.episodes().is_none() {
+                        cx.get(&alloc::format!("/api/tv/{}/season/{}", crate::util::enc(&self.tid), n), self.sid, EPS + n as u32);
+                    }
+                }
+            }
             _ => {}
         }
     }
     fn leave(&mut self, cx: &mut Cx) {
         self.alive = false;
         cx.cancel(self.follow);
+        cx.cancel(self.ep_timer);
     }
     fn refresh(&mut self, cx: &mut Cx) {
         cx.redraw();

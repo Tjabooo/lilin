@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-18-tv-logo-fill",
+    "date": "2026-11-18",
+    "title": "A nicer wait on the TV",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "The title fills in on the TV too",
+        "text": "When something is getting ready to play on the Android TV or Samsung TV app, its title art fills in with colour as it loads, the same as on your phone and computer. Restart the TV app to see it."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-tv-slow-connection",
     "date": "2026-11-18",
     "title": "TV playback on slower internet",

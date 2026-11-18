@@ -3,7 +3,7 @@
 //! how it's going in one line over the title's picture, and the player takes its place by itself. Back leaves it
 //! getting ready (others may want it too). Same words as public/tv/tv.js getReady and the web's getting-ready.js.
 use super::title::{heading, page_backdrop};
-use crate::gfx::{hexa, rect};
+use crate::gfx::{hexa, rect, Rect};
 use crate::logic;
 use crate::text::{body, display};
 use crate::ui;
@@ -161,6 +161,35 @@ fn words(r: &Value, elapsed: f64, phase_elapsed: f64) -> (String, String, f32) {
     }
 }
 
+/// The title's logo filling in as the progress `p` (the web's getting-ready.js logoArt): a faint ghost of its shape,
+/// the real colours up to `p` with a soft edge, and a band of light on that edge, so it looks inked in. Fits in `r`
+/// (left, top); returns the box drawn, or None while there's no logo (the caller writes the name instead).
+fn logo_fill(cx: &mut Cx, url: &str, r: Rect, p: f32, failed: bool) -> Option<Rect> {
+    const SOFT: f32 = 0.03;
+    if url.is_empty() {
+        return None;
+    }
+    let pic = cx.picture(url)?;
+    let k = (r.w / pic.w).min(r.h / pic.h);
+    let b = rect(r.x, r.y, pic.w * k, pic.h * k);
+    let a = pic.fade;
+    cx.g.image_slice(pic.id, b, 0.0, 1.0, &|_| 0.16, hexa(0xF6EADF, a), true);
+    if failed {
+        return Some(b);
+    }
+    let fill = |x: f32| (p + SOFT - x) / (2.0 * SOFT);
+    cx.g.image_slice(pic.id, b, 0.0, p - SOFT, &fill, ui::WHITE.alpha(a), false);
+    cx.g.image_slice(pic.id, b, p - SOFT, p + SOFT, &fill, ui::WHITE.alpha(a), false);
+    if p < 0.995 {
+        // The light on the edge: rises over 9 % up to just behind it, gone 4 % past it.
+        let edge = |x: f32| if x <= p - 0.01 { 0.9 * (x - (p - 0.10)) / 0.09 } else { 0.9 * (p + SOFT - x) / (SOFT + 0.01) };
+        let glint = hexa(0xFFF1D6, a);
+        cx.g.image_slice(pic.id, b, p - 0.10, p - 0.01, &edge, glint, true);
+        cx.g.image_slice(pic.id, b, p - 0.01, p + SOFT, &edge, glint, true);
+    }
+    Some(b)
+}
+
 pub struct Ready {
     sid: u32,
     x: Target,
@@ -173,6 +202,8 @@ pub struct Ready {
     timer: u32,
     paint: u32,
     logo: String,
+    /// The logo's fill, easing after the progress.
+    fill: ui::Ease,
 }
 impl Ready {
     fn new(cx: &mut Cx, x: Target) -> Ready {
@@ -189,7 +220,7 @@ impl Ready {
         cx.get(&alloc::format!("/api/title/{}/{}/page", if x.tv { "tv" } else { "movie" }, x.tmdb), sid, LOGO);
         let paint = cx.timer(500.0, sid, PAINT_T);
         Ready { sid, x, last: serde_json::json!({ "phase": "finding" }), job: String::new(), since: cx.now, phase_since: cx.now, idle_since: 0.0,
-            alive: true, timer: 0, paint, logo: String::new() }
+            alive: true, timer: 0, paint, logo: String::new(), fill: ui::Ease::at(0.0) }
     }
     fn stop(&mut self, cx: &mut Cx) {
         self.alive = false;
@@ -261,18 +292,27 @@ impl Screen for Ready {
         let mut y = 1080.0 - 150.0 - 420.0;
         let logo = self.logo.clone();
         let name = self.x.title.clone();
-        y += heading(cx, &logo, &name, x, y, 84.0, 1100.0);
+        let failed = s(&self.last, "phase") == "failed";
+        self.fill.set(progress);
+        let p = self.fill.step01(cx, 4.0);
+        let filled = logo_fill(cx, &logo, rect(x, y, 820.0, 210.0), p, failed);
+        y += match filled {
+            Some(b) => b.h + 18.0,
+            None => heading(cx, &logo, &name, x, y, 84.0, 1100.0),
+        };
         if !self.x.sub.is_empty() {
             let sub = self.x.sub.clone();
             cx.tx.draw(&mut cx.g, body(32.0, 400), &sub, x, y, ui::DUST);
             y += 50.0;
         }
         y += 24.0;
-        let r = rect(x, y, 760.0, 8.0);
-        cx.g.glow(r, 4.0, 14.0, ui::BULB.alpha(0.2));
-        ui::bar(cx, r, Some(progress), hexa(0xF6EADF, 0.14));
+        if filled.is_none() {
+            // No logo art: a thin bar says how far along it is (with one, the logo is the bar).
+            let r = rect(x, y, 760.0, 8.0);
+            cx.g.glow(r, 4.0, 14.0, ui::BULB.alpha(0.2));
+            ui::bar(cx, r, Some(progress), hexa(0xF6EADF, 0.14));
+        }
         y += 34.0;
-        let failed = s(&self.last, "phase") == "failed";
         cx.tx.para(&mut cx.g, display(38.0, 700), &line, x, y, 1100.0, 2, 46.0, if failed { ui::ALERT } else { ui::PAPER });
         y += 58.0;
         if !hint.is_empty() {

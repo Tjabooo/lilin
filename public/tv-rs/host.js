@@ -61,6 +61,7 @@
       '    gl_FragColor = c * (1.0 - smoothstep(0.0, 1.0, d));',
       '    return;',
       '  }',
+      '  if (mode < -0.5) c *= texture2D(u_tex, v_uv).a;', // a picture's shape only, in the box's colour
       '  if (mode > 0.5) c *= texture2D(u_tex, v_uv);',
       '  float r = v_p.x, f = v_p.y, ring = v_p.z;',
       '  if (r > 0.0 || f > 0.0 || ring > 0.0) {',

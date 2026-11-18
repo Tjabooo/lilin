@@ -1387,6 +1387,8 @@
   function discoverTitle(t) {
     var seasons = [], si = 0, zone = t.type === 'tv' ? 'seasons' : 'actions', ai = 0;
     var alive = true;
+    // A show: hover a season and its episodes show in a row underneath; Down into the row, Enter plays one.
+    var eps = {}, ei = 0, epTimer = null, epSeason = null;
     var lib = libraryEntry(t);
     var backdrop = h('div', { class: 'discover-backdrop' }, img(t.backdrop || t.poster));
     var title = titleLogo(h('h1', { text: t.title }), t.type, t.id, t.title);
@@ -1404,8 +1406,7 @@
     // first episode of the season picked above. Downloads are started on the website, not here.
     var soon = Boolean(t.soon && t.soon.date && t.type === 'movie');
     if (lib && lib.film) actions.push({ el: h('button', { class: 'title-action gold', text: T('Play') }), act: function () { playAsked(lib.film); } });
-    else if (!soon) actions.push({ el: h('button', { class: 'title-action gold', text: t.type === 'tv' ? T('Play season') : T('Play') }), act: playIt, play: true });
-    if (lib && lib.show) actions.push({ el: h('button', { class: 'title-action', text: T('Episodes') }), act: function () { showPage(lib.show); } });
+    else if (!soon && t.type !== 'tv') actions.push({ el: h('button', { class: 'title-action gold', text: T('Play') }), act: playIt, play: true });
     var owner = Boolean(state.me && state.me.isOwner);
     if (soon && !actions.length) actions.push({ el: h('button', { class: 'title-action', text: soonSub(t.soon) }), act: function () { toast(T('This film isn’t out yet.')); } });
     // A recent film: is there a proper copy, or only cinema recordings? Said under Play, asked on Play.
@@ -1422,20 +1423,22 @@
         camAsk({ type: 'movie', tmdbId: t.id, title: t.title, art: bigger(t.backdrop || t.poster) });
         return;
       }
-      if (t.type === 'tv') {
-        if (!seasons.length) { toast(T('The season list is still loading.')); return; }
-        var se = seasons[si];
-        playFirst({ type: 'tv', tmdbId: t.id, season: se.number, episode: se.first || 1, title: t.title,
-          sub: T('Season {0}', se.number) + ' · ' + T('Episode {0}', se.first || 1), art: bigger(t.backdrop || t.poster) });
-        return;
-      }
       playFirst({ type: 'movie', tmdbId: t.id, title: t.title, art: bigger(t.backdrop || t.poster) });
     }
-    // Seasons pick what Play starts; for a show you already have, Open comes first.
-    if (lib) zone = 'actions';
+    // Episodes you have here play straight away (with Resume); the rest go through Getting it ready.
+    var libEps = {}, start = null;
+    if (lib && lib.show) {
+      var libSeasons = L.showSeasons(state.library, lib.show.id);
+      libSeasons.forEach(function (se) { se.episodes.forEach(function (f) { if (f.episode != null && !libEps[se.number + ':' + f.episode]) libEps[se.number + ':' + f.episode] = f; }); });
+      start = L.startEpisode(libSeasons, state.progress, load(WATCHED_KEY, {}));
+    }
+    var today = new Date().toISOString().slice(0, 10);
+    function notOut(e) { return !e.airDate || e.airDate > today; }
     var actionsEl = h('div', { class: 'title-actions' }, actions.map(function (a) { return a.el; }));
+    if (!actions.length) actionsEl.style.display = 'none';
+    var epBox = h('div', { class: 'episode-row' });
     var panel = h('div', { class: 'discover-panel' }, h('div', { class: 'discover-copy' }, title, meta, overview, cast, seasonBox,
-      actionsEl, copyNote, strip.el, status));
+      actionsEl, copyNote, strip.el, status), epBox);
     var el = h('div', { class: 'screen discover-title' }, backdrop, panel);
     followPending(function () { return alive; }, function () {
       var was = onWay;
@@ -1457,8 +1460,65 @@
       });
       seasonBox.appendChild(h('div', { class: 'season-viewport' }, track));
     }
+    function seasonEps() { return seasons[si] ? eps[seasons[si].number] : null; }
+    function buildEpisodes() {
+      epBox.innerHTML = '';
+      if (t.type !== 'tv' || !seasons.length) return;
+      var n = seasons[si].number, list = eps[n];
+      if (!list) { epBox.appendChild(h('div', { class: 'season-note', text: T('Loading episodes…') })); return; }
+      if (!list.length) { epBox.appendChild(h('div', { class: 'season-note', text: T('No episodes listed yet.') })); return; }
+      if (epSeason !== n) {
+        epSeason = n; ei = 0;
+        if (start && start.season === n) list.forEach(function (e, i) { if (e.number === start.episode) ei = i; });
+      }
+      var track = h('div', { class: 'episode-track' });
+      list.forEach(function (e) {
+        var f = libEps[n + ':' + e.number], p = f && state.progress[L.progressRef(f)];
+        var art = h('div', { class: 'art' }, img(e.still || bigger(t.backdrop || t.poster)));
+        if (L.resumable(p)) art.appendChild(h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(100 * p.time / p.duration) + '%' })));
+        var sub = notOut(e) ? (e.airDate ? soonSub({ date: e.airDate }) : T('Coming soon')) : e.runtime ? T('{0} min', e.runtime) : '';
+        track.appendChild(h('div', { class: 'card ep' + (notOut(e) ? ' upcoming' : '') }, art,
+          h('div', { class: 'name', text: e.number + '. ' + (e.name || T('Episode {0}', e.number)) }), h('div', { class: 'sub', text: sub })));
+      });
+      epBox.appendChild(h('div', { class: 'episode-viewport' }, track));
+    }
+    // Fetch a season's episodes once the remote rests on it (scrolling past seasons fetches nothing).
+    function loadEpisodes(now) {
+      clearTimeout(epTimer);
+      if (t.type !== 'tv' || !seasons.length) return;
+      var n = seasons[si].number;
+      buildEpisodes();
+      if (eps[n]) return;
+      epTimer = setTimeout(function () {
+        api('/api/tv/' + encodeURIComponent(t.id) + '/season/' + n).then(function (d) {
+          eps[n] = d.episodes || [];
+          if (alive && seasons[si] && seasons[si].number === n) { buildEpisodes(); paint(); }
+        }).catch(function () {
+          if (!alive || !seasons[si] || seasons[si].number !== n) return;
+          epBox.innerHTML = '';
+          epBox.appendChild(h('div', { class: 'season-note error', text: T('Couldn’t load the episodes.') }));
+        });
+      }, now ? 0 : 250);
+    }
+    function playEpisode(e) {
+      var n = seasons[si].number;
+      if (notOut(e)) { toast(T('This episode isn’t out yet.')); return; }
+      var f = libEps[n + ':' + e.number];
+      if (f && !f.converting) { playAsked(f); return; }
+      playFirst({ type: 'tv', tmdbId: t.id, season: n, episode: e.number, title: t.title,
+        sub: T('Season {0}', n) + ' · ' + T('Episode {0}', e.number), art: bigger(e.still || t.backdrop || t.poster) });
+    }
     function paint() {
       actions.forEach(function (a, i) { a.el.classList.toggle('focus', zone === 'actions' && ai === i); });
+      var list = seasonEps() || [];
+      [].forEach.call(epBox.querySelectorAll('.card.ep'), function (c, i) { c.classList.toggle('focus', zone === 'episodes' && i === ei); });
+      var epTrack = epBox.querySelector('.episode-track');
+      if (epTrack) epTrack.style.transform = 'translateX(' + (-Math.max(0, Math.min(ei - 1, list.length - 4)) * 412) + 'px)';
+      // On the episodes the description is the focused episode's, and the page slides up if the row sits low.
+      var e = zone === 'episodes' ? list[ei] : null;
+      overview.textContent = e && e.overview ? e.overview : t.overview || T('No description available.');
+      var lift = zone === 'episodes' ? Math.max(0, epBox.offsetTop + epBox.offsetHeight + 48 - panel.clientHeight) : 0;
+      panel.style.transform = lift ? 'translateY(' + (-lift) + 'px)' : '';
       if (t.type === 'tv' && seasons.length) {
         var chips = seasonBox.querySelectorAll('.season-chip');
         [].forEach.call(chips, function (chip, i) { chip.classList.toggle('focus', zone === 'seasons' && i === si); chip.classList.toggle('active', i === si); });
@@ -1470,12 +1530,24 @@
     show({ el: el, focus: paint, leave: function () { alive = false; },
       key: function (code) {
         if (zone === 'seasons') {
-          if (code === KEY.LEFT && si > 0) { si--; paint(); return true; }
-          if (code === KEY.RIGHT && si < seasons.length - 1) { si++; paint(); return true; }
-          if (code === KEY.ENTER && !lib) { playIt(); return true; }
-          if (code === KEY.DOWN || code === KEY.ENTER) { zone = 'actions'; ai = 0; paint(); return true; }
+          if (code === KEY.LEFT && si > 0) { si--; loadEpisodes(); paint(); return true; }
+          if (code === KEY.RIGHT && si < seasons.length - 1) { si++; loadEpisodes(); paint(); return true; }
+          if (code === KEY.DOWN || code === KEY.ENTER) {
+            if ((seasonEps() || []).length) zone = 'episodes';
+            else if (actions.length) { zone = 'actions'; ai = 0; }
+            paint(); return true;
+          }
           return code === KEY.UP || code === KEY.LEFT || code === KEY.RIGHT;
         }
+        if (zone === 'episodes') {
+          var list = seasonEps() || [];
+          if (code === KEY.LEFT) { ei = Math.max(0, ei - 1); paint(); return true; }
+          if (code === KEY.RIGHT) { ei = Math.min(list.length - 1, ei + 1); paint(); return true; }
+          if (code === KEY.UP) { zone = 'seasons'; paint(); return true; }
+          if (code === KEY.ENTER) { if (list[ei]) playEpisode(list[ei]); return true; }
+          return code === KEY.DOWN;
+        }
+        if (!actions.length) return false;
         if (code === KEY.UP && t.type === 'tv' && seasons.length) { zone = 'seasons'; paint(); return true; }
         if (code === KEY.LEFT) { ai = Math.max(0, ai - 1); paint(); return true; }
         if (code === KEY.RIGHT) { ai = Math.min(actions.length - 1, ai + 1); paint(); return true; }
@@ -1488,8 +1560,10 @@
         if (!alive) return;
         seasons = (d.seasons || []).filter(function (s) { return !s.upcoming; });
         if (!seasons.length) seasons = d.seasons || [];
-        si = Math.max(0, seasons.length - 1);
-        buildSeasons(); paint();
+        // Start on the season you're watching (your copy), else the first.
+        si = 0;
+        if (start) seasons.forEach(function (s, i) { if (s.number === start.season) si = i; });
+        buildSeasons(); loadEpisodes(true); paint();
       }).catch(function (err) {
         if (!alive) return;
         seasonBox.innerHTML = '';
@@ -2008,14 +2082,71 @@
     if (mine && !mine.converting) { playAsked(mine); return; }
     getReady(x);
   }
+  // The title's logo filling in as the progress (the web's getting-ready.js logoArt): a faint grey ghost, the real
+  // colours revealed left to right up to the progress, and a light band on that edge. It takes the written title's
+  // place once it has loaded, and the progress bar goes (the logo is the bar). Chrome 69 on the TV: clip-path, no masks.
+  function readyLogo(x) {
+    var heading = h('h1', { text: x.title });
+    var wrap = null, fill = null, edge = null, p = 0, failed = false;
+    function clip() {
+      if (!wrap) return;
+      var right = (100 - p * 100).toFixed(1) + '%';
+      fill.style.webkitClipPath = fill.style.clipPath = 'inset(0 ' + right + ' 0 0)';
+      edge.style.webkitClipPath = edge.style.clipPath = 'inset(0 ' + right + ' 0 ' + Math.max(0, p * 100 - 6).toFixed(1) + '%)';
+      wrap.classList.toggle('is-failed', failed);
+      wrap.classList.toggle('is-full', p >= 0.999);
+    }
+    function layer(cls, src) { var i = new Image(); i.className = cls; i.alt = ''; i.src = src; return i; }
+    // Mostly dark lettering (a black logo) vanishes on the dark picture: draw it light instead, as the web does.
+    function tone(url) {
+      var small = String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w185/');
+      if (!/\.png($|\?)/.test(small)) return;
+      var probe = new Image();
+      probe.crossOrigin = 'anonymous';
+      probe.onload = function () {
+        try {
+          var c = document.createElement('canvas'); c.width = 48; c.height = 24;
+          var g = c.getContext('2d');
+          g.drawImage(probe, 0, 0, 48, 24);
+          var d = g.getImageData(0, 0, 48, 24).data, sum = 0, n = 0;
+          for (var i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; n++; }
+          if (n && sum / n < 0.3 && wrap) wrap.classList.add('is-dark');
+        } catch (e) { /* no CORS on this picture: leave it as it is */ }
+      };
+      probe.src = small;
+    }
+    if (x.tmdbId && (x.type === 'movie' || x.type === 'tv')) {
+      api('/api/title/' + x.type + '/' + x.tmdbId + '/page').then(function (d) {
+        var url = d.page && d.page.logo && d.page.logo.url;
+        if (!url) return;
+        var ghost = layer('ready-logo-ghost', url);
+        ghost.onload = function () {
+          fill = layer('ready-logo-fill', url);
+          edge = layer('ready-logo-edge', url);
+          fill.alt = x.title || '';
+          wrap = h('span', { class: 'ready-logo' }, ghost, fill, edge);
+          clip();
+          heading.textContent = '';
+          heading.appendChild(wrap);
+          tone(url);
+        };
+      }).catch(function () {});
+    }
+    return {
+      el: heading,
+      set: function (to, bad) { if (to !== p || bad !== failed) { p = to; failed = bad; clip(); } },
+      shown: function () { return !!wrap; }
+    };
+  }
   function getReady(x) {
     var alive = true, timer = null, paintTimer = null, job = null, since = Date.now(), phaseSince = since, idleSince = 0;
     var last = { phase: 'finding' };
     var bar = h('i', {}), line = h('p', { class: 'ready-line' }), hint = h('p', { class: 'ready-hint' });
     var btn = h('button', { class: 'title-action focus', text: T('Back') });
+    var logo = readyLogo(x);
     var el = h('div', { class: 'screen getting-ready' },
       h('div', { class: 'ready-art' }, img(x.art)),
-      h('div', { class: 'ready-copy' }, titleLogo(h('h1', { text: x.title }), x.type, x.tmdbId, x.title),
+      h('div', { class: 'ready-copy' }, logo.el,
         x.sub ? h('div', { class: 'ready-sub', text: x.sub }) : null,
         h('div', { class: 'ready-bar' }, bar), line, hint, h('div', { class: 'title-actions' }, btn)));
     function paint() {
@@ -2025,6 +2156,8 @@
       if (hint.textContent !== w.hint) hint.textContent = w.hint;
       bar.style.width = (w.progress * 100).toFixed(1) + '%';
       line.classList.toggle('error', last.phase === 'failed');
+      logo.set(w.progress, last.phase === 'failed');
+      el.classList.toggle('has-logo', logo.shown());
     }
     function stop() { alive = false; clearTimeout(timer); clearInterval(paintTimer); }
     function hand(f, resumeKey) {

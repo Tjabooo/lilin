@@ -271,6 +271,22 @@ impl Gfx {
             }
         }
     }
+    /// A slice of a picture, `x0..x1` across it (0..1), its opacity following `alpha(x)` linearly between the two
+    /// ends. `flat`: only the picture's shape, in the tint's colour (FS mode -1), for light catching lettering.
+    #[allow(clippy::too_many_arguments)]
+    pub fn image_slice(&mut self, id: u32, r: Rect, x0: f32, x1: f32, alpha: &dyn Fn(f32) -> f32, tint: Rgba, flat: bool) {
+        let (x0, x1) = (x0.max(0.0), x1.min(1.0));
+        if x1 <= x0 {
+            return;
+        }
+        let (a0, a1) = (alpha(x0).clamp(0.0, 1.0), alpha(x1).clamp(0.0, 1.0));
+        if a0 <= 0.002 && a1 <= 0.002 {
+            return;
+        }
+        let s = rect(r.x + r.w * x0, r.y, r.w * (x1 - x0), r.h);
+        let cols = [tint.alpha(a0), tint.alpha(a1), tint.alpha(a0), tint.alpha(a1)];
+        self.quad(s, [x0, 0.0, x1, 1.0], cols, s, Shape { r: 0.0, f: 0.0, ring: 0.0, mode: if flat { -1.0 } else { 1.0 } }, IMAGE, id as i32);
+    }
     pub fn glyphs(&mut self, page: u32, r: Rect, uv: [f32; 4], tint: Rgba) {
         self.quad(r, uv, [tint; 4], r, Shape { r: 0.0, f: 0.0, ring: 0.0, mode: 1.0 }, TEXT, page as i32);
     }

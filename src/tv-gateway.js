@@ -30,6 +30,7 @@ const SIGNED_IN = [
   /^\/api\/search$/,
   /^\/api\/title\/(movie|tv)\/\d+\/(page|cast)$/,
   /^\/api\/tv\/[^/]+\/seasons$/,
+  /^\/api\/tv\/\d+\/season\/\d+$/, // one season's episodes, for a show page's episode row
   /^\/api\/play-link$/,
   /^\/api\/tv\/play$/, // Play first: what to do about a title (src/tv-play.js)
   /^\/api\/title\/movie\/\d+\/copies$/, // only cinema recordings? (src/copy-check.js)
