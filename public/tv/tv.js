@@ -2430,10 +2430,14 @@
     }
     // AVPlay on older Tizen can sit in "Loading…" forever after a dropped connection. If buffering or the
     // play position stalls for 12 s, the stream is reopened where it stopped (up to 5 times in a row).
+    // A slow connection (slower than the video's bitrate) stalls again and again: the second stall switches to
+    // the 720p live stream (about 2.5 Mbit/s) instead of reopening the same file. The first load gets a minute,
+    // since a big film's index alone can take longer than 12 s on such a connection.
     var streamUrl = null, bufferingSince = 0, movedAt = 0, lastPlayMs = -1, retries = 0, reopening = false;
+    var framed = false, stalls = 0, lowered = false;
     function openStream(at) {
       av.open(streamUrl);
-      movedAt = Date.now(); bufferingSince = 0;
+      movedAt = Date.now(); bufferingSince = 0; framed = false;
         av.setDisplayRect(0, 0, 1920, 1080);
         try { av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) { /* older firmware */ }
         av.setListener({
@@ -2441,7 +2445,7 @@
           onbufferingcomplete: function () { spinner.classList.remove('show'); bufferingSince = 0; },
           oncurrentplaytime: function (ms) {
             if (seekTarget == null) s.time = ms / 1000;
-            if (ms !== lastPlayMs) { lastPlayMs = ms; movedAt = Date.now(); if (ms > 1000) retries = 0; }
+            if (ms !== lastPlayMs) { lastPlayMs = ms; movedAt = Date.now(); if (ms > 1000) retries = 0; if (bufferingSince === 0) framed = true; }
           },
           onstreamcompleted: function () {
             s.ended = true; s.playing = false; countPlayed(); save(true);
@@ -2462,9 +2466,11 @@
           } else go();
         }, function (e) { if (!reopen()) fail(String(e && e.name || e)); });
     }
-    function reopen() {
+    function reopen(slow) {
       if (s.closed || reopening || !streamUrl || retries >= 5) return false;
       retries++; reopening = true;
+      if (slow) stalls++;
+      var lower = slow && stalls >= 2 && !lowered && !f.part;
       var at = s.time;
       try {
         var live = av.getCurrentTime() / 1000;
@@ -2475,13 +2481,26 @@
       spinner.textContent = T('Reconnecting…'); spinner.classList.add('show');
       try { av.stop(); } catch (e) { /* already */ }
       try { av.close(); } catch (e) { /* already */ }
+      if (lower) {
+        lowered = true;
+        spinner.textContent = T('Slow connection: switching to a lighter stream…');
+        var base = String(window.LILIN_TV_PLAY || 'browser-hevc').split('&')[0];
+        api('/api/play-link?kind=lib&id=' + encodeURIComponent(f.id) + '&variant=' + base + '&quality=720').then(function (link) {
+          reopening = false;
+          if (s.closed) return;
+          streamUrl = SERVER + link.url; retries = 0;
+          try { openStream(at); } catch (e) { fail(e.message); }
+        }).catch(function () { reopening = false; if (!s.closed) { try { openStream(at); } catch (e) { fail(e.message); } } });
+        return true;
+      }
       setTimeout(function () { reopening = false; if (!s.closed) { try { openStream(at); } catch (e) { fail(e.message); } } }, 1000);
       return true;
     }
     function watchStall() {
       if (reopening || s.ended || seekTarget != null) return;
       var t = Date.now();
-      if ((bufferingSince && t - bufferingSince > 12000) || (s.playing && t - movedAt > 12000)) reopen();
+      var limit = framed ? 15000 : 60000;
+      if ((bufferingSince && t - bufferingSince > limit) || (s.playing && t - movedAt > limit)) reopen(Boolean(bufferingSince) || framed);
     }
     function begin() {
       document.body.insertBefore(obj, document.body.firstChild);

@@ -63,6 +63,7 @@ window.LilinTvStrings = {
   'Popular': 'Populärt',
   'Quality: {0}': 'Kvalitet: {0}',
   'Reconnecting…': 'Återansluter…',
+  'Slow connection: switching to a lighter stream…': 'Långsam anslutning: byter till en lättare ström…',
   'Results for “{0}”': 'Resultat för ”{0}”',
   'Resume from {0}': 'Fortsätt från {0}',
   'Search': 'Sök',

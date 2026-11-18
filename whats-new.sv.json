@@ -1,4 +1,13 @@
 {
+  "2026-11-18-tv-slow-connection": {
+    "title": "TV-uppspelning på långsammare internet",
+    "items": {
+      "No more endless Reconnecting": {
+        "title": "Inget mer ändlöst Återansluter",
+        "text": "På en långsammare anslutning kunde TV-appen starta om en film medan den fortfarande laddade och visa Återansluter i flera minuter. Nu får filmen tid att ladda, och om den fortsätter att stanna byter den till en lättare 720p-ström så att den fortsätter spela."
+      }
+    }
+  },
   "2026-11-18-cinema-recordings": {
     "title": "Inga oväntade biografinspelningar",
     "items": {
