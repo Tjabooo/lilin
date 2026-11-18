@@ -139,8 +139,14 @@
     }).sort(function (a, b) { return b.added - a.added; });
   }
 
-  function homeRows(library, shows, progress) {
-    var cont = library.filter(function (f) { return resumable(progress[progressRef(f)]) && !f.converting; })
+  // hidden: titles taken out of Continue watching on the website (title key -> when); watching again brings them back.
+  function homeRows(library, shows, progress, hidden) {
+    hidden = hidden || {};
+    function shown(f) {
+      var key = titleKey(f) || (f.show ? 'show:' + f.show : progressRef(f));
+      return !(hidden[key] != null && hidden[key] >= (progress[progressRef(f)].at || 0));
+    }
+    var cont = library.filter(function (f) { return resumable(progress[progressRef(f)]) && !f.converting && shown(f); })
       .sort(function (a, b) { return (progress[progressRef(b)].at || 0) - (progress[progressRef(a)].at || 0); })
       .slice(0, 20);
     var showIds = {};

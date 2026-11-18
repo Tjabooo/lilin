@@ -369,6 +369,7 @@ export default {
   "Remove from Continue watching": "Ta bort från Fortsätt titta",
   "Removed from Continue watching": "Borttagen från Fortsätt titta",
   "Removing keeps your place: it comes back when you watch it again.": "Din plats sparas: den kommer tillbaka när du tittar igen.",
+  "Removed on all your devices. Your place is kept: it comes back when you watch it again.": "Tas bort på alla dina enheter. Din plats sparas: den kommer tillbaka när du tittar igen.",
   "Couldn’t save that. Try again.": "Det gick inte att spara. Försök igen.",
   "Play now in a moment: getting the start of the video": "Spela nu om en liten stund: hämtar början av videon",
   "Play now once the start of the video arrives": "Spela nu när början av videon har kommit",

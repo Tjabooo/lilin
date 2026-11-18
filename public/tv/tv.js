@@ -233,6 +233,7 @@
       state.library = r[0].items || [];
       state.shows = r[0].shows || [];
       state.progress = r[1].progress || {};
+      state.hidden = r[1].hidden || {};
     });
   }
   // Downloads on their way show in the library straight away. Never fails: the library works without them.
@@ -690,7 +691,7 @@
       // Coming back from the player rebuilds the rows: keep the row and the card you were on.
       var was = {}, wasRow = nav.rows[nav.r] && nav.rows[nav.r].title;
       nav.rows.forEach(function (row) { was[row.title] = row.index; });
-      var data = L.homeRows(state.library, state.shows, state.progress);
+      var data = L.homeRows(state.library, state.shows, state.progress, state.hidden);
       var rows = [];
       function add(title, kind, items) { var row = makeRow({ title: title, kind: kind, items: items }); row.title = title; rows.push(row); }
       if (data.cont.length) add(T('Continue watching'), 'wide', data.cont.map(continueCard));

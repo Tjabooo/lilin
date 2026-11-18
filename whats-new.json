@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-continue-remove",
+    "date": "2026-11-18",
+    "title": "Removed from Continue watching stays removed",
+    "items": [
+      {
+        "title": "Removing a title takes it off everywhere",
+        "text": "Remove from Continue watching now works for the whole show, so an older episode you half watched no longer pops up in its place. It is also removed on all your devices, not just the one you used. Watching it again brings it back."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-phone-depth",
     "date": "2026-11-18",
     "title": "Depth on the big picture on phones",

@@ -222,6 +222,7 @@ const state = {
   me: null,         // who's signed in, with their settings (accounts.js)
   rules: null,      // the server's auto-delete rules
   progress: {},     // where this person stopped watching, from any device
+  hidden: {},       // taken out of Continue watching: title key → when (server time), from any device
   libFilter: 'all',
 };// Page filters (Library, Activity, House → Machines, Game clips, Notes): what's typed in each page's own field.
 const pageFilters = { library: '', activity: '', house: '', clips: '', notes: '' };
@@ -507,7 +508,7 @@ function savedProgress(f) {
   try { return JSON.parse(localStorage.getItem(resumeKey(f))); } catch { return null; }
 }
 async function loadProgress() {
-  try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; } catch { /* local copy only */ }
+  try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; state.hidden = data.hidden || {}; } catch { /* local copy only */ }
 }
 
 // ---------- Save for later and Follow (watchlist.js; the server downloads, src/watchlist.js) ----------
@@ -1060,13 +1061,35 @@ function upNextItems(files) {
   return shows.map((id) => nextUp(id, files)).filter((x) => x?.kind === 'next' && !hiddenFromContinue(x.f, { at: x.at }));
 }
 
-// Taken out of Continue watching on this device (the ⋯ menu): ref → when. Watching it again brings it back.
-const CONTINUE_HIDDEN = 'continue:hidden';
-function continueHidden() { try { return JSON.parse(localStorage.getItem(CONTINUE_HIDDEN)) || {}; } catch { return {}; } }
-const hiddenFromContinue = (f, progress) => { const at = continueHidden()[progressRef(libraryFile(f))]; return at != null && at >= (progress?.at || 0); };
+// Taken out of Continue watching (the ⋯ menu), kept on the server so every device agrees: title → when.
+// Goes by the whole title (a show, not one episode), so an older half-watched episode can't take its place.
+// Watching anything of it again brings it back.
+const continueKey = (f) => titleKeyOf(f) || (f.show ? `show:${f.show}` : progressRef(libraryFile(f)));
+const hiddenFromContinue = (f, progress) => { const at = state.hidden?.[continueKey(f)]; return at != null && at >= (progress?.at || 0); };
+// Hides from before they were synced lived in this browser only (one video each): move them over once.
+const LEGACY_HIDDEN = 'continue:hidden';
+let legacyHiddenMoved = false;
+function moveLegacyHidden(files) {
+  if (legacyHiddenMoved || !files.length) return;
+  legacyHiddenMoved = true;
+  let old;
+  try { old = JSON.parse(localStorage.getItem(LEGACY_HIDDEN)); } catch { return; }
+  if (!old || typeof old !== 'object') return;
+  const byRef = new Map(files.map((f) => [progressRef(libraryFile(f)), f]));
+  const moves = [];
+  for (const [ref, at] of Object.entries(old)) {
+    const f = byRef.get(ref);
+    if (!f) continue;
+    const key = continueKey(f);
+    if ((state.hidden[key] || 0) < at) state.hidden = { ...state.hidden, [key]: at };
+    moves.push(api('/api/me/continue/hide', jsonPost({ key, at })));
+  }
+  Promise.all(moves).then(() => { try { localStorage.removeItem(LEGACY_HIDDEN); } catch { /* blocked */ } }, () => { legacyHiddenMoved = false; });
+}
 // What Continue watching shows (Discover and Library both use this, so they always agree): everything partway
 // plus Up next cards, newest first, one card per show (its latest), at most 12.
 function continueItems(files) {
+  moveLegacyHidden(state.library || []);
   const watching = [...files.map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
     .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })), ...upNextItems(files)]
     .sort((a, b) => b.at - a.at);
@@ -1752,9 +1775,14 @@ function openContinueMenu(f, progress, name, opener) {
     toast(T('Marked as watched'));
   });
   const hide = choose(() => {
-    const hidden = continueHidden();
-    hidden[ref] = progress?.at || Date.now();
-    try { localStorage.setItem(CONTINUE_HIDDEN, JSON.stringify(Object.fromEntries(Object.entries(hidden).slice(-300)))); } catch { /* blocked */ }
+    // Hidden at once here; the server's own time replaces the placeholder (progress times are server times too).
+    const key = continueKey(f);
+    state.hidden = { ...(state.hidden || {}), [key]: Number.MAX_SAFE_INTEGER };
+    api('/api/me/continue/hide', jsonPost({ key })).then((r) => { state.hidden = { ...state.hidden, [key]: r.at }; }, () => {
+      state.hidden = { ...state.hidden }; delete state.hidden[key];
+      invalidateLibraryProgress(); libraryRenderPending = true;
+      toast(T('Couldn’t save that. Try again.'));
+    });
     toast(T('Removed from Continue watching'));
   });
   $('#picker-body').replaceChildren(
@@ -1764,7 +1792,7 @@ function openContinueMenu(f, progress, name, opener) {
       h('button', { type: 'button', class: 'del-cancel', onclick: () => dismissTopOverlay().catch(() => {}).then(() => { f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); }) }, icon('info'), T('Details')),
       h('button', { type: 'button', class: 'del-cancel', onclick: watched }, icon('check'), T('Mark as watched')),
       h('button', { type: 'button', class: 'del-cancel', onclick: hide }, T('Remove from Continue watching')),
-      h('p', { class: 'muted continue-note' }, T('Removing keeps your place: it comes back when you watch it again.')),
+      h('p', { class: 'muted continue-note' }, T('Removed on all your devices. Your place is kept: it comes back when you watch it again.')),
       h('button', { type: 'button', class: 'del-cancel continue-keep', onclick: () => closeTopOverlay() }, T('Cancel'))));
   pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => opener?.focus({ preventScroll: true })));
 }

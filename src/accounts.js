@@ -123,6 +123,12 @@ export function initAccounts({ dataDir, adminEmails, notesEmails: notes = [], me
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (user_id, ref)
     );
+    CREATE TABLE IF NOT EXISTS continue_hidden (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, key)
+    );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS ratings (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -745,6 +751,26 @@ export function progressOf(userId) {
     out[r.ref] = { time: r.position, duration: r.duration, at: r.updated_at };
   }
   return out;
+}
+// Taken out of Continue watching (the ⋯ menu), on all of this person's devices. Key: a title ("tv:ID",
+// "movie:ID") or one video's progress ref when the title is unknown; at: when (server clock, like progress).
+// A card stays hidden until something of that title is watched after that.
+const HIDE_KEY = /^[a-z]+:[^\u0000-\u001f]{1,400}$/i;
+export function continueHiddenOf(userId) {
+  const out = {};
+  for (const r of db.prepare('SELECT key, at FROM continue_hidden WHERE user_id = ? ORDER BY at DESC LIMIT 500').all(userId)) out[r.key] = r.at;
+  return out;
+}
+export function hideFromContinue(userId, key, at) {
+  key = String(key || '');
+  if (!HIDE_KEY.test(key)) throw httpError(400, 'Unknown title.');
+  const now = Date.now();
+  at = at != null && Number.isFinite(Number(at)) ? Math.max(0, Math.min(now, Number(at))) : now;
+  db.prepare(`INSERT INTO continue_hidden (user_id, key, at) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, key) DO UPDATE SET at = MAX(at, excluded.at)`).run(userId, key, at);
+  db.prepare(`DELETE FROM continue_hidden WHERE user_id = ? AND key NOT IN
+    (SELECT key FROM continue_hidden WHERE user_id = ? ORDER BY at DESC LIMIT 500)`).run(userId, userId);
+  return db.prepare('SELECT at FROM continue_hidden WHERE user_id = ? AND key = ?').get(userId, key).at;
 }
 export function saveProgress(userId, ref, time, duration) {
   ref = String(ref || '');

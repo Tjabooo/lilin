@@ -4018,7 +4018,13 @@ async function handleApi(req, res, url) {
       }
       return sendJson(res, 200, { ok: true });
     }
-    return sendJson(res, 200, { progress: accounts.progressOf(user.id), finished: social.lastFinished(user.id) });
+    return sendJson(res, 200, { progress: accounts.progressOf(user.id), finished: social.lastFinished(user.id),
+      hidden: accounts.continueHiddenOf(user.id) });
+  }
+  // Remove from Continue watching, everywhere this person signs in. at: only for moving an older hide over.
+  if (p === '/api/me/continue/hide' && req.method === 'POST') {
+    const { key, at } = await readJson(req);
+    return sendJson(res, 200, { ok: true, at: accounts.hideFromContinue(user.id, key, at) });
   }
   // Lilin Wrapped: one person's year (defaults to this one).
   if (p === '/api/me/wrapped') {
