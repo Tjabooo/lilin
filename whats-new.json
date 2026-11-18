@@ -6,6 +6,11 @@
     "items": [
       {
         "kind": "fix",
+        "title": "Your colours on the TV",
+        "text": "The TV app now uses the colour theme you picked in Settings → Appearance. Restart the TV app to see it."
+      },
+      {
+        "kind": "fix",
         "title": "No more endless Reconnecting",
         "text": "On a slower connection, the TV app could keep restarting a film while it was still loading and show Reconnecting for minutes. It now gives the film time to load, and if it keeps stalling it switches to a lighter 720p stream so it keeps playing."
       },

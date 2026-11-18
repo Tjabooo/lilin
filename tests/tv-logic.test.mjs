@@ -127,3 +127,14 @@ test('TV: a video being prepared shows how far that has come', () => {
   assert.equal(p.word, 'Preparing playback');
   assert.equal(L.pendingTitles([{ hash: 'a', tmdbId: 1, mediaType: 'movie', state: 'metaDL', size: 0, progress: 0, done: false }])[0].progress, null, 'nothing known yet');
 });
+
+test('themeVars: the person\'s saved theme, the server default, or Lilin', () => {
+  assert.equal(L.themeVars({ preset: 'forest' }).vars['--bulb'], '#9BE07A');
+  assert.equal(L.themeVars(null, 'midnight').vars['--velvet'], '#0E1320');
+  assert.equal(L.themeVars({ preset: 'nope' }).vars['--velvet'], '#1F1019');
+  assert.equal(L.themeVars({ preset: 'daylight' }).scheme, 'light');
+  const custom = L.themeVars({ preset: 'custom', colors: { bg: '#101010', surface: '#202020', text: '#eeeeee', accent: '#ff0000' } });
+  assert.equal(custom.vars['--bulb-rgb'], '255, 0, 0');
+  assert.equal(custom.scheme, 'dark');
+  assert.equal(L.themeVars({ preset: 'custom', colors: { bg: 'red' } }).vars['--velvet'], '#1F1019');
+});

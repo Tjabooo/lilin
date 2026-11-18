@@ -14,6 +14,21 @@
     PLAYPAUSE: 10252, PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412, CH_UP: 427, CH_DOWN: 428, PRE_CH: 10190 };
   var app = document.getElementById('app');
   var state = { me: null, library: [], shows: [], progress: {}, genres: [], pending: [], focusPending: false };
+
+  // ---------- colours: the person's theme from Settings → Appearance (saved on the server) ----------
+  var THEME_KEY = 'lilin:tv-theme'; // the last theme, so the boot screen already has the right colours
+  function paintTheme(t) {
+    if (!t || !t.vars) return;
+    var root = document.documentElement;
+    for (var k in t.vars) if (Object.prototype.hasOwnProperty.call(t.vars, k)) root.style.setProperty(k, t.vars[k]);
+    root.setAttribute('data-scheme', t.scheme === 'light' ? 'light' : 'dark');
+  }
+  function applyTheme(me, rules) {
+    var t = L.themeVars(me && me.settings && me.settings.theme, rules && rules.defaultTheme);
+    paintTheme(t);
+    try { localStorage.setItem(THEME_KEY, JSON.stringify(t)); } catch (e) { /* full or blocked */ }
+  }
+  try { paintTheme(JSON.parse(localStorage.getItem(THEME_KEY) || 'null')); } catch (e) { /* none saved */ }
   var screen = null;
   var history = [];
   var autoChain = 0;
@@ -148,6 +163,7 @@
         return pairScreen(me && me.id != null, T('This TV was signed out. Sign it in again.'));
       }
       state.me = me;
+      applyTheme(me, status.rules);
       state.liveName = status.liveName || 'Lilin TV';
       // Play first: no library screen; the app opens on Discover with Continue watching on top.
       return Promise.all([loadLibrary(), loadGenres()]).then(function () { discoverScreen(true); });

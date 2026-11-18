@@ -301,8 +301,58 @@
     return channels[(at + step + channels.length * 4) % channels.length];
   }
 
+  // ---------- colour themes: the same presets as the web app (public/app.js THEMES) ----------
+  // A person's theme is saved on the server ({ preset } or { preset: 'custom', colors }), so the TV
+  // paints itself the way they picked on their phone or computer.
+  var THEMES = {
+    lilin: { bg: '#1F1019', surface: '#2B1724', raised: '#3A2031', line: '#4B2C3F', text: '#F6EADF', muted: '#BA9DAD', accent: '#F4C152', alert: '#FF9B85' },
+    midnight: { bg: '#0E1320', surface: '#161D2E', raised: '#1F2840', line: '#2A3552', text: '#E8EEF8', muted: '#96A3BD', accent: '#5CC8FF', alert: '#FF8A8A' },
+    forest: { bg: '#0F1A14', surface: '#16241C', raised: '#1E3127', line: '#2A4134', text: '#E9F2EA', muted: '#9DB5A4', accent: '#9BE07A', alert: '#FF9B85' },
+    ember: { bg: '#161312', surface: '#221D1B', raised: '#2E2724', line: '#3D3430', text: '#F5EDE8', muted: '#B3A49C', accent: '#FF7A3D', alert: '#FF8A8A' },
+    lagoon: { bg: '#0B1A1C', surface: '#112629', raised: '#183337', line: '#22444A', text: '#E3F4F4', muted: '#93B8BA', accent: '#3DDBC4', alert: '#FF9B85' },
+    synth: { bg: '#140F24', surface: '#1D1633', raised: '#281E45', line: '#352858', text: '#F0EAFF', muted: '#A99BC9', accent: '#FF5FA2', alert: '#FFB36B' },
+    noir: { bg: '#111111', surface: '#1B1B1B', raised: '#262626', line: '#333333', text: '#F2F2F2', muted: '#A0A0A0', accent: '#E8E8E8', alert: '#FF8A8A' },
+    paper: { bg: '#F7F2EA', surface: '#FFFDF9', raised: '#EFE7DB', line: '#DDD2C2', text: '#241A14', muted: '#6E6157', accent: '#C2410C', alert: '#B42318' },
+    daylight: { bg: '#F2F5FA', surface: '#FFFFFF', raised: '#E5EBF4', line: '#D2DAE7', text: '#141B2B', muted: '#5A6478', accent: '#2563EB', alert: '#C0262D' },
+  };
+  var HEX = /^#[0-9a-f]{6}$/i;
+  function hexRgb(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.slice(i, i + 2), 16); }); }
+  function rgbHex(rgb) {
+    return '#' + rgb.map(function (v) { var n = Math.round(Math.max(0, Math.min(255, v))).toString(16); return n.length < 2 ? '0' + n : n; }).join('');
+  }
+  function mix(a, b, t) { var y = hexRgb(b); return rgbHex(hexRgb(a).map(function (v, i) { return v + (y[i] - v) * t; })); }
+  function luminance(hex) {
+    var c = hexRgb(hex).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function contrast(a, b) { var x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function themeColors(theme, defaultKey) {
+    var preset = THEMES[theme && theme.preset] || THEMES[defaultKey] || THEMES.lilin;
+    var c = theme && theme.preset === 'custom' && theme.colors;
+    if (!c || !HEX.test(c.bg) || !HEX.test(c.surface) || !HEX.test(c.text) || !HEX.test(c.accent)) return preset;
+    return { bg: c.bg, surface: c.surface, text: c.text, accent: c.accent,
+      raised: mix(c.surface, c.text, 0.08), line: mix(c.surface, c.text, 0.16), muted: mix(c.text, c.bg, 0.38),
+      alert: luminance(c.bg) > 0.5 ? '#B42318' : '#FF9B85' };
+  }
+  // The CSS custom properties tv.css is built on (plus r,g,b triplets for its see-through shades).
+  function themeVars(theme, defaultKey) {
+    var c = themeColors(theme, defaultKey);
+    var light = luminance(c.bg) > 0.5;
+    var darkInk = luminance(c.bg) < 0.15 ? c.bg : '#141414';
+    var lightInk = luminance(c.bg) > 0.8 ? c.bg : '#FFFFFF';
+    var deep = light ? mix(c.bg, '#FFFFFF', 0.4) : mix(c.bg, '#000000', 0.3);
+    var trip = function (hex) { return hexRgb(hex).join(', '); };
+    return { scheme: light ? 'light' : 'dark', vars: {
+      '--velvet': c.bg, '--curtain': c.surface, '--seat': c.raised, '--line': c.line,
+      '--paper': c.text, '--dust': c.muted, '--bulb': c.accent, '--alert': c.alert, '--deep': deep,
+      '--on-bulb': contrast(darkInk, c.accent) >= contrast(lightInk, c.accent) ? darkInk : lightInk,
+      '--velvet-rgb': trip(c.bg), '--curtain-rgb': trip(c.surface), '--seat-rgb': trip(c.raised),
+      '--paper-rgb': trip(c.text), '--bulb-rgb': trip(c.accent), '--deep-rgb': trip(deep),
+    } };
+  }
+
   var api = {
-    liveTarget: liveTarget, clockOffset: clockOffset, channelName: channelName, programmeLine: programmeLine, clock: clock, neighbour: neighbour,
+    themeVars: themeVars, liveTarget: liveTarget, clockOffset: clockOffset, channelName: channelName, programmeLine: programmeLine, clock: clock, neighbour: neighbour,
     AUTOPLAY_SECONDS: AUTOPLAY_SECONDS, AUTOPLAY_CHAIN: AUTOPLAY_CHAIN, DONE_SECONDS: DONE_SECONDS,
     nextEpisode: nextEpisode, nextAfter: nextAfter, nextPromptAt: nextPromptAt, isNextTime: isNextTime, introShowing: introShowing,
     T: T, fmtTime: fmtTime, episodeLabel: episodeLabel, minutesLeft: minutesLeft, progressRef: progressRef, resumable: resumable,

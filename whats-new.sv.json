@@ -2,6 +2,10 @@
   "2026-11-18-tv-slow-connection": {
     "title": "TV-uppspelning på långsammare internet",
     "items": {
+      "Your colours on the TV": {
+        "title": "Dina färger på TV:n",
+        "text": "TV-appen använder nu färgtemat du valde under Inställningar → Utseende. Starta om TV-appen för att se det."
+      },
       "No more endless Reconnecting": {
         "title": "Inget mer ändlöst Återansluter",
         "text": "På en långsammare anslutning kunde TV-appen starta om en film medan den fortfarande laddade och visa Återansluter i flera minuter. Nu får filmen tid att ladda, och om den fortsätter att stanna byter den till en lättare 720p-ström så att den fortsätter spela."
