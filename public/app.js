@@ -6769,6 +6769,34 @@ async function switchVersion(v) {
   osd(v.versionLabel.replace(/ · [\d.]+ [GM]B$/, ''));
 }
 
+// A first watch starts on a quick 1080p copy and the bigger picture downloads in the background as another version
+// (smart-download.js betterCopy). Once that one is ready, playback moves over to it at the same spot: once per title,
+// never after a version was picked by hand, only on a screen sharper than 1080p and only when this browser plays it
+// as it is (an HEVC file in a browser without HEVC would mean waiting for a converted copy).
+const autoUpgraded = new Set();
+let upgradeLooks = 0;
+const UPGRADE_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
+const sharpScreen = () => !(matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600)
+  && Math.max(screen.width, screen.height) * (devicePixelRatio || 1) > 2000;
+function upgradeVersion(session = current) {
+  if (!session || !['lib', 'part'].includes(session.kind) || session.season != null || party || audioCasting() || video.paused || !session.ready) return null;
+  const key = session.versionKey || (session.tmdbId ? `film:${session.tmdbId}` : null);
+  if (!key || versionPicks[key] || autoUpgraded.has(key) || !sharpScreen()) return null;
+  const item = state.library.find((x) => x.versionKey === key);
+  if (!item && ++upgradeLooks % 3 === 0) loadLibrary().catch(() => {}); // nothing else reloads the library during playback
+  const here = UPGRADE_RANK[session.versionQuality] ?? 2;
+  const name = (v) => `${v.file || ''} ${v.name || ''} ${v.versionLabel || ''}`;
+  return (item?.versions || (item ? [item] : [])).find((v) => v.mediaKey !== session.mediaKey && !v.converting && (UPGRADE_RANK[v.versionQuality] ?? -1) > here
+    && (playsHevc() || !/\b(x265|hevc|h\.?265)\b/i.test(name(v)))
+    && !(/\b(dv|dovi|dolby ?vision)\b/i.test(name(v)) && !/\bhdr(10)?\b/i.test(name(v)))) || null;
+}
+setInterval(() => {
+  const v = upgradeVersion();
+  if (!v) return;
+  autoUpgraded.add(current.versionKey || `film:${current.tmdbId}`);
+  switchVersion(v).then(() => toast(T('Switched to the {0} version: it finished downloading.', v.versionLabel.replace(/ · [\d.]+ [GM]B$/, '')))).catch(() => {});
+}, 20_000);
+
 // Saves the choice for next time and switches the playing video over at the same spot.
 async function setQuality(pref) {
   if (!QUALITY_PREFS.includes(pref)) return;

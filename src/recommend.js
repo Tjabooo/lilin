@@ -198,6 +198,7 @@ export const coldStreamable = (r, want = {}, kind = 'movie') => {
   return !rate || (rate <= COLD_RATE && swarmSpeed(r.seeders) >= rate * COLD_MARGIN);
 };
 const isHigh = (q) => ['1080p', '1440p', '2160p'].includes(q);
+const HEVC_NAME = /\b(x265|hevc|h\.?265)\b/i;
 
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
@@ -350,12 +351,18 @@ export function choose(found, want, kind, minAlive = ALIVE) {
   ];
   // A first-time watch: the same steps among releases that can start quickly first (coldStreamable), as long as that
   // doesn't mean going below 1080p; then, if none can, as usual.
+  // It starts on 1080p (H.264 first: every browser plays it without a live transcode) and the bigger picture follows
+  // in the background as another version (smart-download.js betterCopy). Oliver 2026-11-18: Nightcrawler's 2160p DV
+  // pick sat at "35 s left" for minutes on a thin swarm.
   const anyHigh = fits.some((r) => isHigh(r.quality));
-  const passes = want.cold ? [fits.filter((r) => coldStreamable(r, want, kind)), fits] : [fits];
+  const quick = want.cold ? fits.filter((r) => coldStreamable(r, want, kind)) : [];
+  const quick1080 = quick.filter((r) => r.quality === '1080p');
+  const passes = want.cold ? [quick1080.filter((r) => !HEVC_NAME.test(r.name)), quick1080, quick, fits] : [fits];
+  const last = passes.length - 1;
   for (const [i, base] of passes.entries()) {
-    if (i === 0 && passes.length > 1 && !base.length) continue;
+    if (i < last && !base.length) continue;
     for (const [qualities, min, extra, byScore] of steps) {
-      if (i === 0 && passes.length > 1 && anyHigh && !qualities.some(isHigh)) break;
+      if (i < last && anyHigh && !qualities.some(isHigh)) break;
       const pool = base.filter((r) => qualities.includes(r.quality ?? null) && r.seeders >= min && (!extra || extra(r)));
       if (!pool.length) continue;
       // Within a mixed step, keep the preferred quality first; then the best score (Best Quality: score only).

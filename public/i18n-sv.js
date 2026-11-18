@@ -849,6 +849,7 @@ export default {
   "Quality: {0}": "Kvalitet: {0}",
   "Pick the version before starting Watch Together.": "Välj version innan du startar Titta tillsammans.",
   "Stop casting to switch versions.": "Sluta casta för att byta version.",
+  "Switched to the {0} version: it finished downloading.": "Bytte till versionen {0}: den har laddats ner klart.",
   "That version is being converted. Try again when it finishes.": "Den versionen konverteras. Försök igen när det är klart.",
   "Original quality": "Originalkvalitet",
   "Couldn’t change the quality.": "Kunde inte ändra kvaliteten.",

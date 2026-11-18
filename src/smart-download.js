@@ -356,10 +356,13 @@ async function runFilm(job, spec, deps) {
 // Best Quality's own pick when a first-time watch took a quicker one instead: downloaded in the background as another
 // version once the person is watching (cold-start.js followUp), when its picture is clearly better.
 const BETTER_FOLLOWS = 0.75;     // picture score (recommend.js) it has to be ahead by
+// A first watch now starts on 1080p (recommend.js), so a 1440p/4K the normal pick would have taken always follows.
+const RES_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
 function betterCopy(pool, pick, want, deps) {
-  if (want.profile !== 'best') return null;
-  const full = pickBest(pool, { ...want, cold: false }, deps.parseName).pick;
+  const full = pickBest(pool, { ...want, cold: false, stream: false }, deps.parseName).pick;
   if (!full || full === pick || full.name === pick.name) return null;
+  if ((RES_RANK[full.quality] ?? -1) > (RES_RANK[pick.quality] ?? 2)) return full;
+  if (want.profile !== 'best') return null;
   return pictureScore(full, want, 'movie') - pictureScore(pick, want, 'movie') >= BETTER_FOLLOWS ? full : null;
 }
 

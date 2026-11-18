@@ -574,7 +574,12 @@ export class PartialStreams {
     if (e.started) return { startProgress: 1, startEta: 0 };
     const need = startBytes(e.size, e.info?.bitrate || 0, this.helping(e) ? ASSIST_LEAD.goal : START_GOAL_SECONDS);
     const have = Math.min(need, this.readable(e, 0));
-    return { startProgress: need ? have / need : 1, startEta: speed > 0 ? Math.ceil((need - have) / speed) : null };
+    // No countdown while the start itself isn't moving: the total speed can be fine while the first pieces are stuck
+    // (Nightcrawler 2026-11-18 showed "35 s" for minutes). Then the player says it's fetching the start.
+    const now = Date.now();
+    if (e.startSeen?.have !== have) e.startSeen = { have, at: now };
+    const stuck = now - e.startSeen.at > 8000;
+    return { startProgress: need ? have / need : 1, startEta: speed > 0 && !stuck ? Math.ceil((need - have) / speed) : null };
   }
 
   // What the player shows about the download.
