@@ -849,16 +849,23 @@ function ownershipBadge(t, { words = false } = {}) {
 
 // Posters fade in from their own colour: a card starts as a block of its poster's main colour (worked out once, the
 // first time the poster loads, and remembered on this device) and crossfades into the picture, instead of grey
-// boxes popping in. TMDB sends CORS headers, so its posters can be read; other art just fades in.
+// boxes popping in. TMDB posters get their colour via rememberTone; other art just fades in.
 const TONE_KEY = 'lilin.posterTones';
 let tones = null, toneSave = 0;
 const toneStore = () => (tones ||= (() => { try { return JSON.parse(localStorage.getItem(TONE_KEY)) || {}; } catch { return {}; } })());
 const tmdbArt = (url) => /^https:\/\/image\.tmdb\.org\/t\/p\//.test(url);
 const toneId = (url) => String(url).replace(/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//, '');
 const posterTone = (url) => (tmdbArt(url) ? toneStore()[toneId(url)] || null : null);
-function rememberTone(url, img) {
+// The colour is read from TMDB's tiny w92 copy through /api/art (same origin), never from the poster itself:
+// a crossorigin poster fails outright on iPhones (Safari's cache), which left "?" boxes on every card.
+function rememberTone(url) {
   const store = toneStore(), id = toneId(url);
-  if (store[id]) return;
+  if (store[id] || !/^[A-Za-z0-9_-]{4,64}\.(jpg|png)$/.test(id)) return;
+  const img = new Image();
+  img.onload = () => sampleTone(store, id, img);
+  img.src = `/api/art?path=${encodeURIComponent(`/t/p/w92/${id}`)}`;
+}
+function sampleTone(store, id, img) {
   try {
     const c = document.createElement('canvas'); c.width = 6; c.height = 9;
     const g = c.getContext('2d', { willReadFrequently: true });
@@ -876,10 +883,10 @@ function rememberTone(url, img) {
 }
 function toneArt(url, tone) {
   const tmdb = tmdbArt(url);
-  const img = h('img', { crossorigin: tmdb ? 'anonymous' : null, src: url, alt: '', loading: 'lazy', decoding: 'async', class: 'tone-art',
+  const img = h('img', { src: url, alt: '', loading: 'lazy', decoding: 'async', class: 'tone-art',
     onload: () => {
       img.classList.add('is-in');
-      if (tmdb && !tone) (window.requestIdleCallback || setTimeout)(() => rememberTone(url, img));
+      if (tmdb && !tone) (window.requestIdleCallback || setTimeout)(() => rememberTone(url));
     },
     onerror: () => img.classList.add('is-in') });
   if (img.complete && img.naturalWidth) img.classList.add('is-in', 'is-instant'); // already in memory: no fade

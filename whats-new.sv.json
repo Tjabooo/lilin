@@ -1,4 +1,13 @@
 {
+  "2026-11-18-posters-iphone": {
+    "title": "Affischerna är tillbaka på iPhone",
+    "items": {
+      "No more question-mark posters": {
+        "title": "Inga fler frågeteckenaffischer",
+        "text": "På iPhone visade vissa affischer i Upptäck en tom ruta med ett frågetecken i stället för bilden. Nu laddas de som vanligt igen."
+      }
+    }
+  },
   "2026-11-18-whats-new-tabs": {
     "title": "Nyheter, sorterade",
     "items": {

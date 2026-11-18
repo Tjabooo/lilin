@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-18-posters-iphone",
+    "date": "2026-11-18",
+    "title": "Posters are back on iPhone",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "No more question-mark posters",
+        "text": "On iPhones, some posters on Discover showed an empty box with a question mark instead of the picture. They load normally again."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-whats-new-tabs",
     "date": "2026-11-18",
     "title": "What’s new, sorted",
