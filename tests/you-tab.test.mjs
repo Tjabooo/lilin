@@ -123,7 +123,7 @@ test('You → Liked: every title, a page at a time; private to others when switc
   } finally {
     child.kill();
     await exited;
-    await fsp.rm(app, { recursive: true, force: true });
+    await fsp.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }
 });
 

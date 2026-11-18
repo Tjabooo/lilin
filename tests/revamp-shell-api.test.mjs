@@ -73,6 +73,6 @@ test('the shared home account opens its own profile and diary; start views inclu
   } finally {
     child.kill();
     await exited;
-    await fsp.rm(app, { recursive: true, force: true });
+    await fsp.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }
 });

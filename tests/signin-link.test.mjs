@@ -126,6 +126,6 @@ test('a computer signs in by a QR code a signed-in phone approves', { timeout: 2
     assert.ok(html.includes('id="qr-side"') || html.includes('<html'), 'sign-in page renders');
   } finally {
     child.kill(); await exited;
-    await fs.rm(app, { recursive: true, force: true });
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }
 });
