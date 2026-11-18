@@ -127,7 +127,11 @@ function vpnReport(v) {
 // after boot, then every 30 s) asks the server what to do. If another system was picked it sets
 // GRUB's one-shot next entry (grub-reboot) and restarts into it. The same poll carries "restart
 // into…" while the machine is on, and tells the server the MAC address and boot menu for next time.
-const POWER_ON_MS = 90 * 1000;      // the boot poll runs every 30 s: silent this long = off (or in Windows)
+// In Windows, `agents/lilin-house-windows.py` sends the same poll with `running: "windows"`. Windows
+// can't read GRUB's menu, so the one Linux last sent is kept and its Windows entry marked current.
+// Windows restarts into GRUB's default (Linux); a restart meant to end in Windows is then finished
+// like a wake: Linux comes up, sees it was asked for Windows, and hands over.
+const POWER_ON_MS = 90 * 1000;      // the boot poll runs every 30 s: silent this long = off
 const WAKE_MS = 5 * 60 * 1000;      // a boot choice made when waking is honoured this long
 const RESTART_MS = 2 * 60 * 1000;   // a restart that isn't picked up in this time is dropped
 const POWER_FORGET_MS = 90 * 24 * 3600 * 1000;
@@ -143,9 +147,20 @@ const savePower = () => { try { fs.writeFileSync(powerFile, JSON.stringify(power
 const osLabel = (title) => String(title || '').replace(/\s*\(on \/dev\/[^)]*\)\s*$/, '').replace(/^Windows Boot Manager$/, 'Windows');
 const httpErr = (status, message) => Object.assign(new Error(message), { status });
 
+// Windows' own menu entry: the one Linux reported, else a stand-in until Linux has polled once.
+const WINDOWS_ENTRY = 'Windows Boot Manager';
+function inWindows(prevEntries) {
+  const list = (prevEntries || []).map((e) => ({ ...e, current: false }));
+  const win = list.find((e) => e.os === 'windows');
+  if (win) win.current = true;
+  else list.push({ title: WINDOWS_ENTRY, os: 'windows', current: true });
+  return list;
+}
+
 export function bootPoll(req, body) {
   const host = str(body.host, 40);
   if (!host || !/^[\w.-]+$/.test(host)) throw httpErr(400, 'Boot poll needs a host name.');
+  const windows = body.running === 'windows';
   const entries = (Array.isArray(body.entries) ? body.entries : []).slice(0, 16).map((e) => ({
     title: str(e?.title, 160),
     os: ['linux', 'windows', 'other'].includes(e?.os) ? e.os : 'other',
@@ -155,12 +170,14 @@ export function bootPoll(req, body) {
   const prev = power[host] || {};
   const m = power[host] = {
     host,
+    running: windows ? 'windows' : 'linux',
     mac: MAC_RE.test(mac) ? mac : prev.mac || null,
-    iface: str(body.iface, 20),
-    wired: body.wired === true,
-    wol: str(body.wol, 12),           // ethtool's Wake-on flags: "g" = magic packet; null = unknown
-    entries: entries.length ? entries : prev.entries || [],
-    default: str(body.default, 160),  // the entry GRUB starts when nobody picks one
+    // Wake-on-LAN, the card and GRUB's default are Linux's view (ethtool, /etc/default/grub): keep them in Windows
+    iface: windows ? prev.iface ?? str(body.iface, 20) : str(body.iface, 20),
+    wired: windows ? prev.wired ?? body.wired === true : body.wired === true,
+    wol: windows ? prev.wol ?? null : str(body.wol, 12),   // ethtool's Wake-on flags: "g" = magic packet; null = unknown
+    entries: windows ? inWindows(prev.entries) : entries.length ? entries : prev.entries || [],
+    default: windows ? prev.default ?? null : str(body.default, 160),  // the entry GRUB starts when nobody picks one
     ip: clean(req.socket.remoteAddress),
     uptime: num(body.uptime),
     at: Date.now(),
@@ -175,7 +192,12 @@ export function bootPoll(req, body) {
     const other = p.entry && p.entry !== current?.title ? p.entry : null;
     if (p.action === 'restart') {
       pending.delete(host);
-      if (Date.now() - p.at < RESTART_MS) todo = { reboot: true, entry: other };
+      if (Date.now() - p.at < RESTART_MS) {
+        todo = { reboot: true, entry: other };
+        // Windows restarts into GRUB's default (Linux): to end up in Windows again, Linux hands over
+        const final = m.entries.find((e) => e.title === (p.entry || current?.title));
+        if (windows && final?.os !== 'linux') pending.set(host, { action: 'wake', entry: final?.title || current?.title, at: Date.now() });
+      }
     } else if (Date.now() - p.at > WAKE_MS) {
       pending.delete(host);
     } else if (Date.now() - (m.uptime ?? 0) * 1000 >= p.at - 60 * 1000) {
@@ -232,7 +254,7 @@ async function sendWake(mac, ip) {
 }
 
 // action: 'wake' (it's off: send the magic packet; `entry` = what it should end up in) or
-// 'restart' (it's on in Linux: restart, into `entry` if that's another system).
+// 'restart' (it's on, in Linux or Windows: restart, into `entry` if that's another system).
 // Returns { message } for the toast and { detail } for the activity log.
 export async function powerAction(host, action, entry) {
   const m = power[host];
@@ -242,7 +264,7 @@ export async function powerAction(host, action, entry) {
   const on = Date.now() - m.at < POWER_ON_MS;
   const name = target ? osLabel(target.title) : null;
   if (action === 'restart') {
-    if (!on) throw httpErr(409, `${host} isn’t on in Linux, so Lilin can’t restart it.`);
+    if (!on) throw httpErr(409, `${host} isn’t on, so Lilin can’t restart it.`);
     pending.set(host, { action, entry: target?.title || null, at: Date.now() });
     const into = target && !target.current;
     return { message: into ? `Restarting ${host} into ${name} (within 30 s)` : `Restarting ${host} (within 30 s)`, detail: into ? `${host} into ${name}` : host };

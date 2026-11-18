@@ -1,5 +1,18 @@
 [
   {
+    "id": "2026-11-18-house-windows",
+    "date": "2026-11-18",
+    "title": "The House tab sees Windows",
+    "items": [
+      {
+        "kind": "improved",
+        "audience": "owner",
+        "title": "A dual-boot PC in Windows shows as on",
+        "text": "When a dual-boot computer is running Windows, its card in the House tab now says On · Windows instead of Off, or in Windows, and its health shows up too. Restart and Restart into Linux work from Windows as well, and a plain restart comes back to Windows. The Windows PC needs the new Windows helper (agents/lilin-house-windows.py) set up once."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-tv-episode-row",
     "date": "2026-11-18",
     "title": "Episodes on the TV show page",
