@@ -7,7 +7,7 @@ use crate::logic;
 use crate::text::{body, display};
 use crate::ui::{self, Ease, Lit};
 use crate::util::{arr, f, i, id, s, year};
-use crate::{key, t, Cx, Key, Nav, Res, Screen};
+use crate::{key, t, Cx, Key, Res, Screen};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use serde_json::Value;
@@ -94,13 +94,13 @@ impl SvtScreen {
         if s(d, "kind") == "film" {
             return String::from(match s(d, "status") {
                 "library" => t!("Play"),
-                "queued" => t!("Go to library"),
-                _ => t!("Add to library"),
+                "queued" => t!("On its way"),
+                _ => t!("Save"),
             });
         }
         let rest = self.open_eps();
         if rest == 0 {
-            return String::from(if self.episodes().iter().any(|e| s(e, "status") == "queued") { t!("Go to library") } else { t!("Open") });
+            return String::from(if self.episodes().iter().any(|e| s(e, "status") == "queued") { t!("On its way") } else { t!("Open") });
         }
         if rest == 1 {
             String::from(t!("Add 1 episode"))
@@ -168,7 +168,7 @@ impl SvtScreen {
         if s(&d, "kind") == "film" {
             match s(&d, "status") {
                 "library" => self.play_id(cx, &id(&d, "libraryId")),
-                "queued" => cx.nav.push(Nav::GoLibrary),
+                "queued" => cx.toast(t!("On its way from SVT Play.")),
                 _ => self.add(cx, serde_json::json!({})),
             }
             return;
@@ -180,7 +180,7 @@ impl SvtScreen {
         }
         let eps = self.episodes();
         if eps.iter().any(|e| s(e, "status") == "queued") {
-            cx.nav.push(Nav::GoLibrary);
+            cx.toast(t!("On its way from SVT Play."));
             return;
         }
         if let Some(n) = eps.iter().position(|e| s(e, "status") == "library") {
@@ -410,7 +410,7 @@ impl Screen for SvtScreen {
             }
             LIB => {
                 if self.first && !self.status_err {
-                    self.status = String::from(t!("Saved to your library in full quality, with Swedish subtitles."));
+                    self.status = String::from(t!("Saved in full quality, with Swedish subtitles."));
                 }
                 self.first = false;
             }

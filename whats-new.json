@@ -5,6 +5,11 @@
     "title": "TV playback on slower internet",
     "items": [
       {
+        "kind": "fix",
+        "title": "No more Go to library on the TV",
+        "text": "The TV apps have no library page, so the leftover Go to library buttons are gone. On SVT Play pages, Add to library is now Save, and something that's on its way just says so."
+      },
+      {
         "kind": "improved",
         "audience": "owner",
         "title": "No Download button on the TV",

@@ -113,7 +113,6 @@ pub enum Nav {
     Back,
     Replace(Box<dyn Screen>),
     Reset(Box<dyn Screen>),
-    GoLibrary,
 }
 
 pub trait Screen {
@@ -456,20 +455,6 @@ impl App {
                     old.leave(&mut self.cx);
                 }
                 self.stack.push(s);
-            }
-            Nav::GoLibrary => {
-                if self.stack.len() < 2 || !self.stack[0].is_home() {
-                    return;
-                }
-                self.cx.state.focus_pending = true;
-                while self.stack.len() > 1 {
-                    if let Some(mut s) = self.stack.pop() {
-                        s.leave(&mut self.cx);
-                    }
-                }
-                if let Some(t) = self.stack.last_mut() {
-                    t.refresh(&mut self.cx);
-                }
             }
         }
     }

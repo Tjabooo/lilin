@@ -6,7 +6,7 @@ use crate::logic::Pending;
 use crate::text::{body, display};
 use crate::ui::{self, Lit};
 use crate::util::{arr, b, f, id, s, year};
-use crate::{key, t, Cx, Key, Nav, Res, Screen};
+use crate::{key, t, Cx, Key, Res, Screen};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -24,7 +24,6 @@ enum Do {
     Play,
     Soon,
     Mine,
-    Library,
 }
 
 pub struct TitleScreen {
@@ -44,7 +43,6 @@ pub struct TitleScreen {
     ai: usize,
     status: String,
     status_err: bool,
-    owner: bool,
     on_way: Option<Pending>,
     alive: bool,
     follow: u32,
@@ -71,7 +69,6 @@ impl TitleScreen {
             cx.get(&alloc::format!("/api/tv/{}/seasons", crate::util::enc(&tid)), sid, SEASONS);
         }
         let soon = !tv && t.get("soon").map(|x| !s(x, "date").is_empty()).unwrap_or(false);
-        let owner = cx.state.is_owner();
         let mut actions = Vec::new();
         match mine {
             Some(Mine::Film(_)) => actions.push(Do::Mine),
@@ -101,7 +98,6 @@ impl TitleScreen {
             ai: 0,
             status: String::new(),
             status_err: false,
-            owner,
             on_way,
             alive: true,
             follow: 0,
@@ -112,20 +108,8 @@ impl TitleScreen {
         if !me.tv && me.mine.is_none() && me.actions.contains(&Do::Play) {
             cx.get(&alloc::format!("/api/title/movie/{}/copies", crate::util::enc(&me.tid)), sid, COPIES);
         }
-        if me.on_way.is_some() {
-            me.offer_library();
-        }
         me.follow = cx.timer(5000.0, sid, FOLLOW_T);
         me
-    }
-    /// Once it's on its way, the next thing to do is go and see it in the library.
-    fn offer_library(&mut self) {
-        if self.actions.contains(&Do::Library) || !self.owner {
-            return;
-        }
-        self.actions.insert(0, Do::Library);
-        self.at_seasons = false;
-        self.ai = 0;
     }
     fn label(&self, a: Do) -> String {
         match a {
@@ -138,7 +122,6 @@ impl TitleScreen {
                 Some(Mine::Film(_)) => t!("Play"),
                 _ => t!("Episodes"),
             }),
-            Do::Library => String::from(t!("Go to library")),
         }
     }
     fn act(&mut self, cx: &mut Cx) {
@@ -160,7 +143,6 @@ impl TitleScreen {
                 }
                 None => {}
             },
-            Do::Library => cx.nav.push(Nav::GoLibrary),
         }
     }
     fn play(&mut self, cx: &mut Cx) {

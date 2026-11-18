@@ -262,19 +262,6 @@
     var key = t.type === 'tv' ? 'tv:tv-' + t.id : 'movie:' + t.id;
     return state.pending.filter(function (p) { return p.key === key; })[0] || null;
   }
-  // Back to the library from anywhere, onto the row of what's on its way.
-  function goToLibrary() {
-    if (!history.length) return;
-    state.focusPending = true;
-    if (screen && screen.leave) screen.leave();
-    while (history.length > 1) { var s = history.pop(); if (s.leave) s.leave(); }
-    screen = history.pop();
-    app.innerHTML = '';
-    app.appendChild(screen.el);
-    if (screen.refresh) screen.refresh();
-    if (screen.focus) screen.focus();
-  }
-
   // ---------- genres ----------
   // One merged list from the server: { name, movie: TMDB film genre ID, tv: TMDB show genre ID }.
   function loadGenres() {
@@ -1107,11 +1094,11 @@
       if (!data) return T('Loading…');
       if (data.kind === 'film') {
         if (data.status === 'library') return T('Play');
-        if (data.status === 'queued') return T('Go to library');
-        return T('Add to library');
+        if (data.status === 'queued') return T('On its way');
+        return T('Save');
       }
       var rest = open(episodes()).length;
-      if (!rest) return episodes().some(function (e) { return e.status === 'queued'; }) ? T('Go to library') : T('Open');
+      if (!rest) return episodes().some(function (e) { return e.status === 'queued'; }) ? T('On its way') : T('Open');
       return rest === 1 ? T('Add 1 episode') : T('Add {0} episodes', rest);
     }
     function buildChips() {
@@ -1206,7 +1193,7 @@
         return loadLibrary().catch(function () {}).then(function () {
           if (!alive) return;
           paint();
-          if (first && !status.classList.contains('error')) status.textContent = T('Saved to your library in full quality, with Swedish subtitles.');
+          if (first && !status.classList.contains('error')) status.textContent = T('Saved in full quality, with Swedish subtitles.');
         });
       }).catch(function (err) {
         if (!alive) return;
@@ -1242,12 +1229,12 @@
       if (!data) return;
       if (data.kind === 'film') {
         if (data.status === 'library') playId(data.libraryId);
-        else if (data.status === 'queued') goToLibrary();
+        else if (data.status === 'queued') toast(T('On its way from SVT Play.'));
         else add({});
         return;
       }
       if (open(episodes()).length) { add({ seasons: [season().number] }); return; }
-      if (episodes().some(function (e) { return e.status === 'queued'; })) { goToLibrary(); return; }
+      if (episodes().some(function (e) { return e.status === 'queued'; })) { toast(T('On its way from SVT Play.')); return; }
       var here = episodes().filter(function (e) { return e.status === 'library'; })[0];
       if (here) { zone = 'episodes'; ei = episodes().indexOf(here); paint(); }
     }
@@ -1444,16 +1431,6 @@
       }
       playFirst({ type: 'movie', tmdbId: t.id, title: t.title, art: bigger(t.backdrop || t.poster) });
     }
-    // Once it's on its way, the next thing to do is go and see it in the library.
-    function offerLibrary() {
-      if (actions.some(function (a) { return a.library; })) return;
-      if (!owner) return; // Play picks it up; the library is the owner's view
-      var a = { el: h('button', { class: 'title-action', text: T('Go to library') }), act: goToLibrary, library: true };
-      actions.unshift(a);
-      actionsEl.insertBefore(a.el, actionsEl.firstChild);
-      zone = 'actions';
-      ai = 0;
-    }
     // Seasons pick what Play starts; for a show you already have, Open comes first.
     if (lib) zone = 'actions';
     var actionsEl = h('div', { class: 'title-actions' }, actions.map(function (a) { return a.el; }));
@@ -1489,7 +1466,6 @@
         if (track) track.style.transform = 'translateX(' + (-Math.max(0, si - 5) * 82) + 'px)';
       }
     }
-    if (onWay) offerLibrary();
     buildSeasons(); paint();
     show({ el: el, focus: paint, leave: function () { alive = false; },
       key: function (code) {
