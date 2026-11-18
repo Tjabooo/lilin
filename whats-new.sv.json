@@ -1,4 +1,17 @@
 {
+  "2026-11-18-start-1080p": {
+    "title": "Nya filmer startar snabbare och blir sedan skarpare",
+    "items": {
+      "Starts in 1080p, switches to 4K by itself": {
+        "title": "Startar i 1080p, byter till 4K av sig själv",
+        "text": "En film som inte finns på servern än startar nu från en snabb 1080p-kopia. 4K-kopian laddas ner i bakgrunden, och när den är klar flyttas filmen över till den på samma ställe, på skärmar som är skarpa nog att visa skillnaden."
+      },
+      "An honest wait": {
+        "title": "En ärlig väntan",
+        "text": "Medan själva början av en video fortfarande är på väg visar Görs redo inte längre en nedräkning som står still."
+      }
+    }
+  },
   "2026-11-18-copies-wait": {
     "title": "Videor du inte sett förut startar smidigare",
     "items": {

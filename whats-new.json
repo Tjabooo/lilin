@@ -1,5 +1,20 @@
 [
   {
+    "id": "2026-11-18-start-1080p",
+    "date": "2026-11-18",
+    "title": "New films start faster, then sharpen",
+    "items": [
+      {
+        "title": "Starts in 1080p, switches to 4K by itself",
+        "text": "A film that isn’t on the server yet now starts from a quick 1080p copy. The 4K copy downloads in the background, and when it’s ready your film moves over to it at the same spot, on screens sharp enough to show the difference."
+      },
+      {
+        "title": "An honest wait",
+        "text": "While the very start of a video is still on its way, Getting it ready no longer shows a countdown that doesn’t move."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-copies-wait",
     "date": "2026-11-18",
     "title": "Videos you haven’t watched before start smoother",
