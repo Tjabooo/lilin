@@ -24,6 +24,19 @@
       }
     }
   },
+  "2026-11-18-auto-quality": {
+    "title": "Kvaliteten väljs av sig själv",
+    "items": {
+      "No more Quality setting": {
+        "title": "Ingen kvalitetsinställning längre",
+        "text": "Lilin väljer nu bilden efter skärmen du tittar på. På en 1080p-skärm kommer filmer i 1080p. På en skarpare skärm, som en mobil, en tv eller en 1440p- eller 4K-skärm, börjar filmen i 1080p så att den startar snabbt, 4K-versionen laddas ner i bakgrunden och uppspelningen byter till den när den är klar."
+      },
+      "Get a sharper copy": {
+        "title": "Hämta en skarpare kopia",
+        "text": "Tittar du på en film som bara finns i 1080p på en skarpare skärm? Öppna Kvalitet i spelaren och tryck på Hämta en skarpare kopia. 4K-versionen laddas ner i bakgrunden och uppspelningen byter till den när den är klar."
+      }
+    }
+  },
   "2026-11-18-posters-iphone": {
     "title": "Affischerna är tillbaka på iPhone",
     "items": {

@@ -2664,4 +2664,10 @@ export default {
   "{0} of these play instantly, so they come first.": "{0} av dem spelas direkt, så de kommer först.",
   // pause screen
   "You’re watching": "Du tittar på",
+  // automatic quality (screen decides)
+  "Quality follows your screen": "Kvaliteten följer din skärm",
+  "Automatic. This screen is sharper than 1080p: films start in 1080p and switch to 4K once it’s downloaded.": "Automatiskt. Den här skärmen är skarpare än 1080p: filmer börjar i 1080p och byter till 4K när den har laddats ner.",
+  "Automatic. This is a 1080p screen, so films come in 1080p. Someone on a sharper screen can still get 4K.": "Automatiskt. Det här är en 1080p-skärm, så filmer kommer i 1080p. Den som tittar på en skarpare skärm kan fortfarande hämta 4K.",
+  "Get a sharper copy": "Hämta en skarpare kopia",
+  "Downloads the 4K version in the background. Playback moves to it once it’s ready.": "Laddar ner 4K-versionen i bakgrunden. Uppspelningen byter till den när den är klar.",
 };

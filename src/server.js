@@ -58,7 +58,7 @@ import * as versions from './versions.js';
 import { planEpisodeOrder, activeSeasons, holdSeason } from './episode-order.js';
 import { fakeRelease } from './fake-release.js';
 import { mainVideo, otherFilm } from './same-name-film.js';
-import { PROFILES, isDualAudio, PLAY_MARGIN } from './recommend.js';
+import { isDualAudio, PLAY_MARGIN } from './recommend.js';
 import * as accounts from './accounts.js';
 import * as live from './live.js';
 import { NotesStore } from './notes.js';
@@ -1647,15 +1647,18 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     ? anime.buildContext(type, tmdbId, tmdb, { details }).catch((e) => { console.warn(`[anime] ${title}: ${e.message}`); return null; })
     : null; // a promise: the job waits for it, the Download button doesn't
   const upgrade = type === 'tv' && body.upgrade ? await upgradeSource(user, title, seasonNo) : null;
+  // A film here below 4K, from the player's "Get a sharper copy": the quality it's here in (smart-download.js lift).
+  const lift = type === 'movie' && body.upgrade ? await filmQualityHere(tmdbId, user) : null;
+  if (lift) background = true; // nobody waits on it: no cold start, and it yields to first watches
   // Dubbed: dual-audio releases only, anime only. The choice is remembered for the player.
   const dub = Boolean(animeCtx && !upgrade && body.dub === true);
   if (animeCtx && !upgrade && typeof body.dub === 'boolean') rememberDub(user, type, tmdbId, dub);
   // Running time (minutes, a film's or an episode's): Best Quality checks a pick can play while it downloads.
   const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
-  const want = { ...downloadWant(user, body), runtime };
+  const want = { ...downloadWant(user, body, { background }), runtime };
   const documentary = (details.genres || []).some((g) => g.id === 99);
   const id = smart.startSmartJob({
-    type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub, background,
+    type, title, year, tmdbId, season: seasonNo, episodes: upgrade || !episodes?.length ? null : episodes, range: !upgrade && range, requester: user.id, subs, anime: upgrade ? null : animeCtx, dub, background, lift,
     upgrade: upgrade && { episodes: upgrade.episodes, bytes: upgrade.bytes, names: upgrade.names, quality: upgrade.quality },
     originalTitle: original && original !== title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
     want,
@@ -1669,7 +1672,7 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     addDownload: async (opts) => { const added = await addDownload({ ...opts, user, film, show }); if (added?.hash) onAdded?.(added.hash); return added; },
     coldStart: background || !coldStarts ? null : (start) => coldStarts.register({ ...start, userId: user.id, runtime: type === 'tv' ? runtime || 45 : runtime, title, tmdbId }),
     wantSubtitles: (link, list, name) => { subtitles.wantSubtitles(link, list, name); setTimeout(checkSubtitleWants, 30_000); },
-    filmHave: () => filmHave(tmdbId, user, want.quality, { dub }), freeBytes: freeBytesFor,
+    filmHave: () => filmHave(tmdbId, user, want.quality, { dub, onTheWay: Boolean(lift) }), freeBytes: freeBytesFor,
     seasonEpisodes: (t, y, n) => shows.seasonEpisodes(t, y, n, tmdb),
     haveEpisodes: (key, n, ctx) => haveEpisodes(key, n, user, ctx, { dub }),
     trimPack: (link, n, owned, ctx, opts = {}) => trimSeasonPack(link, n, owned, { ctx, only: opts.only ?? null }), removePack: removeNewPack,
@@ -1679,7 +1682,18 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     upgrading: ({ hash }, n) => registerUpgrade(hash, { title, season: n, by: user.id, old: upgrade?.old || [] }),
     log: (msg) => console.log(msg),
   });
-  return { id, title, type, season: seasonNo, episodes: upgrade ? null : episodes, upgrade: Boolean(upgrade) };
+  return { id, title, type, season: seasonNo, episodes: upgrade ? null : episodes, upgrade: Boolean(upgrade || lift) };
+}
+// The best quality this film is here in, for someone who can watch it ("1080p"); 409 when it isn't here or is already 4K.
+const LIFT_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
+async function filmQualityHere(tmdbId, user) {
+  const items = (await libraryVisibleItems(await scanLibrary(), user)) || [];
+  const ids = items.length ? await shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), null) : new Map();
+  const here = items.filter((i) => Number(ids.get(i.id)?.tmdbId) === Number(tmdbId) && !ids.get(i.id)?.movieAmbiguous)
+    .map((i) => versions.qualityOf(i.file) || '1080p').sort((a, b) => LIFT_RANK[b] - LIFT_RANK[a]);
+  if (!here.length) throw new HttpError(409, 'This film isn’t on the server yet.');
+  if (here[0] === '2160p') throw new HttpError(409, 'This film is already here in 4K.');
+  return here[0];
 }
 
 // ---- Upgrade quality ----
@@ -1902,8 +1916,9 @@ async function freeBytesFor(type) {
 // is already downloading (you're added to its requesters, as when adding the same magnet twice).
 // quality: an exact resolution was asked for (Advanced). A copy in another resolution doesn't count:
 // the new one becomes a version of the film (versions.js).
-async function filmHave(tmdbId, user, quality = null, { dub = false } = {}) {
-  const items = await libraryVisibleItems(await scanLibrary(), user);
+// onTheWay: only whether a copy is still downloading (a sharper copy of a film that's here: smart-download.js lift).
+async function filmHave(tmdbId, user, quality = null, { dub = false, onTheWay = false } = {}) {
+  const items = onTheWay ? null : await libraryVisibleItems(await scanLibrary(), user);
   if (items?.length) {
     const ids = await shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), null);
     const mine = accounts.libraryOf(user.id);
@@ -1917,7 +1932,8 @@ async function filmHave(tmdbId, user, quality = null, { dub = false } = {}) {
   }
   let list = [];
   try { list = await qbit('/api/v2/torrents/info'); } catch { return null; }
-  const active = list.find((t) => Number(shows.filmDownload(t.hash)?.id) === Number(tmdbId) && (!dub || isDualAudio(t.name)) && !/^(missingFiles|error|unknown)$/.test(t.state || ''));
+  const active = list.find((t) => Number(shows.filmDownload(t.hash)?.id) === Number(tmdbId) && (!dub || isDualAudio(t.name)) && !/^(missingFiles|error|unknown)$/.test(t.state || '')
+    && (!onTheWay || Number(t.progress) < 1));
   if (!active) return null;
   accounts.recordTorrent(active.hash, torrentOwner(active), active.name);
   accounts.requestTorrent(active.hash, user.id, active.name);
@@ -2115,17 +2131,22 @@ async function removeNewPack(link) {
   torrentInventory.at = 0;
 }
 
-// Download preferences (Settings → Downloads), optionally overridden for one command.
+// What a download looks for. The picture follows the screen it's for, not a setting (Oliver 2026-11-18: the Quality
+// setting is gone). body.screen (app.js sharpScreen): "hd" = a 1080p screen, so a film gets 1080p and nothing bigger
+// follows; "uhd" (phones, 1440p/4K monitors, TVs; also the TV apps and anything else that doesn't say) = it starts
+// on a quick 1080p and the best picture follows in the background as another version (smart-download.js betterCopy).
+// Background saves (Save for later, Follow: no screen to go by) take 1080p; the player's "Get a sharper copy" lifts it.
+// Episodes stay 1080p (a first watch fetches the 24 after it); Upgrade quality is there for a season that looks soft.
+// Settings → Downloads keeps the size limit and the audio language.
 const EXACT_QUALITIES = ['2160p', '1440p', '1080p', '720p'];
-function downloadWant(user, body = {}) {
+const SCREENS = ['hd', 'uhd'];
+function downloadWant(user, body = {}, { background = false } = {}) {
   const s = user.settings || {};
-  const saved = PROFILES.includes(s.downloadProfile) ? s.downloadProfile
-    : ['2160p', '1440p'].includes(s.quality) ? 'best' : s.quality === '720p' ? 'save' : 'balanced';
-  const profile = PROFILES.includes(body.profile) ? body.profile : saved;
+  const screen = SCREENS.includes(body.screen) ? body.screen : background ? 'hd' : 'uhd';
   return {
-    profile,
-    // A resolution chosen before profiles existed still leads, as long as the profile is the saved one.
-    prefer: profile === saved && EXACT_QUALITIES.includes(s.quality) ? s.quality : null,
+    profile: body.type !== 'tv' && screen === 'uhd' ? 'best' : 'balanced',
+    screen,
+    prefer: null,
     quality: EXACT_QUALITIES.includes(body.quality) ? body.quality : null,
     maxBytes: Number(s.maxSize) > 0 ? Number(s.maxSize) * 1024 ** 3 : 0,
     audioLang: s.audioLang || '',

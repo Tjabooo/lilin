@@ -61,7 +61,7 @@ export function startSmartJob(spec, deps) {
   const key = showKey(spec.title);
   const only = Array.isArray(spec.episodes) && spec.episodes.length ? [...new Set(spec.episodes)].sort((a, b) => a - b) : null;
   const target = (spec.type === 'tv' ? `tv:${key === 'housemd' ? 'house' : key}:${spec.season}:${only?.join(',') || 'all'}` : `movie:${key}:${spec.year || ''}`)
-    + (spec.upgrade ? ':upgrade' : '') + (spec.dub ? ':dub' : '');
+    + (spec.upgrade || spec.lift ? ':upgrade' : '') + (spec.dub ? ':dub' : '');
   const running = [...jobs.values()].find((j) => j.state === 'running' && j.requester === (spec.requester ?? null) && j.target === target);
   if (running) return running.id; // pressing Download twice never queues anything twice
   const job = {
@@ -297,23 +297,28 @@ async function tryAlternative(job, deps, request) {
 
 async function runFilm(job, spec, deps) {
   await animeOf(job, spec);
+  // lift: the film is here below the best picture its screen shows (the player's "Get a sharper copy"): the best
+  // release that beats it follows as another version (versions.js), in the background. spec.lift = the quality here.
+  const lift = spec.lift || null;
   const have = await deps.filmHave?.();
-  if (have === 'library') return done(job, 'have', 'Already in your library.');
+  if (lift && have === 'downloading') return done(job, 'queued', 'A copy of this film is already on its way.');
+  if (lift) { /* it's here on purpose */ } else if (have === 'library') return done(job, 'have', 'Already in your library.');
   if (have === 'server') return done(job, 'have', 'It was already on the server, so it’s in your library now.');
   if (have === 'downloading') return done(job, 'queued', 'Already on its way.');
   const fromAlternative = (alt) => {
     job.added.push({ name: alt.name, quality: alt.quality || null, size: null, source: alt.source });
     done(job, 'started', alt.message);
   };
-  if (spec.preferAlternative) {
+  if (spec.preferAlternative && !lift) {
     const alt = await tryAlternative(job, deps, { type: 'movie' });
     if (alt) return fromAlternative(alt);
   }
   const freeBytes = await deps.freeBytes?.('movie');
   // Someone is waiting to watch: a release that can start quickly (recommend.js, want.cold); Best Quality's own pick
   // follows once they're watching (BETTER_FOLLOWS).
-  const cold = watchingNow(spec, deps);
-  const want = { ...spec.want, type: 'movie', title: spec.title, year: spec.year, freeBytes, anime: Boolean(spec.anime), aliases: spec.anime?.keys || [], cold };
+  const cold = !lift && watchingNow(spec, deps);
+  const want = { ...spec.want, type: 'movie', title: spec.title, year: spec.year, freeBytes, anime: Boolean(spec.anime), aliases: spec.anime?.keys || [], cold,
+    ...(lift ? { profile: 'best', stream: false } : {}) };
   const names = [spec.title, spec.originalTitle, ...(spec.anime?.queryTitles || [])].filter(Boolean);
   const queries = [...new Set([...names.map((t) => [t, spec.year].filter(Boolean).join(' ')), spec.title, ...(spec.anime?.queryTitles || []),
     ...(want.profile === 'best' ? QUALITY_WORDS.map((w) => [spec.title, spec.year, w].filter(Boolean).join(' ')) : [])])];
@@ -336,6 +341,8 @@ async function runFilm(job, spec, deps) {
       if (best.pick) break;
     }
   }
+  if (lift && best.pick && (RES_RANK[best.pick.quality] ?? -1) <= (RES_RANK[lift] ?? 2)) best = { pick: null, why: `There’s no sharper copy than ${lift} around yet.` };
+  if (lift && !best.pick) return done(job, 'none', best.why || 'There’s no sharper copy around yet.');
   if (!best.pick) {
     const alt = spec.preferAlternative ? null : await tryAlternative(job, deps, { type: 'movie' });
     if (alt) return fromAlternative(alt);
@@ -345,6 +352,7 @@ async function runFilm(job, spec, deps) {
   job.step = 'Starting download…';
   const added = await add(best.pick, 'movie', spec, deps, needOf(best.pick, want, 'movie'));
   job.added.push({ name: best.pick.name, quality: best.pick.quality, size: best.pick.size || null, seeders: best.pick.seeders, hash: added.hash || null });
+  if (lift) return done(job, 'started', `The ${best.pick.quality === '2160p' ? '4K' : best.pick.quality} version is on its way. If you’re watching, playback moves to it once it’s ready.`);
   const pool = results.filter(fine);
   const better = cold ? betterCopy(pool, best.pick, { ...want, freeBytes: Number.isFinite(freeBytes) ? freeBytes - (best.pick.size || 0) : freeBytes }, deps) : null;
   if (better) deps.log?.(`[smart] ${spec.title}: ${best.pick.name} to watch now; ${better.name} follows once it plays`);
@@ -358,9 +366,11 @@ async function runFilm(job, spec, deps) {
 const BETTER_FOLLOWS = 0.75;     // picture score (recommend.js) it has to be ahead by
 // A first watch now starts on 1080p (recommend.js), so a 1440p/4K the normal pick would have taken always follows.
 const RES_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
+// want.screen 'hd' (a 1080p screen, server.js downloadWant): nothing sharper than 1080p follows, it couldn't show it.
 function betterCopy(pool, pick, want, deps) {
   const full = pickBest(pool, { ...want, cold: false, stream: false }, deps.parseName).pick;
   if (!full || full === pick || full.name === pick.name) return null;
+  if (want.screen === 'hd' && (RES_RANK[full.quality] ?? 2) > RES_RANK['1080p']) return null;
   if ((RES_RANK[full.quality] ?? -1) > (RES_RANK[pick.quality] ?? 2)) return full;
   if (want.profile !== 'best') return null;
   return pictureScore(full, want, 'movie') - pictureScore(pick, want, 'movie') >= BETTER_FOLLOWS ? full : null;

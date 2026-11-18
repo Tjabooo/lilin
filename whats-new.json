@@ -32,6 +32,23 @@
     ]
   },
   {
+    "id": "2026-11-18-auto-quality",
+    "date": "2026-11-18",
+    "title": "Quality picks itself",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "No more Quality setting",
+        "text": "Lilin now picks the picture for the screen you’re watching on. On a 1080p screen, films come in 1080p. On a sharper screen, like a phone, a TV or a 1440p or 4K monitor, a film starts in 1080p so it plays quickly, the 4K version downloads in the background, and playback moves to it once it’s ready."
+      },
+      {
+        "kind": "new",
+        "title": "Get a sharper copy",
+        "text": "Watching a film that’s only here in 1080p on a sharper screen? Open Quality in the player and press Get a sharper copy. The 4K version downloads in the background and playback moves to it when it’s done."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-posters-iphone",
     "date": "2026-11-18",
     "title": "Posters are back on iPhone",

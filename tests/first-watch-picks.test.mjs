@@ -135,7 +135,8 @@ const brWant = { type: 'movie', title: 'Blade Runner 2049', year: 2017, runtime:
 test('a first watch on Best Quality starts from a copy that can stream; the remux is for later', () => {
   const rows = results(br2049);
   assert.match(pickBest(rows, brWant, parseName).pick.name, /2160p\.US\.BluRay\.REMUX/, 'Best Quality on its own: the remux');
-  assert.equal(pickBest(rows, { ...brWant, cold: true }, parseName).pick.name, 'Blade.Runner.2049.2017.UHD.BluRay.2160p.DDP.7.1.DV.HDR.x265-hall');
+  // A first watch starts on 1080p (H.264 first); the 4K follows as another version (Oliver 2026-11-18).
+  assert.equal(pickBest(rows, { ...brWant, cold: true }, parseName).pick.name, 'Blade.Runner.2049.2017.1080p.BluRay.H264.AAC-RARBG');
   assert.equal(pickBest(rows, { ...brWant, cold: true, quality: '2160p' }, parseName).pick.quality, '2160p', 'an exact resolution stays that resolution');
   assert.equal(coldStreamable(rows[0], brWant), false);
   assert.equal(coldStreamable(rows[2], brWant), true);
@@ -150,16 +151,43 @@ test('Download on a film to watch now: the quick copy, and Best Quality’s pick
   const deps = (over = {}) => ({ parseName, searchTorrents: async () => ({ results: rows }),
     addDownload: async ({ link, name }) => { added.push(name); return { existing: false, hash: hashOf(link) }; }, coldStart: (x) => starts.push(x), ...over });
   await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 1, want: { profile: 'best', runtime: 164 } }, deps()));
-  assert.deepEqual(added, ['Blade.Runner.2049.2017.UHD.BluRay.2160p.DDP.7.1.DV.HDR.x265-hall']);
+  assert.deepEqual(added, ['Blade.Runner.2049.2017.1080p.BluRay.H264.AAC-RARBG']);
   assert.match(starts[0].better.name, /2160p\.US\.BluRay\.REMUX/);
   // Nobody watching (Save for later): the profile's own pick, as before.
   added.length = 0;
   await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 2, background: true, want: { profile: 'best', runtime: 164 } }, deps({ filmHave: async () => null })));
   assert.match(added[0], /2160p\.US\.BluRay\.REMUX/);
-  // Balanced: nothing to follow.
+  // A 1080p screen (server.js downloadWant: screen "hd", balanced): 1080p, and nothing sharper follows.
   starts.length = 0;
-  await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 3, want: { profile: 'balanced', runtime: 164 } }, deps()));
+  await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 3, want: { profile: 'balanced', screen: 'hd', runtime: 164 } }, deps()));
   assert.equal(starts[0].better, undefined);
+  // Even when only 4K would be "better" than a quick pick: an hd screen never gets more than 1080p following.
+  starts.length = 0;
+  await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 4, want: { profile: 'best', screen: 'hd', runtime: 164 } }, deps()));
+  assert.equal(starts[0].better, undefined);
+});
+
+test('Get a sharper copy: a film here in 1080p gets its best picture as another version, in the background', async () => {
+  const rows = results(br2049);
+  const starts = [], added = [];
+  const deps = (over = {}) => ({ parseName, searchTorrents: async () => ({ results: rows }), filmHave: async () => 'library',
+    addDownload: async ({ link, name }) => { added.push(name); return { existing: false, hash: hashOf(link) }; }, coldStart: (x) => starts.push(x), ...over });
+  const job = await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 1, lift: '1080p', want: { profile: 'balanced', runtime: 164 } }, deps()));
+  assert.equal(job.outcome, 'started');
+  assert.match(added[0], /2160p\.US\.BluRay\.REMUX/);
+  assert.equal(starts.length, 0, 'nobody waits on it: no cold start');
+  assert.match(job.message, /4K version is on its way/);
+  // Nothing sharper around: says so, adds nothing.
+  added.length = 0;
+  const only1080 = results(br2049.filter(([n]) => /1080p/.test(n)));
+  const none = await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 2, lift: '1080p', want: { profile: 'balanced', runtime: 164 } },
+    deps({ searchTorrents: async () => ({ results: only1080 }) })));
+  assert.equal(none.outcome, 'none');
+  assert.deepEqual(added, []);
+  // A copy still downloading: no second one.
+  const busy = await wait(startSmartJob({ type: 'movie', title: 'Blade Runner 2049', year: 2017, requester: 3, lift: '1080p', want: { profile: 'balanced', runtime: 164 } },
+    deps({ filmHave: async () => 'downloading' })));
+  assert.equal(busy.outcome, 'queued');
 });
 
 // ---------- quick searches that wait while the results are poor ----------

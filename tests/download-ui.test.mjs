@@ -19,10 +19,10 @@ test('title sheets offer Play / Download, never a release list, quality rail or 
 test('a film downloads with one press; a show uses the minimal season panel', () => {
   assert.match(ui, /get\.addEventListener\('click', async \(\) => \{[\s\S]*?return start\(\);/);
   assert.match(ui, /runDownloadCommand\(body\(\)\)/);
-  assert.match(ui, /api\('\/api\/downloads\/smart', jsonPost\(body\)\)/);
-  for (const text of ['\'Season\'', '\'Quality\'', 'Lilin picks a good copy of the season and skips episodes you already have.',
+  assert.match(ui, /api\('\/api\/downloads\/smart', jsonPost\(\{ \.\.\.body, screen: screenClass\(\) \}\)\)/, 'every download says what screen it is for');
+  for (const text of ['\'Season\'', 'Lilin picks a good copy of the season and skips episodes you already have.',
     'Add Season', 'Advanced options', 'This season is ready to watch', 'The rest are on their way', 'Retry unavailable']) assert.ok(ui.includes(text), text);
-  assert.match(ui, /\['balanced', T\('Balanced · 1080p'\)\]/);
+  assert.doesNotMatch(ui, /Balanced · 1080p|savedProfile|downloadProfile/, 'no Quality setting: the screen decides');
   assert.match(ui, /'aria-expanded': String\(ps\.open\), 'aria-controls': panelId/);
   assert.match(ui, /if \(e\.detail === 0\) seasonSel\.focus\(\)/, 'keyboard opens straight onto Season');
 });
@@ -53,9 +53,10 @@ test('play first: members only ever meet Play; transfers and their numbers are t
   assert.match(ui, /get\.hidden = true;/, 'no Add to library button: Play does it');
 });
 
-test('Settings has one Downloads group: profile, size limit, audio language', () => {
+test('Settings has one Downloads group: automatic quality, size limit, audio language', () => {
   const settings = between('function renderSettings() {', 'function ownerSettings()');
-  assert.match(settings, /saveMe\(\{ downloadProfile: v \}\)/);
+  assert.doesNotMatch(settings, /downloadProfile/);
+  assert.match(settings, /settingsRow\(T\('Quality'\), sharpScreen\(\)/);
   assert.match(settings, /saveMe\(\{ maxSize: Number\(v\) \}\)/);
   assert.match(settings, /saveMe\(\{ audioLang: v \}\)/);
   assert.doesNotMatch(settings, /Preferred quality/);

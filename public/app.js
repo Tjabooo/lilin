@@ -1924,7 +1924,7 @@ async function playTitle(x, opener, { body = null, dub = false } = {}) {
   const copy = targetServerCopy(x, { dub });
   if (copy) { try { await addAndPlay(copy); } catch (err) { toast(err.message); } return; }
   const fetch = body || (canGet() && x.t.id != null ? (isEpisodeTarget(x)
-    ? { type: 'tv', tmdbId: x.t.id, season: x.season, episodes: [x.episode], profile: savedProfile() }
+    ? { type: 'tv', tmdbId: x.t.id, season: x.season, episodes: [x.episode] }
     : { type: 'movie', tmdbId: x.t.id }) : null);
   if (!fetch && !targetTransfers(x).length) { toast(T('This isn’t on Lilin yet.')); return; }
   getReady(x, fetch, opener);
@@ -3325,13 +3325,17 @@ const tvSeasons = (id) => cachedFor(`/api/tv/${id}/seasons`, 30 * 60 * 1000).the
 // One command for films, seasons and single episodes. Films: Download picks a release straight away.
 // Shows: Download opens a small panel (season, quality, Download Season). Manual releases and an
 // exact resolution live under Advanced options. Progress shows where the title is, never as a list.
-const PROFILE_OPTIONS = [['save', T('Save Space')], ['balanced', T('Balanced · 1080p')], ['best', T('Best Quality')]];
-const EXACT_OPTIONS = [['', T('Use the quality setting')], ['2160p', T('4K only')], ['1440p', T('1440p only')], ['1080p', T('1080p only')], ['720p', T('720p only')]];
-const savedProfile = () => {
-  const p = prefs();
-  return ['save', 'balanced', 'best'].includes(p.downloadProfile) ? p.downloadProfile
-    : ['2160p', '1440p'].includes(p.quality) ? 'best' : p.quality === '720p' ? 'save' : 'balanced';
+const EXACT_OPTIONS = [['', T('Automatic')], ['2160p', T('4K only')], ['1440p', T('1440p only')], ['1080p', T('1080p only')], ['720p', T('720p only')]];
+// No Quality setting (Oliver 2026-11-18): the screen decides. "uhd" = more pixels than 1080p either way (phones,
+// 1440p/4K monitors): a film starts on a quick 1080p and the best picture follows in the background, and playback
+// moves to it (upgradeVersion). "hd" = a 1080p screen: 1080p only, no 4K fetched that it couldn't show.
+// Sent with every download (server.js downloadWant).
+const screenPixels = () => {
+  const d = devicePixelRatio || 1;
+  return [Math.max(screen.width, screen.height) * d, Math.min(screen.width, screen.height) * d];
 };
+const sharpScreen = () => { const [long, short] = screenPixels(); return long > 2400 || short > 1300; };
+const screenClass = () => (sharpScreen() ? 'uhd' : 'hd');
 const canGet = () => Boolean(state.status.torrents && canDownload());
 
 // Commands by target, so a sheet that re-renders (or is reopened) shows the same state.
@@ -3350,7 +3354,7 @@ async function runDownloadCommand(body) {
   downloadCommands.set(key, cmd);
   refreshCommandViews();
   try {
-    const { id } = await api('/api/downloads/smart', jsonPost(body));
+    const { id } = await api('/api/downloads/smart', jsonPost({ ...body, screen: screenClass() }));
     for (let i = 0; i < 500; i++) { // a few minutes at most; the job keeps going on the server regardless
       cmd.job = await api(`/api/downloads/smart/${id}`);
       refreshCommandViews();
@@ -3363,7 +3367,8 @@ async function runDownloadCommand(body) {
   await loadDownloads();
   patchUnifiedLibrary();
   refreshCommandViews();
-  if (['started', 'partial'].includes(cmd.job?.outcome)) toast(body.upgrade ? T('{0}: upgrading season {1}', cmd.job.title, cmd.job.season) : cmd.job.type === 'tv' ? `${cmd.job.title}: ${cmd.job.message}` : T('{0} is on its way. It’ll be ready to watch soon.', cmd.job.title));
+  if (['started', 'partial'].includes(cmd.job?.outcome)) toast(body.upgrade && body.type === 'movie' ? `${cmd.job.title}: ${cmd.job.message}`
+    : body.upgrade ? T('{0}: upgrading season {1}', cmd.job.title, cmd.job.season) : cmd.job.type === 'tv' ? `${cmd.job.title}: ${cmd.job.message}` : T('{0} is on its way. It’ll be ready to watch soon.', cmd.job.title));
   return cmd;
 }
 // A command's result in plain words, or null while there's nothing to say.
@@ -3640,15 +3645,13 @@ const RANGE_FROM = 40; // episodes in a season before the panel offers a range
 // lead: the toggle is the title page's gold button (it turns quiet while its panel is open: Add Season is then).
 function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   let ps = showPanels.get(t.id);
-  if (!ps) { ps = { open: false, season, profile: savedProfile(), exact: '', last: {}, ranges: {} }; showPanels.set(t.id, ps); }
+  if (!ps) { ps = { open: false, season, exact: '', last: {}, ranges: {} }; showPanels.set(t.id, ps); }
   else if (season != null && !ps.touched) ps.season = season;
   const panelId = `dl-panel-${t.id}`;
   const toggle = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon title-add', 'data-act': 'download', 'aria-expanded': String(ps.open), 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add to library')));
   const paintToggle = () => { const lit = lead && !ps.open; toggle.classList.toggle('play-btn', lit); toggle.classList.toggle('action-btn', lit); toggle.classList.toggle('chip', !lit); };
   const dub = audioChoice({ ...t, type: 'tv' }, `${panelId}-audio`, () => { addError = ''; panel._update?.(); });
   const seasonSel = h('select', { class: 'sub-select', id: `${panelId}-season`, disabled: true }, h('option', {}, T('Loading seasons…')));
-  const profileSel = h('select', { class: 'sub-select', id: `${panelId}-quality` }, PROFILE_OPTIONS.map(([v, text]) => h('option', { value: v }, text)));
-  profileSel.value = ps.profile;
   const avail = h('p', { class: 'dl-avail' });
   const note = h('p', { class: 'dl-note' });
   // Episodes: the whole season, or a range of it ("150 to 200") when the season is long.
@@ -3666,7 +3669,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   const panel = h('div', { class: 'dl-panel', id: panelId, hidden: !ps.open },
     h('div', { class: 'dl-fields' },
       h('div', { class: 'dl-field' }, h('label', { for: seasonSel.id }, T('Season')), seasonSel),
-      h('div', { class: 'dl-field' }, h('label', { for: profileSel.id }, T('Quality')), profileSel), dub.field, scopeField, rangeRow, dub.hint),
+      dub.field, scopeField, rangeRow, dub.hint),
     note, avail, submit, quiet, h('div', { class: 'dl-result' }, status, retry),
     advancedOptions(`tv-${t.id}`, {
       exact: ps.exact, onExact: (v) => { ps.exact = v; },
@@ -3723,7 +3726,6 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     dub.focus();
   });
   seasonSel.addEventListener('change', () => { ps.season = Number(seasonSel.value); ps.touched = true; addError = ''; panel._update(); });
-  profileSel.addEventListener('change', () => { ps.profile = profileSel.value; });
   // The season's range state, its TMDB numbering (first..last) and the episodes it asks for.
   const seasonInfo = () => seasons?.find((x) => x.number === ps.season) || null;
   const longSeason = () => (seasonInfo()?.episodes || 0) >= RANGE_FROM;
@@ -3744,7 +3746,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     input.addEventListener('change', () => { input.value = String(rangeOf()[k]); }); // an empty box goes back to the last number
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit.click(); });
   }
-  const body = (episodes = null, range = false) => ({ type: 'tv', tmdbId: t.id, season: ps.season, profile: ps.profile,
+  const body = (episodes = null, range = false) => ({ type: 'tv', tmdbId: t.id, season: ps.season,
     ...(ps.exact ? { quality: ps.exact } : {}), ...(episodes?.length ? { episodes } : {}), ...(range ? { range: true } : {}), ...(dub.anime ? { dub: dub.dubbing() } : {}) });
   const run = (episodes, range = false) => {
     if (submit.getAttribute('aria-disabled') === 'true' || !ps.season) return;
@@ -3822,7 +3824,6 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     paintToggle();
     showDubbed(dub.anime);
     seasonSel.disabled = locked || !seasons?.length;
-    profileSel.disabled = locked;
     scopeSel.disabled = fromIn.disabled = toIn.disabled = locked;
     dub.lock(locked);
     panel.setAttribute('aria-busy', String(locked));
@@ -3861,7 +3862,27 @@ function upgradeState(t, season) {
     run: () => runDownloadCommand(body),
   };
 }
-const upgradeLabel = (u) => (u.busy ? T('Looking for better quality…') : T('Upgrade quality'));
+const upgradeLabel = (u) => (u.busy ? T('Looking for better quality…') : u.film ? T('Get a sharper copy') : T('Upgrade quality'));
+
+// A film here only below 4K, played on a screen sharper than 1080p (someone on a 1080p screen fetched it): its best
+// picture can follow as another version (server.js filmQualityHere, smart-download.js lift). Playback moves to it once
+// it's downloaded (upgradeVersion).
+function filmUpgrade(session) {
+  const body = { type: 'movie', tmdbId: session.tmdbId, upgrade: true };
+  const cmd = downloadCommands.get(commandKey(body));
+  const job = cmd && !cmd.busy ? cmd.job : null;
+  const key = session.versionKey || `film:${session.tmdbId}`;
+  const item = state.library.find((x) => x.versionKey === key);
+  const rank = (v) => (v.sourceHeight >= 2000 ? 4 : UPGRADE_RANK[v.versionQuality] ?? 2);
+  const best = Math.max(rank(session), ...(item?.versions || []).map(rank));
+  if (!cmd && (!canGet() || !sharpScreen() || best >= 4 || session.versionDubbed)) return null;
+  return {
+    film: true, offered: true, disabled: Boolean(cmd?.busy), busy: Boolean(cmd?.busy), used: Boolean(cmd),
+    started: ['started', 'queued'].includes(job?.outcome),
+    text: cmd?.error || job?.message || '', failed: Boolean(cmd?.error || job?.state === 'failed'),
+    run: () => runDownloadCommand(body),
+  };
+}
 
 // ---------- casting: device picker ----------
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -6848,6 +6869,7 @@ const heightName = (h) => (!h ? '' : h >= 2000 ? '4K' : h >= 1400 ? '1440p' : h 
 function closeQualityMenu() { qualityMenu.hidden = true; qualityBtn.setAttribute('aria-expanded', 'false'); }
 // The episode playing looks soft: its season can be upgraded right here. Not in Watch Together, whose file is shared.
 function playerUpgrade(session) {
+  if (!party && session?.kind === 'lib' && session.season == null && session.tmdbId) return filmUpgrade(session);
   if (party || session?.kind !== 'lib' || session.season == null || session.episode == null || !session.tmdbId) return null;
   const u = upgradeState({ id: session.tmdbId, title: session.title, type: 'tv' }, session.season);
   return u.offered ? u : null;
@@ -6894,7 +6916,8 @@ function renderQualityMenu() {
     !upgrade ? '' : upgrade.started ? h('p', { class: 'cc-message', role: 'status' }, upgrade.text)
       : h('button', { type: 'button', role: 'menuitem', class: 'cc-item night-item quality-upgrade stroke-icon', tabindex: '-1', 'data-choice': 'upgrade', 'aria-disabled': String(upgrade.disabled),
         onclick: (e) => { e.stopPropagation(); if (!upgrade.disabled) upgrade.run(); } }, // stays open, to show how the search went
-      icon('upgrade'), h('span', {}, upgradeLabel(upgrade), h('small', {}, upgrade.text || T('Looks soft? Swaps this season for a clearly better copy.')))),
+      icon('upgrade'), h('span', {}, upgradeLabel(upgrade), h('small', {}, upgrade.text || (upgrade.film ? T('Downloads the 4K version in the background. Playback moves to it once it’s ready.')
+        : T('Looks soft? Swaps this season for a clearly better copy.'))))),
   );
   if (focused && !qualityMenu.hidden) qualityMenu.querySelector(`[data-choice="${focused}"]`)?.focus({ preventScroll: true });
   const badge = $('#quality-badge');
@@ -6927,12 +6950,11 @@ async function switchVersion(v) {
 const autoUpgraded = new Set();
 let upgradeLooks = 0;
 const UPGRADE_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
-const sharpScreen = () => !(matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600)
-  && Math.max(screen.width, screen.height) * (devicePixelRatio || 1) > 2000;
 function upgradeVersion(session = current) {
   if (!session || !['lib', 'part'].includes(session.kind) || session.season != null || party || audioCasting() || video.paused || !session.ready) return null;
   const key = session.versionKey || (session.tmdbId ? `film:${session.tmdbId}` : null);
-  if (!key || versionPicks[key] || autoUpgraded.has(key) || !sharpScreen()) return null;
+  const asked = downloadCommands.has(commandKey({ type: 'movie', tmdbId: session.tmdbId, upgrade: true })); // "Get a sharper copy"
+  if (!key || (versionPicks[key] && !asked) || autoUpgraded.has(key) || !sharpScreen()) return null;
   const item = state.library.find((x) => x.versionKey === key);
   if (!item && ++upgradeLooks % 3 === 0) loadLibrary().catch(() => {}); // nothing else reloads the library during playback
   const here = UPGRADE_RANK[session.versionQuality] ?? 2;
@@ -8482,11 +8504,6 @@ function appearanceSection() {
   ];
 }
 
-const PROFILE_HINTS = {
-  save: T('Compact 1080p or 720p copies that leave room on the server.'),
-  balanced: T('Good-looking 1080p at sensible sizes. Recommended.'),
-  best: T('4K when there is one, within your size limit.'),
-};
 const MAX_SIZE_OPTIONS = [[0, T('No limit')], [1, T('1 GB')], [2, T('2 GB')], [4, T('4 GB')], [8, T('8 GB')], [15, T('15 GB')], [30, T('30 GB')], [60, T('60 GB')]];
 const AUDIO_LANGUAGES = [['', T('Original language')], ['en', T('English')], ['sv', T('Swedish')], ['da', T('Danish')], ['no', T('Norwegian')], ['fi', T('Finnish')],
   ['de', T('German')], ['fr', T('French')], ['es', T('Spanish')], ['it', T('Italian')], ['pt', T('Portuguese')], ['nl', T('Dutch')], ['pl', T('Polish')],
@@ -8672,7 +8689,7 @@ function youRowMeta(sub) {
       return [subs ? T('Subtitles: {0}', subs.name) : T('No subtitles'), p.skipIntro === 'auto' ? T('Skip intros automatically') : T('Skip intro button')].join(' · ');
     }
     case 'devices': return pushView.loaded ? (pushView.deviceId ? T('Notifications on here') : T('Notifications off here')) : T('Notifications, TVs, Jellyfin');
-    case 'download-settings': return [PROFILE_OPTIONS.find(([k]) => k === savedProfile())?.[1], p.maxSize ? T('Up to {0} GB', p.maxSize) : null].filter(Boolean).join(' · ');
+    case 'download-settings': return [T('Quality follows your screen'), p.maxSize ? T('Up to {0} GB', p.maxSize) : null].filter(Boolean).join(' · ');
     case 'ideas': {
       const fresh = newIdeaAnswers().length, sent = ideasView.mine.length;
       return fresh ? n1(fresh, T('1 new answer'), T('{0} new answers', fresh)) : sent ? n1(sent, T('1 idea sent'), T('{0} ideas sent', sent)) : T('Tell the owner what you wish Lilin did');
@@ -8818,10 +8835,9 @@ function devicesPage() {
 function downloadPrefsPage() {
   if (!canDownload()) return [];
   const p = prefs();
-  const profile = savedProfile();
   return [
-    settingsRow(T('Quality'), PROFILE_HINTS[profile],
-      select(PROFILE_OPTIONS, profile, (v) => saveMe({ downloadProfile: v }).then(renderSettings), T('Quality'))),
+    settingsRow(T('Quality'), sharpScreen() ? T('Automatic. This screen is sharper than 1080p: films start in 1080p and switch to 4K once it’s downloaded.')
+      : T('Automatic. This is a 1080p screen, so films come in 1080p. Someone on a sharper screen can still get 4K.'), ''),
     settingsRow(T('Largest copy'), T('Per film or episode. Bigger copies are skipped.'),
       select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest copy'))),
     settingsRow(T('Audio language'), T('Copies in this language come first. Copies dubbed into another language are skipped when there’s a choice.'),
