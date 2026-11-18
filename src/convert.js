@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { trackChild } from './load.js';
-import { background } from './priority.js';
+import { background, pauseProcess } from './priority.js';
 import { GB, freeBytes, pickEvictions, sameDrive } from './disk-space.js';
 
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
@@ -464,7 +464,7 @@ function runFirst(job) {
   if (failed) return { fixable: false, error: failed.error };
   const kind = kindOf(job);
   const running = [...active.values()].find((a) => a.job.file === job.file && kindOf(a.job) === kind);
-  if (running) return { fixable: true, state: 'converting', percent: running.slot.percent ?? 0 };
+  if (running) { running.job.force = true; syncPauses(); return { fixable: true, state: 'converting', percent: running.slot.percent ?? 0 }; }
   const i = queue.findIndex((q) => q.file === job.file && kindOf(q) === kind);
   const queued = i >= 0 ? queue.splice(i, 1)[0] : null;
   // A queued deletion of the original is dropped; the next scan queues it again once the copy is redone.
@@ -574,7 +574,7 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) {
   try { process.on(sig, () => { stopChildren(); process.exit(0); }); } catch { /* signal not available here */ }
 }
 
-function run(cmd, args, { onStdout, priorityLow = false } = {}) {
+function run(cmd, args, { onStdout, priorityLow = false, slot = null } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try { child = spawn(cmd, args, { windowsHide: true }); } catch (e) { return reject(e); }
@@ -583,6 +583,7 @@ function run(cmd, args, { onStdout, priorityLow = false } = {}) {
     trackChild(child, cmd, args, 'convert');
     child.on('close', () => children.delete(child));
     if (priorityLow) background(child);
+    notePid(slot, child.pid);
     let out = '';
     let err = '';
     child.stdout.on('data', (d) => { out += d; onStdout?.(d.toString()); });
@@ -636,7 +637,7 @@ function launchRunner(dir) {
 
 // Waits for a run to end, passing its progress on like ffmpeg's own -progress output.
 // Resolves when ffmpeg exited 0; rejects like run() otherwise.
-function watchRun(dir, { cmd, args, onStdout, priorityLow = false, started = Date.now() }) {
+function watchRun(dir, { cmd, args, onStdout, priorityLow = false, started = Date.now(), slot = null }) {
   return new Promise((resolve, reject) => {
     let seenPid = null, last = '', pseudo = null, stopped = false;
     const entry = { lilinArgs: args, kill: () => {
@@ -656,6 +657,7 @@ function watchRun(dir, { cmd, args, onStdout, priorityLow = false, started = Dat
       if (st?.ffmpegPid && st.ffmpegPid !== seenPid) {
         seenPid = st.ffmpegPid;
         if (priorityLow) background({ pid: seenPid });
+        notePid(slot, seenPid);
         pseudo = Object.assign(new EventEmitter(), { pid: seenPid });
         trackChild(pseudo, cmd, args, 'convert');
       }
@@ -681,8 +683,8 @@ function watchRun(dir, { cmd, args, onStdout, priorityLow = false, started = Dat
 // run() for a conversion's ffmpeg, in a runner that survives a restart. `meta` is what a later server
 // needs to finish the job (see adoptRuns). Resolves with the run folder; the caller removes it once the
 // copy is in place. Falls back to run() when the runner can't be started.
-async function runDetached(cmd, args, { onStdout, priorityLow, meta }) {
-  if (!DETACHED || !runsDir) { await run(cmd, args, { onStdout, priorityLow }); return null; }
+async function runDetached(cmd, args, { onStdout, priorityLow, meta, slot }) {
+  if (!DETACHED || !runsDir) { await run(cmd, args, { onStdout, priorityLow, slot }); return null; }
   const dir = path.join(runsDir, `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`);
   const started = Date.now();
   try {
@@ -694,11 +696,11 @@ async function runDetached(cmd, args, { onStdout, priorityLow, meta }) {
   } catch (e) {
     removeRun(dir);
     if (!launchWarned) { launchWarned = true; console.warn(`[convert] couldn’t start a separate conversion process (${e.message}); converting inside the server (a restart starts it over).`); }
-    await run(cmd, args, { onStdout, priorityLow });
+    await run(cmd, args, { onStdout, priorityLow, slot });
     return null;
   }
   try {
-    return await watchRun(dir, { cmd, args, onStdout, priorityLow, started });
+    return await watchRun(dir, { cmd, args, onStdout, priorityLow, started, slot });
   } catch (e) { removeRun(dir); throw e; }
 }
 
@@ -881,7 +883,7 @@ async function convert(job, slot) {
       lane: slot.lane, output, tmp, localTmp, sidecars, shift, duration: p.duration, scratchNeed: scratchJobs.get(tmp) || 0,
       slot: { mode: slot.mode, purpose: slot.purpose },
     };
-    runDir = await runDetached(FFMPEG, p.args, { priorityLow: true, onStdout: progressInto(slot, p.duration, started), meta });
+    runDir = await runDetached(FFMPEG, p.args, { priorityLow: true, onStdout: progressInto(slot, p.duration, started), meta, slot });
     return p;
   };
 
@@ -983,7 +985,7 @@ async function adoptRun(job, slot, { dir, spec }) {
   };
   try {
     try {
-      await watchRun(dir, { cmd: spec.cmd, args: spec.args, priorityLow: true, started: spec.started,
+      await watchRun(dir, { cmd: spec.cmd, args: spec.args, priorityLow: true, started: spec.started, slot,
         onStdout: progressInto(slot, m.duration, spec.started) });
     } catch (e) {
       try { dropTemps(); } catch { /* still open; cleanTemps later */ }
@@ -1017,6 +1019,7 @@ function adoptRuns() {
       continue;
     }
     const job = { ...m.job, lane: m.lane };
+    if (!exited && st?.ffmpegPid) pauseProcess(st.ffmpegPid, false); // a server that stopped while holding it back left it frozen
     if (m.tmp !== m.localTmp && m.scratchNeed) scratchJobs.set(m.tmp, m.scratchNeed);
     console.log(`[convert] picked up ${path.basename(job.file)}${exited ? ' (finished while Lilin was restarting)' : ' (still converting from before the restart)'}`);
     runJob(m.lane, job, { dir, spec });
@@ -1304,6 +1307,36 @@ function stale(job) {
   return !job.redo && fs.existsSync(twinPath(job.file));
 }
 
+// ---------- holding back while someone's video starts ----------
+// A first-time watch (cold start) wants the GPU encoder (live phone/bridge streams) and the media drive
+// to itself. While one is starting, background conversions (scans, next-episode copies, fixes) are frozen
+// and new ones wait; a conversion someone is waiting on (force) keeps going. Frozen ffmpegs keep their
+// progress and carry on when the start has settled (cold-start.js holds for at most COLD_MAX).
+const slotPid = new WeakMap(); // lane status slot -> its ffmpeg's pid
+const pausedPids = new Set();
+let holding = false;
+function notePid(slot, pid) { if (slot && pid) { slotPid.set(slot, pid); syncPauses(); } }
+function syncPauses() {
+  const want = new Set();
+  for (const { job, slot } of active.values()) {
+    const pid = slotPid.get(slot);
+    const hold = holding && !job.force && Boolean(pid);
+    if (hold) want.add(pid);
+    if (hold) slot.paused = true; else delete slot.paused;
+  }
+  for (const pid of want) if (!pausedPids.has(pid)) { pauseProcess(pid, true); pausedPids.add(pid); }
+  for (const pid of [...pausedPids]) if (!want.has(pid)) { pauseProcess(pid, false); pausedPids.delete(pid); }
+}
+export function holdBackground(on) {
+  if (holding === Boolean(on)) return;
+  holding = Boolean(on);
+  const had = pausedPids.size;
+  syncPauses();
+  if (holding && pausedPids.size) console.log(`[convert] paused ${pausedPids.size} background conversion(s) while a video starts`);
+  if (!holding && had) console.log('[convert] background conversions carry on');
+  if (!holding) drain();
+}
+
 // Starts the next job for every idle lane (queue order, skipping jobs that would clash with a running one).
 let scheduling = false, scheduleAgain = false;
 async function drain() {
@@ -1318,7 +1351,7 @@ async function drain() {
         for (let i = 0; i < queue.length; i++) {
           const job = queue[i];
           if (stale(job)) { queue.splice(i--, 1); continue; }
-          if (job.lane !== lane || clashes(job)) continue;
+          if (job.lane !== lane || clashes(job) || (holding && !job.force)) continue;
           queue.splice(i, 1);
           runJob(lane, job);
           break;
@@ -1375,6 +1408,7 @@ async function runJob(lane, job, adopted = null) {
   } finally {
     active.delete(lane);
     status.active = status.active.filter((x) => x !== slot);
+    syncPauses();
     drain();
   }
 }

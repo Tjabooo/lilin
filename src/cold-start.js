@@ -99,7 +99,8 @@ export class ColdStarts {
   //   prepareSpare(hash, files, index) (a pack: only that file), swap(c, spare, why) -> bool (the spare is now theirs and the old pick gone),
   //   removeSpare(hash), fakeFound(c, hash, name, why, { primary }), followUp(c), dropPick(c, why) (a pack pick without the
   //   episode, or a pick whose file list never came, and nothing to replace it: removed, the Download runs again), setLimit(hashes, bytesPerSecond),
-  //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it, log }
+  //   background() -> hashes to hold back, behind() -> true while someone watching a download is waiting for it,
+  //   holdConversions(on) (background conversions pause while a video starts or a watched download is behind), log }
   constructor(deps) {
     this.deps = deps;
     this.starts = new Map();     // id -> cold start
@@ -325,7 +326,9 @@ export class ColdStarts {
 
   // Background downloads wait while someone's video is starting.
   async priority(now = Date.now()) {
-    const hold = this.active(now) || this.deps.behind?.() ? new Set((await this.deps.background()).map((h) => h.toLowerCase())) : new Set();
+    const busy = this.active(now) || Boolean(this.deps.behind?.());
+    this.deps.holdConversions?.(busy);
+    const hold = busy ? new Set((await this.deps.background()).map((h) => h.toLowerCase())) : new Set();
     for (const c of this.starts.values()) { hold.delete(c.hash); for (const s of c.spares) hold.delete(s.hash); }
     const on = [...hold].filter((h) => !this.throttled.has(h));
     const off = [...this.throttled].filter((h) => !hold.has(h));

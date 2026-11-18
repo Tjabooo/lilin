@@ -61,11 +61,21 @@ public static class LilinPrio {
     CloseHandle(h);
     return (a == 0 && b == 0 ? "ok " : "err ") + pid + " " + a.ToString("X") + " " + b.ToString("X");
   }
+  [DllImport("ntdll.dll")] static extern int NtSuspendProcess(IntPtr h);
+  [DllImport("ntdll.dll")] static extern int NtResumeProcess(IntPtr h);
+  public static string Pause(int pid, bool on) {
+    IntPtr h = OpenProcess(0x0800, false, pid); // PROCESS_SUSPEND_RESUME
+    if (h == IntPtr.Zero) return "err " + pid + " open " + Marshal.GetLastWin32Error();
+    int r = on ? NtSuspendProcess(h) : NtResumeProcess(h);
+    CloseHandle(h);
+    return (r == 0 ? "ok " : "err ") + pid + " " + r.ToString("X");
+  }
 }
 '@
 [Console]::Out.WriteLine('ready'); [Console]::Out.Flush()
 while ($null -ne ($line = [Console]::In.ReadLine())) {
   $p = $line.Trim() -split '\\s+'
+  if ($p.Count -eq 2) { try { [Console]::Out.WriteLine([LilinPrio]::Pause([int]$p[1], $p[0] -eq 'S')) } catch { [Console]::Out.WriteLine("err $($p[1]) $_") }; [Console]::Out.Flush() }
   if ($p.Count -ge 3) { try { [Console]::Out.WriteLine([LilinPrio]::Set([int]$p[0], [int]$p[1], [int]$p[2])) } catch { [Console]::Out.WriteLine("err $($p[0]) $_") }; [Console]::Out.Flush() }
 }`;
 
@@ -100,10 +110,19 @@ function ioHelper() {
   child.stdin.unref?.();
   helper = {
     child, errors: [],
-    set(pid, io, page) { const l = `${pid} ${io} ${page}\n`; if (ready) child.stdin.write(l); else pending.push(l); },
+    send(l) { if (ready) child.stdin.write(l); else pending.push(l); },
+    set(pid, io, page) { helper.send(`${pid} ${io} ${page}\n`); },
   };
   process.once('exit', () => { try { child.kill(); } catch { /* gone */ } });
   return helper;
+}
+
+// Freezes (on = true) or thaws a background job's process, e.g. a conversion while someone's video starts.
+// Windows: NtSuspendProcess/NtResumeProcess through the helper (no admin rights needed for our own processes).
+export function pauseProcess(pid, on) {
+  if (!pid) return;
+  if (process.platform === 'win32') { ioHelper()?.send(`${on ? 'S' : 'R'} ${pid}\n`); return; }
+  try { process.kill(pid, on ? 'SIGSTOP' : 'SIGCONT'); } catch { /* exited */ }
 }
 
 // For `node setup.js doctor` and tests.

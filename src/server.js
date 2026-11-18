@@ -2903,6 +2903,7 @@ const coldStarts = PARTIAL_ENABLED ? new ColdStarts({
     const st = partialStreams.status(e);
     return !st.done && st.keepsUp === false;
   }),
+  holdConversions: (on) => converter.holdBackground(on),
   setLimit: (hashes, limit) => qbitRequest('/api/v2/torrents/setDownloadLimit', { method: 'POST', body: new URLSearchParams({ hashes: hashes.join('|'), limit: String(limit) }) }),
   log: { info: (m) => console.log(m), warn: (m) => console.warn(m) },
 }) : null;

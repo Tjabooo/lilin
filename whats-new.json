@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-copies-wait",
+    "date": "2026-11-18",
+    "title": "Videos you haven’t watched before start smoother",
+    "items": [
+      {
+        "title": "Copies wait while your video starts",
+        "text": "While a video that isn’t on the server yet is getting ready, Lilin now pauses its own background work (making copies for later) so your video gets the graphics card and the disk to itself. The paused work carries on once playback is going."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-continue-remove",
     "date": "2026-11-18",
     "title": "Removed from Continue watching stays removed",
