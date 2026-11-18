@@ -1,4 +1,13 @@
 {
+  "2026-11-18-copies-wait": {
+    "title": "Videor du inte sett förut startar smidigare",
+    "items": {
+      "Copies wait while your video starts": {
+        "title": "Kopior väntar medan din video startar",
+        "text": "Medan en video som inte finns på servern än görs redo pausar Lilin nu sitt eget bakgrundsarbete (kopior till senare), så att din video får grafikkortet och disken för sig själv. Det pausade arbetet fortsätter när uppspelningen är igång."
+      }
+    }
+  },
   "2026-11-18-continue-remove": {
     "title": "Borttaget från Fortsätt titta förblir borta",
     "items": {
