@@ -1148,9 +1148,6 @@ function instantView(content) {
   page();
   content.replaceChildren(head, grid, more);
 }
-// Phones: search is the way in, so it opens Discover as a big field (style.css hides it where the header has one).
-const searchHero = () => h('button', { type: 'button', class: 'search-hero', onclick: () => setSearching(true) },
-  icon('search'), h('span', {}, T('Search films and shows')));
 // What you watched last (with a TMDB id), newest first: the seeds for For you.
 function watchedSeeds() {
   const shows = new Map(state.libraryShows.map((x) => [x.id, x]));
@@ -1355,7 +1352,7 @@ async function renderDiscover() {
 // The top of Discover (and of Documentaries): search (phones), the billboard and the control row.
 // (The "Right now" strip is off: Oliver found it annoying. right-now.js stays for now; unused.)
 function homeTop(bb) {
-  return [searchHero(), bb, discoverControls()].filter(Boolean);
+  return [bb, discoverControls()].filter(Boolean);
 }
 // Documentaries draws its own billboard: the same top goes with it.
 const docsBillboard = (items, o) => { const f = document.createDocumentFragment(); f.append(...homeTop(billboard(items, o))); return f; };

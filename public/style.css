@@ -3961,13 +3961,6 @@ html.wrapped-on { overflow: hidden; }
 .instant-head p { margin: 0; }
 :is(.ep-meta, .set-hint) .instant-mark svg { width: 12px; height: 12px; }
 .set-hint .instant-mark { margin-right: 6px; vertical-align: -1px; }
-/* Phones: a big search field floating over the billboard's top (tinted, not frosted). Wide screens: the header's box. */
-.search-hero { position: relative; z-index: 5; display: flex; align-items: center; gap: 12px; width: 100%; height: 50px; margin: 0 0 var(--s4); padding: 0 18px;
-  font: 600 16px/1 var(--body); color: rgb(255 255 255 / .78); background: rgb(var(--picture-dark) / .62); border: 1px solid rgb(255 255 255 / .2); border-radius: 999px; }
-.search-hero svg { width: 20px; height: 20px; color: var(--bulb); }
-.search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + 66px + var(--s2))); }
-.search-hero:not(:has(+ .billboard)) { color: var(--text-2); background: var(--surface-1); border-color: var(--hairline-2); }
-@media (min-width: 900px) { .search-hero { display: none; } .search-hero + .billboard { margin-top: calc(-1 * (var(--safe-top) + var(--head-h) + var(--s2))); } }
 /* Getting it ready (getting-ready.js): the title's picture, dimmed, and in the middle the title's logo art filling up
    left to right as the progress (--gr-p): a faint grey ghost, the real colours up to the progress with a soft edge and
    a bright band on that edge, like it's being inked in. No logo: the written title and a thin bulb line instead.

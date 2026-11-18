@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-one-search",
+    "date": "2026-11-18",
+    "title": "One search button on phones",
+    "items": [
+      {
+        "title": "The big search field on Discover is gone",
+        "text": "Phones showed two ways to search at the top of Discover. Now there is just the magnifying glass in the top corner, so the picture has more room."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-no-stuck-wait",
     "date": "2026-11-18",
     "title": "No more endless \"Waiting to start\"",
