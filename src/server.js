@@ -5596,6 +5596,13 @@ async function handleRequest(req, res) {
   } catch (err) {
     const status = err.status || 500;
     if (status === 500) console.error(err);
+    // TV players (ExoPlayer, AVPlay) only show "bad HTTP status", so the server says which one and why.
+    else if (String(req.url || '').startsWith('/play/')) {
+      const parts = String(req.url).split('?')[0].split('/');
+      let name = '';
+      try { if (parts[2] === 'lib') name = path.basename(Buffer.from(parts[3] || '', 'base64url').toString()); } catch { /* not a library id */ }
+      console.log(`[play] ${status} ${err.message}${name ? ` (${name.slice(0, 80)})` : ''} · ${(req.headers['user-agent'] || '').slice(0, 60)}`);
+    }
     if (!res.headersSent && err.retryAfter) res.setHeader('Retry-After', String(err.retryAfter));
     if (!res.headersSent) sendJson(res, status, { error: status === 500 ? 'Something broke on the server. Check the console.' : err.message });
     else res.destroy();
