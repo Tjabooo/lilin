@@ -793,6 +793,7 @@ export default {
   "Correcting the audio timing": "Korrigerar ljudtajmingen",
   "It switches over by itself.": "Det byts automatiskt.",
   "Waiting to start…": "Väntar på att starta…",
+  "Playing a live 1080p version. Full quality takes over by itself when it’s ready.": "Spelar en direktversion i 1080p. Full kvalitet tar över av sig själv när den är klar.",
   "Under a minute left": "Under en minut kvar",
   "About {0} min left": "Cirka {0} min kvar",
   "About {0} h {1} min left": "Cirka {0} h {1} min kvar",

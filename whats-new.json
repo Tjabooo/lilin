@@ -7,6 +7,10 @@
       {
         "title": "Films that need a version for your browser start right away",
         "text": "If your browser needed Lilin to make a version of a film, it could sit on \"Waiting to start\" for hours while episodes other people were about to watch were being prepared. Now the film you pressed Play on always goes first."
+      },
+      {
+        "title": "Watch while it's being made",
+        "text": "When your browser can't play a film's picture, it now starts right away in 1080p while the full-quality version is made, and switches over by itself when that's ready."
       }
     ]
   },

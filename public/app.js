@@ -6418,7 +6418,19 @@ async function watchAudio(f, session) {
       // Video this browser can't decode (e.g. HEVC labelled hev1 in Safari): a compatible copy is being made.
       videoFixing = true;
       $('#player-error').hidden = true;
+      if (a.fixable && session.videoBridge?.playing) {
+        // Watching already: no card over the picture, one toast.
+        if (!session.videoBridge.told) {
+          session.videoBridge.told = true;
+          toast(T('Playing a live 1080p version. Full quality takes over by itself when it’s ready.'));
+        }
+        note.hidden = true;
+        changed = session.compatibilityPending = true;
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
       if (a.fixable) {
+        bridgeVideo(session);
         showNoteProgress(note, pace, { title: T('Making a version that plays here'),
           detail: T('{0} doesn’t play in this browser. It starts by itself when ready.', a.videoCodec), percent });
       } else {
@@ -6450,9 +6462,41 @@ async function watchAudio(f, session) {
   }
 }
 
+// Video this browser can't decode (HEVC in Firefox): a full copy takes a while for a 4K film (~25 min).
+// Meanwhile the live 1080p stream (phone-stream.js, starts in a second or two) plays it from the resume
+// point; switchToFixedAudio moves to the full-quality copy once it's there. Not in Watch Together (the
+// room syncs on the plain file). Falls back to the wait card if the stream doesn't play within 20 s.
+async function bridgeVideo(session) {
+  if (session.videoBridge || session.videoBridgeTried || party || !bridgeAvailable()) return;
+  session.videoBridgeTried = true;
+  const original = session.sourceUrl;
+  if (!original) return;
+  let link;
+  try { link = await api(`/api/play-link?kind=${session.kind}&id=${encodeURIComponent(mediaId(session))}&variant=${baseVariant()}&quality=1080`, { signal: session.abort.signal }); }
+  catch { return; }
+  if (current !== session || party || !link?.url || !/\.m3u8$/.test(link.url.split('?')[0])) return;
+  const saved = savedProgress(session);
+  const start = video.currentTime > 1 ? video.currentTime : saved?.time > 30 ? saved.time : 0;
+  const bridge = session.videoBridge = { original, playing: false };
+  const giveUp = setTimeout(() => {
+    if (current !== session || session.videoBridge !== bridge || bridge.playing) return;
+    session.videoBridge = null;
+    setPlayerSource(original, session); // back to the wait card
+  }, 20000);
+  video.addEventListener('playing', () => { if (session.videoBridge === bridge) { bridge.playing = true; clearTimeout(giveUp); } }, { once: true });
+  const ok = await attachBridge(session, link.url, () => {
+    if (session.videoBridge !== bridge) return;
+    if (start > 0 && start < video.duration - 90) { video.currentTime = start; if (start > 30) toast(T('Resuming at {0}', fmtTime(start))); }
+    video.play().catch(() => {});
+  });
+  if (!ok && session.videoBridge === bridge) { clearTimeout(giveUp); session.videoBridge = null; }
+}
+
 function switchToFixedAudio(session, message) {
   if (current !== session || session.audio?.userChoice || audioSuppressed()) return;
-  const base = video.src.replace(/[?&]v=\d+$/, '');
+  const bridged = session.videoBridge;
+  session.videoBridge = null;
+  const base = (bridged?.original || video.src).replace(/[?&]v=\d+$/, '');
   swapSource(`${base}${base.includes('?') ? '&' : '?'}v=${Date.now()}`, () => {
     if (!session.audio?.userChoice) { session.compatibilityPending = false; refreshAudioMetadata(session, true); }
   });

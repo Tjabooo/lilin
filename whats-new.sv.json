@@ -1,4 +1,17 @@
 {
+  "2026-11-18-no-stuck-wait": {
+    "title": "Ingen evig \"Väntar på att starta\" längre",
+    "items": {
+      "Films that need a version for your browser start right away": {
+        "title": "Filmer som behöver en version för din webbläsare startar direkt",
+        "text": "Om din webbläsare behövde att Lilin gjorde en version av en film kunde den stå på \"Väntar på att starta\" i timmar medan avsnitt som andra skulle titta på förbereddes. Nu går filmen du tryckte Spela på alltid först."
+      },
+      "Watch while it's being made": {
+        "title": "Titta medan den görs",
+        "text": "När din webbläsare inte kan spela en films bild startar den nu direkt i 1080p medan versionen i full kvalitet görs, och byter över av sig själv när den är klar."
+      }
+    }
+  },
   "2026-11-17-logo-fill": {
     "title": "En snyggare väntan",
     "items": {
