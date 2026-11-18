@@ -3334,7 +3334,10 @@ const screenPixels = () => {
   const d = devicePixelRatio || 1;
   return [Math.max(screen.width, screen.height) * d, Math.min(screen.width, screen.height) * d];
 };
-const sharpScreen = () => { const [long, short] = screenPixels(); return long > 2400 || short > 1300; };
+// Phones count as 1080p (Oliver 2026-11-18): at phone size 4K looks no sharper, and a 4K file plays on a phone through
+// the live 1080p stream anyway (HDR tone-mapped, phone-stream.js), so fetching it would only cost disk and time.
+const phoneSized = () => matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600;
+const sharpScreen = () => { const [long, short] = screenPixels(); return !phoneSized() && (long > 2400 || short > 1300); };
 const screenClass = () => (sharpScreen() ? 'uhd' : 'hd');
 const canGet = () => Boolean(state.status.torrents && canDownload());
 
@@ -8837,7 +8840,8 @@ function downloadPrefsPage() {
   const p = prefs();
   return [
     settingsRow(T('Quality'), sharpScreen() ? T('Automatic. This screen is sharper than 1080p: films start in 1080p and switch to 4K once it’s downloaded.')
-      : T('Automatic. This is a 1080p screen, so films come in 1080p. Someone on a sharper screen can still get 4K.'), ''),
+      : phoneSized() ? T('Automatic. On a phone, films come in 1080p: at this size 4K looks no sharper. Someone on a bigger screen can still get 4K.')
+        : T('Automatic. This is a 1080p screen, so films come in 1080p. Someone on a sharper screen can still get 4K.'), ''),
     settingsRow(T('Largest copy'), T('Per film or episode. Bigger copies are skipped.'),
       select(MAX_SIZE_OPTIONS, p.maxSize || 0, (v) => saveMe({ maxSize: Number(v) }), T('Largest copy'))),
     settingsRow(T('Audio language'), T('Copies in this language come first. Copies dubbed into another language are skipped when there’s a choice.'),

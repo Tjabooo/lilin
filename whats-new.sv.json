@@ -55,7 +55,7 @@
     "items": {
       "No more Quality setting": {
         "title": "Ingen kvalitetsinställning längre",
-        "text": "Lilin väljer nu bilden efter skärmen du tittar på. På en 1080p-skärm kommer filmer i 1080p. På en skarpare skärm, som en mobil, en tv eller en 1440p- eller 4K-skärm, börjar filmen i 1080p så att den startar snabbt, 4K-versionen laddas ner i bakgrunden och uppspelningen byter till den när den är klar."
+        "text": "Lilin väljer nu bilden efter skärmen du tittar på. På en 1080p-skärm kommer filmer i 1080p. Mobiler får också 1080p: i den storleken ser 4K inte skarpare ut. På en tv eller en 1440p- eller 4K-skärm börjar filmen i 1080p så att den startar snabbt, 4K-versionen laddas ner i bakgrunden och uppspelningen byter till den när den är klar."
       },
       "Get a sharper copy": {
         "title": "Hämta en skarpare kopia",

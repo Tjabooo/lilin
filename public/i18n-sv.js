@@ -2668,6 +2668,7 @@ export default {
   "Quality follows your screen": "Kvaliteten följer din skärm",
   "Automatic. This screen is sharper than 1080p: films start in 1080p and switch to 4K once it’s downloaded.": "Automatiskt. Den här skärmen är skarpare än 1080p: filmer börjar i 1080p och byter till 4K när den har laddats ner.",
   "Automatic. This is a 1080p screen, so films come in 1080p. Someone on a sharper screen can still get 4K.": "Automatiskt. Det här är en 1080p-skärm, så filmer kommer i 1080p. Den som tittar på en skarpare skärm kan fortfarande hämta 4K.",
+  "Automatic. On a phone, films come in 1080p: at this size 4K looks no sharper. Someone on a bigger screen can still get 4K.": "Automatiskt. På en mobil kommer filmer i 1080p: i den storleken ser 4K inte skarpare ut. Den som tittar på en större skärm kan fortfarande hämta 4K.",
   "Get a sharper copy": "Hämta en skarpare kopia",
   "Downloads the 4K version in the background. Playback moves to it once it’s ready.": "Laddar ner 4K-versionen i bakgrunden. Uppspelningen byter till den när den är klar.",
 };

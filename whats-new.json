@@ -73,7 +73,7 @@
       {
         "kind": "improved",
         "title": "No more Quality setting",
-        "text": "Lilin now picks the picture for the screen you’re watching on. On a 1080p screen, films come in 1080p. On a sharper screen, like a phone, a TV or a 1440p or 4K monitor, a film starts in 1080p so it plays quickly, the 4K version downloads in the background, and playback moves to it once it’s ready."
+        "text": "Lilin now picks the picture for the screen you’re watching on. On a 1080p screen, films come in 1080p. Phones get 1080p too: at that size 4K looks no sharper. On a TV or a 1440p or 4K monitor, a film starts in 1080p so it plays quickly, the 4K version downloads in the background, and playback moves to it once it’s ready."
       },
       {
         "kind": "new",
