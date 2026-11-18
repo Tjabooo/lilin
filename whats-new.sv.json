@@ -1,4 +1,29 @@
 {
+  "2026-11-18-tv-apps-play-first": {
+    "title": "Tv-apparna har kommit ikapp",
+    "items": {
+      "Press Play on anything": {
+        "title": "Tryck Spela upp på vad som helst",
+        "text": "I Samsung- och Android TV-apparna har varje film och serie i Upptäck och Sök en Spela upp-knapp nu. Finns den inte på Lilin än visar tv:n Görs i ordning medan Lilin hittar en kopia, och den börjar spelas av sig själv så fort början av videon är här. Trycker du Tillbaka fortsätter den att göras i ordning."
+      },
+      "The next episode follows": {
+        "title": "Nästa avsnitt följer med",
+        "text": "När ett avsnitt slutar erbjuder Nästa nästa avsnitt även om det inte finns på Lilin än. Fortsätt titta på tv:n visar nu avsnittet efter det du tittat klart på, ett kort per serie."
+      },
+      "Moods on the TV": {
+        "title": "Stämningar på tv:n",
+        "text": "Upptäck på tv:n har också raden Stämningar. Välj en för att se allt som passar."
+      },
+      "A pause screen on the TV": {
+        "title": "En pausskärm på tv:n",
+        "text": "Pausa några sekunder så dämpas bilden och titeln, avsnittet och hur mycket som är kvar visas. Tryck på valfri knapp för att få tillbaka kontrollerna."
+      },
+      "Live TV chat on the TV": {
+        "title": "Live-tv-chatt på tv:n",
+        "text": "Meddelanden från en kanals chatt dyker upp vid sidan av skärmen när du tittar på live-tv på tv:n och tonar bort efter några sekunder. Stäng av dem med Ned och sedan Chatt."
+      }
+    }
+  },
   "2026-11-18-posters-iphone": {
     "title": "Affischerna är tillbaka på iPhone",
     "items": {

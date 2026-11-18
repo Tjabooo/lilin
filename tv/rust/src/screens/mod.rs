@@ -6,6 +6,7 @@ pub mod home;
 pub mod live;
 pub mod pair;
 pub mod player;
+pub mod ready;
 pub mod search;
 pub mod show;
 pub mod svt;

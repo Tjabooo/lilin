@@ -65,8 +65,8 @@ impl Home {
         let mut rows: Vec<Row> = Vec::new();
         let (cont, shows, films): (Vec<browse::Card>, Vec<browse::Card>, Vec<browse::Card>) = {
             let st = &cx.state;
-            let data = logic::home_rows(&st.library, &st.shows, &st.progress);
-            let cont = data.cont.iter().filter_map(|f| browse::continue_card(cx, f)).collect();
+            let data = logic::home_rows(&st.library, &st.shows, &st.progress, &st.continue_hidden);
+            let cont = data.cont.iter().filter_map(|f| browse::continue_card(cx, f, data.up_next.contains(crate::util::s(f, "id")))).collect();
             let shows = data.shows.iter().map(|sh| (*sh).clone()).collect::<Vec<_>>();
             let films = data.films.iter().map(|f| browse::film_card(f, Kind::Poster)).collect();
             let shows = shows.iter().map(|sh| browse::show_card(cx, sh, Kind::Poster)).collect();

@@ -152,6 +152,8 @@ pub struct State {
     pub library: Vec<Value>,
     pub shows: Vec<Value>,
     pub progress: Value,
+    /// Titles taken out of Continue watching (title key -> when), from /api/me/progress.
+    pub continue_hidden: Value,
     pub genres: Vec<Value>,
     pub pending: Vec<logic::Pending>,
     pub focus_pending: bool,
@@ -199,6 +201,9 @@ impl State {
     }
     pub fn file(&self, id: &str) -> Option<&Value> {
         self.library.iter().find(|f| util::s(f, "id") == id)
+    }
+    pub fn is_owner(&self) -> bool {
+        self.me.get("isOwner").and_then(|v| v.as_bool()) == Some(true)
     }
     pub fn can_download(&self) -> bool {
         self.me.get("canDownload").and_then(|v| v.as_bool()) != Some(false)
@@ -528,6 +533,7 @@ impl App {
                 if let Some(r) = res {
                     if r.ok() {
                         cx.state.progress = r.json.get("progress").cloned().unwrap_or(Value::Object(Default::default()));
+                        cx.state.continue_hidden = r.json.get("hidden").cloned().unwrap_or(Value::Object(Default::default()));
                     }
                 }
                 cx.joined(j);
@@ -602,6 +608,7 @@ pub extern "C" fn start(p: *mut u8, n: usize) {
             library: Vec::new(),
             shows: Vec::new(),
             progress: Value::Object(Default::default()),
+            continue_hidden: Value::Object(Default::default()),
             genres: Vec::new(),
             pending: Vec::new(),
             focus_pending: false,

@@ -45,6 +45,29 @@ test('TV: home rows, show seasons and where a show starts', () => {
   assert.equal(L.startEpisode(seasons, {}, {}).id, 'b');
 });
 
+test('TV: Continue watching keeps one card per show and moves on to the next episode', () => {
+  const lib = [ep('a', 1, 1), ep('b', 1, 2), ep('c', 1, 3), { id: 'f', title: 'Film', season: null, mediaKey: 'k-f' }];
+  // a finished at 5, b half-watched earlier: the newest (a, finished) wins, and b... was before: next after a is b
+  let rows = L.homeRows(lib, [], { 'm:k-a': { time: null, duration: 1300, at: 5 }, 'm:k-f': { time: 900, duration: 5000, at: 4 } });
+  assert.deepEqual(plain(rows.cont.map((f) => f.id)), ['b', 'f']);
+  assert.equal(rows.upNext.b, true);
+  rows = L.homeRows(lib, [], { 'm:k-a': { time: null, duration: 1300, at: 2 }, 'm:k-b': { time: 400, duration: 1300, at: 6 } });
+  assert.deepEqual(plain(rows.cont.map((f) => f.id)), ['b'], 'the latest episode, half watched');
+  assert.equal(rows.upNext.b, undefined);
+  rows = L.homeRows(lib, [], { 'm:k-c': { time: 1290, duration: 1300, at: 2 } });
+  assert.deepEqual(plain(rows.cont), [], 'the last one here, finished: nothing to go on with');
+  rows = L.homeRows(lib, [], { 'm:k-a': { time: null, duration: 1300, at: 5 } }, { 'tv:1': 9 });
+  assert.deepEqual(plain(rows.cont), [], 'removed from Continue watching after that');
+});
+
+test('TV: the episode after one by TMDB seasons', () => {
+  const seasons = [{ number: 1, episodes: 3, first: 1 }, { number: 2, episodes: 2, first: 1 }, { number: 3, episodes: 8, first: 1, upcoming: true }];
+  assert.deepEqual(plain(L.nextAfter(seasons, 1, 2)), { season: 1, episode: 3 });
+  assert.deepEqual(plain(L.nextAfter(seasons, 1, 3)), { season: 2, episode: 1 });
+  assert.equal(L.nextAfter(seasons, 2, 2), null, 'season 3 is not out yet');
+  assert.deepEqual(plain(L.nextAfter([{ number: 21, episodes: 2, first: 892 }], 21, 892)), { season: 21, episode: 893 });
+});
+
 test('TV: subtitles parse from WebVTT and show at the right time', () => {
   const cues = L.parseVtt('WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.500\n<i>Hello</i> &amp; welcome\n\n00:01:02.250 --> 00:01:04.000 align:center\nSecond\nline\n\n1:00:00.000 --> 1:00:01.000\nLate');
   assert.equal(cues.length, 3);

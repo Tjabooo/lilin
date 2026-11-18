@@ -424,6 +424,11 @@ pub struct LivePlayer {
     menu_i: usize,
     timers: [u32; 4],
     sig: String,
+    /// livechat: the channel's chat, read-only on the TV (name, text, shown at). It rides on the heartbeat
+    /// (src/watch.js chatAfter); Down -> Chat turns it off on this TV (public/tv/tv.js does the same).
+    chat: Vec<(String, String, f64)>,
+    chat_after: f64,
+    chat_on: bool,
 }
 
 impl LivePlayer {
@@ -460,6 +465,9 @@ impl LivePlayer {
             menu_i: 0,
             timers: [0; 4],
             sig: String::new(),
+            chat: Vec::new(),
+            chat_after: 0.0,
+            chat_on: host::load("lilin:tv-chat").map(|v| v != "false").unwrap_or(true),
         };
         if !av::ok() {
             p.spinner = Some(String::from(t!("This TV can’t play videos from here.")));
@@ -572,6 +580,61 @@ impl LivePlayer {
             av::seek(libm::floor((target + self.lead) * 1000.0));
         }
     }
+    fn add_chat(&mut self, cx: &mut Cx, room: &Value) {
+        let now = host::epoch_ms();
+        let before = self.chat.len();
+        for c in arr(room, "chat") {
+            let id = f(c, "id").unwrap_or(0.0);
+            self.chat_after = self.chat_after.max(id);
+            // old news when tuning in
+            if !self.chat_on || now + self.offset - f(c, "at").unwrap_or(0.0) > 120_000.0 {
+                continue;
+            }
+            self.chat.push((String::from(s(c, "name")), String::from(s(c, "text")), now));
+        }
+        self.chat.retain(|m| now - m.2 < 15_600.0);
+        while self.chat.len() > 4 {
+            self.chat.remove(0);
+        }
+        if self.chat.len() != before || !self.chat.is_empty() {
+            cx.redraw();
+        }
+    }
+    fn draw_chat(&mut self, cx: &mut Cx) {
+        if self.chat.is_empty() {
+            return;
+        }
+        let now = host::epoch_ms();
+        let fnt = body(26.0, 400);
+        let bold = body(26.0, 700);
+        let w = 560.0;
+        let mut y = 1080.0 - 220.0;
+        for (name, text, at) in self.chat.clone().iter().rev() {
+            let age = now - at;
+            let a = if age > 15_000.0 { (1.0 - (age - 15_000.0) / 600.0).max(0.0) as f32 } else { 1.0 };
+            if a <= 0.0 {
+                continue;
+            }
+            let lines = cx.tx.wrap(fnt, &alloc::format!("{} {}", name, text), w - 44.0, 3);
+            let h = lines.len() as f32 * 34.0 + 28.0;
+            y -= h;
+            let r = rect(1920.0 - ui::EDGE - w, y, w, h);
+            cx.g.push_alpha(a);
+            cx.g.round(r, 20.0, hexa(0x1F1019, 0.82));
+            let nw = cx.tx.draw(&mut cx.g, bold, name, r.x + 22.0, r.y + 14.0, ui::BULB);
+            for (n, l) in lines.iter().enumerate() {
+                // The name is drawn in gold over the first line's start; the rest of that line follows it.
+                let l = if n == 0 { l.get(name.len()..).unwrap_or("").trim_start() } else { l.as_str() };
+                let x = if n == 0 { r.x + 22.0 + nw + 8.0 } else { r.x + 22.0 };
+                cx.tx.draw(&mut cx.g, fnt, l, x, r.y + 14.0 + n as f32 * 34.0, ui::PAPER);
+            }
+            cx.g.pop_alpha();
+            y -= 12.0;
+        }
+        if self.chat.iter().any(|m| now - m.2 > 15_000.0) {
+            cx.moving = true; // one fading out
+        }
+    }
     fn heartbeat(&mut self, cx: &mut Cx) {
         if self.closed || self.room.is_null() || self.beat_busy {
             return;
@@ -579,7 +642,7 @@ impl LivePlayer {
         self.beat_busy = true;
         self.sent_at = host::epoch_ms();
         let rtt = self.samples.first().map(|x| x.0).unwrap_or(0.0);
-        let body = json!({ "clientId": self.client, "ready": !self.opening, "buffering": false, "blocked": false, "rtt": rtt });
+        let body = json!({ "clientId": self.client, "ready": !self.opening, "buffering": false, "blocked": false, "rtt": rtt, "chatAfter": self.chat_after });
         cx.post(&alloc::format!("/api/watch/{}/heartbeat", self.token()), body, self.sid, BEAT);
     }
     fn close(&mut self, cx: &mut Cx) {
@@ -702,6 +765,9 @@ impl Screen for LivePlayer {
         if o > 0.0 && self.menu.is_none() {
             self.draw_banner(cx, o);
         }
+        if self.menu.is_none() {
+            self.draw_chat(cx);
+        }
         // Subtitles
         if !self.cues.is_empty() && !self.opening {
             let text = logic::cue_text(&self.cues, self.pos);
@@ -789,6 +855,14 @@ impl Screen for LivePlayer {
                     let pick = self.menu.as_ref().and_then(|m| m.get(self.menu_i)).map(|it| (it.code.clone(), it.label.clone()));
                     self.menu = None;
                     if let Some((code, label)) = pick {
+                        if let Some(c) = code.strip_prefix("chat:") {
+                            self.chat_on = c == "on";
+                            host::save("lilin:tv-chat", if self.chat_on { "true" } else { "false" });
+                            if !self.chat_on {
+                                self.chat.clear();
+                            }
+                            return true;
+                        }
                         if !code.is_empty() {
                             cx.toast(&t!("Getting {0} subtitles…", label));
                         }
@@ -884,6 +958,7 @@ impl Screen for LivePlayer {
                         let start = self.sent_at;
                         self.add_sample(start, sn);
                     }
+                    self.add_chat(cx, &res.json);
                     self.receive(cx, res.json);
                     self.correct();
                 } else if res.status == 403 || res.status == 410 {
@@ -906,6 +981,9 @@ impl Screen for LivePlayer {
                     items.push(Item { head: false, label: String::from(s(l, "name")), on: cur == code, code });
                 }
                 self.menu_i = items.iter().position(|m| m.on && !m.head).unwrap_or(1);
+                items.push(Item { head: true, label: String::from(t!("Chat")), on: false, code: String::new() });
+                items.push(Item { head: false, label: String::from(t!("Show messages")), on: self.chat_on, code: String::from("chat:on") });
+                items.push(Item { head: false, label: String::from(t!("Off")), on: !self.chat_on, code: String::from("chat:off") });
                 self.banner = false;
                 self.menu = Some(items);
             }

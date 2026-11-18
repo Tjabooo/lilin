@@ -85,10 +85,12 @@ pub struct Card {
     pub act: Act,
     /// The title behind the card, for a hero to show.
     pub hero: Option<Value>,
+    /// vibes: a mood tile's own two colours (else the genre colours).
+    pub tint: Option<(u32, u32)>,
 }
 impl Card {
     pub fn new(key: String, kind: Kind, title: String, act: Act) -> Card {
-        Card { key, kind, title, sub: String::new(), img: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None }
+        Card { key, kind, title, sub: String::new(), img: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None, tint: None }
     }
     pub fn hash(&self) -> u64 {
         ui::hash(&self.key)
@@ -143,12 +145,37 @@ pub fn pending_text(p: &Pending) -> String {
 }
 
 // ---------- cards from data ----------
+const MONTHS_EN: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_SV: [&str; 12] = ["jan.", "feb.", "mars", "apr.", "maj", "juni", "juli", "aug.", "sep.", "okt.", "nov.", "dec."];
+/// comingsoon: what comes out when ("In cinemas · 21 Nov"), from a Discover title's `soon` (public/tv/tv.js soonSub).
+pub fn soon_sub(soon: &Value) -> String {
+    let date = s(soon, "date");
+    let sv = crate::i18n::tr("Play") != "Play";
+    let month = date.get(5..7).and_then(|m| m.parse::<usize>().ok()).filter(|m| (1..=12).contains(m));
+    let day = date.get(8..10).and_then(|d| d.parse::<u32>().ok());
+    let when = match (month, day) {
+        (Some(m), Some(d)) => alloc::format!("{} {}", d, if sv { MONTHS_SV[m - 1] } else { MONTHS_EN[m - 1] }),
+        _ => String::from(date),
+    };
+    let kind = match s(soon, "kind") {
+        "cinema" => String::from(t!("In cinemas")),
+        "digital" => String::from(t!("Streaming")),
+        "disc" => String::from(t!("On disc")),
+        "premiere" => String::from(t!("New series")),
+        "season" => t!("Season {0}", id(soon, "season")),
+        _ => String::new(),
+    };
+    crate::util::join(&[&kind, &when], " · ")
+}
 pub fn title_card(cx: &mut Cx, t: &Value) -> Card {
     let ty = s(t, "type");
     let tv = ty == "tv";
     let tid = id(t, "id");
     let mut c = Card::new(alloc::format!("{}:{}", ty, tid), Kind::Tile, String::from(s(t, "title")), Act::Title(t.clone()));
-    c.sub = title_sub(&year(t), tv);
+    c.sub = match t.get("soon") {
+        Some(x) if !s(x, "date").is_empty() => soon_sub(x),
+        _ => title_sub(&year(t), tv),
+    };
     c.img = String::from(s(t, "poster"));
     c.back = String::from(s(t, "backdrop"));
     c.badge = library_entry(cx, ty, &tid).is_some();
@@ -194,10 +221,14 @@ pub fn update_pending_card(c: &mut Card, p: &Pending) {
     c.pct = pending_percent(p);
     c.bar = Some(p.progress.map(|x| x as f32));
 }
-pub fn continue_card(cx: &Cx, f: &Value) -> Option<Card> {
-    let p = cx.state.progress.get(logic::progress_ref(f))?;
-    let time = crate::util::f(p, "time").unwrap_or(0.0);
-    let dur = crate::util::f(p, "duration").unwrap_or(1.0);
+/// up_next: the episode after one you finished (it starts from the beginning, no bar).
+pub fn continue_card(cx: &Cx, f: &Value, up_next: bool) -> Option<Card> {
+    let p = cx.state.progress.get(logic::progress_ref(f));
+    if p.is_none() && !up_next {
+        return None;
+    }
+    let time = if up_next { 0.0 } else { p.and_then(|p| crate::util::f(p, "time")).unwrap_or(0.0) };
+    let dur = if up_next { 1.0 } else { p.and_then(|p| crate::util::f(p, "duration")).unwrap_or(1.0) };
     let show = cx.state.show(s(f, "show"));
     let img = if crate::util::has(f, "season") {
         let still = s(f, "still");
@@ -221,8 +252,14 @@ pub fn continue_card(cx: &Cx, f: &Value) -> Option<Card> {
         _ => img.clone(),
     };
     c.img = img;
-    c.sub = crate::util::join(&[&logic::episode_label(f), s(f, "episodeName"), &logic::minutes_left(p)], " · ");
-    c.bar = Some(Some((time / dur).min(1.0) as f32));
+    let left = match p {
+        Some(p) if !up_next => logic::minutes_left(p),
+        _ => String::from(t!("Up next")),
+    };
+    c.sub = crate::util::join(&[&logic::episode_label(f), s(f, "episodeName"), &left], " · ");
+    if !up_next {
+        c.bar = Some(Some((time / dur).min(1.0) as f32));
+    }
     Some(c)
 }
 pub fn svt_owned(cx: &mut Cx, title: &str) -> bool {
@@ -253,6 +290,23 @@ pub fn see_all_card(kind: Kind, tag: u32) -> Card {
     c.see_all = true;
     c
 }
+/// "#7A3B1E" -> 0x7A3B1E
+fn css_hex(c: &str) -> Option<u32> {
+    let h = c.trim().strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    u32::from_str_radix(h, 16).ok()
+}
+/// vibes: a mood ("Slow-burn rainy day thriller") as a tile in its own colours.
+pub fn vibe_card(v: &Value, n: usize, tag: u32) -> Card {
+    let mut c = Card::new(alloc::format!("vibe:{}", s(v, "id")), Kind::Genre((n % 6) as u8), String::from(s(v, "name")), Act::Local(tag));
+    let cols = arr(v, "colors");
+    if let (Some(a), Some(b)) = (cols.first().and_then(|x| x.as_str()).and_then(css_hex), cols.get(1).and_then(|x| x.as_str()).and_then(css_hex)) {
+        c.tint = Some((a, b));
+    }
+    c
+}
 pub fn genre_card(name: &str, n: usize, tag: u32) -> Card {
     Card::new(alloc::format!("genre:{}", name), Kind::Genre((n % 6) as u8), String::from(name), Act::Local(tag))
 }
@@ -268,8 +322,10 @@ pub fn draw_card(cx: &mut Cx, c: &Card, x: f32, y: f32, lit: f32) {
     ui::shadow(cx, r, radius, 18.0 + 30.0 * lit, 0.3 + 0.25 * lit);
     ui::focus_ring(cx, r, radius, lit);
     if let Kind::Genre(n) = c.kind {
-        let from = crate::gfx::hex(GENRE_FROM[n as usize % 6]);
-        cx.g.round_diag(r, radius, from, ui::CURTAIN);
+        match c.tint {
+            Some((a, b)) => cx.g.round_diag(r, radius, crate::gfx::hex(a), crate::gfx::hex(b)),
+            None => cx.g.round_diag(r, radius, crate::gfx::hex(GENRE_FROM[n as usize % 6]), ui::CURTAIN),
+        }
         let f = display(36.0 * (1.0 + 0.06 * lit), 800);
         let lines = cx.tx.wrap(f, &c.title, r.w - 52.0, 2);
         let lh = f.size * 1.05;

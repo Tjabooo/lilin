@@ -1,5 +1,37 @@
 [
   {
+    "id": "2026-11-18-tv-apps-play-first",
+    "date": "2026-11-18",
+    "title": "The TV apps caught up",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Press Play on anything",
+        "text": "On the Samsung and Android TV apps, every film and show in Discover and Search has a Play button now. If it isn’t on Lilin yet, the TV shows Getting it ready while Lilin finds a copy, and it starts playing by itself as soon as the start of the video is here. Pressing Back lets it keep getting ready."
+      },
+      {
+        "kind": "improved",
+        "title": "The next episode follows",
+        "text": "When an episode ends, Up next offers the next one even if it isn’t on Lilin yet. Continue watching on the TV now shows the episode after the one you finished, one card per show."
+      },
+      {
+        "kind": "new",
+        "title": "Moods on the TV",
+        "text": "Discover on the TV has the Moods row too. Pick one to see everything that fits it."
+      },
+      {
+        "kind": "new",
+        "title": "A pause screen on the TV",
+        "text": "Pause for a few seconds and the picture dims, with the title, the episode and how much is left. Press any button to bring the controls back."
+      },
+      {
+        "kind": "new",
+        "title": "Live TV chat on the TV",
+        "text": "Messages from a channel’s chat show up at the side of the screen while you watch Live TV on the TV, and fade after a few seconds. Turn them off with Down, then Chat."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-posters-iphone",
     "date": "2026-11-18",
     "title": "Posters are back on iPhone",

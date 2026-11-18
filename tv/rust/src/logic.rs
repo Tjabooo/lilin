@@ -48,6 +48,29 @@ pub fn next_episode<'a>(current_id: &str, library: &'a [Value], shows: &[Value])
     }
 }
 
+/// The episode after season/episode by TMDB's seasons ({ number, episodes, first, upcoming }), or None at the end
+/// (public/tv/logic.js nextAfter).
+pub fn next_after(seasons: &[Value], season: i64, episode: i64) -> Option<(i64, i64)> {
+    let num = |x: &Value| f(x, "number").unwrap_or(0.0) as i64;
+    let mut list: Vec<&Value> = seasons.iter().filter(|x| num(x) > 0).collect();
+    list.sort_by_key(|x| num(x));
+    if let Some(cur) = list.iter().find(|x| num(x) == season) {
+        let first = f(cur, "first").filter(|v| *v >= 1.0).unwrap_or(1.0) as i64;
+        match f(cur, "episodes") {
+            Some(n) if n > 0.0 => {
+                if episode < first + n as i64 - 1 {
+                    return Some((season, episode + 1));
+                }
+            }
+            _ => return Some((season, episode + 1)),
+        }
+    }
+    let next = list.iter().find(|x| num(x) > season)?;
+    if b(next, "upcoming") {
+        return None;
+    }
+    Some((num(next), f(next, "first").filter(|v| *v >= 1.0).unwrap_or(1.0) as i64))
+}
 pub fn next_prompt_at(duration: f64, credits_at: Option<f64>) -> Option<f64> {
     if duration <= 0.0 {
         return None;
@@ -256,17 +279,86 @@ fn added(x: &Value) -> f64 {
 
 pub struct HomeRows<'a> {
     pub cont: Vec<&'a Value>,
+    /// Continue watching cards that are the episode after one you finished (they start from the beginning).
+    pub up_next: BTreeSet<&'a str>,
     pub shows: Vec<&'a Value>,
     pub films: Vec<&'a Value>,
 }
-pub fn home_rows<'a>(library: &'a [Value], shows: &'a [Value], progress: &Value) -> HomeRows<'a> {
+fn finished(p: &Value) -> bool {
+    match f(p, "time") {
+        None => true,
+        Some(t) => {
+            let d = f(p, "duration").unwrap_or(0.0);
+            d > 0.0 && d - t <= DONE_SECONDS
+        }
+    }
+}
+/// hidden: titles taken out of Continue watching (title key -> when, from /api/me/progress); watching again brings them back.
+/// One card per show: its latest episode, or, once that one is finished, the next one here (public/tv/logic.js homeRows).
+pub fn home_rows<'a>(library: &'a [Value], shows: &'a [Value], progress: &Value, hidden: &Value) -> HomeRows<'a> {
     let prog = |x: &Value| progress.get(progress_ref(x));
-    let mut cont: Vec<&Value> = library.iter().filter(|x| resumable(prog(x)) && !b(x, "converting")).collect();
-    cont.sort_by(|a, b| {
-        let at = |x: &Value| prog(x).and_then(|p| f(p, "at")).unwrap_or(0.0);
-        at(b).partial_cmp(&at(a)).unwrap_or(core::cmp::Ordering::Equal)
-    });
-    cont.truncate(20);
+    let at = |p: Option<&Value>| p.and_then(|p| f(p, "at")).unwrap_or(0.0);
+    let shown = |x: &Value| -> bool {
+        let key = match title_key(x) {
+            Some(k) => k,
+            None if !s(x, "show").is_empty() => alloc::format!("show:{}", s(x, "show")),
+            None => progress_ref(x),
+        };
+        match hidden.get(key.as_str()).and_then(|v| v.as_f64()) {
+            Some(h) => h < at(prog(x)),
+            None => true,
+        }
+    };
+    let mut list: Vec<(&Value, f64)> = Vec::new();
+    let mut latest: BTreeMap<&str, &Value> = BTreeMap::new();
+    for x in library {
+        let p = match prog(x) {
+            Some(p) => p,
+            None => continue,
+        };
+        if b(x, "converting") {
+            continue;
+        }
+        let sh = s(x, "show");
+        if !sh.is_empty() && has(x, "season") {
+            let newer = match latest.get(sh) {
+                Some(o) => at(Some(p)) > at(prog(o)),
+                None => true,
+            };
+            if newer {
+                latest.insert(sh, x);
+            }
+        } else if resumable(Some(p)) && shown(x) {
+            list.push((x, at(Some(p))));
+        }
+    }
+    let mut up_next = BTreeSet::new();
+    for x in latest.values() {
+        let p = prog(x);
+        if !shown(x) {
+            continue;
+        }
+        if resumable(p) {
+            list.push((x, at(p)));
+            continue;
+        }
+        let p = match p {
+            Some(p) if finished(p) => p,
+            _ => continue,
+        };
+        let next = match next_episode(s(x, "id"), library, shows) {
+            Some(n) if !b(n, "converting") => n,
+            _ => continue,
+        };
+        if prog(next).map(finished).unwrap_or(false) {
+            continue;
+        }
+        up_next.insert(s(next, "id"));
+        list.push((next, at(Some(p))));
+    }
+    list.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
+    list.truncate(20);
+    let cont: Vec<&Value> = list.into_iter().map(|x| x.0).collect();
     let mut ids: BTreeMap<&str, f64> = BTreeMap::new();
     for x in library {
         let sh = s(x, "show");
@@ -284,7 +376,7 @@ pub fn home_rows<'a>(library: &'a [Value], shows: &'a [Value], progress: &Value)
     });
     let mut films: Vec<&Value> = library.iter().filter(|x| !has(x, "season")).collect();
     films.sort_by(|a, b| added(b).partial_cmp(&added(a)).unwrap_or(core::cmp::Ordering::Equal));
-    HomeRows { cont, shows: show_list, films }
+    HomeRows { cont, up_next, shows: show_list, films }
 }
 
 pub enum GenreTitle<'a> {

@@ -386,8 +386,9 @@
         toast(p.word);
       } };
   }
-  function continueCard(f) {
-    var p = state.progress[L.progressRef(f)];
+  // upNext: the episode after one you finished (it starts from the beginning).
+  function continueCard(f, upNext) {
+    var p = upNext ? { time: 0, duration: 1 } : state.progress[L.progressRef(f)];
     var showInfo = showOf(f);
     var pct = Math.min(100, p.time / p.duration * 100);
     var pic = lazy(f.season != null ? bigger(f.still) || (showInfo && showInfo.backdrop) : f.backdrop || f.poster);
@@ -395,7 +396,7 @@
       el: h('div', { class: 'card wide' },
         h('div', { class: 'art' }, pic.el, h('div', { class: 'bar' }, h('i', { style: 'width:' + pct.toFixed(1) + '%' }))),
         h('div', { class: 'name', text: showInfo ? showInfo.title : f.filmTitle || f.title }),
-        h('div', { class: 'sub', text: [L.episodeLabel(f), f.episodeName, L.minutesLeft(p)].filter(Boolean).join(' · ') })),
+        h('div', { class: 'sub', text: [L.episodeLabel(f), f.episodeName, upNext ? T('Up next') : L.minutesLeft(p)].filter(Boolean).join(' · ') })),
       open: function () { play(f, p.time); } };
   }
 
@@ -641,6 +642,18 @@
     gridScreen({ title: g.name, type: both ? type : g.movie ? 'movie' : 'tv', types: both, sorts: true,
       fetch: function (page, t, sort) { return api(genreUrl(g, t, sort, page)).then(function (d) { return pageOf(d, page); }); } });
   }
+  function vibeGrid(v, type) {
+    var both = !v.types || v.types.length > 1;
+    var got = null;
+    gridScreen({ title: v.name, type: both ? (type || 'all') : v.types[0], types: both,
+      fetch: function (page, t) {
+        if (page > 1) return Promise.resolve({ cards: [], last: true });
+        return (got || (got = api('/api/vibes/' + encodeURIComponent(v.id)))).then(function (d) {
+          var list = (d.results || []).filter(function (x) { return t === 'all' || x.type === t; });
+          return { cards: list.map(titleCard), last: true };
+        });
+      } });
+  }
   function listFetch(key) {
     return function (page) {
       return api('/api/discover/list?key=' + encodeURIComponent(key) + '&page=' + page).then(function (d) { return pageOf(d, page); });
@@ -694,7 +707,7 @@
       var data = L.homeRows(state.library, state.shows, state.progress, state.hidden);
       var rows = [];
       function add(title, kind, items) { var row = makeRow({ title: title, kind: kind, items: items }); row.title = title; rows.push(row); }
-      if (data.cont.length) add(T('Continue watching'), 'wide', data.cont.map(continueCard));
+      if (data.cont.length) add(T('Continue watching'), 'wide', data.cont.map(function (f) { return continueCard(f, data.upNext[f.id]); }));
       var onWay = T('On its way');
       if (state.pending.length) add(onWay, 'poster', state.pending.map(pendingCard));
       if (data.shows.length) add(T('Shows'), 'poster', data.shows.map(function (s) { return showCard(s); }));
@@ -820,6 +833,12 @@
       return { key: 'genre:' + g.name, el: h('div', { class: 'card genre g' + (i % 6) }, h('div', { class: 'art' }, h('span', { text: g.name }))),
         open: function () { genreGrid(g, type); } };
     }
+    // vibes: a mood ("Slow-burn rainy day thriller") as a coloured tile; its titles open as a grid.
+    function vibeCard(v) {
+      var art = h('div', { class: 'art' }, h('span', { text: v.name }));
+      if (v.colors && v.colors.length > 1) art.style.background = 'linear-gradient(135deg, ' + v.colors[0] + ' 0%, ' + v.colors[1] + ' 100%)';
+      return { key: 'vibe:' + v.id, el: h('div', { class: 'card genre vibe' }, art), open: function () { vibeGrid(v, type); } };
+    }
     function load() {
       var my = ++seq;
       nav.set([]);
@@ -827,6 +846,7 @@
       Promise.all([
         api('/api/discover/home?type=' + type).catch(function (err) { return { rows: [], error: err }; }),
         state.genres.length ? null : loadGenres(),
+        api('/api/vibes').catch(function () { return { vibes: [] }; }),
       ]).then(function (r) {
         if (my !== seq) return;
         var data = r[0];
@@ -834,6 +854,8 @@
           return makeRow({ title: row.title, kind: 'tile', items: (row.items || []).map(titleCard), fetch: listFetch(row.key),
             seeAll: function () { gridScreen({ title: row.title, fetch: listFetch(row.key) }); } });
         });
+        var moods = (r[2].vibes || []).filter(function (v) { return type === 'all' || !v.types || v.types.indexOf(type) >= 0; });
+        if (moods.length >= 3) rows.splice(Math.min(1, rows.length), 0, makeRow({ title: T('Moods'), kind: 'genre', items: moods.map(vibeCard) }));
         var gs = state.genres.filter(function (g) { return type === 'all' || (type === 'movie' ? g.movie : g.tv); });
         if (gs.length) {
           rows.push(makeRow({ title: T('Browse by genre'), kind: 'genre', items: gs.map(genreCard) }));
@@ -1333,20 +1355,40 @@
     var cast = castLine(t.type, t.id, 'discover-cast');
     var seasonBox = h('div', { class: 'discover-seasons' });
     var onWay = pendingFor(t);
-    var status = h('div', { class: 'download-status', text: onWay ? '' : lib ? T('Already in your library. Smart Download will avoid duplicates.') : '' });
+    var status = h('div', { class: 'download-status', text: onWay || !(state.me && state.me.isOwner) ? '' : lib ? T('Already in your library. Smart Download will avoid duplicates.') : '' });
     var strip = progressStrip();
     strip.set(onWay);
     var downloadBtn = h('button', { class: 'title-action' + (lib ? '' : ' primary'), text: state.me && state.me.canDownload === false ? T('Downloads disabled') : T('Download') });
     var qualityBtn = h('button', { class: 'title-action', text: '' });
     var actions = [];
-    if (lib) actions.push({ el: h('button', { class: 'title-action primary', text: lib.film ? T('Play') : T('Open') }),
-      act: function () { if (lib.film) playAsked(lib.film); else showPage(lib.show); } });
-    actions.push({ el: downloadBtn, act: download });
-    actions.push({ el: qualityBtn, act: function () { cycleQuality(1); }, quality: true });
+    // Play first: Play is the one gold button. Yours plays; anything else gets ready (getReady). A show plays the
+    // first episode of the season picked above. Downloading a whole season or a quality is the owner's tool.
+    var soon = Boolean(t.soon && t.soon.date && t.type === 'movie');
+    if (lib && lib.film) actions.push({ el: h('button', { class: 'title-action gold', text: T('Play') }), act: function () { playAsked(lib.film); } });
+    else if (!soon) actions.push({ el: h('button', { class: 'title-action gold', text: t.type === 'tv' ? T('Play season') : T('Play') }), act: playIt, play: true });
+    if (lib && lib.show) actions.push({ el: h('button', { class: 'title-action', text: T('Episodes') }), act: function () { showPage(lib.show); } });
+    var owner = Boolean(state.me && state.me.isOwner);
+    if (soon && !actions.length) actions.push({ el: h('button', { class: 'title-action', text: soonSub(t.soon) }), act: function () { toast(T('This film isn’t out yet.')); } });
+    if (owner && !soon) {
+      actions.push({ el: downloadBtn, act: download });
+      actions.push({ el: qualityBtn, act: function () { cycleQuality(1); }, quality: true });
+    }
+    downloadBtn.classList.remove('primary');
+    function playIt() {
+      if (t.type === 'tv') {
+        if (!seasons.length) { toast(T('The season list is still loading.')); return; }
+        var se = seasons[si];
+        playFirst({ type: 'tv', tmdbId: t.id, season: se.number, episode: se.first || 1, title: t.title,
+          sub: T('Season {0}', se.number) + ' · ' + T('Episode {0}', se.first || 1), art: bigger(t.backdrop || t.poster) });
+        return;
+      }
+      playFirst({ type: 'movie', tmdbId: t.id, title: t.title, art: bigger(t.backdrop || t.poster) });
+    }
     // Once it's on its way, the next thing to do is go and see it in the library.
     function offerLibrary() {
       if (actions.some(function (a) { return a.library; })) return;
-      var a = { el: h('button', { class: 'title-action primary', text: T('Go to library') }), act: goToLibrary, library: true };
+      if (!owner) return; // Play picks it up; the library is the owner's view
+      var a = { el: h('button', { class: 'title-action', text: T('Go to library') }), act: goToLibrary, library: true };
       downloadBtn.classList.remove('primary');
       actions.unshift(a);
       actionsEl.insertBefore(a.el, actionsEl.firstChild);
@@ -1443,7 +1485,8 @@
         if (zone === 'seasons') {
           if (code === KEY.LEFT && si > 0) { si--; paint(); return true; }
           if (code === KEY.RIGHT && si < seasons.length - 1) { si++; paint(); return true; }
-          if (code === KEY.DOWN || code === KEY.ENTER) { zone = 'actions'; ai = lib ? 1 : 0; paint(); return true; }
+          if (code === KEY.ENTER && !lib) { playIt(); return true; }
+          if (code === KEY.DOWN || code === KEY.ENTER) { zone = 'actions'; ai = 0; paint(); return true; }
           return code === KEY.UP || code === KEY.LEFT || code === KEY.RIGHT;
         }
         if (code === KEY.UP && t.type === 'tv' && seasons.length) { zone = 'seasons'; paint(); return true; }
@@ -1683,8 +1726,23 @@
     var spinner = h('div', { class: 'loading show', text: T('Tuning in…') });
     var subsEl = h('div', { class: 'subs' });
     var menu = h('div', { class: 'menu' });
-    var el = h('div', { class: 'screen player live-player' }, banner, subsEl, spinner, menu);
+    // livechat: the channel's chat, read-only on the TV: new messages float in at the right and fade after a while.
+    // They ride on the heartbeat (src/watch.js chatAfter); Down → Chat turns them off on this TV.
+    var chatEl = h('div', { class: 'live-chat' });
+    var el = h('div', { class: 'screen player live-player' }, banner, subsEl, chatEl, spinner, menu);
     var bannerTimer = null, digits = '', digitTimer = null, menuItems = [], menuIndex = 0;
+    var chatAfter = 0, chatOn = load('lilin:tv-chat', true);
+    function addChat(list) {
+      if (!list || !list.length) return;
+      list.forEach(function (c) {
+        chatAfter = Math.max(chatAfter, c.id);
+        if (!chatOn || Date.now() + s.offset - (c.at || 0) > 120000) return; // old news when tuning in
+        var line = h('div', { class: 'chat-line' }, h('b', { text: c.name + ' ' }), h('span', { text: c.text }));
+        chatEl.appendChild(line);
+        setTimeout(function () { line.classList.add('gone'); setTimeout(function () { if (line.parentNode) line.parentNode.removeChild(line); }, 600); }, 15000);
+      });
+      while (chatEl.childNodes.length > 4) chatEl.removeChild(chatEl.firstChild);
+    }
     // The subtitle language stays on across programmes and channels (live.subLang), starting from Settings.
     if (live.subLang == null) live.subLang = (state.me && state.me.settings && state.me.settings.subLang) || '';
     function serverNow() { return Date.now() + s.offset; }
@@ -1755,6 +1813,13 @@
         langs.forEach(function (l) { menuItems.push({ label: l.name, on: live.subLang === l.code, act: function () { toast(T('Getting {0} subtitles…', l.name)); setSubs(l.code); } }); });
         menuIndex = menuItems.findIndex(function (m) { return m.on; });
         if (menuIndex < 0) menuIndex = 1;
+        menuItems.push({ head: T('Chat') });
+        [[true, T('Show messages')], [false, T('Off')]].forEach(function (o) {
+          menuItems.push({ label: o[1], on: chatOn === o[0], act: function () {
+            chatOn = o[0]; try { localStorage.setItem('lilin:tv-chat', JSON.stringify(chatOn)); } catch (e) { /* full */ }
+            if (!chatOn) chatEl.innerHTML = '';
+          } });
+        });
         banner.classList.remove('show');
         menu.classList.add('show');
         paintMenu();
@@ -1832,8 +1897,9 @@
     function heartbeat() {
       if (s.closed || !s.room) return;
       var start = Date.now();
-      post('heartbeat', { ready: !s.opening, buffering: false, blocked: false, rtt: s.samples.length ? s.samples[0].rtt : 0 }).then(function (room) {
+      post('heartbeat', { ready: !s.opening, buffering: false, blocked: false, rtt: s.samples.length ? s.samples[0].rtt : 0, chatAfter: chatAfter }).then(function (room) {
         var end = Date.now();
+        addChat(room.chat);
         if (room.serverNow) { s.samples.push({ rtt: end - start, offset: room.serverNow - (start + end) / 2 }); s.samples = s.samples.slice(-10); s.offset = L.clockOffset(s.samples); }
         receive(room); correct();
       }).catch(function (e) {
@@ -1902,6 +1968,100 @@
   }
 
   // ---------- the player ----------
+  // ---------- Getting it ready (play first) ----------
+  // Play on something that isn't here yet. The server (src/tv-play.js) adds someone else's copy to your library, or
+  // finds a copy and fetches the start of the video (a cold start); this screen says how it's going in one line
+  // and the player takes over by itself. Back leaves it getting ready; Cancel too (others may want it).
+  // x: { type, tmdbId, season, episode, title, sub, art }
+  function aboutTime(sec) { return sec < 55 ? T('{0} s', Math.max(5, Math.ceil(sec / 5) * 5)) : T('{0} min', Math.max(1, Math.round(sec / 60))); }
+  function readyWords(r, elapsed, phaseElapsed) {
+    function ease(from, to, secs) { return from + (to - from) * (1 - Math.exp(-Math.max(0, phaseElapsed) / secs)); }
+    var slow = elapsed > 150;
+    var hint = slow ? T('This one is taking longer than usual. Lilin keeps trying.') : T('Usually ready in under a minute.');
+    if (r.phase === 'failed') return { line: r.message || T('Lilin couldn’t find a copy that plays well.'), hint: T('Try again in a little while, or pick something else.'), progress: 0 };
+    if (r.phase === 'finding') return { line: T('Finding the best copy…'), hint: hint, progress: ease(0.04, 0.3, 12) };
+    if (r.phase === 'connecting') return { line: T('Connecting to it…'), hint: hint, progress: ease(0.3, 0.5, 15) };
+    if (r.phase === 'starting') {
+      var p = typeof r.startProgress === 'number' ? Math.max(0, Math.min(1, r.startProgress)) : 0;
+      var eta = r.startEta;
+      var line = typeof eta !== 'number' ? T('Fetching the start of the video…') : eta <= 5 ? T('Almost there…') : T('Starting in about {0}', aboutTime(eta));
+      return { line: line, hint: slow ? hint : '', progress: Math.max(0.5 + 0.45 * p, ease(0.5, 0.7, 40)) };
+    }
+    return { line: T('Starting…'), hint: '', progress: 0.97 };
+  }
+  function targetQuery(x) {
+    return 'type=' + x.type + '&tmdbId=' + x.tmdbId + (x.type === 'tv' ? '&season=' + x.season + '&episode=' + x.episode : '');
+  }
+  function playFirst(x) {
+    // Yours already: straight to the player (the server would say the same, a round trip later).
+    var mine = x.type === 'movie' ? owned().films[x.tmdbId] : null;
+    if (mine && !mine.converting) { playAsked(mine); return; }
+    getReady(x);
+  }
+  function getReady(x) {
+    var alive = true, timer = null, paintTimer = null, job = null, since = Date.now(), phaseSince = since, idleSince = 0;
+    var last = { phase: 'finding' };
+    var bar = h('i', {}), line = h('p', { class: 'ready-line' }), hint = h('p', { class: 'ready-hint' });
+    var btn = h('button', { class: 'title-action focus', text: T('Back') });
+    var el = h('div', { class: 'screen getting-ready' },
+      h('div', { class: 'ready-art' }, img(x.art)),
+      h('div', { class: 'ready-copy' }, titleLogo(h('h1', { text: x.title }), x.type, x.tmdbId, x.title),
+        x.sub ? h('div', { class: 'ready-sub', text: x.sub }) : null,
+        h('div', { class: 'ready-bar' }, bar), line, hint, h('div', { class: 'title-actions' }, btn)));
+    function paint() {
+      var t = Date.now();
+      var w = readyWords(last, (t - since) / 1000, (t - phaseSince) / 1000);
+      if (line.textContent !== w.line) line.textContent = w.line;
+      if (hint.textContent !== w.hint) hint.textContent = w.hint;
+      bar.style.width = (w.progress * 100).toFixed(1) + '%';
+      line.classList.toggle('error', last.phase === 'failed');
+    }
+    function stop() { alive = false; clearTimeout(timer); clearInterval(paintTimer); }
+    function hand(f, resumeKey) {
+      stop();
+      screen = null; // the player takes this screen's place: Back goes to where Play was pressed
+      var p = state.progress[resumeKey || L.progressRef(f)];
+      play(f, L.resumable(p) ? p.time : 0);
+    }
+    function answer(r) {
+      if (!alive) return;
+      if (r.job) job = r.job;
+      if (r.play && r.play.kind === 'lib') {
+        var f = r.play.file;
+        if (r.play.added) { loadLibrary().catch(function () {}); }
+        return hand(f);
+      }
+      if (r.play && r.play.kind === 'part') {
+        var pf = { id: r.play.id, part: true, url: r.play.url, mediaKey: r.play.mediaKey, title: r.play.title || x.title, filmTitle: x.title,
+          show: r.play.show, season: r.play.season, episode: r.play.episode, showTmdb: x.type === 'tv' ? x.tmdbId : null, still: x.art };
+        return hand(pf);
+      }
+      if (r.idle) { idleSince = idleSince || Date.now(); if (Date.now() - idleSince > 60000) r = { phase: 'failed' }; } else idleSince = 0;
+      if (r.phase !== last.phase) phaseSince = Date.now();
+      last = r;
+      paint();
+      if (r.phase !== 'failed') timer = setTimeout(follow, 1500);
+    }
+    function follow() {
+      if (!alive) return;
+      api('/api/tv/play?' + targetQuery(x) + (job ? '&job=' + job : ''))
+        .then(answer, function () { if (alive) timer = setTimeout(follow, 3000); });
+    }
+    paint();
+    paintTimer = setInterval(paint, 500);
+    show({ el: el, leave: stop, key: function (code) {
+      if (code === KEY.ENTER || code === KEY.BACK) {
+        if (last.phase !== 'failed' && alive) toast(T('It keeps getting ready. Press Play again any time.'));
+        back();
+        return true;
+      }
+      return true;
+    } }, true);
+    var body = { type: x.type, tmdbId: x.tmdbId, title: x.title };
+    if (x.type === 'tv') { body.season = x.season; body.episode = x.episode; }
+    api('/api/tv/play', body).then(answer, function (err) { answer({ phase: 'failed', message: err.message }); });
+  }
+
   function play(f, startAt) {
     var av = window.webapis && webapis.avplay;
     if (!av) { toast(T('This TV can’t play videos from here.')); return; }
@@ -1923,6 +2083,32 @@
       h('div', { class: 'up-next-actions' }, h('div', { class: 'btn play-next' }), h('div', { class: 'btn keep', text: T('Keep watching') })));
     var menu = h('div', { class: 'menu' });
     var spinner = h('div', { class: 'loading', text: T('Loading…') });
+    // The pause screen: paused for 3 s, the picture dims and the title, the episode and what's left fade in at the
+    // bottom left (public/pause-screen.js on the web). Any key clears it; it comes back while still paused.
+    var pauseCard = null, restTimer = null;
+    function pauseInfo() {
+      var sh = showOf(f);
+      var type = f.season != null ? 'tv' : 'movie', id = f.season != null ? (sh && sh.tmdbId) || f.showTmdb : f.tmdbId;
+      var name = sh ? sh.title : f.filmTitle || f.title;
+      pauseCard = h('div', { class: 'pause-card' }, h('p', { class: 'pause-kicker', text: T('Paused') }),
+        titleLogo(h('h1', { class: 'pause-name', text: name }), type, id, name),
+        f.season != null ? h('p', { class: 'pause-ep', text: [L.episodeLabel(f), f.episodeName].filter(Boolean).join(' · ') }) : null,
+        f.overview ? h('p', { class: 'pause-text', text: String(f.overview).length > 240 ? String(f.overview).slice(0, 237) + '…' : f.overview }) : null,
+        h('p', { class: 'pause-left' }));
+      el.insertBefore(pauseCard, osd);
+    }
+    function rest(on) {
+      clearTimeout(restTimer);
+      if (!on) { if (pauseCard) pauseCard.classList.remove('show'); el.classList.remove('resting'); return; }
+      restTimer = setTimeout(function () {
+        if (s.playing || s.closed || s.ended || menu.classList.contains('show')) return;
+        if (!pauseCard) pauseInfo();
+        var left = s.duration ? L.minutesLeft({ time: s.time, duration: s.duration }) : '';
+        pauseCard.querySelector('.pause-left').textContent = left;
+        osd.classList.remove('show');
+        pauseCard.classList.add('show'); el.classList.add('resting');
+      }, 3000);
+    }
     var el = h('div', { class: 'screen player' }, osd, subsEl, skipBtn, upNext, menu, spinner);
     var cardFocus = 0, menuItems = [], menuIndex = 0, osdTimer = null, seekTarget = null, seekTimer = null, tick = null, autoTimer = null;
 
@@ -1957,7 +2143,33 @@
       if (skipBtn.classList.contains('focus') !== skipFocus) skipBtn.classList.toggle('focus', skipFocus);
       paintUpNext();
     }
-    function nextUp() { return L.nextEpisode(f.id, state.library, state.shows); }
+    // The next episode: the library's, else the one after it on TMDB (play first fetches it: the cold start has
+    // usually started it already, src/cold-start.js follow-ups).
+    var seasonsInfo = null;
+    function showTmdb() {
+      if (f.showTmdb) return f.showTmdb;
+      var sh = showOf(f);
+      if (sh && sh.tmdbId) return Number(sh.tmdbId);
+      var m = /^tv-(\d+)$/.exec(String(f.show || ''));
+      return m ? Number(m[1]) : null;
+    }
+    function knowSeasons() {
+      var id = showTmdb();
+      if (f.season == null || f.episode == null || !id || L.nextEpisode(f.id, state.library, state.shows)) return;
+      api('/api/tv/' + id + '/seasons').then(function (d) { seasonsInfo = d.seasons || []; }).catch(function () {});
+    }
+    var fetchedNext = null;
+    function nextUp() {
+      var lib = L.nextEpisode(f.id, state.library, state.shows);
+      if (lib || !seasonsInfo) return lib;
+      if (fetchedNext) return fetchedNext;
+      var x = L.nextAfter(seasonsInfo, f.season, f.episode);
+      if (!x) return null;
+      var sh = showOf(f);
+      fetchedNext = { id: 'next:' + x.season + ':' + x.episode, fetch: true, season: x.season, episode: x.episode, show: f.show,
+        still: sh && sh.backdrop || f.still, title: sh ? sh.title : f.filmTitle || f.title };
+      return fetchedNext;
+    }
     function paintUpNext() {
       var next = nextUp();
       var on = Boolean(next && !s.dismissed && L.isNextTime(s.time, s.duration, s.creditsAt, s.ended));
@@ -2024,6 +2236,7 @@
       countPlayed();
       if (pause) save(true);
       showOsd(pause); paint();
+      rest(pause);
     }
 
     // ---- resume points and watch time ----
@@ -2111,7 +2324,7 @@
       if (s.closed) return;
       s.closed = true;
       save(true);
-      clearInterval(tick); stopCountdown(); clearTimeout(osdTimer); clearTimeout(seekTimer);
+      clearInterval(tick); stopCountdown(); clearTimeout(osdTimer); clearTimeout(seekTimer); clearTimeout(restTimer);
       try { av.stop(); } catch (e) { /* already */ }
       try { av.close(); } catch (e) { /* already */ }
       if (obj.parentNode) obj.parentNode.removeChild(obj);
@@ -2125,8 +2338,13 @@
       s.busy = true; paintUpNext();
       s.ended = true; // counts as watched
       close();
-      var p = state.progress[L.progressRef(next)];
       screen = history.pop(); // the player is replaced, not stacked
+      if (next.fetch) {
+        getReady({ type: 'tv', tmdbId: showTmdb(), season: next.season, episode: next.episode, title: next.title,
+          sub: L.episodeLabel(next), art: next.still });
+        return;
+      }
+      var p = state.progress[L.progressRef(next)];
       play(next, L.resumable(p) ? p.time : 0);
     }
     function onHidden() { if (document.hidden) leavePlayer(); } // TV home button or another app: stop, keep the resume point
@@ -2196,7 +2414,9 @@
       document.addEventListener('visibilitychange', onHidden);
       // The MP4 copy when there is one (always TV-safe audio: the TV can't decode DTS), else the original.
       // The Android app asks for H.264 instead on TVs that can't decode HEVC (tv/android, Codecs.java).
-      api('/api/play-link?kind=lib&id=' + encodeURIComponent(f.id) + '&variant=' + (window.LILIN_TV_PLAY || 'browser-hevc')).then(function (link) {
+      // Play now (getReady): a stream of a video that's still downloading, already signed by the server.
+      if (f.part) { streamUrl = SERVER + f.url; openStream(startAt); }
+      else api('/api/play-link?kind=lib&id=' + encodeURIComponent(f.id) + '&variant=' + (window.LILIN_TV_PLAY || 'browser-hevc')).then(function (link) {
         if (s.closed) return;
         streamUrl = SERVER + link.url;
         openStream(startAt);
@@ -2208,6 +2428,8 @@
         if (s.playing) save(false);
         watchStall();
       }, 500);
+      knowSeasons();
+      if (f.part) return; // no intro marks or subtitles until it's whole
       var base = '/api/media/lib/' + encodeURIComponent(f.id);
       api(base + '/intro').then(function (d) { if (d.intro && d.intro.end - d.intro.start >= 5) s.intro = d.intro; }).catch(function () {});
       api(base + '/credits').then(function (d) { if (d.creditsAt > 0) s.creditsAt = d.creditsAt; }).catch(function () {});
@@ -2216,6 +2438,7 @@
     }
 
     show({ el: el, leave: close, key: function (code) {
+      if (el.classList.contains('resting')) { rest(false); if (!s.playing) rest(true); if (code !== KEY.ENTER && code !== KEY.PLAYPAUSE && code !== KEY.PLAY && code !== KEY.BACK && code !== KEY.STOP) { showOsd(true); return true; } }
       if (menu.classList.contains('show')) {
         if (code === KEY.UP) menuMove(-1);
         else if (code === KEY.DOWN) menuMove(1);

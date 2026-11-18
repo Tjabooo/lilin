@@ -155,6 +155,8 @@ pub enum Pill {
     Plain,
     Primary,
     Quiet,
+    /// Play: the one gold button (outlined in gold until it has focus).
+    Gold,
 }
 /// A rounded button: gold when focused (lit 0..1), paper when it's the main action.
 pub fn pill(cx: &mut Cx, r: Rect, label: &str, f: Font, kind: Pill, lit: f32) {
@@ -163,6 +165,7 @@ pub fn pill(cx: &mut Cx, r: Rect, label: &str, f: Font, kind: Pill, lit: f32) {
         Pill::Primary => (PAPER, ON_BULB, PAPER),
         Pill::Plain => (hexa(0xF6EADF, 0.12), PAPER, hexa(0xF6EADF, 0.16)),
         Pill::Quiet => (hexa(0x2B1724, 0.9), PAPER, HAIR),
+        Pill::Gold => (BULB.alpha(0.16), BULB, BULB),
     };
     if lit > 0.0 {
         cx.g.glow(r, r.h / 2.0, 44.0, BULB.alpha(0.45 * lit));

@@ -25,7 +25,7 @@ test('every API call in the TV app passes the gateway', () => {
   assert.ok(calls.length > 15);
   // Build each call's path with a stand-in for the parts tv.js adds ('/api/title/' + type + '/' + id + '/page').
   const samples = { '/api/title/': ['/api/title/movie/1/page', '/api/title/tv/1/cast'], '/api/tv/': ['/api/tv/1/seasons'], '/api/downloads/smart/': ['/api/downloads/smart/abc'],
-    '/api/live/': ['/api/live/sitcoms/tune'], '/api/watch/': ['/api/watch/LGs0lD489GIYoymFyM2cv5zD/heartbeat', '/api/watch/LGs0lD489GIYoymFyM2cv5zD/leave'] };
+    '/api/live/': ['/api/live/sitcoms/tune'], '/api/vibes/': ['/api/vibes/rainy-day'], '/api/tv/play': ['/api/tv/play'], '/api/watch/': ['/api/watch/LGs0lD489GIYoymFyM2cv5zD/heartbeat', '/api/watch/LGs0lD489GIYoymFyM2cv5zD/leave'] };
   for (const c of calls) for (const p of samples[c] || [c]) assert.ok(gatewayAllows(p), `${c} → ${p}`);
   assert.ok(gatewayAllows('/api/media/lib/x/intro') && gatewayAllows('/api/media/lib/x/credits')); // api(base + '/intro')
 });

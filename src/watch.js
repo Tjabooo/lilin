@@ -300,7 +300,14 @@ export class WatchRooms {
     if (Number.isFinite(status.rtt)) member.rtt = Math.max(0, Math.min(2000, status.rtt));
     if (room.live && this.now() > (room.liveEndsAt || 0) + 1000) this.refreshLive(room); // a missed cut (a sleeping timer)
     if (changed) this.changed(room);
-    return this.snapshot(room, member);
+    const snap = this.snapshot(room, member);
+    // livechat: the TV apps can't open the event stream (their session is a header), so a channel's new chat
+    // messages ride on their heartbeat: chatAfter = the last message id they have (0: the newest few).
+    const after = Number(status.chatAfter);
+    if (status.chatAfter != null && Number.isFinite(after) && room.live?.chat && this.hears(room, member)) {
+      snap.chat = room.live.chat.log().filter((c) => c.id > after).slice(-6).map((c) => ({ id: c.id, name: c.name, text: c.text, at: c.at }));
+    }
+    return snap;
   }
 
   control(token, user, client, action, position) {

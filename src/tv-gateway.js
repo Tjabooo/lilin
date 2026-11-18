@@ -31,6 +31,8 @@ const SIGNED_IN = [
   /^\/api\/title\/(movie|tv)\/\d+\/(page|cast)$/,
   /^\/api\/tv\/[^/]+\/seasons$/,
   /^\/api\/play-link$/,
+  /^\/api\/tv\/play$/, // Play first: what to do about a title (src/tv-play.js)
+  /^\/api\/vibes(\/[a-z0-9-]{1,40})?$/, // Discover's Moods
   /^\/api\/media\/lib\/[^/]+\/(intro|credits)$/,
   /^\/api\/subs\/(fetch|langs)$/,
   /^\/api\/subs\/file\//,

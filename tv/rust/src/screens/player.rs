@@ -17,6 +17,8 @@ const LINK: u32 = 1;
 const INTRO: u32 = 2;
 const CREDITS: u32 = 3;
 const LANGS_PREF: u32 = 4;
+const SEASONS_NEXT: u32 = 8;
+const PAGE: u32 = 9;
 const LANGS_MENU: u32 = 5;
 const SUB_FETCH: u32 = 6;
 const SUB_FILE: u32 = 7;
@@ -26,6 +28,8 @@ const OSD_T: u32 = 21;
 const SEEK_T: u32 = 22;
 const AUTO_T: u32 = 23;
 const REOPEN_T: u32 = 24;
+const PART_T: u32 = 25;
+const REST_T: u32 = 26;
 
 /// Resume or start over, when there's a resume point.
 pub fn play_asked(cx: &mut Cx, f: &Value, replace: bool) {
@@ -59,6 +63,18 @@ pub fn play(cx: &mut Cx, f: &Value, at: f64, replace: bool) {
     }
 }
 
+/// The show's TMDB id for an episode (library show, a Play now stream's showTmdb, or a tv-<id> show id).
+fn show_tmdb(cx: &Cx, f: &Value) -> i64 {
+    if let Some(v) = crate::util::f(f, "showTmdb") {
+        return v as i64;
+    }
+    if let Some(sh) = cx.state.show(s(f, "show")) {
+        if let Ok(v) = crate::util::id(sh, "tmdbId").parse::<i64>() {
+            return v;
+        }
+    }
+    s(f, "show").strip_prefix("tv-").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0)
+}
 fn file_title(cx: &Cx, f: &Value) -> String {
     match cx.state.show(s(f, "show")) {
         Some(sh) => String::from(s(sh, "title")),
@@ -190,6 +206,10 @@ pub struct Player {
     lit: Lit,
     /// Someone moved between the Up next buttons: no countdown until the card closes.
     held: bool,
+    /// The pause screen: when the video was paused (or a key pressed while paused); it shows 3 s later.
+    rest_since: f64,
+    logo: String,
+    asked_page: bool,
 }
 
 impl Player {
@@ -197,14 +217,31 @@ impl Player {
         let sid = cx.sid();
         let fid = String::from(s(&f, "id"));
         let variant = "browser-hevc";
-        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(&fid), variant), sid, LINK);
-        let base = alloc::format!("/api/media/lib/{}", crate::util::enc(&fid));
-        cx.get(&alloc::format!("{}/intro", base), sid, INTRO);
-        cx.get(&alloc::format!("{}/credits", base), sid, CREDITS);
-        if !cx.state.setting("subLang").is_empty() {
-            cx.get(&alloc::format!("/api/subs/langs?kind=lib&id={}", crate::util::enc(&fid)), sid, LANGS_PREF);
+        // Play now (ready.rs): a stream of a video that's still downloading, already signed; no intro marks or
+        // subtitles until it's whole.
+        let part = crate::util::b(&f, "part");
+        let mut stream = String::new();
+        if part {
+            stream = alloc::format!("{}{}", cx.server, s(&f, "url"));
+            cx.timer(1.0, sid, PART_T);
+        } else {
+            cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(&fid), variant), sid, LINK);
+            let base = alloc::format!("/api/media/lib/{}", crate::util::enc(&fid));
+            cx.get(&alloc::format!("{}/intro", base), sid, INTRO);
+            cx.get(&alloc::format!("{}/credits", base), sid, CREDITS);
+            if !cx.state.setting("subLang").is_empty() {
+                cx.get(&alloc::format!("/api/subs/langs?kind=lib&id={}", crate::util::enc(&fid)), sid, LANGS_PREF);
+            }
         }
         let next = logic::next_episode(&fid, &cx.state.library, &cx.state.shows).cloned();
+        // No next one here: the one after it on TMDB (play first fetches it; cold-start follow-ups have usually
+        // started it already).
+        if next.is_none() && crate::util::has(&f, "season") {
+            let tm = show_tmdb(cx, &f);
+            if tm > 0 {
+                cx.get(&alloc::format!("/api/tv/{}/seasons", tm), sid, SEASONS_NEXT);
+            }
+        }
         let mut p = Player {
             sid,
             f,
@@ -234,7 +271,7 @@ impl Player {
             menu_i: 0,
             seek_target: None,
             timers: [0; 5],
-            stream: String::new(),
+            stream,
             buffering_since: 0.0,
             moved_at: 0.0,
             last_ms: -1.0,
@@ -248,6 +285,9 @@ impl Player {
             next,
             lit: Lit::default(),
             held: false,
+            rest_since: 0.0,
+            logo: String::new(),
+            asked_page: false,
         };
         p.timers[0] = cx.timer(500.0, sid, TICK_T);
         p
@@ -358,6 +398,27 @@ impl Player {
             self.save(cx, true);
         }
         self.show_osd(cx, pause);
+        self.rest(cx, pause);
+    }
+    /// Starts (or stops) the wait for the pause screen.
+    fn rest(&mut self, cx: &mut Cx, on: bool) {
+        if !on {
+            self.rest_since = 0.0;
+            return;
+        }
+        self.rest_since = host::time();
+        cx.timer(3050.0, self.sid, REST_T);
+        if !self.asked_page {
+            self.asked_page = true;
+            let tv = crate::util::has(&self.f, "season");
+            let id = if tv { show_tmdb(cx, &self.f) } else { crate::util::id(&self.f, "tmdbId").parse::<i64>().unwrap_or(0) };
+            if id > 0 {
+                cx.get(&alloc::format!("/api/title/{}/{}/page", if tv { "tv" } else { "movie" }, id), self.sid, PAGE);
+            }
+        }
+    }
+    fn resting(&self) -> bool {
+        !self.playing && !self.ended && !self.closed && self.menu.is_none() && self.rest_since > 0.0 && host::time() - self.rest_since >= 3000.0
     }
     fn skip_intro(&mut self, cx: &mut Cx) {
         let Some((_, end)) = self.intro else { return };
@@ -413,6 +474,14 @@ impl Player {
         self.busy = true;
         self.ended = true; // counts as watched
         self.close(cx);
+        if crate::util::b(&next, "fetch") {
+            let tmdb = show_tmdb(cx, &self.f);
+            let sub = logic::episode_label(&next);
+            let x = super::ready::Target { tv: true, tmdb, season: f(&next, "season").unwrap_or(1.0) as i64, episode: f(&next, "episode").unwrap_or(1.0) as i64,
+                title: file_title(cx, &self.f), sub, art: String::from(s(&next, "still")) };
+            super::ready::replace_with(cx, x);
+            return;
+        }
         let p = cx.state.progress.get(logic::progress_ref(&next)).cloned();
         let at = if logic::resumable(p.as_ref()) { f(p.as_ref().unwrap(), "time").unwrap_or(0.0) } else { 0.0 };
         play(cx, &next, at, true);
@@ -554,6 +623,27 @@ impl Screen for Player {
         true
     }
     fn draw(&mut self, cx: &mut Cx) {
+        if self.resting() {
+            self.osd_on = false;
+            let full = rect(0.0, 0.0, 1920.0, 1080.0);
+            cx.g.hgrad(full, &[(0.0, hexa(0x0A0508, 0.78)), (0.6, hexa(0x0A0508, 0.35)), (1.0, hexa(0x0A0508, 0.2))]);
+            let x = ui::EDGE;
+            let mut y = 1080.0 - 120.0 - 380.0;
+            cx.tx.draw(&mut cx.g, body(24.0, 700), &crate::util::lower(t!("Paused")).to_uppercase(), x, y, ui::BULB);
+            y += 48.0;
+            let name = file_title(cx, &self.f);
+            let logo = self.logo.clone();
+            y += super::title::heading(cx, &logo, &name, x, y, 76.0, 1000.0);
+            if crate::util::has(&self.f, "season") {
+                cx.tx.draw_fit(&mut cx.g, body(32.0, 700), &episode_line(&self.f), x, y, 1000.0, ui::PAPER);
+                y += 50.0;
+            }
+            if self.duration > 0.0 {
+                let left = logic::minutes_left(&serde_json::json!({ "time": self.time, "duration": self.duration }));
+                cx.tx.draw(&mut cx.g, body(30.0, 400), &left, x, y, ui::DUST);
+            }
+            return;
+        }
         self.osd.set(if self.osd_on || self.menu.is_some() { 1.0 } else { 0.0 });
         let o = self.osd.step01(cx, 12.0);
         let shown_t = self.seek_target.unwrap_or(self.time);
@@ -759,6 +849,13 @@ impl Screen for Player {
     }
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
         cx.redraw();
+        if self.resting() {
+            self.rest(cx, true); // clears it; it comes back while still paused
+            if !matches!(k.code, key::ENTER | key::PLAYPAUSE | key::PLAY | key::BACK | key::STOP) {
+                self.show_osd(cx, true);
+                return true;
+            }
+        }
         if self.menu.is_some() {
             match k.code {
                 key::UP => self.menu_move(-1),
@@ -887,6 +984,23 @@ impl Screen for Player {
                     cx.toast(&t!("Couldn’t get those subtitles: {0}", res.error()));
                 }
             }
+            SEASONS_NEXT => {
+                if self.next.is_none() && res.ok() {
+                    let se = crate::util::f(&self.f, "season").unwrap_or(0.0) as i64;
+                    let ep = crate::util::f(&self.f, "episode").unwrap_or(0.0) as i64;
+                    if let Some((ns, ne)) = logic::next_after(crate::util::arr(&res.json, "seasons"), se, ep) {
+                        let sh = cx.state.show(s(&self.f, "show"));
+                        let still = sh.map(|x| String::from(s(x, "backdrop"))).filter(|x| !x.is_empty()).unwrap_or_else(|| String::from(s(&self.f, "still")));
+                        self.next = Some(serde_json::json!({ "id": alloc::format!("next:{}:{}", ns, ne), "fetch": true, "season": ns, "episode": ne,
+                            "show": s(&self.f, "show"), "still": still }));
+                    }
+                }
+            }
+            PAGE => {
+                if let Some(u) = res.json.get("page").and_then(|p| p.get("logo")).map(|l| s(l, "url")) {
+                    self.logo = String::from(u);
+                }
+            }
             t if t & 0xff == SUB_FILE => {
                 if res.ok() {
                     self.cues = logic::parse_vtt(&res.body);
@@ -904,6 +1018,11 @@ impl Screen for Player {
             return;
         }
         match tag {
+            PART_T => {
+                let at = self.start_at;
+                self.open_stream(cx, at);
+            }
+            REST_T => cx.redraw(),
             TICK_T => {
                 if self.playing && self.seek_target.is_none() {
                     self.time = self.now_time();

@@ -41,6 +41,15 @@
 
   // Up next starts with the credits (an ending chapter or the credits music, from the server), never
   // at a guessed time: with no credits start known it waits for the end of the file.
+  // The episode after season/episode by TMDB's seasons ({ number, episodes, first, upcoming }), or null at the end.
+  function nextAfter(seasons, season, episode) {
+    var list = (seasons || []).filter(function (x) { return x.number > 0; }).sort(function (a, b) { return a.number - b.number; });
+    var cur = list.filter(function (x) { return x.number === season; })[0];
+    if (cur && (!cur.episodes || episode + 1 <= (cur.first || 1) + cur.episodes - 1)) return { season: season, episode: episode + 1 };
+    var next = list.filter(function (x) { return x.number > season; })[0];
+    if (!next || next.upcoming) return null;
+    return { season: next.number, episode: next.first || 1 };
+  }
   function nextPromptAt(duration, creditsAt) {
     if (!(duration > 0)) return null;
     return typeof creditsAt === 'number' && creditsAt > duration / 2 && creditsAt < duration ? creditsAt : null;
@@ -146,16 +155,36 @@
       var key = titleKey(f) || (f.show ? 'show:' + f.show : progressRef(f));
       return !(hidden[key] != null && hidden[key] >= (progress[progressRef(f)].at || 0));
     }
-    var cont = library.filter(function (f) { return resumable(progress[progressRef(f)]) && !f.converting && shown(f); })
-      .sort(function (a, b) { return (progress[progressRef(b)].at || 0) - (progress[progressRef(a)].at || 0); })
-      .slice(0, 20);
+    // One card per show: its latest episode, or, once that one is finished, the next one here (upNext).
+    var list = [], latest = {}, upNext = {};
+    library.forEach(function (f) {
+      var p = progress[progressRef(f)];
+      if (!p || f.converting) return;
+      if (f.show && f.season != null) {
+        var b = latest[f.show];
+        if (!b || (p.at || 0) > (progress[progressRef(b)].at || 0)) latest[f.show] = f;
+      } else if (resumable(p) && shown(f)) list.push({ f: f, at: p.at || 0 });
+    });
+    Object.keys(latest).forEach(function (id) {
+      var f = latest[id], p = progress[progressRef(f)];
+      if (!shown(f)) return;
+      if (resumable(p)) { list.push({ f: f, at: p.at || 0 }); return; }
+      var finished = p.time == null || (p.duration > 0 && p.duration - p.time <= DONE_SECONDS);
+      var next = finished ? nextEpisode(f.id, library, shows) : null;
+      if (!next || next.converting) return;
+      var np = progress[progressRef(next)];
+      if (np && (np.time == null || np.duration - np.time <= DONE_SECONDS)) return; // already seen
+      upNext[next.id] = true;
+      list.push({ f: next, at: p.at || 0 });
+    });
+    var cont = list.sort(function (a, b) { return b.at - a.at; }).slice(0, 20).map(function (x) { return x.f; });
     var showIds = {};
     library.forEach(function (f) { if (f.show && f.season != null) showIds[f.show] = true; });
     var showList = shows.filter(function (s) { return showIds[s.id]; })
       .sort(function (a, b) { return latestAdded(library, b.id) - latestAdded(library, a.id); });
     var films = library.filter(function (f) { return f.season == null; })
       .sort(function (a, b) { return (b.addedAt || b.added || 0) - (a.addedAt || a.added || 0); });
-    return { cont: cont, shows: showList, films: films };
+    return { cont: cont, upNext: upNext, shows: showList, films: films };
   }
   function latestAdded(library, showId) {
     var t = 0;
@@ -275,7 +304,7 @@
   var api = {
     liveTarget: liveTarget, clockOffset: clockOffset, channelName: channelName, programmeLine: programmeLine, clock: clock, neighbour: neighbour,
     AUTOPLAY_SECONDS: AUTOPLAY_SECONDS, AUTOPLAY_CHAIN: AUTOPLAY_CHAIN, DONE_SECONDS: DONE_SECONDS,
-    nextEpisode: nextEpisode, nextPromptAt: nextPromptAt, isNextTime: isNextTime, introShowing: introShowing,
+    nextEpisode: nextEpisode, nextAfter: nextAfter, nextPromptAt: nextPromptAt, isNextTime: isNextTime, introShowing: introShowing,
     T: T, fmtTime: fmtTime, episodeLabel: episodeLabel, minutesLeft: minutesLeft, progressRef: progressRef, resumable: resumable,
     titleKey: titleKey, transferWord: transferWord, pendingTitles: pendingTitles, homeRows: homeRows, genreRows: genreRows, searchKey: searchKey, showSeasons: showSeasons, startEpisode: startEpisode, parseVtt: parseVtt, cueText: cueText,
   };

@@ -14,12 +14,14 @@ use serde_json::Value;
 
 const HOME: u32 = 1;
 const GENRES: u32 = 2;
+const VIBES: u32 = 3;
 
 const SEE_ROW: u32 = 1000;
 const GENRE_TILE: u32 = 2000;
 const GENRE_ALL: u32 = 3000;
 const CATEGORY: u32 = 4000;
 const CAT_ALL: u32 = 5000;
+const VIBE_TILE: u32 = 6000;
 
 /// The hero: what the focused title is. It changes once the focus rests a moment (pictures are slow on
 /// the TV), the backdrop crossfading and the words fading in.
@@ -140,6 +142,8 @@ pub struct Discover {
     data: Vec<(String, String)>,
     waiting: u32,
     home: Option<Value>,
+    /// vibes: the Moods (/api/vibes), for this tab
+    vibes: Vec<Value>,
 }
 
 impl Discover {
@@ -158,6 +162,7 @@ impl Discover {
             data: Vec::new(),
             waiting: 0,
             home: None,
+            vibes: Vec::new(),
         };
         d.load(cx);
         d
@@ -169,6 +174,8 @@ impl Discover {
         self.home = None;
         self.waiting = 1;
         cx.get(&alloc::format!("/api/discover/home?type={}", self.ty), self.sid, HOME | (self.rows.seq << 12));
+        self.waiting += 1;
+        cx.get("/api/vibes", self.sid, VIBES | (self.rows.seq << 12));
         if cx.state.genres.is_empty() {
             self.waiting += 1;
             cx.load_genres(Some((self.sid, GENRES)));
@@ -209,6 +216,13 @@ impl Discover {
             self.data.push((String::from(s(r, "title")), k.clone()));
             rows.push(Row::growing(s(r, "title"), Kind::Tile, cards, Fetch::List(k), Some(SEE_ROW + n as u32)));
         }
+        // vibes: the Moods row, after the first row (as on the web)
+        let ty = self.ty;
+        self.vibes.retain(|v| ty == "all" || arr(v, "types").is_empty() || arr(v, "types").iter().any(|x| x.as_str() == Some(ty)));
+        if self.vibes.len() >= 3 {
+            let tiles: Vec<Card> = self.vibes.iter().enumerate().map(|(n, v)| browse::vibe_card(v, n, VIBE_TILE + n as u32)).collect();
+            rows.insert(rows.len().min(1), Row::new(t!("Moods"), Kind::Genre(0), tiles));
+        }
         let gs = self.genres(cx);
         if !gs.is_empty() {
             let tiles = gs.iter().enumerate().map(|(n, g)| browse::genre_card(s(g, "name"), n, GENRE_TILE + n as u32)).collect();
@@ -234,6 +248,14 @@ impl Discover {
         if (SEE_ROW..GENRE_TILE).contains(&tag) {
             if let Some((title, k)) = self.data.get((tag - SEE_ROW) as usize).cloned() {
                 let g = GridScreen::new(cx, &title, Source::List(k), "all", false, false);
+                cx.push(Box::new(g));
+            }
+        } else if tag >= VIBE_TILE {
+            if let Some(v) = self.vibes.get((tag - VIBE_TILE) as usize).cloned() {
+                let types = arr(&v, "types");
+                let both = types.len() != 1;
+                let ty = if both { self.ty } else if types[0].as_str() == Some("tv") { "tv" } else { "movie" };
+                let g = GridScreen::new(cx, s(&v, "name"), Source::Vibe(String::from(s(&v, "id"))), ty, both, false);
                 cx.push(Box::new(g));
             }
         } else if (GENRE_TILE..CATEGORY).contains(&tag) {
@@ -343,6 +365,12 @@ impl Screen for Discover {
                 return;
             }
             self.home = Some(if res.ok() { res.json } else { serde_json::json!({ "rows": [], "error": res.error() }) });
+            self.waiting = self.waiting.saturating_sub(1);
+        } else if tag & 0xfff == VIBES {
+            if tag >> 12 != self.rows.seq {
+                return;
+            }
+            self.vibes = if res.ok() { arr(&res.json, "vibes").to_vec() } else { Vec::new() };
             self.waiting = self.waiting.saturating_sub(1);
         } else if tag == GENRES {
             self.waiting = self.waiting.saturating_sub(1);

@@ -11,7 +11,7 @@ fs.mkdirSync(out, { recursive: true });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tvdrive-'));
 const chrome = spawn(process.env.CHROME || 'chromium', ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
   '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--window-size=1920,1080', '--hide-scrollbars',
-  '--force-device-scale-factor=1', '--disable-web-security', // the TV app may read any host (Tizen <access origin="*">)
+  '--force-device-scale-factor=1', '--mute-audio', '--disable-web-security', // the TV app may read any host (Tizen <access origin="*">)
    'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
 const ws = await new Promise((ok, fail) => {
   let buf = '';

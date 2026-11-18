@@ -18,6 +18,7 @@ import * as subsync from './subsync.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
 import { createTvPairing } from './tv.js';
+import { tvPlay } from './tv-play.js'; // the TV apps' Play (play first)
 import { startWeb as startWebSignIn, tvExtras as tvSignInExtras, placeOf as signInPlace, WEB_TTL_MS } from './signin-link.js';
 import { createJellyfin } from './jellyfin.js';
 import * as load from './load.js';
@@ -4932,6 +4933,28 @@ async function handleApi(req, res, url) {
     invalidateLibrary();
     activity.record(req, 'remove', t.name);
     return sendJson(res, 200, { ok: true, kept: true });
+  }
+  // The TV apps' Play (play first, src/tv-play.js): POST starts what's needed, GET follows it.
+  if (p === '/api/tv/play') {
+    const q = req.method === 'POST' ? await readJson(req) : Object.fromEntries(url.searchParams);
+    const deps = {
+      libraryView,
+      listDownloads: (u) => listDownloads(u),
+      startSmart: (u, body) => startSmartFor(u, body),
+      smartJob: (id, u) => (/^[a-f0-9]{12}$/.test(id) ? smart.smartJob(id, { userId: u.id, owner: u.isOwner }) : null),
+      partLink: async (u, id) => { const r = resolvePartId(id); if (!(await partialAccess(u, r))) return null; return partialLink(req, r); },
+      addToLibrary: async (u, item) => {
+        const available = new Set((await libraryVisibleItems(await scanLibrary(), u) || []).map((i) => i.id));
+        const full = librarySource(item.id);
+        if (!available.has(item.id) || !full || !fs.existsSync(full)) return false;
+        accounts.addEntry(u.id, accounts.mediaKey(full), 'added');
+        activity.record(req, 'add', titleOf(full), { quietMs: 60000 });
+        return true;
+      },
+    };
+    const r = await tvPlay(deps, user, q, { start: req.method === 'POST' });
+    if (r.job && req.method === 'POST') activity.record(req, 'download', String(q.title || `TMDB ${q.type} ${q.tmdbId}`).slice(0, 200));
+    return sendJson(res, 200, r);
   }
   // ---- casting ----
   // Play now: asks for the download to run for playback; polled until the start of the video has arrived.

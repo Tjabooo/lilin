@@ -3,7 +3,7 @@ use super::browse::{self, Grid, Kind, GRID_MAX};
 use crate::gfx::{hexa, rect};
 use crate::text::{body, display};
 use crate::ui::{self, Lit};
-use crate::util::{arr, enc, i};
+use crate::util::{arr, enc, i, s};
 use crate::{key, t, Cx, Key, Res, Screen};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -13,6 +13,8 @@ pub enum Source {
     List(String),
     Genre(Option<i64>, Option<i64>),
     Docs(String, bool),
+    /// vibes: one mood's titles (one page, both kinds; the type chips filter them here).
+    Vibe(String),
 }
 
 struct Chip {
@@ -93,6 +95,7 @@ impl GridScreen {
             Source::List(k) => alloc::format!("/api/discover/list?key={}&page={}", enc(k), page),
             Source::Genre(m, tv) => browse::genre_url(*m, *tv, self.ty, self.sort, page),
             Source::Docs(id, _) => browse::docs_url(id, self.ty, self.sort, page),
+            Source::Vibe(id) => alloc::format!("/api/vibes/{}", enc(id)),
         }
     }
     fn more(&mut self, cx: &mut Cx) {
@@ -208,6 +211,10 @@ impl Screen for GridScreen {
         let d = &res.json;
         let cards = match &self.src {
             Source::Docs(_, svt) => browse::docs_cards(cx, arr(d, "results"), *svt),
+            Source::Vibe(_) => {
+                let ty = self.ty;
+                arr(d, "results").iter().filter(|t| ty == "all" || s(t, "type") == ty).map(|t| browse::title_card(cx, t)).collect()
+            }
             _ => arr(d, "results").iter().map(|t| browse::title_card(cx, t)).collect(),
         };
         let before = self.grid.cards.len();

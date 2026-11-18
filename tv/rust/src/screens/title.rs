@@ -1,5 +1,5 @@
-//! A film's or show's page from Discover or Search: play it if it's yours, or download it (Smart Download picks
-//! the release on the server), with the season and quality to get.
+//! A film's or show's page from Discover or Search. Play first: Play is the one gold button; yours plays, anything
+//! else gets ready (ready.rs, src/tv-play.js on the server). Downloading a season or a quality is the owner's tool.
 use super::browse::{self, Mine};
 use crate::gfx::{hexa, rect};
 use crate::logic::Pending;
@@ -23,6 +23,8 @@ const FOLLOWED: u32 = 8;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Do {
+    Play,
+    Soon,
     Mine,
     Download,
     Quality,
@@ -75,13 +77,25 @@ impl TitleScreen {
         if tv {
             cx.get(&alloc::format!("/api/tv/{}/seasons", crate::util::enc(&tid)), sid, SEASONS);
         }
+        let soon = !tv && t.get("soon").map(|x| !s(x, "date").is_empty()).unwrap_or(false);
+        let owner = cx.state.is_owner();
         let mut actions = Vec::new();
-        if mine.is_some() {
+        match mine {
+            Some(Mine::Film(_)) => actions.push(Do::Mine),
+            _ if !soon => actions.push(Do::Play),
+            _ => {}
+        }
+        if let Some(Mine::Show(_)) = mine {
             actions.push(Do::Mine);
         }
-        actions.push(Do::Download);
-        actions.push(Do::Quality);
-        let status = if on_way.is_some() {
+        if soon && actions.is_empty() {
+            actions.push(Do::Soon);
+        }
+        if owner && !soon {
+            actions.push(Do::Download);
+            actions.push(Do::Quality);
+        }
+        let status = if on_way.is_some() || !owner {
             String::new()
         } else if mine.is_some() {
             String::from(t!("Already in your library. Smart Download will avoid duplicates."))
@@ -124,7 +138,7 @@ impl TitleScreen {
     }
     /// Once it's on its way, the next thing to do is go and see it in the library.
     fn offer_library(&mut self) {
-        if self.actions.contains(&Do::Library) {
+        if self.actions.contains(&Do::Library) || !self.actions.contains(&Do::Download) {
             return;
         }
         self.actions.insert(0, Do::Library);
@@ -145,9 +159,14 @@ impl TitleScreen {
     }
     fn label(&self, cx: &Cx, a: Do) -> String {
         match a {
+            Do::Play => String::from(if self.tv { t!("Play season") } else { t!("Play") }),
+            Do::Soon => match self.t.get("soon") {
+                Some(x) => browse::soon_sub(x),
+                None => String::from(t!("Coming soon")),
+            },
             Do::Mine => String::from(match self.mine {
                 Some(Mine::Film(_)) => t!("Play"),
-                _ => t!("Open"),
+                _ => t!("Episodes"),
             }),
             Do::Download => String::from(if !cx.state.can_download() {
                 t!("Downloads disabled")
@@ -166,6 +185,8 @@ impl TitleScreen {
     fn act(&mut self, cx: &mut Cx) {
         let Some(a) = self.actions.get(self.ai).copied() else { return };
         match a {
+            Do::Play => self.play(cx),
+            Do::Soon => cx.toast(t!("This film isn’t out yet.")),
             Do::Mine => match &self.mine {
                 Some(Mine::Film(fid)) => {
                     if let Some(file) = cx.state.file(fid).cloned() {
@@ -183,6 +204,23 @@ impl TitleScreen {
             Do::Download => self.download(cx),
             Do::Quality => self.quality = (self.quality + 1) % QUALITIES.len(),
             Do::Library => cx.nav.push(Nav::GoLibrary),
+        }
+    }
+    fn play(&mut self, cx: &mut Cx) {
+        let title = String::from(s(&self.t, "title"));
+        let art = String::from(if !s(&self.t, "backdrop").is_empty() { s(&self.t, "backdrop") } else { s(&self.t, "poster") });
+        let tmdb = f(&self.t, "id").unwrap_or(0.0) as i64;
+        if self.tv {
+            let Some(se) = self.seasons.get(self.si) else {
+                cx.toast(t!("The season list is still loading."));
+                return;
+            };
+            let season = f(se, "number").unwrap_or(1.0) as i64;
+            let first = f(se, "first").filter(|v| *v >= 1.0).unwrap_or(1.0) as i64;
+            let sub = alloc::format!("{} · {}", t!("Season {0}", alloc::format!("{}", season)), t!("Episode {0}", alloc::format!("{}", first)));
+            super::ready::play_first(cx, super::ready::Target { tv: true, tmdb, season, episode: first, title, sub, art });
+        } else {
+            super::ready::play_first(cx, super::ready::Target { tv: false, tmdb, season: 0, episode: 0, title, sub: String::new(), art });
         }
     }
     fn download(&mut self, cx: &mut Cx) {
@@ -333,14 +371,13 @@ impl Screen for TitleScreen {
         for (n, a) in self.actions.clone().iter().enumerate() {
             let label = self.label(cx, *a);
             let w = ui::pill_w(cx, &label, pf, 34.0, 270.0);
-            let primary = match a {
-                Do::Library => true,
-                Do::Mine => !self.actions.contains(&Do::Library),
-                Do::Download => self.mine.is_none() && !self.actions.contains(&Do::Library),
-                Do::Quality => false,
+            let kind = match a {
+                Do::Play => ui::Pill::Gold,
+                Do::Mine if matches!(self.mine, Some(Mine::Film(_))) => ui::Pill::Gold,
+                _ => ui::Pill::Plain,
             };
             let lit = self.lit.get(n as u64 + 1);
-            ui::pill(cx, rect(ax, y, w, 78.0), &label, pf, if primary { ui::Pill::Primary } else { ui::Pill::Plain }, lit);
+            ui::pill(cx, rect(ax, y, w, 78.0), &label, pf, kind, lit);
             ax += w + 18.0;
         }
         y += 100.0;
@@ -358,9 +395,10 @@ impl Screen for TitleScreen {
             match k.code {
                 key::LEFT if self.si > 0 => self.si -= 1,
                 key::RIGHT if self.si + 1 < self.seasons.len() => self.si += 1,
+                key::ENTER if self.mine.is_none() => self.play(cx),
                 key::DOWN | key::ENTER => {
                     self.at_seasons = false;
-                    self.ai = self.actions.iter().position(|a| *a == Do::Download).unwrap_or(0);
+                    self.ai = 0;
                 }
                 key::UP | key::LEFT | key::RIGHT => {}
                 _ => return false,
