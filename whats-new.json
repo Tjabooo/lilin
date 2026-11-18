@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-11-18-theme-speaker",
+    "date": "2026-11-18",
+    "title": "Theme song button moved",
+    "items": [
+      {
+        "title": "Speaker no longer hides under Trailer",
+        "text": "On shows with both a theme song and a trailer, the small speaker now sits just above the Trailer button, so you can reach it."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-polish",
     "date": "2026-11-18",
     "title": "A smoother, more cinematic Lilin",

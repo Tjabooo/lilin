@@ -1,4 +1,13 @@
 {
+  "2026-11-18-theme-speaker": {
+    "title": "Ledmotivsknappen har flyttat",
+    "items": {
+      "Speaker no longer hides under Trailer": {
+        "title": "Högtalaren gömmer sig inte längre under Trailer",
+        "text": "På serier med både ledmotiv och trailer sitter den lilla högtalaren nu precis ovanför Trailer-knappen, så att du kommer åt den."
+      }
+    }
+  },
   "2026-11-18-polish": {
     "title": "Ett mjukare Lilin, mer som bio",
     "items": {
