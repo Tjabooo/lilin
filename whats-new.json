@@ -11,17 +11,6 @@
     ]
   },
   {
-    "id": "2026-11-18-copies-wait",
-    "date": "2026-11-18",
-    "title": "Videos you haven’t watched before start smoother",
-    "items": [
-      {
-        "title": "Copies wait while your video starts",
-        "text": "While a video that isn’t on the server yet is getting ready, Lilin now pauses its own background work (making copies for later) so your video gets the graphics card and the disk to itself. The paused work carries on once playback is going."
-      }
-    ]
-  },
-  {
     "id": "2026-11-18-continue-remove",
     "date": "2026-11-18",
     "title": "Removed from Continue watching stays removed",
@@ -196,294 +185,294 @@
       }
     ]
   },
-  {
-    "id": "2026-11-17-account-page",
-    "date": "2026-11-17",
-    "title": "A real Account page",
-    "items": [
-      {
-        "title": "See where you're signed in",
-        "text": "You → Account now lists the browsers and TVs signed in as you. Lost a phone? Sign out everywhere else, and every other device needs your password to get back in. Changing your password does the same."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-continue-title-link",
-    "date": "2026-11-17",
-    "title": "Titles in Continue watching open the page",
-    "items": [
-      {
-        "title": "Tap the name to see the show or film",
-        "text": "In Continue watching, tapping the picture still picks up where you stopped. Tapping the name under it now opens the title's page instead, with its seasons, details and trailer. The ⋯ menu has a Details button too."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-scan-to-sign-in",
-    "date": "2026-11-17",
-    "title": "Sign in by scanning a code",
-    "items": [
-      {
-        "title": "No password on computers and TVs",
-        "text": "The sign-in page on a computer and the sign-in screen on the TV now show a QR code. Point the camera of a phone that's signed in to Lilin at it, check that it names the right device, and say yes. No camera? Enter the code under You → Devices and notifications instead."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-sharper-banners",
-    "date": "2026-11-17",
-    "title": "Sharper banners",
-    "items": [
-      {
-        "title": "Better pictures at the top of Discover",
-        "text": "The big banner now picks a well-liked, full-HD-or-better picture without text for each title instead of whatever the movie database lists first, and big screens get the full-size picture instead of a stretched one."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-activity-house",
-    "date": "2026-11-17",
-    "title": "Activity moved to House",
-    "audience": "owner",
-    "items": [
-      {
-        "title": "Activity is a House tile now",
-        "text": "Who watched what, and when, now opens from the House tab next to your other tools instead of from You. Old links still find it."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-fresh-hevc",
-    "date": "2026-11-17",
-    "title": "Just-downloaded films get ready in more browsers",
-    "items": [
-      {
-        "title": "No more \"can't play\" right after a download",
-        "text": "Some new films use a video format a few browsers (like Firefox) can't play. Right after the download, Lilin used to just say it can't play here. Now it shows that it's making a version for your browser and starts by itself when that's ready."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-password-private",
-    "date": "2026-11-17",
-    "title": "Your password is yours alone",
-    "items": [
-      {
-        "title": "A note where you pick your password",
-        "text": "When you join Lilin or pick a password, a small note now says what was always true: your password is scrambled before it's saved, so nobody can see it, not even the people who run Lilin."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-revamp-2",
-    "date": "2026-11-17",
-    "title": "Lilin got tidied up",
-    "items": [
-      {
-        "title": "Four tabs: Discover, Live, Library and You",
-        "text": "Lilin has gained a lot of features lately, so everything got a clearer home. The tabs are now Discover, Live, Library and You. Settings moved into You, together with your profile, friends, moments and what you've watched. Owners have all their tools in one tab, House."
-      },
-      {
-        "title": "Library in three parts",
-        "text": "Library now has Titles, Watchlist and Downloads. Watchlist is one list for what you saved for later, what's coming up and the shows you follow. Downloads has everything about what's on its way."
-      },
-      {
-        "title": "A shorter Discover with Right now",
-        "text": "Discover is shorter. Right under the big picture, Right now shows what needs you today: a watch party, something leaving soon or a download that's ready."
-      },
-      {
-        "title": "Watch with someone on Live",
-        "text": "Live has a new Watch with someone section at the top: start Pick together, or join the watch parties you planned."
-      },
-      {
-        "title": "One title page, one way to invite, smarter search",
-        "text": "Every film and show opens the same page, with one main button for what you'll most likely do next. Inviting people works the same everywhere. Search also finds places and settings, so typing \"subtitles\" takes you straight there."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-theme-music",
-    "date": "2026-11-17",
-    "title": "Theme music",
-    "items": [
-      {
-        "title": "Show pages play their theme song",
-        "text": "Open a show in your Library and its theme song plays quietly in the background, like the menu of a home cinema. It keeps going while you look through seasons and episodes, and fades out when you press play or leave the page. Tap the small speaker on the picture to stop it. Turn it off, or a little louder, on each device in Settings → Watching → Theme music. Shows where Lilin hasn’t found the opening titles yet stay silent."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-profile-reload-clips-live",
-    "date": "2026-11-17",
-    "title": "Profiles stay put, clips arrive by themselves",
-    "items": [
-      {
-        "title": "Reloading keeps your profile open",
-        "text": "Reloading the page while a profile is open now brings you back to that profile, even after you've edited it or opened a film from it. Before, you landed in Settings."
-      },
-      {
-        "title": "New clips appear on their own",
-        "text": "The Clips tab now updates by itself when a new clip arrives, so there's no need to reload to see it.",
-        "audience": "owner"
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-fleet-fixes",
-    "date": "2026-11-17",
-    "title": "A round of fixes",
-    "items": [
-      {
-        "title": "Whole Liked row on computers",
-        "text": "On a computer, the Liked row on a profile now shows every poster in a tidy grid, so nothing is cut off at the edge and there's nothing to scroll."
-      },
-      {
-        "title": "Name and picture on your profile",
-        "text": "Change your picture by tapping it on your profile, and your name under Edit profile. Settings is shorter: the picture, name and What's new rows are gone from the top."
-      },
-      {
-        "title": "Save stays out of the way",
-        "text": "The Save button in Edit profile now sits on its own bar at the bottom of the sheet, so the poster and font choices no longer show through around it."
-      },
-      {
-        "title": "Tidier bio box",
-        "text": "The Bio field on your profile is now a normal rounded box instead of a stretched pill, so longer bios no longer run into the curved edges."
-      },
-      {
-        "title": "No Add on films that aren't out yet",
-        "text": "Films that are only in cinemas and shows that haven't started airing no longer offer Add to library on their cards. Save or Follow them instead, and Lilin adds them once they're out."
-      },
-      {
-        "title": "Watch Together fits the screen",
-        "text": "On phones and upright tablets the room now sits under the picture instead of covering it, and turned sideways it docks on the right and leaves the controls free. The Audio button is back in rooms, so everyone can pick their own audio language."
-      },
-      {
-        "title": "A calmer player",
-        "text": "Only one player menu opens at a time, and Escape or a tap outside closes it. When a video can't play you get a clear card with Try again and Back, and if the connection drops mid-video the player reconnects by itself."
-      },
-      {
-        "title": "Easier to read",
-        "text": "Buttons, status colours and the current tab are easier to read on every colour theme, light ones included. SVT Play titles are readable over their picture, and ratings look the same everywhere."
-      },
-      {
-        "title": "Plain words when something's wrong",
-        "text": "If Lilin can't be reached you get a clear message and a Try again button instead of technical words. A link that got cut off when it was sent now shows a page saying so, and invite and Watch Together links are in Swedish too."
-      },
-      {
-        "title": "Your library tells the truth",
-        "text": "A show that's still downloading no longer says you're all caught up, episodes that haven't aired yet show their air date, films with several versions let you pick the quality on their library page, and an empty filtered library has a Show all titles button."
-      },
-      {
-        "title": "Restricted means restricted",
-        "text": "People who are restricted no longer show up for anyone else in Live TV, Watch Together or the live chat, on any of their devices."
-      },
-      {
-        "title": "Opens faster",
-        "text": "After the first visit Lilin reuses what it already downloaded, and what it does download is smaller, so it opens quicker on a slow connection."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-profiles",
-    "date": "2026-11-17",
-    "title": "Your own profile",
-    "items": [
-      {
-        "title": "A page that's yours",
-        "text": "Tap your face at the top (or Your profile in Settings) to see your profile: picture, name, a username, pronouns and a short bio, your four favourite films or shows, what you watched lately with your stars and likes, your reviews and your friends. More activity opens your whole diary."
-      },
-      {
-        "title": "Make it look like you",
-        "text": "Edit profile lets you pick an accent colour, a banner (a picture from a film or show, or a colour), the font of your name, the shape of the posters, the background and the layout, and which sections show in which order. You see each change behind the editor before you save."
-      },
-      {
-        "title": "You decide who sees it",
-        "text": "Profiles are for friends only until you change it: pick Everyone, Friends or Only me. Others just see your name and picture. Tap someone's face on a review or in your friends list to visit theirs."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-pack-folder-names",
-    "date": "2026-11-17",
-    "title": "Posters for more shows",
-    "items": [
-      {
-        "title": "Shows from season packs get their posters",
-        "text": "Some season packs keep their episodes in a folder called something like The Mindy Project Season 1 S01. Lilin read that as a show named The Mindy Project Season 1, couldn’t find it, and showed plain grey tiles called Episode 1, Episode 2 and so on. Those shows now get their poster, episode names and pictures."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-pick-together",
-    "date": "2026-11-17",
-    "title": "Pick together",
-    "items": [
-      {
-        "title": "Swipe until you all agree",
-        "text": "Can’t agree on tonight’s film? On Discover, under Moods, tap Can’t agree on what to watch? Choose films or shows, a genre and how long it may be, invite the others (or copy a link) and start. Everyone swipes through the same posters: right for yes, left for no. The posters come from what each of you likes to watch, not only from what’s on the server, and nothing anyone has already seen. The first one you all say yes to pops up as a match, with Watch together now or later if it’s on the server. Nobody sees how you swiped."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-friend-request-popup",
-    "date": "2026-11-17",
-    "title": "Friend requests find you",
-    "items": [
-      {
-        "title": "No more digging in Settings",
-        "text": "When someone asks to be your friend, Lilin now shows it as soon as you open it (or right away if you're already in). Accept or decline right there, or press Later and it asks again tomorrow."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-idea-box-look",
-    "date": "2026-11-17",
-    "title": "A nicer idea box",
-    "items": [
-      {
-        "title": "Write it like a message",
-        "text": "The idea box in Settings has a new look. Pick Idea, Something's off or Other at the top of the note, write, and press Send. Your ideas below show where each one stands (Sent, Planned, Added or Not now) with the owner's answer underneath."
-      },
-      {
-        "audience": "owner",
-        "title": "A tidier inbox",
-        "text": "Settings → Ideas now shows each idea with the sender's face, a status light and Planned / Added / Not now right under it. Answer opens a reply box only when you need it, and the scout's cards got the same cleaner look."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-likes-phone",
-    "date": "2026-11-17",
-    "title": "Likes on phones",
-    "items": [
-      {
-        "title": "Tidier Liked by line",
-        "text": "When lots of people like a title, the faces and names now sit on their own line under the thumbs instead of squeezing into a narrow column on your phone."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-moments",
-    "date": "2026-11-17",
-    "title": "Moments",
-    "items": [
-      {
-        "title": "Send a bit of a film or episode",
-        "text": "While you watch, tap ⋯ in the player and choose Clip a moment. Drag the two yellow handles to pick up to three minutes, press Preview to check it, then Next. Add a note if you like, pick friends to send it to, or copy a link that anyone can open. Moments friends send you are in Settings → Moments, and with notifications on you hear when one arrives. Links stop working after 30 days, or straight away if you delete the moment."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-vibes",
-    "date": "2026-11-17",
-    "title": "Moods",
-    "items": [
-      {
-        "title": "Browse by mood",
-        "text": "Discover has a new Moods row right after Trending: tiles like Slow-burn rainy day thriller, 90s indie nostalgia, Cozy and comforting, Mind-bending and Late-night neon. Tap one for a page of films and shows that fit the feeling, with what you already have first. The order changes every day, and Shuffle mixes it up again."
-      }
-    ]
-  },
+{
+  "id": "2026-11-17-account-page",
+  "date": "2026-11-17",
+  "title": "A real Account page",
+  "items": [
+    {
+      "title": "See where you're signed in",
+      "text": "You → Account now lists the browsers and TVs signed in as you. Lost a phone? Sign out everywhere else, and every other device needs your password to get back in. Changing your password does the same."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-continue-title-link",
+  "date": "2026-11-17",
+  "title": "Titles in Continue watching open the page",
+  "items": [
+    {
+      "title": "Tap the name to see the show or film",
+      "text": "In Continue watching, tapping the picture still picks up where you stopped. Tapping the name under it now opens the title's page instead, with its seasons, details and trailer. The ⋯ menu has a Details button too."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-scan-to-sign-in",
+  "date": "2026-11-17",
+  "title": "Sign in by scanning a code",
+  "items": [
+    {
+      "title": "No password on computers and TVs",
+      "text": "The sign-in page on a computer and the sign-in screen on the TV now show a QR code. Point the camera of a phone that's signed in to Lilin at it, check that it names the right device, and say yes. No camera? Enter the code under You → Devices and notifications instead."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-sharper-banners",
+  "date": "2026-11-17",
+  "title": "Sharper banners",
+  "items": [
+    {
+      "title": "Better pictures at the top of Discover",
+      "text": "The big banner now picks a well-liked, full-HD-or-better picture without text for each title instead of whatever the movie database lists first, and big screens get the full-size picture instead of a stretched one."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-activity-house",
+  "date": "2026-11-17",
+  "title": "Activity moved to House",
+  "audience": "owner",
+  "items": [
+    {
+      "title": "Activity is a House tile now",
+      "text": "Who watched what, and when, now opens from the House tab next to your other tools instead of from You. Old links still find it."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-fresh-hevc",
+  "date": "2026-11-17",
+  "title": "Just-downloaded films get ready in more browsers",
+  "items": [
+    {
+      "title": "No more \"can't play\" right after a download",
+      "text": "Some new films use a video format a few browsers (like Firefox) can't play. Right after the download, Lilin used to just say it can't play here. Now it shows that it's making a version for your browser and starts by itself when that's ready."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-password-private",
+  "date": "2026-11-17",
+  "title": "Your password is yours alone",
+  "items": [
+    {
+      "title": "A note where you pick your password",
+      "text": "When you join Lilin or pick a password, a small note now says what was always true: your password is scrambled before it's saved, so nobody can see it, not even the people who run Lilin."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-revamp-2",
+  "date": "2026-11-17",
+  "title": "Lilin got tidied up",
+  "items": [
+    {
+      "title": "Four tabs: Discover, Live, Library and You",
+      "text": "Lilin has gained a lot of features lately, so everything got a clearer home. The tabs are now Discover, Live, Library and You. Settings moved into You, together with your profile, friends, moments and what you've watched. Owners have all their tools in one tab, House."
+    },
+    {
+      "title": "Library in three parts",
+      "text": "Library now has Titles, Watchlist and Downloads. Watchlist is one list for what you saved for later, what's coming up and the shows you follow. Downloads has everything about what's on its way."
+    },
+    {
+      "title": "A shorter Discover with Right now",
+      "text": "Discover is shorter. Right under the big picture, Right now shows what needs you today: a watch party, something leaving soon or a download that's ready."
+    },
+    {
+      "title": "Watch with someone on Live",
+      "text": "Live has a new Watch with someone section at the top: start Pick together, or join the watch parties you planned."
+    },
+    {
+      "title": "One title page, one way to invite, smarter search",
+      "text": "Every film and show opens the same page, with one main button for what you'll most likely do next. Inviting people works the same everywhere. Search also finds places and settings, so typing \"subtitles\" takes you straight there."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-theme-music",
+  "date": "2026-11-17",
+  "title": "Theme music",
+  "items": [
+    {
+      "title": "Show pages play their theme song",
+      "text": "Open a show in your Library and its theme song plays quietly in the background, like the menu of a home cinema. It keeps going while you look through seasons and episodes, and fades out when you press play or leave the page. Tap the small speaker on the picture to stop it. Turn it off, or a little louder, on each device in Settings → Watching → Theme music. Shows where Lilin hasn’t found the opening titles yet stay silent."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-profile-reload-clips-live",
+  "date": "2026-11-17",
+  "title": "Profiles stay put, clips arrive by themselves",
+  "items": [
+    {
+      "title": "Reloading keeps your profile open",
+      "text": "Reloading the page while a profile is open now brings you back to that profile, even after you've edited it or opened a film from it. Before, you landed in Settings."
+    },
+    {
+      "title": "New clips appear on their own",
+      "text": "The Clips tab now updates by itself when a new clip arrives, so there's no need to reload to see it.",
+      "audience": "owner"
+    }
+  ]
+},
+{
+  "id": "2026-11-17-fleet-fixes",
+  "date": "2026-11-17",
+  "title": "A round of fixes",
+  "items": [
+    {
+      "title": "Whole Liked row on computers",
+      "text": "On a computer, the Liked row on a profile now shows every poster in a tidy grid, so nothing is cut off at the edge and there's nothing to scroll."
+    },
+    {
+      "title": "Name and picture on your profile",
+      "text": "Change your picture by tapping it on your profile, and your name under Edit profile. Settings is shorter: the picture, name and What's new rows are gone from the top."
+    },
+    {
+      "title": "Save stays out of the way",
+      "text": "The Save button in Edit profile now sits on its own bar at the bottom of the sheet, so the poster and font choices no longer show through around it."
+    },
+    {
+      "title": "Tidier bio box",
+      "text": "The Bio field on your profile is now a normal rounded box instead of a stretched pill, so longer bios no longer run into the curved edges."
+    },
+    {
+      "title": "No Add on films that aren't out yet",
+      "text": "Films that are only in cinemas and shows that haven't started airing no longer offer Add to library on their cards. Save or Follow them instead, and Lilin adds them once they're out."
+    },
+    {
+      "title": "Watch Together fits the screen",
+      "text": "On phones and upright tablets the room now sits under the picture instead of covering it, and turned sideways it docks on the right and leaves the controls free. The Audio button is back in rooms, so everyone can pick their own audio language."
+    },
+    {
+      "title": "A calmer player",
+      "text": "Only one player menu opens at a time, and Escape or a tap outside closes it. When a video can't play you get a clear card with Try again and Back, and if the connection drops mid-video the player reconnects by itself."
+    },
+    {
+      "title": "Easier to read",
+      "text": "Buttons, status colours and the current tab are easier to read on every colour theme, light ones included. SVT Play titles are readable over their picture, and ratings look the same everywhere."
+    },
+    {
+      "title": "Plain words when something's wrong",
+      "text": "If Lilin can't be reached you get a clear message and a Try again button instead of technical words. A link that got cut off when it was sent now shows a page saying so, and invite and Watch Together links are in Swedish too."
+    },
+    {
+      "title": "Your library tells the truth",
+      "text": "A show that's still downloading no longer says you're all caught up, episodes that haven't aired yet show their air date, films with several versions let you pick the quality on their library page, and an empty filtered library has a Show all titles button."
+    },
+    {
+      "title": "Restricted means restricted",
+      "text": "People who are restricted no longer show up for anyone else in Live TV, Watch Together or the live chat, on any of their devices."
+    },
+    {
+      "title": "Opens faster",
+      "text": "After the first visit Lilin reuses what it already downloaded, and what it does download is smaller, so it opens quicker on a slow connection."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-profiles",
+  "date": "2026-11-17",
+  "title": "Your own profile",
+  "items": [
+    {
+      "title": "A page that's yours",
+      "text": "Tap your face at the top (or Your profile in Settings) to see your profile: picture, name, a username, pronouns and a short bio, your four favourite films or shows, what you watched lately with your stars and likes, your reviews and your friends. More activity opens your whole diary."
+    },
+    {
+      "title": "Make it look like you",
+      "text": "Edit profile lets you pick an accent colour, a banner (a picture from a film or show, or a colour), the font of your name, the shape of the posters, the background and the layout, and which sections show in which order. You see each change behind the editor before you save."
+    },
+    {
+      "title": "You decide who sees it",
+      "text": "Profiles are for friends only until you change it: pick Everyone, Friends or Only me. Others just see your name and picture. Tap someone's face on a review or in your friends list to visit theirs."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-pack-folder-names",
+  "date": "2026-11-17",
+  "title": "Posters for more shows",
+  "items": [
+    {
+      "title": "Shows from season packs get their posters",
+      "text": "Some season packs keep their episodes in a folder called something like The Mindy Project Season 1 S01. Lilin read that as a show named The Mindy Project Season 1, couldn’t find it, and showed plain grey tiles called Episode 1, Episode 2 and so on. Those shows now get their poster, episode names and pictures."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-pick-together",
+  "date": "2026-11-17",
+  "title": "Pick together",
+  "items": [
+    {
+      "title": "Swipe until you all agree",
+      "text": "Can’t agree on tonight’s film? On Discover, under Moods, tap Can’t agree on what to watch? Choose films or shows, a genre and how long it may be, invite the others (or copy a link) and start. Everyone swipes through the same posters: right for yes, left for no. The posters come from what each of you likes to watch, not only from what’s on the server, and nothing anyone has already seen. The first one you all say yes to pops up as a match, with Watch together now or later if it’s on the server. Nobody sees how you swiped."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-friend-request-popup",
+  "date": "2026-11-17",
+  "title": "Friend requests find you",
+  "items": [
+    {
+      "title": "No more digging in Settings",
+      "text": "When someone asks to be your friend, Lilin now shows it as soon as you open it (or right away if you're already in). Accept or decline right there, or press Later and it asks again tomorrow."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-idea-box-look",
+  "date": "2026-11-17",
+  "title": "A nicer idea box",
+  "items": [
+    {
+      "title": "Write it like a message",
+      "text": "The idea box in Settings has a new look. Pick Idea, Something's off or Other at the top of the note, write, and press Send. Your ideas below show where each one stands (Sent, Planned, Added or Not now) with the owner's answer underneath."
+    },
+    {
+      "audience": "owner",
+      "title": "A tidier inbox",
+      "text": "Settings → Ideas now shows each idea with the sender's face, a status light and Planned / Added / Not now right under it. Answer opens a reply box only when you need it, and the scout's cards got the same cleaner look."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-likes-phone",
+  "date": "2026-11-17",
+  "title": "Likes on phones",
+  "items": [
+    {
+      "title": "Tidier Liked by line",
+      "text": "When lots of people like a title, the faces and names now sit on their own line under the thumbs instead of squeezing into a narrow column on your phone."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-moments",
+  "date": "2026-11-17",
+  "title": "Moments",
+  "items": [
+    {
+      "title": "Send a bit of a film or episode",
+      "text": "While you watch, tap ⋯ in the player and choose Clip a moment. Drag the two yellow handles to pick up to three minutes, press Preview to check it, then Next. Add a note if you like, pick friends to send it to, or copy a link that anyone can open. Moments friends send you are in Settings → Moments, and with notifications on you hear when one arrives. Links stop working after 30 days, or straight away if you delete the moment."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-vibes",
+  "date": "2026-11-17",
+  "title": "Moods",
+  "items": [
+    {
+      "title": "Browse by mood",
+      "text": "Discover has a new Moods row right after Trending: tiles like Slow-burn rainy day thriller, 90s indie nostalgia, Cozy and comforting, Mind-bending and Late-night neon. Tap one for a page of films and shows that fit the feeling, with what you already have first. The order changes every day, and Shuffle mixes it up again."
+    }
+  ]
+},
   {
     "id": "2026-11-17-same-name-films",
     "date": "2026-11-17",
@@ -495,705 +484,706 @@
       }
     ]
   },
-  {
-    "id": "2026-11-17-details",
-    "date": "2026-11-17",
-    "title": "More details",
-    "items": [
-      {
-        "title": "Who made it, and the music in it",
-        "text": "At the very bottom of every film and show page there's now a folded More details. Open it to see the director, writers, showrunners, composer and the rest of the crew, the studios, countries and release dates, budget and box office, and links to IMDb, Wikipedia and more. When a soundtrack album exists, its songs are listed too: tap one to find it on Spotify or YouTube Music. Episodes in the episode list get a small Credits fold with that episode's director, writers and guest stars. Nothing opens unless you ask for it."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-livechat",
-    "date": "2026-11-17",
-    "title": "Chat on live channels",
-    "items": [
-      {
-        "title": "Talk while you watch a channel",
-        "text": "Channels in Live now have a chat. Press Chat under what's on to open it: beside the picture on a computer or a phone held sideways, under it on a phone held upright. Everyone on the same channel sees what you write, and messages stay with the channel, so whoever tunes in later can read what was said. With the chat closed, new messages pop up briefly over the picture and a dot appears on Chat."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-reviews",
-    "date": "2026-11-17",
-    "title": "Reviews",
-    "items": [
-      {
-        "title": "Rate with stars and write a review",
-        "text": "Next to the thumbs on a film or show there is now a Review button. Give it 1 to 5 stars and, if you like, write what you thought. Everyone on Lilin can read your review, and if it gives something away, tick Contains spoilers so others have to tap to see it. Stars and thumbs go together: 4 or 5 stars counts as a thumbs up, 1 or 2 as a thumbs down."
-      },
-      {
-        "title": "See what others thought",
-        "text": "Further down a title's page, Reviews shows the average stars and a couple of reviews. See all opens the rest. You can change or delete your own review whenever you like."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-scout",
-    "date": "2026-11-17",
-    "title": "An idea scout for the owner",
-    "items": [
-      {
-        "audience": "owner",
-        "title": "Ideas with the evidence, in your inbox",
-        "text": "Once a week an agent reads what people have loved or wished for in streaming services over the years and brings the best few to Settings → Ideas, each with links to where people asked for it and how it would fit Lilin. Press Accept (add a comment if you like) and an agent builds it; Comment and the scout answers; Not now puts it aside."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-activity-revamp",
-    "date": "2026-11-17",
-    "title": "A clearer Activity page",
-    "items": [
-      {
-        "audience": "owner",
-        "title": "Activity at a glance",
-        "text": "Activity now opens with today's numbers and everyone who's been around: tap a face to see just what that person did. The feed groups each person's sitting into one card, a run of episodes shows as one line (House S04 E08–E12), subtitles ride along as a small tag, and the buttons at the top show only watching, downloads or library changes."
-      },
-      {
-        "audience": "owner",
-        "title": "Let someone see Activity",
-        "text": "Settings → People has a new Can see activity switch. Whoever you turn it on for gets the Activity tab, read-only: they can't invite or remove anyone, and the other owner tabs stay yours. To invite someone, tap the Invite tile at the start of the people row; tap a person to rename them, send a password link or remove their access."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-comingsoon",
-    "date": "2026-11-17",
-    "title": "Coming soon",
-    "items": [
-      {
-        "title": "See what's coming out",
-        "text": "Discover has a Coming soon row with the films and shows that come out in the next few months: new films in cinemas, films coming to streaming, new series and new seasons. The closest and most talked-about are first, and each card shows the date. See all lists everything by week and month, with Films and Shows to filter."
-      },
-      {
-        "title": "Save or follow in one tap",
-        "text": "Each card has a small button to save a film or follow a show right from the row, the same as on the title page. Saved and followed titles show up under Coming up in your Library, and if you can download, Lilin adds them once they're out and sends you a notification."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-friends",
-    "date": "2026-11-17",
-    "title": "Friends",
-    "items": [
-      {
-        "title": "Add your friends",
-        "text": "Settings has a new Friends part. Search for someone by name and tap Add: once they say yes, you're friends. Requests you get show up there too, with Accept. With notifications on, you hear when someone asks or says yes. Friends come first when you invite people to Watch Together."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-friends-restrict",
-    "date": "2026-11-17",
-    "title": "Restrict people",
-    "items": [
-      {
-        "audience": "owner",
-        "title": "A Restrict switch in People",
-        "text": "Settings → People has a new Restrict switch for each person. Someone restricted keeps Watch Together, rooms and room chat, but gets none of the other social parts: they don't see who liked what, nobody sees their likes, they can't send or get notification invites, and they share only by copying links."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-smoother-scrolling",
-    "date": "2026-11-17",
-    "title": "Smoother scrolling",
-    "items": [
-      {
-        "title": "The big banner has depth",
-        "text": "When you scroll down Discover, the picture at the top now sinks away slower than the rows, so the rows slide over it. Scrolling also does less work: the small buttons on cards and the glowing dots no longer redraw the page on every frame."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-idea-box",
-    "date": "2026-11-17",
-    "title": "The idea box",
-    "items": [
-      {
-        "title": "Tell us what Lilin should do next",
-        "text": "Settings now has an idea box. Write what you wish Lilin did, or something that feels off, and press Send: it goes straight to the owner. Your ideas stay listed under the box, and you see when one is planned or added, plus any answer. With notifications on, you also get a notification when someone answers."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-17-trailer-volume",
-    "date": "2026-11-17",
-    "title": "Trailer volume",
-    "items": [
-      {
-        "title": "Volume slider on trailers",
-        "text": "Trailers on a title page now have a volume slider next to the mute button: point at the speaker to show it, or use the up and down arrow keys. Trailers remember the volume you picked. On phones the volume is still your phone's own buttons."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-autoplay-asleep",
-    "date": "2026-11-16",
-    "title": "Fell asleep? Your place is kept",
-    "items": [
-      {
-        "title": "Autoplayed episodes don't count as watched",
-        "text": "When episodes play on by themselves and you don't press or tap anything, they no longer count as watched. If you fall asleep, Continue watching picks up at the first episode you missed instead of jumping ahead. Press or tap anything while an episode plays and it counts as normal. Works on the web, the TV app and the Samsung TV app."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-continue-latest",
-    "date": "2026-11-16",
-    "title": "Continue watching follows your latest episode",
-    "items": [
-      {
-        "title": "Back where you really stopped",
-        "text": "If you go back to an episode you already finished and stop halfway, Continue watching now picks up that episode again instead of jumping to the one after it. This works across your devices."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-clip-editor-rename",
-    "date": "2026-11-16",
-    "title": "Rename clips in the clip editor",
-    "items": [
-      {
-        "audience": "owner",
-        "title": "Rename while you edit",
-        "text": "The clip's name at the top of the editor is now a button: click it (or press R) to rename the clip without leaving the editor. The header also got a calmer look with room to breathe."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-live-tv-fresh",
-    "date": "2026-11-16",
-    "title": "More on Live TV, and four new channels",
-    "items": [
-      {
-        "title": "The channels fill themselves",
-        "text": "Every few hours Live TV now fetches a few popular films and shows by itself, mostly for whichever channel has the least on it: more anime for Anime, more sitcoms for Sitcoms, more films for Films and so on. Shows start from season 1, episode 1."
-      },
-      {
-        "title": "New channels",
-        "text": "Drama, Sci-Fi & Fantasy and Action & Adventure join the line-up, plus Fresh, which shows everything new on the server. Series play their episodes in order, with other things in between."
-      },
-      {
-        "title": "Live TV on the Samsung TV app",
-        "text": "The Samsung TV app now has Live TV too: pick it in the bar at the top of Home for the guide, then OK to watch. Up and Down (or CH+ and CH−) change channel, numbers go straight to one, Right picks subtitles."
-      },
-      {
-        "title": "Like it? Keep it",
-        "text": "These picks aren't in anyone's library. If one hooks you, open it from the channel and press Add to library to keep it. The ones nobody keeps make room for new ones after a while."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-play-next-episode",
-    "date": "2026-11-16",
-    "title": "Pick a show up where you left off",
-    "items": [
-      {
-        "title": "Play next episode",
-        "text": "A show's page now has one big button that carries on where you are: Resume the episode you're partway through, Play next once you've finished one, or Play S01 E01 if you haven't started. Finished the last one? It says you're all caught up."
-      },
-      {
-        "title": "Up next in Continue watching",
-        "text": "When you finish an episode, the next one shows up in Continue watching as Up next, so one tap plays it."
-      }
-    ]
-  },
-  {
-    "id": "2026-12-01-wrapped",
-    "date": "2026-12-01",
-    "push": false,
-    "title": "Lilin Wrapped 2026 is here",
-    "items": [
-      {
-        "title": "Your year, on the home screen",
-        "text": "Open Lilin and your Wrapped is waiting at the top of Discover: hours watched, top titles, your show of the year, your genre, your prime time, your biggest binge and who you watched with. It stays there until the end of January, and in Settings after that."
-      },
-      {
-        "title": "What kind of watcher were you?",
-        "text": "Wrapped now tells you: Night Owl, Binger, Host, Explorer and more. There's also a slide about everyone's year on Lilin together."
-      },
-      {
-        "title": "Share it",
-        "text": "On the last slide, Share your year turns it into a picture for your story or the group chat."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-live-subtitles-fix",
-    "date": "2026-11-16",
-    "push": false,
-    "title": "Live TV subtitles show up now",
-    "items": [
-      {
-        "title": "No more vanishing lines",
-        "text": "On a computer, Live TV subtitles slid off the top of the screen whenever the controls were showing. They now sit just above the channel bar."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-live-subtitles",
-    "date": "2026-11-16",
-    "title": "Subtitles on Live TV",
-    "items": [
-      {
-        "title": "Subtitles on the TV's channels",
-        "text": "Watching a channel on the TV app, press Right for subtitles. The language you pick stays on when you change channel or the next programme starts."
-      },
-      {
-        "title": "They stay on in the browser too",
-        "text": "On a computer or phone, subtitles you turn on for a channel now come back on the next programme instead of switching off."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-16-tab-names",
-    "date": "2026-11-16",
-    "push": false,
-    "title": "Section names fit again",
-    "items": [
-      {
-        "audience": "owner",
-        "title": "No more \"Disc...\" in the header",
-        "text": "With Live added, the owner's eight sections got squeezed into cut-off names on computers. They now show in full; on narrower windows the search box gets smaller first."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-live-tv",
-    "date": "2026-11-15",
-    "title": "Live TV: channels that are always on",
-    "items": [
-      {
-        "title": "A Live tab",
-        "text": "Channels made from the library run around the clock: Anime, Sitcoms, Films, Documentaries and your own picks. Open Live for the guide, tap a channel and you're watching whatever is on right now."
-      },
-      {
-        "title": "Everyone sees the same moment",
-        "text": "Tune in to the same channel as someone else and you're watching together, on the same frame, with their faces in the corner. No room to set up, nobody has to press Play."
-      },
-      {
-        "title": "Surf like it's a TV",
-        "text": "Switch with the arrows in the player, Page Up and Page Down, or type a channel number. On the TV app use Up and Down, the channel buttons, the number keys and the last-channel button."
-      },
-      {
-        "title": "Stay with it",
-        "text": "Live TV can't be paused. Watch from start opens the programme in the normal player, and Keep watching carries on from where the channel is and puts it in Continue watching. Just watching a channel leaves Continue watching alone."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-signin-keeps-email",
-    "date": "2026-11-15",
-    "title": "A wrong password no longer wipes your email",
-    "items": [
-      {
-        "title": "Only retype the password",
-        "text": "If you mistype your password when signing in, Lilin now keeps the email you typed and puts the cursor straight in the password box."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-subtitle-title-case",
-    "date": "2026-11-15",
-    "title": "Subtitles stop Capitalising Every Word",
-    "items": [
-      {
-        "title": "House S4 E7 reads normally again",
-        "text": "To fix names in disc subtitles, Lilin borrows the capital letters from a popular subtitle of the same episode. For one House episode that subtitle was written With Every Word Capitalised, and Lilin copied it. Lilin now skips subtitles like that and tries another one."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-best-quality-streams",
-    "date": "2026-11-15",
-    "title": "Best Quality picks copies you can watch while they download",
-    "items": [
-      {
-        "title": "No more crawling 4K downloads",
-        "text": "With Best Quality on, Lilin used to grab the very best copy even when hardly anyone was sharing it, so it downloaded slower than you could watch it. Now it checks first: if the best copy can't keep up with Play now, it picks the best-looking copy that can, usually a 4K web download instead of a huge disc copy. Lilin also watches the first few minutes of each download, and if one turns out too slow, it swaps it for a faster copy by itself (never while you're watching it)."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-coming-soon-films",
-    "date": "2026-11-15",
-    "title": "Films that aren't out yet say Coming soon",
-    "items": [
-      {
-        "title": "No more cinema recordings",
-        "text": "Films that are still in cinemas or not released yet (like Avengers: Doomsday) now show a grey Coming soon button instead of Add to library, with the date they come out. Lilin only gets a film once it's out to stream or buy, so you never end up with a blurry recording from a cinema. Press Save and switch on \"Add it when a good copy is out\" and Lilin adds it by itself on the day."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-player-reconnects",
-    "date": "2026-11-15",
-    "title": "Videos pick up again after a dropped connection",
-    "items": [
-      {
-        "title": "No more wrong \"can't play in this browser\" message",
-        "text": "If the connection to Lilin drops while you watch (a Wi-Fi blip or a server restart), the player now says it is reconnecting and carries on from the same spot by itself. Before, it showed a message saying the video couldn't play in your browser, which wasn't true."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-play-now-playhead",
-    "date": "2026-11-15",
-    "title": "Play now jumps ahead and stops freezing",
-    "items": [
-      {
-        "title": "Skip ahead while it downloads",
-        "text": "Play now used to wait for the download to reach the spot you skipped to, which could take minutes. A helper now fetches that part first, so skipping ahead plays again in a couple of seconds. The rest keeps downloading as before."
-      },
-      {
-        "title": "No more long freezes",
-        "text": "One slow source could hold back the next part of a video and freeze the picture for a minute or more. The helper now fetches those parts from faster sources. Starting a video is quicker too."
-      },
-      {
-        "audience": "owner",
-        "title": "How it works",
-        "text": "playhead (github.com/Tjabooo/playhead) runs next to qBittorrent, which still downloads, seeds and files everything. It reads what qBittorrent already has from qBittorrent's own file, and fetches only what the player needs next. It's bound to qBittorrent's tunnel address and fenced by the torrent VPN firewall. If anything goes wrong, Play now carries on with qBittorrent alone. PLAY_NOW_ENGINE=qbit turns the helper off."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-best-quality-swarm",
-    "date": "2026-11-15",
-    "title": "Best Quality stops picking six-hour downloads",
-    "items": [
-      {
-        "title": "Faster Best Quality picks",
-        "text": "Best Quality used to treat a bigger file as a better one, so it could pick an 80 GB copy with ten people sharing it over a 26 GB copy of the same 4K stream with thousands. Now extra size beyond what a resolution needs barely counts, a huge file with few people sharing it counts against, and copies that may start in a dubbed language (Hindi, Italian and so on) lose out to ones that don't. The picture stays just as good, it just arrives hours sooner."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-trailer-controls",
-    "date": "2026-11-15",
-    "title": "Trailer controls you can actually see",
-    "items": [
-      {
-        "title": "Normal-sized trailer controls",
-        "text": "Since trailers started playing in full HD, YouTube's own buttons on a title page's trailer were tiny. Trailers now have Lilin's own bar instead: play and pause, a seek bar, mute and full screen, at a normal size. Click the video to pause, double-click for full screen."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-15-password-links-close",
-    "date": "2026-11-15",
-    "title": "Used password links tidy themselves up",
-    "items": [
-      {
-        "title": "Password links leave the list once used",
-        "audience": "owner",
-        "text": "A password link now disappears from People as soon as that person has a password, however they set it, and it stops working. Making a new password link for someone replaces their old one."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-clip-game-events",
-    "date": "2026-11-14",
-    "title": "Your CS2 moments on the clip timeline",
-    "items": [
-      {
-        "title": "Kills, deaths and rounds in the clip editor",
-        "audience": "owner",
-        "text": "CS2 clips now show their kills, headshots, deaths, round starts and ends and bomb plants and defuses as small icons above the editor's timeline. Click one to jump just before it, or press N and P to go to the next or previous one."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-convert-progress-card",
-    "date": "2026-11-14",
-    "title": "See how long a copy has left",
-    "items": [
-      {
-        "title": "Progress bar while a copy is made",
-        "text": "When a video needs a copy before your browser can play it, the player now shows a progress bar with the percentage and roughly how many minutes are left, instead of a line of text."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-convert-survives-restart",
-    "date": "2026-11-14",
-    "title": "Browser copies keep going through updates",
-    "items": [
-      {
-        "title": "No more starting over",
-        "text": "Some videos need a copy before your browser can play them (for example HEVC films in Firefox). Every time Lilin was updated, a copy in progress was thrown away and started again from the beginning, so a film could wait for hours. Copies now carry on through an update and finish where they were."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-firefox-smooth",
-    "date": "2026-11-14",
-    "title": "Smoother in Firefox",
-    "items": [
-      {
-        "title": "No more lag in Firefox",
-        "text": "Lilin could feel laggy in Firefox on a computer, worst on pages with a trailer, even on fast PCs. Firefox struggles with the frosted-glass blur behind buttons and menus, so in Firefox those panels are now plain tinted glass instead. Everything else looks the same."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-trailer-hd",
-    "date": "2026-11-14",
-    "title": "Trailers in HD",
-    "items": [
-      {
-        "title": "Sharp, smooth trailers",
-        "text": "Trailers on title pages and behind the Discover banner played in blurry low quality, because YouTube picks the quality from how big the player is and ours were small. They now ask for full HD, and the frosted buttons over a playing banner trailer turn plain so the video doesn't stutter."
-      },
-      {
-        "title": "One trailer at a time",
-        "text": "The banner trailer kept playing out of sight when you scrolled down or opened a title, so a title page's trailer had to share the computer with it. It now stops as soon as you can't see it and starts again when you come back."
-      },
-      {
-        "title": "Smoother in Firefox",
-        "text": "The banner trailer asked YouTube for more than full HD, which many computers have to decode without help from the graphics card, so it stuttered in Firefox. Trailers now stay at 1080p, and the page's little glowing animations rest while one plays."
-      },
-      {
-        "title": "Trailers sit higher on phones",
-        "text": "On phones a playing trailer started far down the title page, under a big empty gap. It now sits right below the close button."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-delete-cancels",
-    "date": "2026-11-14",
-    "title": "Deleting a season stops its download",
-    "items": [
-      {
-        "title": "No more waiting for a download you deleted",
-        "text": "Deleting a season or a show while it was still downloading only removed the finished episodes, and the rest kept downloading and came back. Delete now cancels the download and any conversion straight away, and the season's Delete button shows up even before the first episode is ready."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-trailer-stage",
-    "date": "2026-11-14",
-    "title": "Trailers fit on the screen",
-    "items": [
-      {
-        "title": "Trailer and title side by side",
-        "text": "On a computer a playing trailer filled the whole window and pushed the title off the bottom. It now plays in a frame on top of the blurred picture, with the title still in view below."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-trailer-button",
-    "date": "2026-11-14",
-    "title": "Trailer button works on computers",
-    "items": [
-      {
-        "title": "Trailer on wide screens",
-        "text": "On a computer the Trailer button on a title's page could sit under the title text, so clicking it did nothing. It's on top now and plays the trailer."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-finished-page-updates",
-    "date": "2026-11-14",
-    "title": "Finished downloads become playable right away",
-    "items": [
-      {
-        "title": "No more stuck \"Almost ready\"",
-        "text": "A film's page left open while it downloaded could stay on \"Almost ready 100%\" after it finished, and you had to reload to play it. The page now switches to the film by itself."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-play-now-start-progress",
-    "date": "2026-11-14",
-    "title": "Play now shows how long until it starts",
-    "items": [
-      {
-        "title": "Clearer Play now wait",
-        "text": "While Play now gets the start of a video, the percentage and time now count toward starting playback, not the whole download. So you see \"40% · about 30 s to go\" instead of \"0% downloaded · about 2 h left\"."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-no-stuck-moving",
-    "date": "2026-11-14",
-    "title": "Big downloads don't stall at the start",
-    "items": [
-      {
-        "title": "No more \"moving\" pause",
-        "text": "A big download could stop for a few minutes just after it started while the server shuffled it to a faster drive (Lost in Translation sat at 4 %). New downloads now start on that drive straight away, so they keep going."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-five-tweaks",
-    "date": "2026-11-14",
-    "title": "Undo, thumbs down that counts, and more",
-    "items": [
-      {
-        "title": "Thumbs down hides it",
-        "text": "Titles you give a thumbs down no longer show up in your Discover rows, Documentaries or Popular on Lilin. Search still finds them, and taking the thumbs down back brings them back."
-      },
-      {
-        "title": "Undo after deleting",
-        "text": "After you delete something, you get a few seconds to press Undo before it's really gone."
-      },
-      {
-        "title": "Play now is on its way",
-        "text": "While a download fetches the start of the video, it says so (\"Play now in a moment\"), so you know the Play now button is coming."
-      },
-      {
-        "title": "Tidy Continue watching",
-        "text": "Each Continue watching card has a ⋯ button: Mark as watched, or Remove from Continue watching (your place is kept and it comes back when you watch it again)."
-      },
-      {
-        "title": "Night mode remembers the show",
-        "text": "Turn on night mode during a show and it's on again for that show's next episodes. Other shows and films start with it off."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-no-false-text",
-    "date": "2026-11-14",
-    "title": "No more stray \"false\"",
-    "items": [
-      {
-        "title": "Stray \"false\" text",
-        "text": "Some sheets, like Browse while you're in Documentaries, showed the word \"false\" where nothing should be. Gone everywhere."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-docs-english-only",
-    "date": "2026-11-14",
-    "title": "Documentaries in your language",
-    "items": [
-      {
-        "title": "English documentaries only",
-        "text": "With Lilin in English, Documentaries now only shows titles that were made in English: the SVT Play, Swedish and Nordic rows are gone, and the other rows leave out foreign-language films and shows. With Lilin in Swedish nothing changes."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-doc-genres-phone",
-    "date": "2026-11-14",
-    "title": "Documentaries fit your phone",
-    "items": [
-      {
-        "title": "Documentary genres on phones",
-        "text": "The genre rows under Documentaries were wider than a phone screen, so the whole page shrank and the posters looked tiny. The rows now fit and swipe sideways, and the page is full size again."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-removed-card",
-    "date": "2026-11-14",
-    "title": "A nicer \"Removed from your library\"",
-    "items": [
-      {
-        "title": "Removed films",
-        "text": "When a film you have open leaves your library, its page now shows a tidy card with a Back to your library button instead of a bare heading on a coloured background."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-extras-not-versions",
-    "date": "2026-11-14",
-    "title": "Bonus features aren't extra copies",
-    "items": [
-      {
-        "title": "Featurettes stay out of your library",
-        "text": "Downloads that came with bonus material (featurettes, interviews, trailers) listed each bonus video as another \"version\" of the film, and Delete all versions didn't go through. Bonus folders are now left out of the library, and deleting the film removes them with it."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-film-page-after-prep",
-    "date": "2026-11-14",
-    "title": "Film pages stay put, X closes once",
-    "items": [
-      {
-        "title": "No false \"Removed from your library\"",
-        "text": "A film page left open while Lilin finished preparing the film for playback could suddenly say \"Removed from your library\" and lose its Delete button, even though nothing was removed. It now keeps showing the film."
-      },
-      {
-        "title": "Tapping X twice",
-        "text": "Tapping the X on a page twice in a row could take you out of Lilin altogether (on iPad it could close the tab). A second tap now does nothing."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-delete-while-converting",
-    "date": "2026-11-14",
-    "title": "Delete works on fresh downloads",
-    "items": [
-      {
-        "title": "Delete right after downloading",
-        "text": "Deleting a film or episode that had only just finished downloading could quietly fail while Lilin was still preparing it for playback. Delete now stops that preparation and removes it straight away."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-play-now-waits",
-    "date": "2026-11-14",
-    "title": "Play now shows up when there's something to play",
-    "items": [
-      {
-        "title": "Play now waits for the start",
-        "text": "The Play now button on a download now only appears once the beginning of the video has actually arrived, so pressing it no longer leaves you staring at a loading screen while the download hasn't really started. New downloads fetch the start first, so it usually shows up within seconds."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-night-mode-quieter",
-    "date": "2026-11-14",
-    "title": "Night mode no longer turns the sound up",
-    "items": [
-      {
-        "title": "Quieter night mode",
-        "text": "Switching on night mode (the moon in the player) used to make everything louder at once. Now dialogue stays about as loud as before and loud scenes like explosions and music come down, so you can keep the volume low without missing what people say."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-member-invites",
-    "date": "2026-11-14",
-    "title": "Let people you trust invite others",
-    "items": [
-      {
-        "title": "Can invite people",
-        "audience": "owner",
-        "text": "In People, each person now has a Can invite people switch (off for everyone). Switched on, they get Invite people in their Settings and can make the same one-time links you make, up to 3 open at a time. Their links show up in your invite list with their name, and you can cancel them there."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-popular-likes",
-    "date": "2026-11-14",
-    "title": "Tidier likes on Popular on Lilin",
-    "items": [
-      {
-        "title": "No more cut-off names",
-        "text": "Cards in Popular on Lilin no longer cut a list of names in half. A title liked by one person shows their name; liked by more, it shows their faces and how many liked it. Hold the pointer over it, or open the title, to see everyone."
-      }
-    ]
-  },
-  {
-    "id": "2026-11-14-docs-english",
-    "date": "2026-11-14",
-    "title": "Documentaries in English start with English titles",
-    "items": [
-      {
-        "title": "English titles first",
-        "text": "With Lilin set to English, the Documentaries tab now starts with international true crime, unsolved cases, nature and history. SVT Play and Swedish true crime are still there, further down the page."
-      }
-    ]
-  },
+{
+  "id": "2026-11-17-details",
+  "date": "2026-11-17",
+  "title": "More details",
+  "items": [
+    {
+      "title": "Who made it, and the music in it",
+      "text": "At the very bottom of every film and show page there's now a folded More details. Open it to see the director, writers, showrunners, composer and the rest of the crew, the studios, countries and release dates, budget and box office, and links to IMDb, Wikipedia and more. When a soundtrack album exists, its songs are listed too: tap one to find it on Spotify or YouTube Music. Episodes in the episode list get a small Credits fold with that episode's director, writers and guest stars. Nothing opens unless you ask for it."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-livechat",
+  "date": "2026-11-17",
+  "title": "Chat on live channels",
+  "items": [
+    {
+      "title": "Talk while you watch a channel",
+      "text": "Channels in Live now have a chat. Press Chat under what's on to open it: beside the picture on a computer or a phone held sideways, under it on a phone held upright. Everyone on the same channel sees what you write, and messages stay with the channel, so whoever tunes in later can read what was said. With the chat closed, new messages pop up briefly over the picture and a dot appears on Chat."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-reviews",
+  "date": "2026-11-17",
+  "title": "Reviews",
+  "items": [
+    {
+      "title": "Rate with stars and write a review",
+      "text": "Next to the thumbs on a film or show there is now a Review button. Give it 1 to 5 stars and, if you like, write what you thought. Everyone on Lilin can read your review, and if it gives something away, tick Contains spoilers so others have to tap to see it. Stars and thumbs go together: 4 or 5 stars counts as a thumbs up, 1 or 2 as a thumbs down."
+    },
+    {
+      "title": "See what others thought",
+      "text": "Further down a title's page, Reviews shows the average stars and a couple of reviews. See all opens the rest. You can change or delete your own review whenever you like."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-scout",
+  "date": "2026-11-17",
+  "title": "An idea scout for the owner",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "Ideas with the evidence, in your inbox",
+      "text": "Once a week an agent reads what people have loved or wished for in streaming services over the years and brings the best few to Settings → Ideas, each with links to where people asked for it and how it would fit Lilin. Press Accept (add a comment if you like) and an agent builds it; Comment and the scout answers; Not now puts it aside."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-activity-revamp",
+  "date": "2026-11-17",
+  "title": "A clearer Activity page",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "Activity at a glance",
+      "text": "Activity now opens with today's numbers and everyone who's been around: tap a face to see just what that person did. The feed groups each person's sitting into one card, a run of episodes shows as one line (House S04 E08–E12), subtitles ride along as a small tag, and the buttons at the top show only watching, downloads or library changes."
+    },
+    {
+      "audience": "owner",
+      "title": "Let someone see Activity",
+      "text": "Settings → People has a new Can see activity switch. Whoever you turn it on for gets the Activity tab, read-only: they can't invite or remove anyone, and the other owner tabs stay yours. To invite someone, tap the Invite tile at the start of the people row; tap a person to rename them, send a password link or remove their access."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-comingsoon",
+  "date": "2026-11-17",
+  "title": "Coming soon",
+  "items": [
+    {
+      "title": "See what's coming out",
+      "text": "Discover has a Coming soon row with the films and shows that come out in the next few months: new films in cinemas, films coming to streaming, new series and new seasons. The closest and most talked-about are first, and each card shows the date. See all lists everything by week and month, with Films and Shows to filter."
+    },
+    {
+      "title": "Save or follow in one tap",
+      "text": "Each card has a small button to save a film or follow a show right from the row, the same as on the title page. Saved and followed titles show up under Coming up in your Library, and if you can download, Lilin adds them once they're out and sends you a notification."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-friends",
+  "date": "2026-11-17",
+  "title": "Friends",
+  "items": [
+    {
+      "title": "Add your friends",
+      "text": "Settings has a new Friends part. Search for someone by name and tap Add: once they say yes, you're friends. Requests you get show up there too, with Accept. With notifications on, you hear when someone asks or says yes. Friends come first when you invite people to Watch Together."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-friends-restrict",
+  "date": "2026-11-17",
+  "title": "Restrict people",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "A Restrict switch in People",
+      "text": "Settings → People has a new Restrict switch for each person. Someone restricted keeps Watch Together, rooms and room chat, but gets none of the other social parts: they don't see who liked what, nobody sees their likes, they can't send or get notification invites, and they share only by copying links."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-smoother-scrolling",
+  "date": "2026-11-17",
+  "title": "Smoother scrolling",
+  "items": [
+    {
+      "title": "The big banner has depth",
+      "text": "When you scroll down Discover, the picture at the top now sinks away slower than the rows, so the rows slide over it. Scrolling also does less work: the small buttons on cards and the glowing dots no longer redraw the page on every frame."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-idea-box",
+  "date": "2026-11-17",
+  "title": "The idea box",
+  "items": [
+    {
+      "title": "Tell us what Lilin should do next",
+      "text": "Settings now has an idea box. Write what you wish Lilin did, or something that feels off, and press Send: it goes straight to the owner. Your ideas stay listed under the box, and you see when one is planned or added, plus any answer. With notifications on, you also get a notification when someone answers."
+    }
+  ]
+},
+{
+  "id": "2026-11-17-trailer-volume",
+  "date": "2026-11-17",
+  "title": "Trailer volume",
+  "items": [
+    {
+      "title": "Volume slider on trailers",
+      "text": "Trailers on a title page now have a volume slider next to the mute button: point at the speaker to show it, or use the up and down arrow keys. Trailers remember the volume you picked. On phones the volume is still your phone's own buttons."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-autoplay-asleep",
+  "date": "2026-11-16",
+  "title": "Fell asleep? Your place is kept",
+  "items": [
+    {
+      "title": "Autoplayed episodes don't count as watched",
+      "text": "When episodes play on by themselves and you don't press or tap anything, they no longer count as watched. If you fall asleep, Continue watching picks up at the first episode you missed instead of jumping ahead. Press or tap anything while an episode plays and it counts as normal. Works on the web, the TV app and the Samsung TV app."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-continue-latest",
+  "date": "2026-11-16",
+  "title": "Continue watching follows your latest episode",
+  "items": [
+    {
+      "title": "Back where you really stopped",
+      "text": "If you go back to an episode you already finished and stop halfway, Continue watching now picks up that episode again instead of jumping to the one after it. This works across your devices."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-clip-editor-rename",
+  "date": "2026-11-16",
+  "title": "Rename clips in the clip editor",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "Rename while you edit",
+      "text": "The clip's name at the top of the editor is now a button: click it (or press R) to rename the clip without leaving the editor. The header also got a calmer look with room to breathe."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-live-tv-fresh",
+  "date": "2026-11-16",
+  "title": "More on Live TV, and four new channels",
+  "items": [
+    {
+      "title": "The channels fill themselves",
+      "text": "Every few hours Live TV now fetches a few popular films and shows by itself, mostly for whichever channel has the least on it: more anime for Anime, more sitcoms for Sitcoms, more films for Films and so on. Shows start from season 1, episode 1."
+    },
+    {
+      "title": "New channels",
+      "text": "Drama, Sci-Fi & Fantasy and Action & Adventure join the line-up, plus Fresh, which shows everything new on the server. Series play their episodes in order, with other things in between."
+    },
+    {
+      "title": "Live TV on the Samsung TV app",
+      "text": "The Samsung TV app now has Live TV too: pick it in the bar at the top of Home for the guide, then OK to watch. Up and Down (or CH+ and CH−) change channel, numbers go straight to one, Right picks subtitles."
+    },
+    {
+      "title": "Like it? Keep it",
+      "text": "These picks aren't in anyone's library. If one hooks you, open it from the channel and press Add to library to keep it. The ones nobody keeps make room for new ones after a while."
+    }
+  ]
+},
+
+{
+  "id": "2026-11-16-play-next-episode",
+  "date": "2026-11-16",
+  "title": "Pick a show up where you left off",
+  "items": [
+    {
+      "title": "Play next episode",
+      "text": "A show's page now has one big button that carries on where you are: Resume the episode you're partway through, Play next once you've finished one, or Play S01 E01 if you haven't started. Finished the last one? It says you're all caught up."
+    },
+    {
+      "title": "Up next in Continue watching",
+      "text": "When you finish an episode, the next one shows up in Continue watching as Up next, so one tap plays it."
+    }
+  ]
+},
+{
+  "id": "2026-12-01-wrapped",
+  "date": "2026-12-01",
+  "push": false,
+  "title": "Lilin Wrapped 2026 is here",
+  "items": [
+    {
+      "title": "Your year, on the home screen",
+      "text": "Open Lilin and your Wrapped is waiting at the top of Discover: hours watched, top titles, your show of the year, your genre, your prime time, your biggest binge and who you watched with. It stays there until the end of January, and in Settings after that."
+    },
+    {
+      "title": "What kind of watcher were you?",
+      "text": "Wrapped now tells you: Night Owl, Binger, Host, Explorer and more. There's also a slide about everyone's year on Lilin together."
+    },
+    {
+      "title": "Share it",
+      "text": "On the last slide, Share your year turns it into a picture for your story or the group chat."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-live-subtitles-fix",
+  "date": "2026-11-16",
+  "push": false,
+  "title": "Live TV subtitles show up now",
+  "items": [
+    {
+      "title": "No more vanishing lines",
+      "text": "On a computer, Live TV subtitles slid off the top of the screen whenever the controls were showing. They now sit just above the channel bar."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-live-subtitles",
+  "date": "2026-11-16",
+  "title": "Subtitles on Live TV",
+  "items": [
+    {
+      "title": "Subtitles on the TV's channels",
+      "text": "Watching a channel on the TV app, press Right for subtitles. The language you pick stays on when you change channel or the next programme starts."
+    },
+    {
+      "title": "They stay on in the browser too",
+      "text": "On a computer or phone, subtitles you turn on for a channel now come back on the next programme instead of switching off."
+    }
+  ]
+},
+{
+  "id": "2026-11-16-tab-names",
+  "date": "2026-11-16",
+  "push": false,
+  "title": "Section names fit again",
+  "items": [
+    {
+      "audience": "owner",
+      "title": "No more \"Disc...\" in the header",
+      "text": "With Live added, the owner's eight sections got squeezed into cut-off names on computers. They now show in full; on narrower windows the search box gets smaller first."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-live-tv",
+  "date": "2026-11-15",
+  "title": "Live TV: channels that are always on",
+  "items": [
+    {
+      "title": "A Live tab",
+      "text": "Channels made from the library run around the clock: Anime, Sitcoms, Films, Documentaries and your own picks. Open Live for the guide, tap a channel and you're watching whatever is on right now."
+    },
+    {
+      "title": "Everyone sees the same moment",
+      "text": "Tune in to the same channel as someone else and you're watching together, on the same frame, with their faces in the corner. No room to set up, nobody has to press Play."
+    },
+    {
+      "title": "Surf like it's a TV",
+      "text": "Switch with the arrows in the player, Page Up and Page Down, or type a channel number. On the TV app use Up and Down, the channel buttons, the number keys and the last-channel button."
+    },
+    {
+      "title": "Stay with it",
+      "text": "Live TV can't be paused. Watch from start opens the programme in the normal player, and Keep watching carries on from where the channel is and puts it in Continue watching. Just watching a channel leaves Continue watching alone."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-signin-keeps-email",
+  "date": "2026-11-15",
+  "title": "A wrong password no longer wipes your email",
+  "items": [
+    {
+      "title": "Only retype the password",
+      "text": "If you mistype your password when signing in, Lilin now keeps the email you typed and puts the cursor straight in the password box."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-subtitle-title-case",
+  "date": "2026-11-15",
+  "title": "Subtitles stop Capitalising Every Word",
+  "items": [
+    {
+      "title": "House S4 E7 reads normally again",
+      "text": "To fix names in disc subtitles, Lilin borrows the capital letters from a popular subtitle of the same episode. For one House episode that subtitle was written With Every Word Capitalised, and Lilin copied it. Lilin now skips subtitles like that and tries another one."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-best-quality-streams",
+  "date": "2026-11-15",
+  "title": "Best Quality picks copies you can watch while they download",
+  "items": [
+    {
+      "title": "No more crawling 4K downloads",
+      "text": "With Best Quality on, Lilin used to grab the very best copy even when hardly anyone was sharing it, so it downloaded slower than you could watch it. Now it checks first: if the best copy can't keep up with Play now, it picks the best-looking copy that can, usually a 4K web download instead of a huge disc copy. Lilin also watches the first few minutes of each download, and if one turns out too slow, it swaps it for a faster copy by itself (never while you're watching it)."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-coming-soon-films",
+  "date": "2026-11-15",
+  "title": "Films that aren't out yet say Coming soon",
+  "items": [
+    {
+      "title": "No more cinema recordings",
+      "text": "Films that are still in cinemas or not released yet (like Avengers: Doomsday) now show a grey Coming soon button instead of Add to library, with the date they come out. Lilin only gets a film once it's out to stream or buy, so you never end up with a blurry recording from a cinema. Press Save and switch on \"Add it when a good copy is out\" and Lilin adds it by itself on the day."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-player-reconnects",
+  "date": "2026-11-15",
+  "title": "Videos pick up again after a dropped connection",
+  "items": [
+    {
+      "title": "No more wrong \"can't play in this browser\" message",
+      "text": "If the connection to Lilin drops while you watch (a Wi-Fi blip or a server restart), the player now says it is reconnecting and carries on from the same spot by itself. Before, it showed a message saying the video couldn't play in your browser, which wasn't true."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-play-now-playhead",
+  "date": "2026-11-15",
+  "title": "Play now jumps ahead and stops freezing",
+  "items": [
+    {
+      "title": "Skip ahead while it downloads",
+      "text": "Play now used to wait for the download to reach the spot you skipped to, which could take minutes. A helper now fetches that part first, so skipping ahead plays again in a couple of seconds. The rest keeps downloading as before."
+    },
+    {
+      "title": "No more long freezes",
+      "text": "One slow source could hold back the next part of a video and freeze the picture for a minute or more. The helper now fetches those parts from faster sources. Starting a video is quicker too."
+    },
+    {
+      "audience": "owner",
+      "title": "How it works",
+      "text": "playhead (github.com/Tjabooo/playhead) runs next to qBittorrent, which still downloads, seeds and files everything. It reads what qBittorrent already has from qBittorrent's own file, and fetches only what the player needs next. It's bound to qBittorrent's tunnel address and fenced by the torrent VPN firewall. If anything goes wrong, Play now carries on with qBittorrent alone. PLAY_NOW_ENGINE=qbit turns the helper off."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-best-quality-swarm",
+  "date": "2026-11-15",
+  "title": "Best Quality stops picking six-hour downloads",
+  "items": [
+    {
+      "title": "Faster Best Quality picks",
+      "text": "Best Quality used to treat a bigger file as a better one, so it could pick an 80 GB copy with ten people sharing it over a 26 GB copy of the same 4K stream with thousands. Now extra size beyond what a resolution needs barely counts, a huge file with few people sharing it counts against, and copies that may start in a dubbed language (Hindi, Italian and so on) lose out to ones that don't. The picture stays just as good, it just arrives hours sooner."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-trailer-controls",
+  "date": "2026-11-15",
+  "title": "Trailer controls you can actually see",
+  "items": [
+    {
+      "title": "Normal-sized trailer controls",
+      "text": "Since trailers started playing in full HD, YouTube's own buttons on a title page's trailer were tiny. Trailers now have Lilin's own bar instead: play and pause, a seek bar, mute and full screen, at a normal size. Click the video to pause, double-click for full screen."
+    }
+  ]
+},
+{
+  "id": "2026-11-15-password-links-close",
+  "date": "2026-11-15",
+  "title": "Used password links tidy themselves up",
+  "items": [
+    {
+      "title": "Password links leave the list once used",
+      "audience": "owner",
+      "text": "A password link now disappears from People as soon as that person has a password, however they set it, and it stops working. Making a new password link for someone replaces their old one."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-clip-game-events",
+  "date": "2026-11-14",
+  "title": "Your CS2 moments on the clip timeline",
+  "items": [
+    {
+      "title": "Kills, deaths and rounds in the clip editor",
+      "audience": "owner",
+      "text": "CS2 clips now show their kills, headshots, deaths, round starts and ends and bomb plants and defuses as small icons above the editor's timeline. Click one to jump just before it, or press N and P to go to the next or previous one."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-convert-progress-card",
+  "date": "2026-11-14",
+  "title": "See how long a copy has left",
+  "items": [
+    {
+      "title": "Progress bar while a copy is made",
+      "text": "When a video needs a copy before your browser can play it, the player now shows a progress bar with the percentage and roughly how many minutes are left, instead of a line of text."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-convert-survives-restart",
+  "date": "2026-11-14",
+  "title": "Browser copies keep going through updates",
+  "items": [
+    {
+      "title": "No more starting over",
+      "text": "Some videos need a copy before your browser can play them (for example HEVC films in Firefox). Every time Lilin was updated, a copy in progress was thrown away and started again from the beginning, so a film could wait for hours. Copies now carry on through an update and finish where they were."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-firefox-smooth",
+  "date": "2026-11-14",
+  "title": "Smoother in Firefox",
+  "items": [
+    {
+      "title": "No more lag in Firefox",
+      "text": "Lilin could feel laggy in Firefox on a computer, worst on pages with a trailer, even on fast PCs. Firefox struggles with the frosted-glass blur behind buttons and menus, so in Firefox those panels are now plain tinted glass instead. Everything else looks the same."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-trailer-hd",
+  "date": "2026-11-14",
+  "title": "Trailers in HD",
+  "items": [
+    {
+      "title": "Sharp, smooth trailers",
+      "text": "Trailers on title pages and behind the Discover banner played in blurry low quality, because YouTube picks the quality from how big the player is and ours were small. They now ask for full HD, and the frosted buttons over a playing banner trailer turn plain so the video doesn't stutter."
+    },
+    {
+      "title": "One trailer at a time",
+      "text": "The banner trailer kept playing out of sight when you scrolled down or opened a title, so a title page's trailer had to share the computer with it. It now stops as soon as you can't see it and starts again when you come back."
+    },
+    {
+      "title": "Smoother in Firefox",
+      "text": "The banner trailer asked YouTube for more than full HD, which many computers have to decode without help from the graphics card, so it stuttered in Firefox. Trailers now stay at 1080p, and the page's little glowing animations rest while one plays."
+    },
+    {
+      "title": "Trailers sit higher on phones",
+      "text": "On phones a playing trailer started far down the title page, under a big empty gap. It now sits right below the close button."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-delete-cancels",
+  "date": "2026-11-14",
+  "title": "Deleting a season stops its download",
+  "items": [
+    {
+      "title": "No more waiting for a download you deleted",
+      "text": "Deleting a season or a show while it was still downloading only removed the finished episodes, and the rest kept downloading and came back. Delete now cancels the download and any conversion straight away, and the season's Delete button shows up even before the first episode is ready."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-trailer-stage",
+  "date": "2026-11-14",
+  "title": "Trailers fit on the screen",
+  "items": [
+    {
+      "title": "Trailer and title side by side",
+      "text": "On a computer a playing trailer filled the whole window and pushed the title off the bottom. It now plays in a frame on top of the blurred picture, with the title still in view below."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-trailer-button",
+  "date": "2026-11-14",
+  "title": "Trailer button works on computers",
+  "items": [
+    {
+      "title": "Trailer on wide screens",
+      "text": "On a computer the Trailer button on a title's page could sit under the title text, so clicking it did nothing. It's on top now and plays the trailer."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-finished-page-updates",
+  "date": "2026-11-14",
+  "title": "Finished downloads become playable right away",
+  "items": [
+    {
+      "title": "No more stuck \"Almost ready\"",
+      "text": "A film's page left open while it downloaded could stay on \"Almost ready 100%\" after it finished, and you had to reload to play it. The page now switches to the film by itself."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-play-now-start-progress",
+  "date": "2026-11-14",
+  "title": "Play now shows how long until it starts",
+  "items": [
+    {
+      "title": "Clearer Play now wait",
+      "text": "While Play now gets the start of a video, the percentage and time now count toward starting playback, not the whole download. So you see \"40% · about 30 s to go\" instead of \"0% downloaded · about 2 h left\"."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-no-stuck-moving",
+  "date": "2026-11-14",
+  "title": "Big downloads don't stall at the start",
+  "items": [
+    {
+      "title": "No more \"moving\" pause",
+      "text": "A big download could stop for a few minutes just after it started while the server shuffled it to a faster drive (Lost in Translation sat at 4 %). New downloads now start on that drive straight away, so they keep going."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-five-tweaks",
+  "date": "2026-11-14",
+  "title": "Undo, thumbs down that counts, and more",
+  "items": [
+    {
+      "title": "Thumbs down hides it",
+      "text": "Titles you give a thumbs down no longer show up in your Discover rows, Documentaries or Popular on Lilin. Search still finds them, and taking the thumbs down back brings them back."
+    },
+    {
+      "title": "Undo after deleting",
+      "text": "After you delete something, you get a few seconds to press Undo before it's really gone."
+    },
+    {
+      "title": "Play now is on its way",
+      "text": "While a download fetches the start of the video, it says so (\"Play now in a moment\"), so you know the Play now button is coming."
+    },
+    {
+      "title": "Tidy Continue watching",
+      "text": "Each Continue watching card has a ⋯ button: Mark as watched, or Remove from Continue watching (your place is kept and it comes back when you watch it again)."
+    },
+    {
+      "title": "Night mode remembers the show",
+      "text": "Turn on night mode during a show and it's on again for that show's next episodes. Other shows and films start with it off."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-no-false-text",
+  "date": "2026-11-14",
+  "title": "No more stray \"false\"",
+  "items": [
+    {
+      "title": "Stray \"false\" text",
+      "text": "Some sheets, like Browse while you're in Documentaries, showed the word \"false\" where nothing should be. Gone everywhere."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-docs-english-only",
+  "date": "2026-11-14",
+  "title": "Documentaries in your language",
+  "items": [
+    {
+      "title": "English documentaries only",
+      "text": "With Lilin in English, Documentaries now only shows titles that were made in English: the SVT Play, Swedish and Nordic rows are gone, and the other rows leave out foreign-language films and shows. With Lilin in Swedish nothing changes."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-doc-genres-phone",
+  "date": "2026-11-14",
+  "title": "Documentaries fit your phone",
+  "items": [
+    {
+      "title": "Documentary genres on phones",
+      "text": "The genre rows under Documentaries were wider than a phone screen, so the whole page shrank and the posters looked tiny. The rows now fit and swipe sideways, and the page is full size again."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-removed-card",
+  "date": "2026-11-14",
+  "title": "A nicer \"Removed from your library\"",
+  "items": [
+    {
+      "title": "Removed films",
+      "text": "When a film you have open leaves your library, its page now shows a tidy card with a Back to your library button instead of a bare heading on a coloured background."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-extras-not-versions",
+  "date": "2026-11-14",
+  "title": "Bonus features aren't extra copies",
+  "items": [
+    {
+      "title": "Featurettes stay out of your library",
+      "text": "Downloads that came with bonus material (featurettes, interviews, trailers) listed each bonus video as another \"version\" of the film, and Delete all versions didn't go through. Bonus folders are now left out of the library, and deleting the film removes them with it."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-film-page-after-prep",
+  "date": "2026-11-14",
+  "title": "Film pages stay put, X closes once",
+  "items": [
+    {
+      "title": "No false \"Removed from your library\"",
+      "text": "A film page left open while Lilin finished preparing the film for playback could suddenly say \"Removed from your library\" and lose its Delete button, even though nothing was removed. It now keeps showing the film."
+    },
+    {
+      "title": "Tapping X twice",
+      "text": "Tapping the X on a page twice in a row could take you out of Lilin altogether (on iPad it could close the tab). A second tap now does nothing."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-delete-while-converting",
+  "date": "2026-11-14",
+  "title": "Delete works on fresh downloads",
+  "items": [
+    {
+      "title": "Delete right after downloading",
+      "text": "Deleting a film or episode that had only just finished downloading could quietly fail while Lilin was still preparing it for playback. Delete now stops that preparation and removes it straight away."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-play-now-waits",
+  "date": "2026-11-14",
+  "title": "Play now shows up when there's something to play",
+  "items": [
+    {
+      "title": "Play now waits for the start",
+      "text": "The Play now button on a download now only appears once the beginning of the video has actually arrived, so pressing it no longer leaves you staring at a loading screen while the download hasn't really started. New downloads fetch the start first, so it usually shows up within seconds."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-night-mode-quieter",
+  "date": "2026-11-14",
+  "title": "Night mode no longer turns the sound up",
+  "items": [
+    {
+      "title": "Quieter night mode",
+      "text": "Switching on night mode (the moon in the player) used to make everything louder at once. Now dialogue stays about as loud as before and loud scenes like explosions and music come down, so you can keep the volume low without missing what people say."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-member-invites",
+  "date": "2026-11-14",
+  "title": "Let people you trust invite others",
+  "items": [
+    {
+      "title": "Can invite people",
+      "audience": "owner",
+      "text": "In People, each person now has a Can invite people switch (off for everyone). Switched on, they get Invite people in their Settings and can make the same one-time links you make, up to 3 open at a time. Their links show up in your invite list with their name, and you can cancel them there."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-popular-likes",
+  "date": "2026-11-14",
+  "title": "Tidier likes on Popular on Lilin",
+  "items": [
+    {
+      "title": "No more cut-off names",
+      "text": "Cards in Popular on Lilin no longer cut a list of names in half. A title liked by one person shows their name; liked by more, it shows their faces and how many liked it. Hold the pointer over it, or open the title, to see everyone."
+    }
+  ]
+},
+{
+  "id": "2026-11-14-docs-english",
+  "date": "2026-11-14",
+  "title": "Documentaries in English start with English titles",
+  "items": [
+    {
+      "title": "English titles first",
+      "text": "With Lilin set to English, the Documentaries tab now starts with international true crime, unsolved cases, nature and history. SVT Play and Swedish true crime are still there, further down the page."
+    }
+  ]
+},
   {
     "id": "2026-11-13-cam-gpu",
     "date": "2026-11-13",
