@@ -293,6 +293,8 @@ const upgradeChecked = new Map(); // key -> when we last looked for people's sub
 export function ensureSubtitle(file, info, lang) {
   lang = String(lang).toLowerCase();
   if (!validLang(lang)) return Promise.reject(fail(400, 'Unknown language.'));
+  // A bad or stale id resolves to a path that isn't there: don't spend an OpenSubtitles download on it.
+  if (!fs.existsSync(file)) return Promise.reject(fail(404, 'That video isn’t on the server any more.'));
   const existing = findSidecar(file, lang);
   if (existing && !isAutoSidecar(existing)) return Promise.resolve(existing);
   const key = `${file}|${lang}`;
