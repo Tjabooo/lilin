@@ -6,7 +6,7 @@ use crate::gfx::{hexa, rect};
 use crate::text::{body, display};
 use crate::ui::{self, Ambient, Ease, Lit};
 use crate::util::{arr, s};
-use crate::{key, t, Cx, Key, Res, Screen};
+use crate::{key, t, Cx, Key, Nav, Res, Screen, TOKEN_KEY};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -15,6 +15,7 @@ use serde_json::Value;
 const HOME: u32 = 1;
 const GENRES: u32 = 2;
 const VIBES: u32 = 3;
+const LIB: u32 = 4;
 
 const SEE_ROW: u32 = 1000;
 const GENRE_TILE: u32 = 2000;
@@ -96,6 +97,15 @@ impl Hero {
 }
 
 /// The bar over a hero: the screen's name, then pill tabs on the right.
+#[derive(Clone, Copy, PartialEq)]
+enum Tab {
+    Search,
+    Live,
+    Type(usize),
+    Docs,
+    Switch,
+}
+
 fn tabs_bar(cx: &mut Cx, name: &str, tabs: &[&str], active: Option<usize>, lit: &mut Lit, focus: Option<usize>) {
     cx.g.vgrad(rect(0.0, 0.0, 1920.0, 170.0), &[(0.0, hexa(0x1F1019, 0.7)), (1.0, hexa(0x1F1019, 0.0))]);
     let f = display(46.0, 800).glow();
@@ -144,6 +154,8 @@ pub struct Discover {
     home: Option<Value>,
     /// vibes: the Moods (/api/vibes), for this tab
     vibes: Vec<Value>,
+    /// The app's first screen (play first, no library): Continue watching on top, Live TV and Switch account in the bar.
+    root: bool,
 }
 
 impl Discover {
@@ -163,9 +175,74 @@ impl Discover {
             waiting: 0,
             home: None,
             vibes: Vec::new(),
+            root: false,
         };
         d.load(cx);
         d
+    }
+    pub fn root(cx: &mut Cx) -> Discover {
+        let mut d = Discover::new(cx);
+        d.root = true;
+        d.ti = 2;
+        d
+    }
+    fn tab_list(&self) -> Vec<Tab> {
+        let mut v = alloc::vec![Tab::Search];
+        if self.root {
+            v.push(Tab::Live);
+        }
+        for n in 0..3 {
+            v.push(Tab::Type(n));
+        }
+        v.push(Tab::Docs);
+        if self.root {
+            v.push(Tab::Switch);
+        }
+        v
+    }
+    fn type_tab(&self) -> usize {
+        let n = types().iter().position(|x| x.0 == self.ty).unwrap_or(0);
+        self.tab_list().iter().position(|t| *t == Tab::Type(n)).unwrap_or(0)
+    }
+    /// Continue watching (and the episode after one you finished), for the first screen.
+    fn cont_row(&self, cx: &Cx) -> Option<Row> {
+        if !self.root {
+            return None;
+        }
+        let st = &cx.state;
+        let data = crate::logic::home_rows(&st.library, &st.shows, &st.progress, &st.continue_hidden);
+        let cards: Vec<Card> = data.cont.iter().filter_map(|f| browse::continue_card(cx, f, data.up_next.contains(s(f, "id")))).collect();
+        if cards.is_empty() {
+            None
+        } else {
+            Some(Row::new(t!("Continue watching"), Kind::Wide, cards))
+        }
+    }
+    /// Back from the player: the Continue watching row catches up, the rest stays where it was.
+    fn update_cont(&mut self, cx: &mut Cx) {
+        let title = String::from(t!("Continue watching"));
+        let at = self.rows.rows.iter().position(|r| r.title == title);
+        match (self.cont_row(cx), at) {
+            (Some(mut row), Some(i)) => {
+                row.index = self.rows.rows[i].index.min(row.cards.len().saturating_sub(1));
+                self.rows.rows[i] = row;
+            }
+            (Some(row), None) => {
+                self.rows.rows.insert(0, row);
+                if !self.rows.rows.is_empty() && self.rows.rows.len() > 1 {
+                    self.rows.r += 1;
+                }
+            }
+            (None, Some(i)) => {
+                self.rows.rows.remove(i);
+                if self.rows.r > i || self.rows.r >= self.rows.rows.len() {
+                    self.rows.r = self.rows.r.saturating_sub(1);
+                }
+            }
+            (None, None) => {}
+        }
+        self.rows.update(cx, self.sid);
+        cx.redraw();
     }
     fn load(&mut self, cx: &mut Cx) {
         self.rows.set(Vec::new());
@@ -223,6 +300,9 @@ impl Discover {
             let tiles: Vec<Card> = self.vibes.iter().enumerate().map(|(n, v)| browse::vibe_card(v, n, VIBE_TILE + n as u32)).collect();
             rows.insert(rows.len().min(1), Row::new(t!("Moods"), Kind::Genre(0), tiles));
         }
+        if let Some(row) = self.cont_row(cx) {
+            rows.insert(0, row);
+        }
         let gs = self.genres(cx);
         if !gs.is_empty() {
             let tiles = gs.iter().enumerate().map(|(n, g)| browse::genre_card(s(g, "name"), n, GENRE_TILE + n as u32)).collect();
@@ -235,13 +315,24 @@ impl Discover {
         self.rows.set(rows);
         self.rows.update(cx, self.sid);
     }
-    fn tabs(&self) -> Vec<&'static str> {
-        let mut v = alloc::vec![t!("Search")];
-        for (_, l) in types() {
-            v.push(l);
-        }
-        v.push(t!("Documentaries"));
-        v
+    fn tabs(&self, cx: &Cx) -> Vec<String> {
+        let ts = types();
+        self.tab_list()
+            .iter()
+            .map(|t| match t {
+                Tab::Search => String::from(t!("Search")),
+                Tab::Live => {
+                    if cx.state.live_name.is_empty() {
+                        String::from("Lilin TV")
+                    } else {
+                        cx.state.live_name.clone()
+                    }
+                }
+                Tab::Type(n) => String::from(ts[*n].1),
+                Tab::Docs => String::from(t!("Documentaries")),
+                Tab::Switch => String::from(t!("Switch account")),
+            })
+            .collect()
     }
     fn local(&mut self, cx: &mut Cx, tag: u32) {
         let gs = self.genres(cx);
@@ -294,13 +385,15 @@ impl Screen for Discover {
             cx.tx.draw(&mut cx.g, display(64.0, 800), &h, ui::EDGE, 560.0, ui::PAPER);
             cx.tx.para(&mut cx.g, body(34.0, 400), &p, ui::EDGE, 660.0, 1100.0, 3, 44.0, ui::DUST);
         }
-        let tabs = self.tabs();
-        let active = types().iter().position(|x| x.0 == self.ty).map(|n| n + 1);
-        tabs_bar(cx, t!("Discover"), &tabs, active, &mut self.lit, if self.at_top { Some(self.ti) } else { None });
+        let tabs = self.tabs(cx);
+        let refs: Vec<&str> = tabs.iter().map(|x| x.as_str()).collect();
+        let active = Some(self.type_tab());
+        tabs_bar(cx, t!("Discover"), &refs, active, &mut self.lit, if self.at_top { Some(self.ti) } else { None });
     }
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
         cx.redraw();
-        let n_tabs = self.tabs().len();
+        let list = self.tab_list();
+        let n_tabs = list.len();
         if self.at_top {
             match k.code {
                 key::LEFT => self.ti = self.ti.saturating_sub(1),
@@ -310,21 +403,32 @@ impl Screen for Discover {
                         self.at_top = false;
                     }
                 }
-                key::ENTER => {
-                    if self.ti == 0 {
+                key::ENTER => match list.get(self.ti).copied().unwrap_or(Tab::Search) {
+                    Tab::Search => {
                         let s = super::search::Search::new(cx);
                         cx.push(Box::new(s));
-                    } else if self.ti > 3 {
+                    }
+                    Tab::Live => {
+                        let s = super::live::Guide::new(cx, None);
+                        cx.push(Box::new(s));
+                    }
+                    Tab::Docs => {
                         let s = Docs::new(cx);
                         cx.push(Box::new(s));
-                    } else {
-                        let ty = types()[self.ti - 1].0;
+                    }
+                    Tab::Switch => {
+                        crate::host::forget(TOKEN_KEY);
+                        let p = super::pair::Pair::new(cx, true, None);
+                        cx.nav.push(Nav::Reset(Box::new(p)));
+                    }
+                    Tab::Type(n) => {
+                        let ty = types()[n].0;
                         if ty != self.ty {
                             self.ty = ty;
                             self.load(cx);
                         }
                     }
-                }
+                },
                 key::UP => {}
                 _ => return false,
             }
@@ -334,7 +438,7 @@ impl Screen for Discover {
             key::UP => {
                 if !self.rows.move_v(-1) {
                     self.at_top = true;
-                    self.ti = 1 + types().iter().position(|x| x.0 == self.ty).unwrap_or(0);
+                    self.ti = self.type_tab();
                 }
             }
             key::DOWN => {
@@ -374,13 +478,24 @@ impl Screen for Discover {
             self.waiting = self.waiting.saturating_sub(1);
         } else if tag == GENRES {
             self.waiting = self.waiting.saturating_sub(1);
+        } else if tag == LIB {
+            if !self.loading {
+                self.update_cont(cx);
+            }
+            return;
         }
         if self.waiting == 0 {
             self.built(cx);
         }
     }
     fn refresh(&mut self, cx: &mut Cx) {
+        if self.root {
+            cx.load_library(Some((self.sid, LIB)));
+        }
         cx.redraw();
+    }
+    fn is_home(&self) -> bool {
+        self.root
     }
 }
 

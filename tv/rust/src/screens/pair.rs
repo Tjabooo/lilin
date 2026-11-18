@@ -1,6 +1,5 @@
 //! Starting up and signing the TV in: a QR code to scan with a signed-in phone, or a code typed on the phone
 //! (You › Devices and notifications), or the shared Home network account.
-use super::home::Home;
 use crate::gfx::{hexa, rect};
 use crate::host;
 use crate::text::{body, display, Font};
@@ -97,7 +96,8 @@ impl Screen for Boot {
             READY => {
                 self.waiting = self.waiting.saturating_sub(1);
                 if self.waiting == 0 {
-                    let h = Home::new(cx);
+                    // Play first: no library screen; the app opens on Discover (Continue watching on top).
+                    let h = super::discover::Discover::root(cx);
                     cx.nav.push(Nav::Reset(Box::new(h)));
                 }
             }

@@ -257,6 +257,10 @@ pub fn continue_card(cx: &Cx, f: &Value, up_next: bool) -> Option<Card> {
         _ => String::from(t!("Up next")),
     };
     c.sub = crate::util::join(&[&logic::episode_label(f), s(f, "episodeName"), &left], " · ");
+    // On Discover (the first screen) the hero shows what this card is.
+    let over = if !s(f, "overview").is_empty() { s(f, "overview") } else { show.map(|x| s(x, "overview")).unwrap_or("") };
+    let ty = if crate::util::has(f, "season") { "tv" } else { "movie" };
+    c.hero = Some(serde_json::json!({ "title": c.title, "overview": over, "type": ty, "year": show.map(|x| x.get("year").cloned().unwrap_or(Value::Null)).unwrap_or_else(|| f.get("year").cloned().unwrap_or(Value::Null)) }));
     if !up_next {
         c.bar = Some(Some((time / dur).min(1.0) as f32));
     }

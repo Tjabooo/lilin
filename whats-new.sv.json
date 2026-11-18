@@ -6,6 +6,10 @@
         "title": "Tryck Spela upp på vad som helst",
         "text": "I Samsung- och Android TV-apparna har varje film och serie i Upptäck och Sök en Spela upp-knapp nu. Finns den inte på Lilin än visar tv:n Görs i ordning medan Lilin hittar en kopia, och den börjar spelas av sig själv så fort början av videon är här. Trycker du Tillbaka fortsätter den att göras i ordning."
       },
+      "The TV opens on Discover": {
+        "title": "Tv:n öppnar på Upptäck",
+        "text": "Tv-apparna har inte längre någon biblioteksskärm. De öppnar på Upptäck, med Fortsätt titta överst och live-tv i raden högst upp."
+      },
       "The next episode follows": {
         "title": "Nästa avsnitt följer med",
         "text": "När ett avsnitt slutar erbjuder Nästa nästa avsnitt även om det inte finns på Lilin än. Fortsätt titta på tv:n visar nu avsnittet efter det du tittat klart på, ett kort per serie."

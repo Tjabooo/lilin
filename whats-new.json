@@ -11,6 +11,11 @@
       },
       {
         "kind": "improved",
+        "title": "The TV opens on Discover",
+        "text": "The TV apps no longer have a library screen. They open on Discover, with Continue watching at the top and Live TV in the bar."
+      },
+      {
+        "kind": "improved",
         "title": "The next episode follows",
         "text": "When an episode ends, Up next offers the next one even if it isn’t on Lilin yet. Continue watching on the TV now shows the episode after the one you finished, one card per show."
       },

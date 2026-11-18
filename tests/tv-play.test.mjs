@@ -67,3 +67,42 @@ test('a film transfer plays its one big file', async () => {
   const dl = { hash: 'h2', tmdbId: 27205, mediaType: 'movie', canPlayNow: true, files: [{ index: 0, size: 9e9, available: false }, { index: 1, size: 1e6 }] };
   assert.equal(partFor({ type: 'movie', tmdbId: 27205 }, [dl]).id, 'h2-0');
 });
+
+// The TV apps POST here: the server's list of allowed POSTs has to include it (it once didn't: "Method not allowed").
+test('POST /api/tv/play is let through on a running server', { timeout: 30000 }, async (t) => {
+  const { default: fs } = await import('node:fs/promises');
+  const { default: path } = await import('node:path');
+  const { default: os } = await import('node:os');
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-tv-play-'));
+  for (const name of await fs.readdir(root)) if (name.endsWith('.js') || name.endsWith('.json')) await fs.copyFile(path.join(root, name), path.join(app, name));
+  await fs.cp(path.join(root, 'src'), path.join(app, 'src'), { recursive: true });
+  await fs.cp(path.join(root, 'public'), path.join(app, 'public'), { recursive: true });
+  const child = spawn(process.execPath, ['server.js'], { cwd: app, env: {
+    PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR, TEMP: process.env.TEMP, TMP: process.env.TMP,
+    PORT: '0', ADMIN_EMAILS: 'owner@test.local', CONVERT: 'off', SUBSYNC: 'off', TORRENTS: 'off', SVT_PLAY: 'off',
+    CAST_APPLETV: 'off', NOTES_OCR: 'off', SERVER_IP: '127.0.0.1', PREPARE_NEXT_EPISODES: '0',
+  }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  let logs = '', port = 0;
+  child.stdout.on('data', (c) => { logs += c; });
+  child.stderr.on('data', (c) => { logs += c; });
+  t.after(async () => {
+    child.kill();
+    await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error(`Startup timeout: ${logs}`)), 9000);
+    child.stdout.on('data', () => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
+    child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
+  });
+  const r = await fetch(`http://127.0.0.1:${port}/api/tv/play`, { method: 'POST',
+    headers: { 'cf-access-authenticated-user-email': 'owner@test.local', 'X-Lilin-TV': '1', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'movie', tmdbId: 687163 }) });
+  const body = await r.json();
+  // No media folder in this bare server (503); what matters is that it reaches the route.
+  assert.notEqual(r.status, 405, JSON.stringify(body));
+  assert.notEqual(r.status, 404, JSON.stringify(body));
+});

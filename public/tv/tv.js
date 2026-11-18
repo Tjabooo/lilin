@@ -149,7 +149,8 @@
       }
       state.me = me;
       state.liveName = status.liveName || 'Lilin TV';
-      return Promise.all([loadLibrary(), loadGenres()]).then(homeScreen);
+      // Play first: no library screen; the app opens on Discover with Continue watching on top.
+      return Promise.all([loadLibrary(), loadGenres()]).then(function () { discoverScreen(true); });
     }).catch(function (err) {
       if (err.status === 401) { localStorage.removeItem(TOKEN_KEY); return pairScreen(false); }
       app.innerHTML = '';
@@ -797,14 +798,27 @@
     return o.shows[t.id] ? { show: o.shows[t.id] } : null;
   }
 
-  function discoverScreen() {
-    var type = 'all', seq = 0, atTop = false, ti = 1;
+  // root: the app's first screen (Continue watching on top, Live TV and Switch account in the bar).
+  function discoverScreen(root) {
+    var type = 'all', seq = 0, atTop = false, ti = root ? 2 : 1;
     var heroArt = h('img', { alt: '', decoding: 'async', class: 'is-empty' });
     heroArt.onerror = function () { heroArt.removeAttribute('src'); heroArt.className = 'is-empty'; };
     var heroTitle = h('h1'), heroMeta = h('div', { class: 'hero-meta' }), heroText = h('p', { class: 'hero-overview' });
-    var tabs = [h('button', { class: 'top-link search-tab', text: T('Search') })]
-      .concat(TYPES.map(function (t) { return h('button', { class: 'tab', text: t[1] }); }))
-      .concat([h('button', { class: 'tab', text: T('Documentaries') })]);
+    var tabs = [h('button', { class: 'top-link search-tab', text: T('Search') })], kinds = ['search'];
+    if (root) { tabs.push(h('button', { class: 'top-link live-link', text: state.liveName || 'Lilin TV' })); kinds.push('live'); }
+    TYPES.forEach(function (t) { tabs.push(h('button', { class: 'tab', text: t[1] })); kinds.push('type:' + t[0]); });
+    tabs.push(h('button', { class: 'tab', text: T('Documentaries') })); kinds.push('docs');
+    if (root) { tabs.push(h('button', { class: 'tab', text: T('Switch account') })); kinds.push('switch'); }
+    function typeTab() { return kinds.indexOf('type:' + type); }
+    var CONT = T('Continue watching');
+    function contRow() {
+      if (!root) return null;
+      var data = L.homeRows(state.library, state.shows, state.progress, state.hidden);
+      if (!data.cont.length) return null;
+      var row = makeRow({ title: CONT, kind: 'wide', items: data.cont.map(function (f) { return continueCard(f, data.upNext[f.id]); }) });
+      row.title = CONT;
+      return row;
+    }
     var rowsEl = h('div', { class: 'rows' });
     var el = h('div', { class: 'screen discover-screen' },
       h('div', { class: 'hero' }, h('div', { class: 'hero-art' }, heroArt), h('div', { class: 'hero-copy' }, heroTitle, heroMeta, heroText)),
@@ -856,6 +870,8 @@
         });
         var moods = (r[2].vibes || []).filter(function (v) { return type === 'all' || !v.types || v.types.indexOf(type) >= 0; });
         if (moods.length >= 3) rows.splice(Math.min(1, rows.length), 0, makeRow({ title: T('Moods'), kind: 'genre', items: moods.map(vibeCard) }));
+        var cont = contRow();
+        if (cont) rows.unshift(cont);
         var gs = state.genres.filter(function (g) { return type === 'all' || (type === 'movie' ? g.movie : g.tv); });
         if (gs.length) {
           rows.push(makeRow({ title: T('Browse by genre'), kind: 'genre', items: gs.map(genreCard) }));
@@ -873,19 +889,38 @@
           return;
         }
         nav.set(rows);
-        var first = rows[0].items[0];
+        var first = rows[cont ? Math.min(1, rows.length - 1) : 0].items[0];
         if (first && first.t) setHero(first.t, first.key);
         paint();
       });
     }
+    // Back from the player: Continue watching catches up (a rebuild of the whole screen would lose your place).
+    function refreshCont() {
+      if (!root) return;
+      loadLibrary().then(function () {
+        if (screen !== me || !nav.rows.length) return;
+        var at = -1;
+        nav.rows.forEach(function (r, i) { if (r.title === CONT) at = i; });
+        var row = contRow();
+        if (at < 0 && !row) return;
+        var rows = nav.rows.slice(), r = nav.r, keep = at >= 0 ? nav.rows[at].index : 0;
+        if (at >= 0 && row) rows[at] = row; else if (row) { rows.unshift(row); r++; } else { rows.splice(at, 1); if (r > at) r--; }
+        var idx = rows.map(function (x) { return x.index; });
+        nav.set(rows);
+        rows.forEach(function (x, i) { x.index = Math.min(idx[i] || 0, x.items.length - 1); });
+        if (row && at >= 0) row.index = Math.min(keep, row.items.length - 1);
+        nav.r = Math.max(0, Math.min(r, rows.length - 1));
+        paint();
+      }).catch(function () {});
+    }
     function paint() {
       tabs.forEach(function (b, i) {
         b.classList.toggle('focus', atTop && i === ti);
-        if (i > 0 && i <= TYPES.length) b.classList.toggle('active', TYPES[i - 1][0] === type);
+        if (kinds[i].indexOf('type:') === 0) b.classList.toggle('active', kinds[i] === 'type:' + type);
       });
       nav.paint(!atTop);
     }
-    show({ el: el, focus: paint, refresh: paint,
+    var me = { el: el, focus: paint, refresh: function () { paint(); refreshCont(); },
       leave: function () { clearTimeout(heroTimer); seq++; },
       key: function (code) {
         if (atTop) {
@@ -893,19 +928,23 @@
           if (code === KEY.RIGHT) { ti = Math.min(tabs.length - 1, ti + 1); paint(); return true; }
           if (code === KEY.DOWN) { if (nav.current()) atTop = false; paint(); return true; }
           if (code === KEY.ENTER) {
-            if (ti === 0) { searchScreen(); return true; }
-            if (ti > TYPES.length) { docsScreen(); return true; }
-            if (TYPES[ti - 1][0] !== type) { type = TYPES[ti - 1][0]; load(); }
+            var k = kinds[ti];
+            if (k === 'search') searchScreen();
+            else if (k === 'live') liveScreen();
+            else if (k === 'docs') docsScreen();
+            else if (k === 'switch') { localStorage.removeItem(TOKEN_KEY); history = []; screen = null; pairScreen(true); }
+            else if (k !== 'type:' + type) { type = k.slice(5); load(); }
             return true;
           }
           return code === KEY.UP;
         }
-        if (code === KEY.UP) { if (!nav.move(-1)) { atTop = true; ti = 1 + TYPES.map(function (t) { return t[0]; }).indexOf(type); paint(); } return true; }
+        if (code === KEY.UP) { if (!nav.move(-1)) { atTop = true; ti = typeTab(); paint(); } return true; }
         if (code === KEY.DOWN) { nav.move(1); return true; }
         if (code === KEY.LEFT || code === KEY.RIGHT) { nav.side(code === KEY.LEFT ? -1 : 1); return true; }
         if (code === KEY.ENTER) { var c = nav.current(); if (c) c.open(); return true; }
         return false;
-      } }, true);
+      } };
+    show(me, !root);
     load();
   }
 
