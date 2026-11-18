@@ -2041,8 +2041,10 @@
     }
     return { line: T('Starting…'), hint: '', progress: 0.97 };
   }
+  // Whether this TV plays 4K HEVC itself (tv/android Codecs.playVariant): the server picks the copy by it.
+  function tvUhd() { return String(window.LILIN_TV_PLAY || 'browser-hevc').split('&')[0] === 'browser-hevc'; }
   function targetQuery(x) {
-    return 'type=' + x.type + '&tmdbId=' + x.tmdbId + (x.type === 'tv' ? '&season=' + x.season + '&episode=' + x.episode : '');
+    return 'type=' + x.type + '&tmdbId=' + x.tmdbId + (x.type === 'tv' ? '&season=' + x.season + '&episode=' + x.episode : '') + (tvUhd() ? '' : '&uhd=0');
   }
   // Only cinema recordings of this film so far (src/copy-check.js): say so before anything downloads.
   function camAsk(x) {
@@ -2134,6 +2136,7 @@
     var body = { type: x.type, tmdbId: x.tmdbId, title: x.title };
     if (x.type === 'tv') { body.season = x.season; body.episode = x.episode; }
     if (x.allowCam) body.allowCam = true; // they said yes to a cinema recording (camAsk)
+    if (!tvUhd()) body.uhd = 0;
     api('/api/tv/play', body).then(answer, function (err) { answer({ phase: 'failed', message: err.message }); });
   }
 

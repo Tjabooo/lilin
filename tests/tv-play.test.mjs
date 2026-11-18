@@ -106,3 +106,13 @@ test('POST /api/tv/play is let through on a running server', { timeout: 30000 },
   assert.notEqual(r.status, 405, JSON.stringify(body));
   assert.notEqual(r.status, 404, JSON.stringify(body));
 });
+
+test('bestCopy: 4K for 4K TVs, 1080p for the rest, converting copies last', async () => {
+  const { bestCopy } = await import('../src/tv-play.js');
+  const hd = { id: 'a', file: 'Film 2026 1080p WEB AC3 H264.mp4', size: 10e9 };
+  const uhd = { id: 'b', file: 'Film.2026.2160p.UHD.BluRay.Remux.HDR.mp4', size: 84e9 };
+  assert.equal(bestCopy([hd, uhd]).id, 'b');
+  assert.equal(bestCopy([hd, uhd], { uhd: false }).id, 'a');
+  assert.equal(bestCopy([{ ...uhd, converting: true }, hd]).id, 'a');
+  assert.equal(bestCopy([]), null);
+});

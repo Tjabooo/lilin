@@ -5,6 +5,10 @@
       "No more endless Reconnecting": {
         "title": "Inget mer ändlöst Återansluter",
         "text": "På en långsammare anslutning kunde TV-appen starta om en film medan den fortfarande laddade och visa Återansluter i flera minuter. Nu får filmen tid att ladda, och om den fortsätter att stanna byter den till en lättare 720p-ström så att den fortsätter spela."
+      },
+      "The TV plays your best copy": {
+        "title": "TV:n spelar din bästa kopia",
+        "text": "När en titel finns i flera kopior spelar TV-appen nu den bästa som din TV kan visa, till exempel 4K-versionen på en 4K-TV, i stället för den som råkade komma först."
       }
     }
   },

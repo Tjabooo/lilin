@@ -12,6 +12,19 @@
 // deps: libraryView(user), addToLibrary(user, item) → bool, listDownloads(user), startSmart(user, body) → { id },
 // smartJob(id, user), partLink(user, id) → { ready, url, status }.
 
+import { versionInfo, rankVersions } from './versions.js';
+
+// Several copies of one title: the best the TV can show. uhd=0 (a TV without 4K HEVC) prefers copies up to
+// 1080p, since a 4K one would only reach it as a live 1080p re-encode; otherwise (and by default) the best.
+// Copies still converting come last.
+export function bestCopy(list, { uhd = true } = {}) {
+  if (!list.length) return null;
+  const ranked = rankVersions(list.map((f) => ({ ...versionInfo(f), size: f.size, id: f.id, f })));
+  const fits = (r) => uhd || r.versionQuality !== '2160p';
+  const pick = ranked.find((r) => fits(r) && !r.f.converting) || ranked.find((r) => !r.f.converting) || ranked[0];
+  return pick.f;
+}
+
 const num = (v) => (v == null || v === '' ? null : Number(v));
 
 // What the TV asked for: a film, or one episode of a show.
@@ -85,9 +98,10 @@ export async function tvPlay(deps, user, q, { start = false } = {}) {
   const view = await deps.libraryView(user);
   const match = itemMatches(x, view.shows);
   const mine = (view.items || []).filter(match);
-  const ready = mine.find((f) => !f.converting) || mine[0];
+  const uhd = !(q.uhd === 0 || q.uhd === '0' || q.uhd === false);
+  const ready = bestCopy(mine, { uhd });
   if (ready) return { play: { kind: 'lib', file: ready } };
-  const copy = (view.server || []).find(match);
+  const copy = bestCopy((view.server || []).filter(match), { uhd });
   if (copy && await deps.addToLibrary(user, copy)) return { play: { kind: 'lib', file: copy, added: true } };
 
   const transfers = transfersFor(x, await deps.listDownloads(user));

@@ -8,6 +8,11 @@
         "kind": "fix",
         "title": "No more endless Reconnecting",
         "text": "On a slower connection, the TV app could keep restarting a film while it was still loading and show Reconnecting for minutes. It now gives the film time to load, and if it keeps stalling it switches to a lighter 720p stream so it keeps playing."
+      },
+      {
+        "kind": "fix",
+        "title": "The TV plays your best copy",
+        "text": "When a title has several copies, the TV app now plays the best one your TV can show, like the 4K version on a 4K TV, instead of whichever came first."
       }
     ]
   },
