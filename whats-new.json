@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-18-tv-episode-row",
+    "date": "2026-11-18",
+    "title": "Episodes on the TV show page",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Pick an episode right on the TV",
+        "text": "On a show's page on the TV, move along the seasons and that season's episodes show right underneath. Press down, scroll through them sideways and press the one you want to watch. The Play season and Episodes buttons are gone, and the wrong season no longer opens. Samsung TVs: restart the app to see it."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-tv-logo-fill",
     "date": "2026-11-18",
     "title": "A nicer wait on the TV",

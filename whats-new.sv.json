@@ -8,6 +8,15 @@
       }
     }
   },
+  "2026-11-18-tv-episode-row": {
+    "title": "Avsnitt på seriesidan på TV:n",
+    "items": {
+      "Pick an episode right on the TV": {
+        "title": "Välj avsnitt direkt på TV:n",
+        "text": "På en series sida på TV:n bläddrar du bland säsongerna och den säsongens avsnitt syns direkt under. Tryck ned, bläddra i sidled och tryck på avsnittet du vill se. Knapparna Spela säsongen och Avsnitt är borta, och fel säsong öppnas inte längre. Samsung-TV: starta om appen för att se det."
+      }
+    }
+  },
   "2026-11-18-tv-slow-connection": {
     "title": "TV-uppspelning på långsammare internet",
     "items": {
