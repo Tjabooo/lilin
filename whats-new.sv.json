@@ -2,10 +2,6 @@
   "2026-11-18-polish": {
     "title": "Ett mjukare Lilin, mer som bio",
     "items": {
-      "Posters grow into the title page": {
-        "title": "Affischer växer in i titelsidan",
-        "text": "Tryck på en affisch så växer den in i titelsidans stora bild i stället för att sidan bara dyker upp."
-      },
       "Title pages take on the film’s colour": {
         "title": "Titelsidor får filmens färg",
         "text": "Varje titelsida tar färg från sin bild, nu även i Spela-knappens sken, och kommer ihåg den så att den finns där direkt nästa gång."

@@ -2088,43 +2088,8 @@ function openTitle(ref, opener) {
     titleView.ref = null; titleView.showId = null; titleView.hero = null;
     opener?.focus({ preventScroll: true });
   };
-  const from = morphFrom(opener);
-  if (!from) {
-    renderTitle();
-    pushOverlay(showSheet(sheet, $('#sheet-backdrop'), onClosed));
-    return;
-  }
-  // Poster → title page: the tapped poster grows into the page's backdrop (View Transitions; browsers without
-  // them take the path above). The poster stands in for the backdrop until the real picture has loaded.
-  let close = null;
-  from.style.viewTransitionName = 'title-morph';
-  const run = document.startViewTransition(() => {
-    from.style.viewTransitionName = '';
-    renderTitle();
-    close = showSheet(sheet, $('#sheet-backdrop'), onClosed, { instant: true });
-    morphInto(sheet, from.currentSrc || from.src);
-  });
-  run.finished.finally(() => { const hero = sheet.querySelector('.sheet-hero'); if (hero) hero.style.viewTransitionName = ''; });
-  pushOverlay(() => close?.());
-}
-// The picture a title page can grow out of: a card's poster (or a hero card's backdrop) that's on screen.
-function morphFrom(opener) {
-  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
-  if (!opener?.matches?.('.title-card, .hero-card') || opener.closest('#sheet, #picker')) return null;
-  const img = opener.querySelector('.poster img, .wide-art img, :scope > img');
-  if (!img?.naturalWidth) return null;
-  const r = img.getBoundingClientRect();
-  return r.width > 20 && r.bottom > 0 && r.top < innerHeight ? img : null;
-}
-function morphInto(sheet, poster) {
-  const hero = sheet.querySelector('.sheet-hero:not(.no-image)');
-  if (!hero) return;
-  hero.style.viewTransitionName = 'title-morph';
-  const img = hero.querySelector('.hero-img');
-  if (!img || img.classList.contains('is-loaded')) return;
-  hero.classList.add('is-morphing');
-  hero.style.backgroundImage = `url("${poster}")`;
-  img.addEventListener('load', () => setTimeout(() => { hero.classList.remove('is-morphing'); hero.style.backgroundImage = ''; }, 700), { once: true });
+  renderTitle();
+  pushOverlay(showSheet(sheet, $('#sheet-backdrop'), onClosed));
 }
 // The old ways in stay, so cards, the billboard, peek, Coming soon and House › Downloads open titles as before.
 function openDetails(t, opener) {
