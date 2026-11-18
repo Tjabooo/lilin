@@ -2430,7 +2430,7 @@
     }
     // AVPlay on older Tizen can sit in "Loading…" forever after a dropped connection. If buffering or the
     // play position stalls for 12 s, the stream is reopened where it stopped (up to 5 times in a row).
-    // A slow connection (slower than the video's bitrate) stalls again and again: the second stall switches to
+    // A slow connection (slower than the video's bitrate) stalls again and again: the first stall during playback switches to
     // the 720p live stream (about 2.5 Mbit/s) instead of reopening the same file. The first load gets a minute,
     // since a big film's index alone can take longer than 12 s on such a connection.
     var streamUrl = null, bufferingSince = 0, movedAt = 0, lastPlayMs = -1, retries = 0, reopening = false;
@@ -2470,7 +2470,7 @@
       if (s.closed || reopening || !streamUrl || retries >= 5) return false;
       retries++; reopening = true;
       if (slow) stalls++;
-      var lower = slow && stalls >= 2 && !lowered && !f.part;
+      var lower = slow && stalls >= 1 && !lowered && !f.part;
       var at = s.time;
       try {
         var live = av.getCurrentTime() / 1000;
