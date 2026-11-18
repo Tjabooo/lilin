@@ -744,7 +744,7 @@ impl Screen for TitleScreen {
                 self.cast = arr(p, "cast")
                     .iter()
                     .filter(|c| !s(c, "name").is_empty())
-                    .take(16)
+                    .take(50)
                     .map(|c| Person { name: String::from(s(c, "name")), part: String::from(s(c, "character")), photo: String::from(s(c, "photo")) })
                     .collect();
                 let list: Vec<Value> = arr(p, "similar").to_vec();

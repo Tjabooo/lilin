@@ -737,7 +737,7 @@ export function titlePage(type, d) {
     status: d.status || null,
     // Films: whether a proper copy can be had yet (watchlist.js filmOut); the page says Coming soon until then.
     release: type === 'movie' ? filmOut(d) : null,
-    cast: (credits?.cast || []).filter((c) => c.name && c.id).slice(0, 16).map((c) => ({
+    cast: (credits?.cast || []).filter((c) => c.name && c.id).slice(0, 50).map((c) => ({
       id: c.id, name: c.name,
       character: c.character || c.roles?.[0]?.character || '',
       photo: c.profile_path ? `${TMDB_IMG}w185${c.profile_path}` : null,
