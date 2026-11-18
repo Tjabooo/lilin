@@ -1,5 +1,5 @@
 //! A film's or show's page from Discover or Search. Play first: Play is the one gold button; yours plays, anything
-//! else gets ready (ready.rs, src/tv-play.js on the server). Downloading a season or a quality is the owner's tool.
+//! else gets ready (ready.rs, src/tv-play.js on the server). Downloads are started on the website, not here.
 use super::browse::{self, Mine};
 use crate::gfx::{hexa, rect};
 use crate::logic::Pending;
@@ -15,9 +15,6 @@ use serde_json::Value;
 const LOGO: u32 = 1;
 const CAST: u32 = 2;
 const SEASONS: u32 = 3;
-const STARTED: u32 = 4;
-const JOB: u32 = 5;
-const JOB_T: u32 = 6;
 const FOLLOW_T: u32 = 7;
 const FOLLOWED: u32 = 8;
 const COPIES: u32 = 9;
@@ -27,8 +24,6 @@ enum Do {
     Play,
     Soon,
     Mine,
-    Download,
-    Quality,
     Library,
 }
 
@@ -47,15 +42,11 @@ pub struct TitleScreen {
     at_seasons: bool,
     actions: Vec<Do>,
     ai: usize,
-    quality: usize,
-    busy: bool,
-    downloading_label: bool,
     status: String,
     status_err: bool,
+    owner: bool,
     on_way: Option<Pending>,
     alive: bool,
-    poll: u32,
-    poll_id: String,
     follow: u32,
     lit: Lit,
     chip_scroll: ui::Ease,
@@ -63,7 +54,6 @@ pub struct TitleScreen {
     copies: String,
 }
 
-const QUALITIES: [&str; 5] = ["", "2160p", "1440p", "1080p", "720p"];
 
 impl TitleScreen {
     pub fn new(cx: &mut Cx, t: Value) -> TitleScreen {
@@ -94,17 +84,6 @@ impl TitleScreen {
         if soon && actions.is_empty() {
             actions.push(Do::Soon);
         }
-        if owner && !soon {
-            actions.push(Do::Download);
-            actions.push(Do::Quality);
-        }
-        let status = if on_way.is_some() || !owner {
-            String::new()
-        } else if mine.is_some() {
-            String::from(t!("Already in your library. Smart Download will avoid duplicates."))
-        } else {
-            String::new()
-        };
         let mut me = TitleScreen {
             sid,
             t,
@@ -120,15 +99,11 @@ impl TitleScreen {
             si: 0,
             actions,
             ai: 0,
-            quality: 0,
-            busy: false,
-            downloading_label: false,
-            status,
+            status: String::new(),
             status_err: false,
+            owner,
             on_way,
             alive: true,
-            poll: 0,
-            poll_id: String::new(),
             follow: 0,
             lit: Lit::default(),
             chip_scroll: ui::Ease::at(0.0),
@@ -145,26 +120,14 @@ impl TitleScreen {
     }
     /// Once it's on its way, the next thing to do is go and see it in the library.
     fn offer_library(&mut self) {
-        if self.actions.contains(&Do::Library) || !self.actions.contains(&Do::Download) {
+        if self.actions.contains(&Do::Library) || !self.owner {
             return;
         }
         self.actions.insert(0, Do::Library);
         self.at_seasons = false;
         self.ai = 0;
     }
-    fn saved_quality(cx: &Cx) -> String {
-        let q = cx.state.setting("quality");
-        if !q.is_empty() && q != "all" {
-            return String::from(q);
-        }
-        match cx.state.setting("downloadProfile") {
-            "save" => String::from(t!("Save Space")),
-            "balanced" => String::from(t!("Balanced · 1080p")),
-            "best" => String::from(t!("Best Quality")),
-            _ => String::from(t!("your saved settings")),
-        }
-    }
-    fn label(&self, cx: &Cx, a: Do) -> String {
+    fn label(&self, a: Do) -> String {
         match a {
             Do::Play => String::from(if self.tv { t!("Play season") } else { t!("Play") }),
             Do::Soon => match self.t.get("soon") {
@@ -175,17 +138,6 @@ impl TitleScreen {
                 Some(Mine::Film(_)) => t!("Play"),
                 _ => t!("Episodes"),
             }),
-            Do::Download => String::from(if !cx.state.can_download() {
-                t!("Downloads disabled")
-            } else if self.downloading_label {
-                t!("Starting…")
-            } else {
-                t!("Download")
-            }),
-            Do::Quality => {
-                let q = if self.quality == 0 { Self::saved_quality(cx) } else { String::from(QUALITIES[self.quality]) };
-                t!("Quality: {0}", q)
-            }
             Do::Library => String::from(t!("Go to library")),
         }
     }
@@ -208,8 +160,6 @@ impl TitleScreen {
                 }
                 None => {}
             },
-            Do::Download => self.download(cx),
-            Do::Quality => self.quality = (self.quality + 1) % QUALITIES.len(),
             Do::Library => cx.nav.push(Nav::GoLibrary),
         }
     }
@@ -237,34 +187,6 @@ impl TitleScreen {
                 _ => super::ready::play_first(cx, x),
             }
         }
-    }
-    fn download(&mut self, cx: &mut Cx) {
-        if self.busy || !cx.state.can_download() {
-            return;
-        }
-        if self.tv && self.seasons.is_empty() {
-            cx.toast(t!("The season list is still loading."));
-            return;
-        }
-        let tmdb: Value = self.t.get("id").cloned().unwrap_or(Value::Null);
-        let mut body = serde_json::json!({ "type": s(&self.t, "type"), "tmdbId": tmdb });
-        if self.tv {
-            body["season"] = self.seasons[self.si].get("number").cloned().unwrap_or(Value::Null);
-        }
-        if self.quality > 0 {
-            body["quality"] = Value::from(QUALITIES[self.quality]);
-        }
-        self.busy = true;
-        self.status_err = false;
-        self.downloading_label = true;
-        self.status = String::from(t!("Finding the best download…"));
-        cx.post("/api/downloads/smart", body, self.sid, STARTED);
-    }
-    fn stop_busy(&mut self, msg: String, err: bool) {
-        self.busy = false;
-        self.downloading_label = false;
-        self.status = msg;
-        self.status_err = err;
     }
 }
 
@@ -384,7 +306,7 @@ impl Screen for TitleScreen {
         let pf = body(30.0, 700);
         let mut ax = x;
         for (n, a) in self.actions.clone().iter().enumerate() {
-            let label = self.label(cx, *a);
+            let label = self.label(*a);
             let w = ui::pill_w(cx, &label, pf, 34.0, 270.0);
             let kind = match a {
                 Do::Play => ui::Pill::Gold,
@@ -434,7 +356,6 @@ impl Screen for TitleScreen {
             key::LEFT => self.ai = self.ai.saturating_sub(1),
             key::RIGHT => self.ai = (self.ai + 1).min(self.actions.len() - 1),
             key::ENTER => self.act(cx),
-            key::DOWN if self.actions.get(self.ai) == Some(&Do::Quality) => self.quality = (self.quality + 1) % QUALITIES.len(),
             key::UP | key::DOWN => {}
             _ => return false,
         }
@@ -474,44 +395,6 @@ impl Screen for TitleScreen {
                     }
                 }
             }
-            STARTED => {
-                if res.ok() {
-                    let job = crate::util::id(&res.json, "id");
-                    cx.get(&alloc::format!("/api/downloads/smart/{}", crate::util::enc(&job)), self.sid, JOB);
-                    self.status = String::from(t!("Finding the best download…"));
-                    self.poll_id = job;
-                } else {
-                    self.stop_busy(res.error(), true);
-                }
-            }
-            JOB => {
-                if !res.ok() {
-                    self.stop_busy(res.error(), true);
-                    return;
-                }
-                let j = &res.json;
-                let state = s(j, "state");
-                let msg = if !s(j, "message").is_empty() {
-                    String::from(s(j, "message"))
-                } else if !s(j, "step").is_empty() {
-                    String::from(s(j, "step"))
-                } else if state == "running" {
-                    String::from(t!("Finding the best download…"))
-                } else {
-                    String::from(t!("Download request finished."))
-                };
-                self.status = msg.clone();
-                if state == "running" {
-                    self.poll = cx.timer(1400.0, self.sid, JOB_T);
-                } else {
-                    let failed = state == "failed";
-                    self.stop_busy(msg, failed);
-                    cx.load_library(None);
-                    if !failed && s(j, "outcome") != "none" {
-                        self.offer_library();
-                    }
-                }
-            }
             COPIES => {
                 if res.ok() {
                     self.copies = String::from(s(&res.json, "verdict"));
@@ -520,7 +403,7 @@ impl Screen for TitleScreen {
             FOLLOWED => {
                 let was = self.on_way.is_some();
                 self.on_way = browse::pending_for(cx, s(&self.t, "type"), &self.tid);
-                if self.on_way.is_some() && !was && !self.busy {
+                if self.on_way.is_some() && !was {
                     self.status.clear();
                 }
                 self.follow = cx.timer(5000.0, self.sid, FOLLOW_T);
@@ -534,17 +417,12 @@ impl Screen for TitleScreen {
             return;
         }
         match tag {
-            JOB_T => {
-                let id = self.poll_id.clone();
-                cx.get(&alloc::format!("/api/downloads/smart/{}", crate::util::enc(&id)), self.sid, JOB);
-            }
             FOLLOW_T => cx.load_pending(Some((self.sid, FOLLOWED))),
             _ => {}
         }
     }
     fn leave(&mut self, cx: &mut Cx) {
         self.alive = false;
-        cx.cancel(self.poll);
         cx.cancel(self.follow);
     }
     fn refresh(&mut self, cx: &mut Cx) {

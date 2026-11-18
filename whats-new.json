@@ -5,6 +5,12 @@
     "title": "TV playback on slower internet",
     "items": [
       {
+        "kind": "improved",
+        "audience": "owner",
+        "title": "No Download button on the TV",
+        "text": "The TV apps no longer show Download or Quality on a title's page. Play still gets anything ready to watch; start downloads from the website."
+      },
+      {
         "kind": "fix",
         "title": "Your colours on the TV",
         "text": "The TV app now uses the colour theme you picked in Settings → Appearance. Restart the TV app to see it."

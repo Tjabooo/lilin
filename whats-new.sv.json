@@ -2,6 +2,10 @@
   "2026-11-18-tv-slow-connection": {
     "title": "TV-uppspelning på långsammare internet",
     "items": {
+      "No Download button on the TV": {
+        "title": "Ingen Ladda ner-knapp på TV:n",
+        "text": "TV-apparna visar inte längre Ladda ner eller Kvalitet på en titels sida. Spela gör fortfarande allt redo att titta på; starta nedladdningar från webbplatsen."
+      },
       "Your colours on the TV": {
         "title": "Dina färger på TV:n",
         "text": "TV-appen använder nu färgtemat du valde under Inställningar → Utseende. Starta om TV-appen för att se det."

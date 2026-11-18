@@ -1396,11 +1396,10 @@
     run();
   }
 
-  // ---------- a title's page: play it if it's yours, or download it ----------
+  // ---------- a title's page: play it if it's yours, or get it ready ----------
   function discoverTitle(t) {
-    var quality = null, qualities = [null, '2160p', '1440p', '1080p', '720p'];
     var seasons = [], si = 0, zone = t.type === 'tv' ? 'seasons' : 'actions', ai = 0;
-    var alive = true, busy = false, pollTimer = null;
+    var alive = true;
     var lib = libraryEntry(t);
     var backdrop = h('div', { class: 'discover-backdrop' }, img(t.backdrop || t.poster));
     var title = titleLogo(h('h1', { text: t.title }), t.type, t.id, t.title);
@@ -1410,25 +1409,18 @@
     var cast = castLine(t.type, t.id, 'discover-cast');
     var seasonBox = h('div', { class: 'discover-seasons' });
     var onWay = pendingFor(t);
-    var status = h('div', { class: 'download-status', text: onWay || !(state.me && state.me.isOwner) ? '' : lib ? T('Already in your library. Smart Download will avoid duplicates.') : '' });
+    var status = h('div', { class: 'download-status' });
     var strip = progressStrip();
     strip.set(onWay);
-    var downloadBtn = h('button', { class: 'title-action' + (lib ? '' : ' primary'), text: state.me && state.me.canDownload === false ? T('Downloads disabled') : T('Download') });
-    var qualityBtn = h('button', { class: 'title-action', text: '' });
     var actions = [];
     // Play first: Play is the one gold button. Yours plays; anything else gets ready (getReady). A show plays the
-    // first episode of the season picked above. Downloading a whole season or a quality is the owner's tool.
+    // first episode of the season picked above. Downloads are started on the website, not here.
     var soon = Boolean(t.soon && t.soon.date && t.type === 'movie');
     if (lib && lib.film) actions.push({ el: h('button', { class: 'title-action gold', text: T('Play') }), act: function () { playAsked(lib.film); } });
     else if (!soon) actions.push({ el: h('button', { class: 'title-action gold', text: t.type === 'tv' ? T('Play season') : T('Play') }), act: playIt, play: true });
     if (lib && lib.show) actions.push({ el: h('button', { class: 'title-action', text: T('Episodes') }), act: function () { showPage(lib.show); } });
     var owner = Boolean(state.me && state.me.isOwner);
     if (soon && !actions.length) actions.push({ el: h('button', { class: 'title-action', text: soonSub(t.soon) }), act: function () { toast(T('This film isn’t out yet.')); } });
-    if (owner && !soon) {
-      actions.push({ el: downloadBtn, act: download });
-      actions.push({ el: qualityBtn, act: function () { cycleQuality(1); }, quality: true });
-    }
-    downloadBtn.classList.remove('primary');
     // A recent film: is there a proper copy, or only cinema recordings? Said under Play, asked on Play.
     var copies = null, copyNote = h('div', { class: 'copy-note' });
     if (t.type === 'movie' && !lib && !soon) api('/api/title/movie/' + t.id + '/copies').then(function (c) {
@@ -1457,13 +1449,12 @@
       if (actions.some(function (a) { return a.library; })) return;
       if (!owner) return; // Play picks it up; the library is the owner's view
       var a = { el: h('button', { class: 'title-action', text: T('Go to library') }), act: goToLibrary, library: true };
-      downloadBtn.classList.remove('primary');
       actions.unshift(a);
       actionsEl.insertBefore(a.el, actionsEl.firstChild);
       zone = 'actions';
       ai = 0;
     }
-    // Seasons pick what Download gets; for a show you already have, Open comes first.
+    // Seasons pick what Play starts; for a show you already have, Open comes first.
     if (lib) zone = 'actions';
     var actionsEl = h('div', { class: 'title-actions' }, actions.map(function (a) { return a.el; }));
     var panel = h('div', { class: 'discover-panel' }, h('div', { class: 'discover-copy' }, title, meta, overview, cast, seasonBox,
@@ -1473,17 +1464,9 @@
       var was = onWay;
       onWay = pendingFor(t);
       strip.set(onWay);
-      if (onWay && !was && !busy) status.textContent = '';
+      if (onWay && !was) status.textContent = '';
     });
 
-    function savedQuality() {
-      var s = state.me && state.me.settings || {};
-      if (s.quality && s.quality !== 'all') return s.quality; // 'all' = no fixed resolution: the profile decides
-      var profile = { save: T('Save Space'), balanced: T('Balanced · 1080p'), best: T('Best Quality') }[s.downloadProfile];
-      if (profile) return profile;
-      return T('your saved settings');
-    }
-    function qualityText() { return T('Quality: {0}', quality || savedQuality()); }
     function buildSeasons() {
       seasonBox.innerHTML = '';
       if (t.type !== 'tv') { seasonBox.style.display = 'none'; return; }
@@ -1498,7 +1481,6 @@
       seasonBox.appendChild(h('div', { class: 'season-viewport' }, track));
     }
     function paint() {
-      qualityBtn.textContent = qualityText();
       actions.forEach(function (a, i) { a.el.classList.toggle('focus', zone === 'actions' && ai === i); });
       if (t.type === 'tv' && seasons.length) {
         var chips = seasonBox.querySelectorAll('.season-chip');
@@ -1507,48 +1489,9 @@
         if (track) track.style.transform = 'translateX(' + (-Math.max(0, si - 5) * 82) + 'px)';
       }
     }
-    function cycleQuality(dir) {
-      var at = qualities.indexOf(quality);
-      at = (at + dir + qualities.length) % qualities.length;
-      quality = qualities[at]; paint();
-    }
-    function poll(id) {
-      if (!alive) return;
-      api('/api/downloads/smart/' + encodeURIComponent(id)).then(function (job) {
-        if (!alive) return;
-        status.textContent = job.message || job.step || (job.state === 'running' ? T('Finding the best download…') : T('Download request finished.'));
-        if (job.state === 'running') pollTimer = setTimeout(function () { poll(id); }, 1400);
-        else {
-          busy = false;
-          downloadBtn.textContent = T('Download');
-          if (job.state === 'failed') status.classList.add('error'); else status.classList.remove('error');
-          loadLibrary().catch(function () {});
-          if (job.state !== 'failed' && job.outcome !== 'none') offerLibrary(); // 'none': nothing to go and see
-          paint();
-        }
-      }).catch(function (err) {
-        if (!alive) return;
-        busy = false; downloadBtn.textContent = T('Download'); status.textContent = err.message; status.classList.add('error'); paint();
-      });
-    }
-    function download() {
-      if (busy || state.me && state.me.canDownload === false) return;
-      if (t.type === 'tv' && !seasons.length) { toast(T('The season list is still loading.')); return; }
-      var body = { type: t.type, tmdbId: t.id };
-      if (t.type === 'tv') body.season = seasons[si].number;
-      if (quality) body.quality = quality;
-      busy = true; status.classList.remove('error');
-      downloadBtn.textContent = T('Starting…'); status.textContent = T('Finding the best download…'); paint();
-      api('/api/downloads/smart', body).then(function (r) { if (alive) poll(r.id); })
-        .catch(function (err) {
-          if (!alive) return;
-          busy = false; downloadBtn.textContent = T('Download'); status.textContent = err.message; status.classList.add('error'); paint();
-        });
-    }
-
     if (onWay) offerLibrary();
     buildSeasons(); paint();
-    show({ el: el, focus: paint, leave: function () { alive = false; clearTimeout(pollTimer); },
+    show({ el: el, focus: paint, leave: function () { alive = false; },
       key: function (code) {
         if (zone === 'seasons') {
           if (code === KEY.LEFT && si > 0) { si--; paint(); return true; }
@@ -1561,7 +1504,6 @@
         if (code === KEY.LEFT) { ai = Math.max(0, ai - 1); paint(); return true; }
         if (code === KEY.RIGHT) { ai = Math.min(actions.length - 1, ai + 1); paint(); return true; }
         if (code === KEY.ENTER) { actions[ai].act(); return true; }
-        if (code === KEY.DOWN && actions[ai].quality) { cycleQuality(1); return true; }
         return false;
       } }, true);
 

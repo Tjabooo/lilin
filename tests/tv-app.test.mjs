@@ -16,7 +16,7 @@ test('There is one TV app: the Tizen shell loads /tv under the Lilin package', (
   assert.equal(fs.existsSync(new URL('../tv/tizen-preview', import.meta.url)), false);
 });
 
-test('TV client parses as old-browser JavaScript and uses server-side Discover/download APIs', () => {
+test('TV client parses as old-browser JavaScript and uses server-side Discover APIs, no Download button', () => {
   const js = read('public/tv/tv.js');
   const shell = read('tv/tizen/shell.js');
   assert.doesNotThrow(() => new vm.Script(js));
@@ -25,7 +25,7 @@ test('TV client parses as old-browser JavaScript and uses server-side Discover/d
   assert.match(js, /\/api\/discover\/list\?key=/);
   assert.match(js, /\/api\/discover\/genre\?type=/);
   assert.match(js, /\/api\/search\?q=/);
-  assert.match(js, /\/api\/downloads\/smart/);
+  assert.doesNotMatch(js, /\/api\/downloads\/smart/, "downloads start on the website, not the TV");
   assert.match(js, /\/api\/tv\//);
   assert.doesNotMatch(js, /\?\./, 'Chrome 69 TV client must not use optional chaining');
   assert.doesNotMatch(js, /\?\?/, 'Chrome 69 TV client must not use nullish coalescing');
