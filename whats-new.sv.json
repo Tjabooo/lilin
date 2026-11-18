@@ -1,4 +1,13 @@
 {
+  "2026-11-18-continue-remove": {
+    "title": "Borttaget från Fortsätt titta förblir borta",
+    "items": {
+      "Removing a title takes it off everywhere": {
+        "title": "Att ta bort en titel tar bort den överallt",
+        "text": "Ta bort från Fortsätt titta gäller nu hela serien, så ett äldre halvsett avsnitt dyker inte längre upp i dess ställe. Den tas också bort på alla dina enheter, inte bara den du använde. Tittar du igen kommer den tillbaka."
+      }
+    }
+  },
   "2026-11-18-phone-depth": {
     "title": "Djup i den stora bilden på mobilen",
     "items": {
