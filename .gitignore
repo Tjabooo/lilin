@@ -6,6 +6,7 @@
 # Runtime state (kept in DATA_DIR, which defaults to this folder)
 .lilin.db
 .lilin.db-*
+.lilin.db.*
 .lilin-*.json
 .lilin-*.jsonl
 .lilin-*.tmp
@@ -16,6 +17,7 @@
 .lilin-notes-imports/
 .lilin-avatars/
 .lilin-convert-runs/
+convert-runs/
 /playhead/
 /bin/
 data/
