@@ -130,9 +130,9 @@ body > main:has(form[action$="/login"]) > h1 {
   font: 800 40px/1 var(--display); letter-spacing: -.03em; color: var(--bulb);
   text-shadow: 0 0 28px rgb(244 193 82 / .45);
 }
-/* the wordmark: its i-dots are the lit bulbs, so it replaces the bulb row */
+/* The wordmark occupies the space above the sign-in and invite forms. */
 .brand-wm { display: inline-block; line-height: 0; }
-.brand-wm .wm { display: block; width: auto; height: 46px; overflow: visible; filter: drop-shadow(0 0 22px rgb(244 193 82 / .28)); }
+.brand-wm .wm { display: block; width: auto; height: 46px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 body > main:has(form[action$="/login"]):has(.brand-wm)::before, .card:has(.card-brand)::before { display: none; }
 body > main:has(form[action$="/login"]) > h1:has(.brand-wm) { margin: 6px 0 14px; line-height: 0; }
@@ -167,11 +167,10 @@ body:not(.qr-on) .signin-split { display: block; }
 }
 .qr-code, .qr-code svg { display: block; width: 100%; height: 100%; }
 .qr-code:empty { border-radius: 12px; background: repeating-linear-gradient(45deg, #eee 0 8px, #f7f7f7 8px 16px); }
-/* the wordmark on a small velvet tab in the middle: the code's error correction covers it */
+/* Keep the mark inside the small area reserved at the centre of the QR code. */
 .qr-mark {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  padding: 4px 9px 5px; border-radius: 9px; background: var(--velvet); box-shadow: 0 0 0 4px #fff;
-  font: 800 15px/1 var(--display); letter-spacing: -.02em; color: var(--bulb);
+  width: 24px; height: 24px; border-radius: 5px; background: #fff; box-shadow: 0 0 0 3px #fff;
 }
 .qr-side.is-stale .qr-frame { opacity: .35; filter: blur(2px); }
 .qr-side.is-done .qr-frame { box-shadow: 0 0 0 2px var(--bulb), 0 0 60px -4px rgb(244 193 82 / .7); }

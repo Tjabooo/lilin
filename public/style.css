@@ -262,11 +262,11 @@ html.scrolled body.has-billboard .top::after { opacity: 0; }
 .top-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--s3); height: var(--head-h); }
 .wordmark { flex: none; margin: 0; line-height: 0; }
 .wordmark a { display: block; color: inherit; text-decoration: none; border-radius: 6px; padding: 4px 2px; }
-/* The real wordmark (tools/brand.py, inline SVG): letters in the theme's text colour, the two i-dots are its bulbs, lit */
-.wordmark .wm { display: block; height: 25px; width: auto; aspect-ratio: 1781 / 858; overflow: visible; }
-.wm-letters { fill: var(--text); }
-.wm-bulb { fill: var(--bulb); }
+/* The letters follow the theme while the two lenses retain their colours. */
+.wordmark .wm { display: block; height: 25px; width: auto; }
+.wm-type { fill: var(--text); }
 body.has-billboard:not(.searching) .wordmark .wm { filter: drop-shadow(0 1px 6px rgb(0 0 0 / .55)); }
+:root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .wordmark .wm-type { fill: var(--on-image); }
 .top-actions { display: flex; align-items: center; gap: var(--s2); margin-left: auto; min-width: 0; }
 .news-btn {
   display: inline-flex; align-items: center; gap: 8px; flex: none;
@@ -3594,10 +3594,8 @@ html.wrapped-on { overflow: hidden; }
   background: var(--room); background-color: var(--velvet);
   animation: view-in var(--d-3) var(--ease-out);
 }
-.password-gate-brand {
-  margin: 0; font: 800 clamp(38px, 30px + 2vw, 52px)/1 var(--display); letter-spacing: -.03em; color: var(--bulb);
-  text-shadow: 0 0 28px color-mix(in srgb, var(--bulb) 45%, transparent);
-}
+.password-gate-brand { margin: 0; }
+.password-gate-brand .wm { display: block; width: auto; height: clamp(38px, 30px + 2vw, 52px); }
 .password-gate-card {
   width: 100%; max-width: 420px; display: grid; gap: var(--s3);
   padding: var(--s6) var(--s5) var(--s5);

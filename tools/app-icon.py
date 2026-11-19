@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Draws Lilin's icons (python3 tools/app-icon.py; needs rsvg-convert, numpy and Pillow): the "li" monogram from the
-wordmark, its bulb lit, in front of the velvet curtain. The marks live in tools/brand.py.
+"""Draw Lilin's icons with rsvg-convert, numpy and Pillow.
+
+  python3 tools/app-icon.py --web             browser, home-screen and notification icons
+  python3 tools/app-icon.py                   also rebuild the native Android TV artwork
+
+The face comes from the middle of public/wordmark.svg. The native Android TV marks live in tools/brand.py.
 
   public/icon-192.png / icon-512.png          manifest "any": rounded square, transparent corners
   public/maskable-192.png / maskable-512.png  manifest "maskable": full bleed, monogram inside the 80 % safe circle
                                               (the Samsung TV app's tile too: tv/tizen/build.sh copies maskable-512)
   public/apple-touch-icon.png                 180x180 full bleed, opaque (iOS rounds it itself)
   public/badge-96.png                         white silhouette for Android's notification bar
-  public/favicon.svg                          flat vector monogram for browser tabs
-  public/wordmark.svg                         the wordmark, paper and gold, for the share and sign-in pages
+  public/favicon.svg                          letterform face tile for browser tabs
   tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash icon and launcher icons
 
-tools/og-banner.py draws the link-preview card and the Android TV banner with the same marks.
+tools/og-banner.py draws the link-preview card and the Android TV banner.
 """
 import os
 import sys
@@ -51,23 +54,11 @@ def splash():
     return brand.rasterize(brand.svg_doc(480, 480, f'<rect width="480" height="480" fill="{brand.VELVET_DEEP}"/>{mark}'), 480, 480)
 
 
-def badge():
-    mark, _ = brand.monogram(48, 6, 84, letters="#fff", bulb="#fff")
-    return brand.rasterize(brand.svg_doc(96, 96, mark), 96, 96)
-
-
-def favicon():
-    """64-unit grid: a velvet tile, the monogram in paper, the bulb in gold (no gradients: crisp at 16 px)."""
-    mark, _ = brand.monogram(32, 9, 46)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
-            f'<rect width="64" height="64" rx="14" fill="{brand.VELVET}"/>{mark}</svg>\n')
-
-
-def wordmark_svg():
-    w, h = brand.WORDMARK_BOX
-    mark, _ = brand.wordmark(0, 0, h)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:g} {h:g}" width="{w / 10:g}" height="{h / 10:g}">'
-            f'<title>Lilin</title>{mark}</svg>\n')
+def web_tile(viewer, scale, radius):
+    inset = 64 * (1 - scale)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">'
+            f'<rect width="128" height="128" rx="{radius}" fill="#262033"/>'
+            f'<g transform="translate({inset:g} {inset:g}) scale({scale:g})">{viewer}</g></svg>\n')
 
 
 def write(img, path, size, opaque=False):
@@ -78,21 +69,25 @@ def write(img, path, size, opaque=False):
 
 def main():
     pub = os.path.join(ROOT, "public")
-    res = os.path.join(ROOT, "tv", "android", "app", "src", "main", "res")
-    rounded = icon(True, 0.585)
-    full = icon(False, 0.55)  # maskable: the monogram's corners stay inside the 80 % circle
+    viewer = brand.face_mark()
+    rounded = brand.rasterize(web_tile(viewer, 0.88, 28), ART, ART)
+    full = brand.rasterize(web_tile(viewer, 0.75, 0), ART, ART)
     for size in (192, 512):
         write(rounded, os.path.join(pub, f"icon-{size}.png"), size)
         write(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
     write(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
-    write(badge(), os.path.join(pub, "badge-96.png"), 96)
+    badge = brand.face_mark("#fff")
+    write(brand.rasterize(badge, 384, 384), os.path.join(pub, "badge-96.png"), 96)
+    with open(os.path.join(pub, "favicon.svg"), "w", encoding="utf-8") as f:
+        f.write(web_tile(viewer, 0.98, 27))
+
+    if "--web" in sys.argv:
+        return
+    res = os.path.join(ROOT, "tv", "android", "app", "src", "main", "res")
+    rounded = icon(True, 0.585)
     write(splash(), os.path.join(res, "drawable-xhdpi", "splash.png"), 480, opaque=True)
     write(rounded, os.path.join(res, "mipmap-xhdpi", "ic_launcher.png"), 96)
     write(rounded, os.path.join(res, "mipmap-xxxhdpi", "ic_launcher.png"), 192)
-    with open(os.path.join(pub, "favicon.svg"), "w") as f:
-        f.write(favicon())
-    with open(os.path.join(pub, "wordmark.svg"), "w") as f:
-        f.write(wordmark_svg())
 
 
 if __name__ == "__main__":
