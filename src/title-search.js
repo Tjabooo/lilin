@@ -38,8 +38,13 @@ export function mergeCatalogueResults(search, groups) {
     }
   }
 
+  // A blank duplicate someone added to TMDB ("CLEAN,SHAVEN" 1993 next to the real "Clean, Shaven" 1995): no votes,
+  // no description, and a real entry of the same kind with the same name within a few years. Opening it shows nothing.
+  const real = all.filter((x) => (x.vote_count || 0) >= 5);
+  const ghost = (x) => !(x.vote_count > 0) && !String(x.overview || '').trim() && real.some((r) => r !== x && typeOf(r) === typeOf(x)
+    && titleKeys(r).some((k) => titleKeys(x).includes(k)) && (!yearOf(r) || !yearOf(x) || Math.abs(yearOf(r) - yearOf(x)) <= 3));
   const exact = [], rest = [];
-  for (const item of all) {
+  for (const item of all.filter((x) => !ghost(x))) {
     const titleMatch = expected && titleKeys(item).includes(expected);
     const yearMatch = !parsed?.year || yearOf(item) === parsed.year;
     (titleMatch && yearMatch ? exact : rest).push(item);

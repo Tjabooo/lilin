@@ -5,6 +5,10 @@
       "Films with a different year now download": {
         "title": "Filmer med ett annat årtal laddas nu ner",
         "text": "Vissa filmer sa att ingen utgåva stämde fast det fanns kopior, eftersom de använder premiäråret medan Lilin kände till det senare biografåret (Clean, Shaven: 1993 mot 1995). Nu tar Lilin de kopiorna när inget närmare finns."
+      },
+      "No more blank twins in search": {
+        "title": "Inga tomma dubbletter i sökningen",
+        "text": "Vissa filmer syntes två gånger i sökningen, och den andra var tom när man öppnade den: en tom kopia som någon lagt till i filmdatabasen. Nu döljer Lilin dem."
       }
     }
   },

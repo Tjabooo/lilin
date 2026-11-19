@@ -8,6 +8,11 @@
         "kind": "fix",
         "title": "Films with a different year now download",
         "text": "Some films said no release matched even though copies existed, because the uploads use the premiere year while Lilin knew the later cinema year (Clean, Shaven: 1993 vs 1995). Lilin now accepts those copies when nothing closer exists."
+      },
+      {
+        "kind": "fix",
+        "title": "No more blank twins in search",
+        "text": "Some films showed up twice in search, and the second one was empty when you opened it: a blank copy someone added to the film database. Lilin now hides those."
       }
     ]
   },

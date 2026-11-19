@@ -34,3 +34,12 @@ test('the film 9 is promoted above noisy multi-search matches', () => {
   assert.equal(dated[0].id, 22947);
   assert.notEqual(dated[1]?.id, 99999);
 });
+
+test('a blank TMDB duplicate of a real film is hidden', () => {
+  const out = mergeCatalogueResults('Clean, Shaven', [[
+    { id: 1479, media_type: 'movie', title: 'Clean, Shaven', release_date: '1995-04-14', vote_count: 109, overview: 'Peter Winter…' },
+    { id: 1803766, media_type: 'movie', title: 'CLEAN,SHAVEN', release_date: '1993-09-05', vote_count: 0, overview: '' },
+    { id: 9, media_type: 'movie', title: 'Clean Slate', release_date: '2020-01-01', vote_count: 0, overview: '' },
+  ]]);
+  assert.deepEqual(out.map((x) => x.id), [1479, 9]);
+});
