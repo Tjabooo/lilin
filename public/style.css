@@ -4166,16 +4166,31 @@ html.wrapped-on { overflow: hidden; }
 .player.is-credits .player-stage { background:
   radial-gradient(70% 70% at 0% 60%, color-mix(in srgb, var(--bulb) 9%, transparent), transparent 70%), #07050a; }
 .player.is-credits .player-subs, .player.is-credits .pause-card, .player.is-credits .player-center { opacity: 0 !important; pointer-events: none !important; }
+.player.is-credits video { position: relative; z-index: 1; }
+/* The title's big backdrop behind everything, darkened toward the card on the left and the controls at the bottom. */
+.crd-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity .9s var(--ease-out); }
+.crd-bg.is-on.is-loaded { opacity: 1; }
+.crd-bg img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; scale: 1.06;
+  transition: scale 14s linear; }
+.crd-bg.is-on.is-loaded img { scale: 1; }
+.crd-bg::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgb(7 5 10 / .94) 0%, rgb(7 5 10 / .8) 30%, rgb(7 5 10 / .35) 62%, rgb(7 5 10 / .1) 100%),
+    linear-gradient(0deg, rgb(7 5 10 / .85) 0%, transparent 38%), linear-gradient(180deg, rgb(7 5 10 / .55) 0%, transparent 22%); }
 .credits-card { position: absolute; z-index: 3; left: max(var(--pad-x), 4vw); top: 50%; translate: 0 -50%;
-  width: min(440px, 44%); max-height: calc(100% - 2 * max(var(--safe-top), 24px)); overflow: auto; overscroll-behavior: contain;
+  width: min(480px, 44%); max-height: calc(100% - 2 * max(var(--safe-top), 24px)); overflow: auto; overscroll-behavior: contain;
   display: grid; gap: 14px; color: #f6eadf; animation: crd-in .6s var(--ease-out) both .15s; }
 .credits-card[hidden] { display: none; }
 @keyframes crd-in { from { opacity: 0; translate: -18px -50%; } to { opacity: 1; translate: 0 -50%; } }
 .crd-kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--bulb); }
 .crd-name { margin: -8px 0 0; font: 800 clamp(22px, 18px + 1.2vw, 32px)/1.15 var(--display); letter-spacing: -.01em; overflow-wrap: anywhere; }
-.crd-name:empty { display: none; }
+.crd-name:empty, .crd-name[hidden] { display: none; }
+.crd-logo { display: block; justify-self: start; max-width: min(360px, 100%); max-height: clamp(64px, 14vh, 130px); margin: -4px 0 0;
+  object-fit: contain; object-position: left center; filter: drop-shadow(0 2px 18px rgb(0 0 0 / .6)); }
+.crd-logo[hidden] { display: none; }
+.crd-logo.is-dark { filter: brightness(0) invert(1) drop-shadow(0 2px 18px rgb(0 0 0 / .6)); }
 .crd-song { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; padding: 14px 16px;
-  border-radius: var(--r-lg); background: rgb(255 255 255 / .06); border: 1px solid rgb(255 255 255 / .1); }
+  border-radius: var(--r-lg); background: rgb(14 10 18 / .5); border: 1px solid rgb(255 255 255 / .1);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .crd-song[hidden] { display: none; }
 .crd-note { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: var(--on-bulb); background: var(--bulb);
   box-shadow: 0 0 22px -4px var(--glow-color); }
@@ -4191,8 +4206,18 @@ html.wrapped-on { overflow: hidden; }
 .crd-out svg { width: 14px; height: 14px; display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .crd-next:empty { display: none; }
 .credits-card .up-next { position: static; width: auto; max-height: none; overflow: visible; animation: none;
-  background: rgb(255 255 255 / .06); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: rgb(255 255 255 / .1); }
+  background: rgb(14 10 18 / .5); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: none; border-color: rgb(255 255 255 / .1); }
 .credits-card .up-next[hidden] { display: none; }
+.credits-card .up-next-art { width: 132px; }
+.credits-card .up-next h2 { font-size: 18px; }
+/* The next episode's runtime, air date and synopsis: only while Up next sits in the card. */
+.crd-ep { display: none; }
+.credits-card .crd-ep:not([hidden]) { display: block; margin-top: 12px; }
+.crd-ep-meta { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #c1b6ae; font-variant-numeric: tabular-nums; }
+.crd-ep-meta:empty { display: none; }
+.crd-ep-text { margin: 0; font-size: 14px; line-height: 1.5; color: rgb(246 234 223 / .86); display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4; overflow: hidden; }
+.crd-ep-text:empty { display: none; }
 .crd-back { justify-self: start; padding: 6px 2px; border: 0; background: none; color: rgb(246 234 223 / .72); font-size: 13px; font-weight: 600;
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .crd-back:hover, .crd-back:focus-visible { color: #fff; }
@@ -4200,9 +4225,20 @@ html.wrapped-on { overflow: hidden; }
 @media (max-width: 699px) {
   .credits-card { top: calc(var(--crd-pic-top, 40%) + 16px); translate: none; left: 14px; right: 14px; width: auto;
     max-height: calc(100% - var(--crd-pic-top, 40%) - 120px); animation-name: crd-in-up; }
+  .crd-bg::after { background: linear-gradient(180deg, rgb(7 5 10 / .45) 0%, rgb(7 5 10 / .6) 30%, rgb(7 5 10 / .92) 55%, rgb(7 5 10 / .96) 100%); }
+  .crd-logo { max-height: 72px; max-width: 70%; }
+  .credits-card .up-next-art { width: 96px; }
+  .crd-ep-text { -webkit-line-clamp: 3; font-size: 13px; }
   @keyframes crd-in-up { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: none; } }
+}
+/* Landscape phones: Up next turns into a grid row there, so the synopsis takes a full row of its own. */
+@media (max-height: 450px) and (min-width: 480px) {
+  .credits-card .crd-ep:not([hidden]) { grid-column: 1 / -1; margin: 0; }
+  .crd-ep-text { -webkit-line-clamp: 2; }
+  .crd-logo { max-height: 52px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .player.credits-moving video { transition-duration: .01s; }
   .credits-card { animation-duration: .01s; }
+  .crd-bg img { transition: none; scale: 1; }
 }

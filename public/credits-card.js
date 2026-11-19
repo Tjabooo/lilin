@@ -2,6 +2,9 @@
 // credits music found by comparing episodes), the picture shrinks into a corner and a card takes the screen: the
 // song from the title's soundtrack (More details' MusicBrainz data, src/details.js) and Up next, moved in from its
 // usual spot. "Back to the picture", a click on the small picture or Keep watching puts it back.
+// Behind it all, like a streaming service's post-play screen: the title's best big backdrop (textless, 1440p+,
+// picked on the server) full-bleed and darkened toward the card, the show's logo in place of its name, and the
+// next episode's synopsis, runtime and air date under Up next.
 //
 // Which song: there are no per-scene timestamps anywhere free, so it's a best guess and the card says how sure it is.
 // A track named for the end credits ("End Credits", "Ending Theme", "Outro") → "Over the credits"; a show's theme
@@ -31,8 +34,11 @@ const NOTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v
 const OUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } } };
 
-// deps: h, api, playerEl, stage, video, upNextEl, gapBelow() (px the controls need at the bottom), onChange()
-export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, gapBelow = () => 96, onChange = () => {} }) {
+// deps: h, api, playerEl, stage, video, upNextEl, gapBelow() (px the controls need at the bottom), onChange(),
+// look(ref) → Promise<{ backdrop, logo: { url, dark } } | null>, episode(next) → Promise<{ overview, runtime, airDate } | null>,
+// fmtRuntime(min), fmtDay(date)
+export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, gapBelow = () => 96, onChange = () => {},
+  look = async () => null, episode = async () => null, fmtRuntime = (m) => `${m} min`, fmtDay = (d) => d.toDateString() }) {
   const svg = (markup, cls) => { const s = h('span', { class: cls, 'aria-hidden': 'true' }); s.innerHTML = markup; return s; };
   const why = h('p', { class: 'crd-why' });
   const track = h('p', { class: 'crd-track' });
@@ -40,14 +46,27 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
   const find = h('a', { class: 'crd-find', target: '_blank', rel: 'noopener noreferrer' });
   const song = h('div', { class: 'crd-song', hidden: true }, svg(NOTE, 'crd-note'), h('div', { class: 'crd-song-text' }, why, track, by), find);
   const name = h('p', { class: 'crd-name' });
+  const logo = h('img', { class: 'crd-logo', alt: '', decoding: 'async', hidden: true });
+  const bgImg = h('img', { alt: '', decoding: 'async' });
+  const bg = h('div', { class: 'crd-bg', 'aria-hidden': 'true' }, bgImg);
+  const epMeta = h('p', { class: 'crd-ep-meta' });
+  const epText = h('p', { class: 'crd-ep-text' });
+  const epInfo = h('div', { class: 'crd-ep', hidden: true }, epMeta, epText);
   const slot = h('div', { class: 'crd-next' });
   const back = h('button', { type: 'button', class: 'crd-back' }, T('Back to the picture'));
   const card = h('aside', { class: 'credits-card', 'aria-label': T('End credits'), hidden: true },
-    h('p', { class: 'crd-kicker' }, T('End credits')), name, song, slot, back);
+    h('p', { class: 'crd-kicker' }, T('End credits')), logo, name, song, slot, back);
   playerEl.append(card);
+  stage.prepend(bg);
+  // The synopsis sits inside Up next, between its title and buttons; CSS shows it only while Up next is in the card.
+  upNextEl.querySelector('.up-next-actions')?.before(epInfo);
+  bgImg.addEventListener('load', () => bg.classList.add('is-loaded'));
+  bgImg.addEventListener('error', () => { bg.classList.remove('is-loaded'); bgImg.removeAttribute('src'); });
+  logo.addEventListener('load', () => { logo.hidden = false; name.hidden = true; });
+  logo.addEventListener('error', () => { logo.hidden = true; name.hidden = false; logo.removeAttribute('src'); });
   const home = { parent: upNextEl.parentNode, next: upNextEl.nextSibling };
 
-  let session = null, on = false, fit = null;
+  let session = null, on = false, fit = null, lookKey = null, epKey = null;
   const songs = new Map(); // 'tv/1396' -> Promise<{ albums } | null>
 
   function songFor(ref) {
@@ -77,6 +96,39 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
     song.dataset.ref = `${ref.type}/${ref.id}`;
   }
 
+  // The backdrop and logo for this title (once per title; the image fades in when it has loaded).
+  function paintLook(ref) {
+    const key = ref ? `${ref.type}/${ref.id}` : null;
+    if (key === lookKey) return;
+    lookKey = key;
+    bg.classList.remove('is-loaded'); bgImg.removeAttribute('src');
+    logo.hidden = true; name.hidden = false; logo.removeAttribute('src');
+    if (!ref) return;
+    look(ref).then((l) => {
+      if (lookKey !== key || !l) return;
+      if (l.backdrop) bgImg.src = l.backdrop;
+      if (l.logo?.url) { logo.classList.toggle('is-dark', Boolean(l.logo.dark)); logo.src = l.logo.url; }
+    }).catch(() => {});
+  }
+
+  // The next episode's synopsis and facts (TMDB's season data).
+  function paintEpisode(next) {
+    const key = next ? next.id : null;
+    if (key === epKey) return;
+    epKey = key;
+    epInfo.hidden = true;
+    if (!next) return;
+    episode(next).then((e) => {
+      if (epKey !== key || !e) return;
+      const date = e.airDate && new Date(`${e.airDate}T12:00:00`);
+      const day = date && !Number.isNaN(+date) ? fmtDay(date) : '';
+      epMeta.textContent = [e.runtime && fmtRuntime(e.runtime), day].filter(Boolean).join(' · ');
+      epText.textContent = e.overview || '';
+      epInfo.hidden = !(epMeta.textContent || epText.textContent);
+      if (on) onChange(true);
+    }).catch(() => {});
+  }
+
   // The picture's corner spot, from the stage's current size.
   function place() {
     if (!on) return;
@@ -96,6 +148,7 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
   function enter() {
     on = true;
     card.hidden = false;
+    bg.classList.add('is-on');
     slot.append(upNextEl);
     playerEl.classList.add('is-credits', 'credits-moving');
     place();
@@ -105,6 +158,7 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
     if (!on) return;
     on = false;
     card.hidden = true;
+    bg.classList.remove('is-on');
     home.parent.insertBefore(upNextEl, home.next && home.next.parentNode === home.parent ? home.next : null);
     playerEl.classList.remove('is-credits');
     video.style.transform = ''; video.style.clipPath = ''; video.style.transformOrigin = '';
@@ -114,11 +168,15 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
   }
 
   // Called with Up next's state. rolling: the credits are playing (or the file ended right after them).
-  // next: whether Up next is showing. ref: { type, id } of the title (TMDB) or null; title: its name.
-  function sync(s, { rolling, next, ref, title }) {
+  // next: whether Up next is showing; nextEp: the episode it offers. ref: { type, id } of the title (TMDB) or null;
+  // title: its name.
+  function sync(s, { rolling, next, nextEp, ref, title }) {
     if (s !== session) { session = s; song.hidden = true; delete song.dataset.ref; if (on) leave(); }
     if (!s || !rolling || s.creditsDismissed) { leave(); return; }
     name.textContent = title || '';
+    logo.alt = title || '';
+    paintLook(ref);
+    paintEpisode(next ? nextEp : null);
     const key = ref ? `${ref.type}/${ref.id}` : null;
     if (key && song.dataset.ref !== key && !s.creditsSongAsked) {
       s.creditsSongAsked = true;
@@ -126,10 +184,10 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
         if (session !== s) return;
         s.creditsSong = creditsSong(music?.albums, { type: ref.type });
         paintSong(s.creditsSong, ref);
-        sync(s, { rolling: s.creditsRolling, next: s.creditsNext, ref, title });
+        sync(s, { rolling: s.creditsRolling, next: s.creditsNext, nextEp: s.creditsNextEp, ref, title });
       });
     }
-    s.creditsRolling = rolling; s.creditsNext = next;
+    s.creditsRolling = rolling; s.creditsNext = next; s.creditsNextEp = nextEp;
     const worth = next || Boolean(s.creditsSong);
     if (!worth) { leave(); return; }
     back.hidden = false;

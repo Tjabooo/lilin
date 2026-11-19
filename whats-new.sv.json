@@ -1,4 +1,13 @@
 {
+  "2026-11-19-credits-card-backdrop": {
+    "title": "Ett rikare eftertextkort",
+    "items": {
+      "The credits card shows the show and what's next": {
+        "title": "Eftertextkortet visar serien och vad som kommer",
+        "text": "När eftertexterna börjar fylls skärmen nu av en stor, skarp bild från serien med dess logga, och Nästa berättar vad nästa avsnitt handlar om, hur långt det är och när det sändes."
+      }
+    }
+  },
   "2026-11-19-tv-credits-4k": {
     "title": "Eftertextkort och 4K-byte i TV-apparna",
     "items": {

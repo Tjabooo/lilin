@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-credits-card-backdrop",
+    "date": "2026-11-19",
+    "title": "A richer credits card",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "The credits card shows the show and what's next",
+        "text": "When the closing credits start, the screen now fills with a big, sharp picture from the show, with its logo, and Up next tells you what the next episode is about, how long it is and when it aired."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-continue-next-episode",
     "date": "2026-11-19",
     "title": "Continue watching keeps the episode you just reached",

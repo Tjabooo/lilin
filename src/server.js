@@ -733,6 +733,8 @@ export function titlePage(type, d) {
   const credits = type === 'tv' ? d.aggregate_credits : d.credits;
   return {
     logo: pickLogo(d.images?.logos, d.original_language),
+    // A big textless backdrop (src/backdrop.js), w780 so the client's bigArt() can ask for the size the screen needs.
+    backdrop: ((file) => (file ? `${TMDB_IMG}w780${file}` : null))(pickBackdrop(d.images?.backdrops) || d.backdrop_path || null),
     tagline: d.tagline || '',
     runtime: type === 'tv' ? (d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || null) : (d.runtime || null),
     genres: (d.genres || []).map((g) => g.name).filter(Boolean),

@@ -8091,7 +8091,30 @@ let upNextLayoutSignature = '';
 // The credits card (credits-card.js): at the credits the picture moves into a corner and Up next joins the song.
 const creditsCard = createCreditsCard({ h, api, playerEl, stage, video, upNextEl,
   gapBelow: () => (seekRow.getClientRects().length ? Math.max(16, stage.getBoundingClientRect().bottom - seekRow.getBoundingClientRect().top) : 96),
-  onChange: () => { requestAnimationFrame(layoutSubs); } });
+  onChange: () => { requestAnimationFrame(layoutSubs); },
+  look: (ref) => creditsLook(ref), episode: (next) => creditsEpisode(next), fmtRuntime: (min) => fmtRuntime(min),
+  fmtDay: (date) => date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }) });
+// The card's backdrop (the server's textless 1440p+ pick, at the size this screen needs) and the title's logo.
+async function creditsLook(ref) {
+  const page = await pageInfo(ref.type, ref.id).catch(() => null);
+  const show = ref.type === 'tv' ? state.libraryShows.find((x) => x.tmdbId === ref.id) : null;
+  const film = ref.type === 'movie' ? state.library.find((f) => f.tmdbId === ref.id && f.backdrop) : null;
+  const backdrop = bigArt(page?.backdrop || show?.backdrop || film?.backdrop || null, Infinity);
+  let logo = null;
+  if (page?.logo?.url) {
+    const tone = await logoTone(page.logo.url).catch(() => null);
+    logo = { url: innerWidth * (devicePixelRatio || 1) > 900 ? page.logo.url.replace('/t/p/w500/', '/t/p/original/') : page.logo.url, dark: tone !== null && tone < 0.3 };
+  }
+  return { backdrop, logo };
+}
+// The next episode's synopsis, runtime and air date, from TMDB's season data (kept an hour).
+async function creditsEpisode(next) {
+  const show = state.libraryShows.find((x) => x.id === next.show);
+  if (!show?.tmdbId || next.season == null || next.episode == null || !state.status?.search) return next.overview ? { overview: next.overview } : null;
+  const d = await cachedFor(`/api/tv/${show.tmdbId}/season/${next.season}`, 60 * 60 * 1000).catch(() => null);
+  const ep = d?.episodes?.find((e) => e.number === next.episode);
+  return ep ? { overview: ep.overview, runtime: ep.runtime, airDate: ep.airDate } : null;
+}
 let autoChain = 0; // episodes started by the countdown since the last key press, click or tap
 
 // ---- skip intro ----
@@ -8159,7 +8182,7 @@ function updateUpNext() {
     && isNextEpisodeTime({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt }));
   upNextEl.hidden = !show;
   playerEl.classList.toggle('has-up-next', show);
-  creditsCard.sync(session, creditsState(session, show, externalPlayer));
+  creditsCard.sync(session, creditsState(session, show, externalPlayer, next));
   // The countdown starts the moment the card does: at the credits, or at the end of the file.
   const counting = show && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN && autoplayNextOn();
   if (counting && session.autoLeft == null) startAutoplay(session);
@@ -8196,7 +8219,7 @@ function updateUpNext() {
 
 // What the credits card needs: whether the credits are rolling (their start is known and the picture is past it),
 // whether Up next shows, and which title's soundtrack to look in.
-function creditsState(session, next, externalPlayer) {
+function creditsState(session, next, externalPlayer, nextEp = null) {
   if (!session) return { rolling: false };
   const rolling = Boolean(session.ready && !party && !session.live && !externalPlayer && !session.upNextDismissed && seeking == null
     && ['lib', 'part'].includes(session.kind) && nextEpisodePromptAt(video.duration, session.creditsAt) != null && video.currentTime >= session.creditsAt);
@@ -8204,7 +8227,7 @@ function creditsState(session, next, externalPlayer) {
   const show = session.show != null ? state.libraryShows.find((x) => x.id === session.show) : null;
   const ref = !state.status?.search ? null : show?.tmdbId ? { type: 'tv', id: show.tmdbId }
     : !show && session.season == null && session.tmdbId ? { type: 'movie', id: session.tmdbId } : null;
-  return { rolling, next, ref, title: show?.title || session.filmTitle || session.title || '' };
+  return { rolling, next, nextEp: next ? nextEp : null, ref, title: show?.title || session.filmTitle || session.title || '' };
 }
 
 // Counts real seconds while the credits play (or after the end); a pause during the credits pauses it.
