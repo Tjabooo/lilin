@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-ipad-fullscreen",
+    "date": "2026-11-19",
+    "title": "Fullscreen on iPad",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "No clock or battery over the video on iPad",
+        "text": "In the Lilin app on your iPad Home Screen, videos now open fullscreen, so the time and battery at the top are gone while you watch. Swipe down or press the fullscreen button to leave it."
+      }
+    ]
+  },
+  {
     "id": "2026-11-18-house-windows",
     "date": "2026-11-18",
     "title": "The House tab sees Windows",

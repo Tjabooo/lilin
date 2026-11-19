@@ -7381,6 +7381,17 @@ document.addEventListener('fullscreenchange', updateFullscreen);
 document.addEventListener('webkitfullscreenchange', updateFullscreen);
 updateFullscreen();
 fsBtn.addEventListener('click', toggleFullscreen);
+// The iPad Home Screen app always shows the clock and battery bar over the video, and web apps can't hide
+// it: only fullscreen does. So there the player goes fullscreen as it opens (that tap counts as the click
+// the browser asks for); the button or iPad's own swipe still leaves it.
+const iPadHomeScreen = isStandalone && (/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)));
+function immersiveOnOpen() {
+  if (!iPadHomeScreen || !elementFullscreen || fsElement()) return;
+  try {
+    const req = playerEl.requestFullscreen ? playerEl.requestFullscreen() : playerEl.webkitRequestFullscreen();
+    req?.catch?.(() => {}); // no tap behind it (Up next, a link): the button is still there
+  } catch { /* not allowed right now */ }
+}
 
 // iPhones don't offer the standard picture-in-picture API to web pages, so the button used to be hidden
 // there. Safari's own presentation mode does the same job: use it wherever it's offered.
@@ -7909,6 +7920,7 @@ function openPlayerShell(opts = {}) {
   document.body.classList.add('in-player');
   setTheme('#000000');
   $('#player-close').focus({ preventScroll: true });
+  immersiveOnOpen();
 }
 
 // ---- Up next ----
