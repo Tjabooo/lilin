@@ -1,4 +1,13 @@
 {
+  "2026-11-19-full-quality-waits-for-sound": {
+    "title": "Full kvalitet väntar på ljudet",
+    "items": {
+      "No more waiting after Switch now": {
+        "title": "Ingen väntan efter Byt nu",
+        "text": "När något du tittar på har laddats ner visas Full kvalitet är klar först när ljudet spelar i din webbläsare. Förut kunde du byta och sedan få vänta på Lägger till vanligt stereoljud; nu spelar strömmen vidare tills bytet går direkt."
+      }
+    }
+  },
   "2026-11-19-play-now-subtitles": {
     "title": "Undertexter medan det laddas ner",
     "items": {

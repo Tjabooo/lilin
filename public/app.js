@@ -7922,6 +7922,13 @@ async function loadPlayerMedia(f, opts = {}) {
       },
       showError: (text) => showPlayerError(text, { title: T('Can’t play this yet') }),
       fullItem: (id) => state.library.find((x) => x.id === id && !x.converting) || null,
+      // Asking also moves its sound/video copy to the front of the queue. Nothing Lilin can fix = offer it anyway.
+      fullPlays: async (id) => {
+        try {
+          const a = await api(`/api/media/lib/${encodeURIComponent(id)}/audio?plays=${extraPlayable()}`, { signal: session.abort.signal });
+          return !a.known || !a.fixable || Boolean(a.browserSafe && a.aligned && a.videoSafe !== false);
+        } catch { return false; }
+      },
       switchToFull: (item) => {
         const at = video.currentTime || 0;
         saveProgress(true);

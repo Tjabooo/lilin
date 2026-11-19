@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-full-quality-waits-for-sound",
+    "date": "2026-11-19",
+    "title": "Full quality waits for its sound",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "No more waiting after Switch now",
+        "text": "When something you're watching finishes downloading, Full quality is ready only shows up once its sound plays in your browser. Before, you could switch and then sit through Adding normal stereo sound; now the stream keeps playing until the switch is instant."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-play-now-subtitles",
     "date": "2026-11-19",
     "title": "Subtitles while downloading",

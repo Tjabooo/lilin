@@ -100,7 +100,8 @@ const sleep = (ms, signal) => new Promise((resolve) => {
 
 // ctx: video, playerEl, seekEl, api, $, isCurrent(session), setSource(url, session, onMetadata),
 // setHlsSource(hls, url, session, onMetadata), onMetadata(session), setSpinner(on), showNote(text), hideNote(),
-// showError(text), fullItem(libraryId), switchToFull(item), leave(), toast(text), starting(status, ready) (optional)
+// showError(text), fullItem(libraryId), switchToFull(item), leave(), toast(text), starting(status, ready) (optional),
+// fullPlays(libraryId) (optional): resolves true once the finished file plays here as it is (its sound converted).
 // In Watch Together: room() = the WatchSession (or null); the room starts playback, not this.
 // The room then decides when everyone plays and waits (the server holds it for the download), so the hold and
 // the buffering popup here stay out of it, and only the host is offered full quality: it switches the whole room.
@@ -238,7 +239,11 @@ export async function playPartial(session, ctx) {
       if (status.done && status.libraryId && !fullOffered && (!party || party.isHost)) {
         // A guest may not have it in their library: the room's switch doesn't need that.
         const item = party ? { id: status.libraryId } : ctx.fullItem(status.libraryId);
-        if (item) { fullOffered = true; showFullPopup(item); }
+        // Not before the file plays here as it is: a sound track this browser can't play (Dolby Digital Plus) gets a
+        // stereo copy first, and switching before that only trades a playing stream for a wait.
+        if (item && (!ctx.fullPlays || await ctx.fullPlays(status.libraryId)) && ctx.isCurrent(session) && !signal.aborted) {
+          fullOffered = true; showFullPopup(item);
+        }
       }
     } catch { /* the next round asks again */ }
     if (!signal.aborted) statusTimer = setTimeout(pollStatus, STATUS_MS);
