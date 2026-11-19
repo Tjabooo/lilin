@@ -517,7 +517,7 @@ function savedProgress(f) {
   try { return JSON.parse(localStorage.getItem(resumeKey(f))); } catch { return null; }
 }
 async function loadProgress() {
-  try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; state.hidden = data.hidden || {}; } catch { /* local copy only */ }
+  try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; state.seen = data.seen || {}; state.hidden = data.hidden || {}; } catch { /* local copy only */ }
 }
 
 // ---------- Save for later and Follow (watchlist.js; the server downloads, src/watchlist.js) ----------
@@ -1162,7 +1162,13 @@ function noteFinished(f, at = Date.now()) {
   const key = f?.season != null && titleKeyOf(f);
   if (!key || !/^tv:/.test(key)) return;
   state.finished = { ...(state.finished || {}), [key]: { season: f.season, episode: f.episode, at } };
+  const seen = state.seen?.[key] || [];
+  state.seen = { ...(state.seen || {}), [key]: [...seen, `${f.season}:${f.episode}`] };
 }
+// Finished this episode of this show at some point (any device)? showKey: "tv:1399".
+const seenEpisode = (showKey, season, episode) => Boolean(showKey && episode != null && state.seen?.[showKey]?.includes(`${season}:${episode}`));
+const watchedMark = () => h('span', { class: 'watched-mark' }, icon('check'), T('Watched'));
+const watchedBadge = () => h('span', { class: 'watched-badge', 'aria-hidden': 'true' }, icon('check'));
 const byEpisodeOrder = (a, b) => (a.season - b.season) || (a.episode - b.episode);
 // The newest of: an episode you're partway through, or the one after the last you finished. Nothing watched
 // yet: the first episode. Returns { f, progress, kind: 'resume' | 'next' | 'start', at } or null (all caught up).
@@ -2598,16 +2604,19 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
     h('p', { class: 'ep-meta' }, meta.filter(Boolean).map((x) => (x instanceof Node ? x : h('span', {}, x)))),
     ep.overview && h('p', { class: 'ep-overview' }, ep.overview),
     titleDetails.episodeCredits(ep)); // details: the episode's director, writers and guests, folded
+  const seen = seenEpisode(tvT.id != null ? `tv:${tvT.id}` : titleKeyOf(f), season, k);
   const bolt = () => h('span', { class: 'instant-mark' }, icon('bolt'), h('span', { class: 'sr-only' }, T('Plays instantly')));
   if (f) {
     const file = libraryFile(f), saved = savedProgress(file);
     const pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
     if (pct > 1) art.append(h('span', { class: 'poster-progress', 'aria-hidden': 'true' }, h('i', { style: `width:${pct}%` })));
+    const done = seen && pct <= 1; // partway through a rewatch: the progress says more than the tick
+    if (done) art.append(watchedBadge());
     art.append(h('span', { class: 'play-glyph', 'aria-hidden': 'true' }, icon('play')));
-    return h('li', { class: 'ep is-mine', 'data-episode': k ?? '' },
+    return h('li', { class: `ep is-mine${done ? ' is-watched' : ''}`, 'data-episode': k ?? '' },
       h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': f.converting ? T('{0}: getting ready to play', name) : T('Play {0}', name),
         'aria-disabled': f.converting ? 'true' : null, onclick: () => (f.converting ? toast(T('Almost ready. It can be played in a moment.')) : openPlayer(file)) }, art),
-      body([!f.converting && pct <= 1 && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
+      body([done && watchedMark(), !f.converting && pct <= 1 && !done && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
         tools && f.versions?.length > 1 && f.versionLabel, tools && f.expiresAt != null && h('span', { class: `expiry${f.expiresAt - Date.now() < 86400000 ? ' is-soon' : ''}` }, timeLeft(f.expiresAt))]),
       rowMenu(T('More for {0}', name), [
         [icon('tv'), T('Play on TV'), (o) => openPicker(file, o)],
@@ -2619,6 +2628,7 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
   const x = { t: tvT.id != null ? { ...c.t, id: tvT.id } : c.t, season, episode: k };
   const here = k != null && Boolean(targetServerCopy(x));
   const startable = k != null && !airs && (here || Boolean(p) || (canGet() && tvT.id != null));
+  if (seen) art.append(watchedBadge());
   if (startable) art.append(h('span', { class: 'play-glyph', 'aria-hidden': 'true' }, icon('play')));
   const press = startable && h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': T('Play {0}', name), onclick: (e) => playTitle(x, e.currentTarget) }, art);
   if (p) {
@@ -2630,9 +2640,9 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
       tools && h('div', { class: 'ep-actions' },
         h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails({ ...(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title }), transfers: [d] }, e.currentTarget) }, T('Details'))));
   }
-  return h('li', { class: `ep ${here ? 'is-here' : 'is-missing'}`, 'data-episode': k },
+  return h('li', { class: `ep ${here ? 'is-here' : 'is-missing'}${seen ? ' is-watched' : ''}`, 'data-episode': k },
     press || h('div', { class: 'ep-art' }, art),
-    body([here && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]));
+    body([seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]));
 }
 // "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
 function airsLabel(airDate) {

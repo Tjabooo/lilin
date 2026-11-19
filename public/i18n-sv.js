@@ -365,6 +365,7 @@ export default {
   "Couldn’t delete that.": "Det gick inte att radera.",
   "More for {0}": "Mer för {0}",
   "Marked as watched": "Markerad som sedd",
+  "Watched": "Sedd",
   "Mark as watched": "Markera som sedd",
   "Remove from Continue watching": "Ta bort från Fortsätt titta",
   "Removed from Continue watching": "Borttagen från Fortsätt titta",

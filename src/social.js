@@ -45,6 +45,16 @@ export function lastFinished(userId) {
   return out;
 }
 
+// Every episode this person has finished, per show: { "tv:1399": ["1:1", "1:2"] }. The show page ticks them off.
+export function finishedEpisodes(userId) {
+  if (userId == null) return {};
+  const rows = db().prepare(`SELECT DISTINCT title_key, season, episode FROM watch_log
+    WHERE user_id = ? AND finished = 1 AND season IS NOT NULL AND episode IS NOT NULL AND title_key LIKE 'tv:%'`).all(userId);
+  const out = {};
+  for (const r of rows) (out[r.title_key] ||= []).push(`${r.season}:${r.episode}`);
+  return out;
+}
+
 // Everything one person gave a thumbs down: "movie:603", "tv:1399". Discover leaves these out for them.
 export function dislikedKeys(userId) {
   if (userId == null) return new Set();

@@ -12,6 +12,18 @@
     ]
   },
   {
+    "id": "2026-11-19-watched-episodes",
+    "date": "2026-11-19",
+    "title": "See which episodes you've watched",
+    "items": [
+      {
+        "kind": "new",
+        "title": "Watched episodes are ticked off",
+        "text": "On a show's page, every episode you've finished gets a tick and says Watched, so you can see at a glance where you are."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-profile-editor",
     "date": "2026-11-19",
     "title": "A cleaner Edit profile",

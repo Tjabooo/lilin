@@ -8,6 +8,15 @@
       }
     }
   },
+  "2026-11-19-watched-episodes": {
+    "title": "Se vilka avsnitt du har sett",
+    "items": {
+      "Watched episodes are ticked off": {
+        "title": "Sedda avsnitt bockas av",
+        "text": "På en series sida får varje avsnitt du har sett klart en bock och texten Sedd, så du ser direkt var du är."
+      }
+    }
+  },
   "2026-11-19-profile-editor": {
     "title": "Ett snyggare Redigera profil",
     "items": {

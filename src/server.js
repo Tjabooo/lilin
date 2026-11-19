@@ -4153,6 +4153,7 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { ok: true });
     }
     return sendJson(res, 200, { progress: accounts.progressOf(user.id), finished: social.lastFinished(user.id),
+      seen: social.finishedEpisodes(user.id),
       hidden: accounts.continueHiddenOf(user.id) });
   }
   // Remove from Continue watching, everywhere this person signs in. at: only for moving an older hide over.
