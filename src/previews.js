@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { trackChild } from './load.js';
 import { background } from './priority.js';
+import { videoFilter } from './phone-stream.js';
 
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE || 'ffprobe';
@@ -42,6 +43,26 @@ export function ffmpegArgs(file, outDir, step) {
     '-skip_frame', 'nokey', '-i', file, '-map', '0:v:0', '-an', '-sn', '-dn',
     '-vf', `${select},scale=${WIDTH}:'max(2,trunc(${WIDTH}/dar/2)*2)':flags=bilinear,setsar=1,showinfo,tile=${COLS}x${ROWS},format=yuvj420p`,
     '-fps_mode', 'vfr', '-q:v', '5', '-start_number', '0', path.join(outDir, '%d.jpg')];
+}
+
+// Continue watching cards: one sharp frame where you stopped (the sheets are only 240 px wide, which
+// looks smeared on a big card). Fast seek to the keyframe at or before `time`, 540 px tall, HDR
+// tone-mapped. Kept in cache/previews/stills/<key>-<seconds>.jpg; times round to 10 s so a card
+// doesn't make a new one every time you watch a bit more of the same scene.
+const STILL_HEIGHT = 540;
+const STILL_STEP = 10;
+export const stillTime = (time) => Math.max(0, Math.floor((Number(time) || 0) / STILL_STEP) * STILL_STEP);
+export function stillArgs(file, out, time, video = null) {
+  return ['-hide_banner', '-nostdin', '-nostats', '-loglevel', 'error', '-y',
+    '-noaccurate_seek', '-ss', String(time), '-i', file, '-map', '0:v:0', '-an', '-sn', '-dn',
+    '-frames:v', '1', '-vf', `${videoFilter(video, STILL_HEIGHT)},format=yuvj420p`, '-q:v', '3', out];
+}
+
+function probeTransfer(file) {
+  return new Promise((resolve) => {
+    execFile(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_transfer', '-of', 'csv=p=0', file],
+      { timeout: 10000, windowsHide: true }, (error, stdout) => resolve(error ? null : String(stdout || '').trim()));
+  });
 }
 
 function probeDuration(file) {
@@ -107,6 +128,37 @@ export class Previews {
   }
 
   // Path of sheet n of a video, or null while it isn't written yet.
+  // Path to a sharp frame of `file` near `time`, made on first ask (one at a time, background priority).
+  async still(file, time) {
+    const key = await this.keyFor(file);
+    const t = stillTime(time);
+    const dir = path.join(this.dir, 'stills');
+    const out = path.join(dir, `${key}-${t}.jpg`);
+    if (fs.existsSync(out)) { fsp.utimes(out, new Date(), new Date()).catch(() => {}); return out; }
+    const run = (this.stillChain || Promise.resolve()).then(async () => {
+      if (fs.existsSync(out)) return out;
+      await fsp.mkdir(dir, { recursive: true });
+      const tmp = `${out}.${process.pid}.tmp.jpg`;
+      const args = stillArgs(file, tmp, t, { color_transfer: await probeTransfer(file) });
+      const ok = await new Promise((resolve) => {
+        const child = spawn(FFMPEG, args, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+        trackChild(child, FFMPEG, args, 'stills');
+        background(child);
+        let tail = '';
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', (c) => { tail = (tail + c).slice(-400); });
+        const timer = setTimeout(() => child.kill(), 30000);
+        child.on('error', () => { clearTimeout(timer); resolve(false); });
+        child.on('close', (code) => { clearTimeout(timer); if (code !== 0) console.error(`continue stills: ffmpeg ${code}: ${tail.trim()}`); resolve(code === 0); });
+      });
+      if (ok && fs.existsSync(tmp) && fs.statSync(tmp).size > 0) { await fsp.rename(tmp, out); return out; }
+      await fsp.rm(tmp, { force: true }).catch(() => {});
+      return null;
+    });
+    this.stillChain = run.catch(() => null);
+    return run;
+  }
+
   async sheet(file, n) {
     if (!Number.isInteger(n) || n < 0 || n > 9999) return null;
     const key = await this.keyFor(file);
@@ -172,6 +224,13 @@ export class Previews {
     let names;
     try { names = await fsp.readdir(this.dir); } catch { return; }
     const cutoff = Date.now() - KEEP_DAYS * 24 * 3600 * 1000;
+    let stills = [];
+    try { stills = await fsp.readdir(path.join(this.dir, 'stills')); } catch { /* none yet */ }
+    for (const name of stills) {
+      const f = path.join(this.dir, 'stills', name);
+      const st = await fsp.stat(f).catch(() => null);
+      if (st && (st.mtimeMs < cutoff || name.endsWith('.tmp.jpg'))) await fsp.rm(f, { force: true }).catch(() => {});
+    }
     for (const name of names) {
       if (!/^[a-f0-9]{24}$/.test(name) || this.jobs.has(name)) continue;
       const dir = path.join(this.dir, name);

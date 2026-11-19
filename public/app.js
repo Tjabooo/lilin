@@ -6,7 +6,7 @@ import { createLiveView, channelName, clock as liveClock, programmeLine } from '
 import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
 import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
-import { createSeekPreview, frameAt } from './seek-preview.js';
+import { createSeekPreview } from './seek-preview.js';
 import * as pushDevice from './notifications.js';
 import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
@@ -1785,32 +1785,21 @@ function wideArt(sources, cls = '', sizes = null) {
 // TMDB art for an episode: its own still, then the show's backdrop.
 const episodeArt = (still, show, cls, sizes) => wideArt([still, show?.backdrop], cls, sizes);
 
-// Continue watching: the frame where you stopped, cut from the timeline previews the player already made (?peek=1 only
-// reads what exists, it never starts a pass). It fades in over the still once its sheet has loaded.
-const frameIndexes = new Map();
+// Continue watching: a sharp frame where you stopped, grabbed from the video by the server (cached there,
+// times rounded to 10 s). It fades in over the still once it has loaded; if the video is gone the still stays.
 function stoppedFrame(id, time, art) {
-  const base = `/api/media/lib/${encodeURIComponent(id)}/preview`;
-  if (!frameIndexes.has(id)) frameIndexes.set(id, fetch(`${base}?peek=1`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null));
-  frameIndexes.get(id).then((index) => {
-    if (!index?.w || !index.h || !index.times?.length) return;
-    const i = frameAt(index.times, time), per = index.cols * index.rows;
-    if (i < 0 || Math.floor(i / per) >= index.sheets) return;
-    const cell = i % per, col = cell % index.cols, row = Math.floor(cell / index.cols);
-    const url = `${base}/${Math.floor(i / per)}.jpg?k=${index.key}`;
-    const ratio = index.w / index.h, box = 16 / 9, wide = ratio >= box;
-    const pos = (n, of) => (of > 1 ? n / (of - 1) * 100 : 0);
-    const img = new Image();
-    img.onload = () => {
-      if (!art.isConnected && !art.parentNode) return;
-      const frame = h('span', { class: 'continue-frame', 'aria-hidden': 'true' }, h('i', { style: `width:${wide ? ratio / box * 100 : 100}%;height:${wide ? 100 : box / ratio * 100}%;`
-        + `background-image:url("${url}");background-size:${index.cols * 100}% ${index.rows * 100}%;background-position:${pos(col, index.cols)}% ${pos(row, index.rows)}%` }));
-      art.insertBefore(frame, art.querySelector('.poster-progress'));
-      requestAnimationFrame(() => requestAnimationFrame(() => frame.classList.add('is-in')));
-    };
-    img.src = url;
-  });
+  const url = `/api/media/lib/${encodeURIComponent(id)}/still?t=${Math.floor(time / 10) * 10}`;
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    if (!art.isConnected && !art.parentNode) return;
+    const frame = h('span', { class: 'continue-frame', 'aria-hidden': 'true' }, h('i', { style: `background-image:url("${url}")` }));
+    art.insertBefore(frame, art.querySelector('.poster-progress'));
+    requestAnimationFrame(() => requestAnimationFrame(() => frame.classList.add('is-in')));
+  };
+  img.src = url;
 }
-const CONTINUE_SIZES = '(max-width: 420px) 200px, 240px'; // matches .continue-shelf column widths
+const CONTINUE_SIZES = '(min-width: 1600px) 420px, (min-width: 900px) 340px, (min-width: 600px) 300px, 74vw'; // --row-wide
 // Continue watching: landscape cards that resume playback. Episodes show their still, films a backdrop.
 function continueCard(f, progress) {
   const show = state.libraryShows.find((s) => s.id === f.show);

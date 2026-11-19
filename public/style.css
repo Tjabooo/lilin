@@ -517,7 +517,7 @@ main {
 /* Continue watching: the frame where you stopped (app.js stoppedFrame), cut from a timeline-preview sheet, over the still */
 .continue-frame { position: absolute; inset: 0; overflow: hidden; opacity: 0; transition: opacity .5s var(--ease-out); }
 .continue-frame.is-in { opacity: 1; }
-.continue-frame i { position: absolute; left: 50%; top: 50%; translate: -50% -50%; background-repeat: no-repeat; }
+.continue-frame i { position: absolute; inset: 0; background: center / cover no-repeat; }
 .wide-art img.is-contained { object-fit: contain; background: var(--surface-2); }
 .wide-art-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); background: radial-gradient(100% 90% at 30% 0%, color-mix(in srgb, var(--bulb) 9%, transparent), transparent 60%), var(--surface-2); }
 .wide-art-fallback svg { width: 30%; height: 30%; max-width: 48px; }

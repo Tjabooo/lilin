@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-sharp-continue",
+    "date": "2026-11-19",
+    "title": "Sharper Continue watching",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Continue watching pictures are sharp now",
+        "text": "The picture on each Continue watching card, the moment where you stopped, used to be a tiny blurry thumbnail stretched to fit. It's now a full-quality frame from the video, so it looks crisp on iPads and big screens too."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-fullscreen-sub-order",
     "date": "2026-11-19",
     "title": "Subtitles in fullscreen on iPad and iPhone",

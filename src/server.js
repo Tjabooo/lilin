@@ -5167,6 +5167,16 @@ async function handleApi(req, res, url) {
     return res.end(req.method === 'HEAD' ? undefined : await fs.promises.readFile(theme));
   }
 
+  // Continue watching: a sharp frame where you stopped (?t=seconds), from the copy the browser plays.
+  if ((m = p.match(/^\/api\/media\/(lib|dl)\/([A-Za-z0-9_-]+)\/still$/))) {
+    const t = Number(url.searchParams.get('t'));
+    if (!Number.isFinite(t) || t < 0 || t > 1e6) throw new HttpError(400, 'Invalid time.');
+    const jpg = await previews.still(await streamFile(m[1], m[2], 'browser'), t);
+    if (!jpg) throw new HttpError(404, 'No frame there.');
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=2592000, immutable' });
+    return res.end(req.method === 'HEAD' ? undefined : await fs.promises.readFile(jpg));
+  }
+
   // Timeline previews of the copy the browser plays (its timeline is the one the seek bar shows).
   if ((m = p.match(/^\/api\/media\/(lib|dl)\/([A-Za-z0-9_-]+)\/preview(?:\/(\d{1,4})\.jpg)?$/))) {
     return sendPreview(res, await streamFile(m[1], m[2], 'browser'), m[3], { peek: url.searchParams.get('peek') === '1' });

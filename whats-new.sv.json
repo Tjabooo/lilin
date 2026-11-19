@@ -1,4 +1,13 @@
 {
+  "2026-11-19-sharp-continue": {
+    "title": "Skarpare Fortsätt titta",
+    "items": {
+      "Continue watching pictures are sharp now": {
+        "title": "Bilderna i Fortsätt titta är skarpa nu",
+        "text": "Bilden på varje kort i Fortsätt titta, stället där du slutade, var förut en liten suddig miniatyr som drogs ut. Nu är det en bildruta i full kvalitet från videon, så den ser skarp ut på iPad och stora skärmar också."
+      }
+    }
+  },
   "2026-11-19-fullscreen-sub-order": {
     "title": "Undertexter i helskärm på iPad och iPhone",
     "items": {
