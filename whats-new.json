@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-ipad-fullscreen-button",
+    "date": "2026-11-19",
+    "title": "Fullscreen button on iPad",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "The fullscreen button is back on iPad",
+        "text": "In the Lilin app on an iPad's Home Screen the fullscreen button was missing. It's back: tap it to watch in iPad's own player, which hides the clock and battery at the top. Close it and you're back in Lilin's player where you left off."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-subtitle-menu-split",
     "date": "2026-11-19",
     "title": "A roomier subtitle menu",

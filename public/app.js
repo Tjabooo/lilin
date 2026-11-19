@@ -7398,8 +7398,13 @@ const fsElement = () => document.fullscreenElement || document.webkitFullscreenE
 let fsExitedAt = 0;
 const elementFullscreen = Boolean((playerEl.requestFullscreen || playerEl.webkitRequestFullscreen)
   && (document.fullscreenEnabled ?? document.webkitFullscreenEnabled ?? true));
-const videoOnlyFullscreen = !elementFullscreen && typeof video.webkitEnterFullscreen === 'function';
-fsBtn.hidden = !elementFullscreen && (!videoOnlyFullscreen || isStandalone);
+// iPad: the Home Screen app keeps the clock and battery bar over the video, and there the page often
+// can't go fullscreen itself. iPad's own player is the only thing that hides the bar, so the button
+// opens that (people asked for it; Lilin's own controls are back as soon as it closes).
+const isIPad = /iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+const iPadNativeFullscreen = isIPad && !elementFullscreen && typeof video.webkitEnterFullscreen === 'function';
+const videoOnlyFullscreen = !elementFullscreen && !isIPad && typeof video.webkitEnterFullscreen === 'function';
+fsBtn.hidden = !elementFullscreen && !iPadNativeFullscreen && (!videoOnlyFullscreen || isStandalone);
 const fsGuide = h('div', { class: 'cc-menu fs-guide', id: 'fs-guide', role: 'dialog', 'aria-label': T('Watch fullscreen'), hidden: true });
 fsBtn.after(fsGuide);
 if (videoOnlyFullscreen) { fsBtn.setAttribute('aria-haspopup', 'dialog'); fsBtn.setAttribute('aria-controls', 'fs-guide'); fsBtn.setAttribute('aria-expanded', 'false'); }
@@ -7439,6 +7444,7 @@ document.addEventListener('click', (e) => { if (!fsGuide.hidden && !fsGuide.cont
 fsGuide.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeFsGuide(); fsBtn.focus(); } });
 function toggleFullscreen() {
   if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+  if (iPadNativeFullscreen) { try { video.webkitEnterFullscreen(); } catch { /* video not ready yet */ } return; }
   if (videoOnlyFullscreen) { if (fsGuide.hidden) openFsGuide(); else closeFsGuide(); return; }
   if (playerEl.requestFullscreen) {
     playerEl.requestFullscreen({ navigationUI: 'hide' }).then(() => {
@@ -7461,7 +7467,7 @@ fsBtn.addEventListener('click', toggleFullscreen);
 // The iPad Home Screen app always shows the clock and battery bar over the video, and web apps can't hide
 // it: only fullscreen does. So there the player goes fullscreen as it opens (that tap counts as the click
 // the browser asks for); the button or iPad's own swipe still leaves it.
-const iPadHomeScreen = isStandalone && (/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)));
+const iPadHomeScreen = isStandalone && isIPad;
 function immersiveOnOpen() {
   if (!iPadHomeScreen || !elementFullscreen || fsElement()) return;
   try {

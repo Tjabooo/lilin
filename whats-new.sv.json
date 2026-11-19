@@ -1,4 +1,13 @@
 {
+  "2026-11-19-ipad-fullscreen-button": {
+    "title": "Helskärmsknapp på iPad",
+    "items": {
+      "The fullscreen button is back on iPad": {
+        "title": "Helskärmsknappen är tillbaka på iPad",
+        "text": "I Lilin-appen på en iPads hemskärm saknades helskärmsknappen. Nu är den tillbaka: tryck på den för att titta i iPads egen spelare, som döljer klockan och batteriet högst upp. Stäng den så är du tillbaka i Lilins spelare där du var."
+      }
+    }
+  },
   "2026-11-19-subtitle-menu-split": {
     "title": "En rymligare undertextmeny",
     "items": {
