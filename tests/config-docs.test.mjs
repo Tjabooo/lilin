@@ -14,8 +14,9 @@ for (const f of fs.readdirSync(new URL('../src', import.meta.url))) {
 // Read by the code but deliberately not in .env.example.
 const INTERNAL = new Set(['CF_API_BASE', 'LILIN_ENV_FILE', 'NO_COLOR', 'XDG_SESSION_TYPE', 'PATH', 'PATHEXT', 'Path', 'ProgramData', 'SystemRoot']);
 
-test('every setting the server reads is in .env.example', () => {
-  const missing = [...code].filter((k) => !example.has(k) && !INTERNAL.has(k));
+// .env.example holds the common settings; the rest only need to be in docs/configuration.md.
+test('every setting the server reads is in .env.example or documented', () => {
+  const missing = [...code].filter((k) => !example.has(k) && !INTERNAL.has(k) && !docs.includes(`\`${k}\``));
   assert.deepEqual(missing, []);
 });
 

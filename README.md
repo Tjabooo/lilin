@@ -6,8 +6,8 @@
 
 ![Lilin](public/og-lilin.png)
 
-A self-hosted media server for your home, made for phones first. Find a film or show, press
-Download, and watch it in the browser, on your phone or on the TV, with subtitles that fit.
+A self-hosted media server for your home, made for phones first. Point it at your films and shows
+and watch them in the browser, on your phone or on the TV, with subtitles that fit.
 
 Lilin is one Node.js process with no npm dependencies. It runs on Windows, Linux, macOS and in
 Docker, and installs as a web app on your phone's home screen.
@@ -18,13 +18,11 @@ Docker, and installs as a web app on your phone's home screen.
 - **More details** for the curious, folded away on every title page: crew, facts, links and the soundtrack's songs.
 - **Documentaries**: over 30 categories, from Swedish true crime to nature and history, and SVT Play's free catalogue
   saved to your library when you're in Sweden.
-- **One-press downloads** through qBittorrent: films pick a suitable release, shows download a season
-  in episode order and skip what you already have. Torrent search covers The Pirate Bay, 1337x and
-  Nyaa.
-- **Anime that just works**: fansub names ("[SubsPlease] Sousou no Frieren S2 - 03"), numbering from
-  the first episode ("Black Clover - 176") and seasons TMDB merges or splits are matched to TMDB's
-  seasons through AniList. A season downloads as one batch instead of a torrent per episode, and the
-  English subtitles anime comes with turn on by themselves.
+- **A library that sorts itself**: files are matched to TMDB's films, seasons and episodes, and new
+  files show up on their own.
+- **Anime that just works**: numbering from the first episode ("Black Clover - 176") and seasons TMDB
+  merges or splits are matched to TMDB's seasons through AniList, and the English subtitles anime comes
+  with turn on by themselves.
 - **Plays everywhere**: automatic MP4 copies for iPhone and Apple TV, browser-safe audio for Dolby/DTS,
   H.264 copies of HEVC for Firefox, timeline previews, Up next with credits detection.
 - **Subtitles** from OpenSubtitles, with their timing checked and fixed against the audio. Two
@@ -34,16 +32,16 @@ Docker, and installs as a web app on your phone's home screen.
 - **Bedtime**: night mode evens out loud scenes and lifts voices; a sleep timer pauses after a set
   time or at the end of the episode.
 - **Casting** to DLNA smart TVs and Apple TV, with a full-screen remote.
-- **TV apps** for Samsung (Tizen) and Android TV / Google TV: browse, download and play from the sofa, with Skip intro and Up next.
+- **TV apps** for Samsung (Tizen) and Android TV / Google TV: browse and play from the sofa, with Skip intro and Up next.
 - **Jellyfin**: the [Lilin plugin](https://github.com/Tjabooo/jellyfin-plugin-lilin) shows your
   library in your own Jellyfin, in every Jellyfin app, with progress kept in sync.
 - **Watch Together** rooms with synced playback.
 - **Live TV**: always-on channels made from the library (Anime, Sitcoms, Films, Documentaries, Fresh, Drama, Sci-Fi & Fantasy, Action & Adventure, each person's picks and
   channels the owner makes), with a guide on the web and the TV apps. Everyone on a channel sees the same frame; the name is
-  yours to pick (`LIVE_TV_NAME`, default Lilin TV). Optionally the server keeps the channels growing with popular films and shows
-  it downloads by itself, within a size cap (`LIVE_TV_PICKS_GB`). Each channel has a chat beside the picture that stays with the
+  yours to pick (`LIVE_TV_NAME`, default Lilin TV).
+  Each channel has a chat beside the picture that stays with the
   channel, so people tuning in later see what was said; the owner can remove messages.
-- **Notifications** on phones and computers (Web Push, nothing to sign up for): downloads ready, new
+- **Notifications** on phones and computers (Web Push, nothing to sign up for): new titles, new
   episodes and Watch Together invites, each switchable.
 - **Personal accounts** through Cloudflare Access: everyone gets their own library, progress and
   settings; files exist once on disk and auto-delete when nobody keeps them.
@@ -57,8 +55,7 @@ Details: [docs/features.md](docs/features.md).
 ## Requirements
 
 - **Node.js 22.16 or later** (uses the built-in `node:sqlite` with FTS5)
-- Optional: **ffmpeg** (conversion, subtitle timing, previews), **qBittorrent** with Web UI (downloads),
-  a **TMDB** token (search and posters), an **OpenSubtitles** API key, **pyatv** (Apple TV),
+- Optional: **ffmpeg** (conversion, subtitle timing, previews), a **TMDB** token (search and posters), an **OpenSubtitles** API key, **pyatv** (Apple TV),
   **Tesseract** (Notes image search outside Windows)
 
 Anything you don't set up is simply off, so you can start small.
@@ -98,8 +95,7 @@ curl -fsSL https://raw.githubusercontent.com/Tjabooo/lilin/v2.0.2/.env.example -
 MEDIA_PATH=/srv/media docker compose up -d
 ```
 
-Images for `linux/amd64` and `linux/arm64` are published as `ghcr.io/tjabooo/lilin`. Optional
-Compose profiles add qBittorrent, qBittorrent behind a VPN (Gluetun) and FlareSolverr. See
+Images for `linux/amd64` and `linux/arm64` are published as `ghcr.io/tjabooo/lilin`. See
 [docs/install/docker.md](docs/install/docker.md).
 
 ## Configuration
@@ -110,7 +106,6 @@ Settings live in `.env` (or the container environment). The ones most people set
 | --- | --- |
 | `MEDIA_DIR` | Folder with your films and shows |
 | `TMDB_TOKEN` | Search, posters and episode details |
-| `QBIT_URL`, `QBIT_USER`, `QBIT_PASS` | Downloads through qBittorrent |
 | `OPENSUBTITLES_API_KEY` | Subtitles |
 | `ADMIN_EMAILS` | Owner accounts (with Cloudflare Access) |
 | `PORT`, `HOST`, `DATA_DIR` | Where it listens and keeps its state |
@@ -142,7 +137,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 - [Installation](docs/install/README.md) and [upgrading, backups and rollback](docs/upgrading-and-backups.md)
 - [Configuration reference](docs/configuration.md)
-- [Integrations](docs/integrations.md): TMDB, qBittorrent, OpenSubtitles, ffmpeg, TVs, House, Clips, Invites
+- [Integrations](docs/integrations.md): TMDB, OpenSubtitles, ffmpeg, TVs, House, Clips, Invites
 - [Remote access and security](docs/remote-access.md)
 - [Android TV](docs/android-tv.md) and [Samsung TV](docs/samsung-tv.md) apps
 - [Jellyfin](docs/jellyfin.md): your library in your own Jellyfin
@@ -164,6 +159,5 @@ build step.
 
 ## Disclaimer
 
-Lilin is a media management tool. Its torrent search queries third-party sites and does not host,
-index or distribute content. Downloading copyrighted material without permission is illegal in many
-countries; you are responsible for how you use this software.
+Lilin is a media management tool for media you have the right to use. It does not host, index or
+distribute content; you are responsible for how you use it.
