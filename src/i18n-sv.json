@@ -728,5 +728,7 @@
  "There’s no sharper copy around yet.": "Det finns ingen skarpare kopia ännu.",
  "The {0} version is on its way. If you’re watching, playback moves to it once it’s ready.": "{0}-versionen är på väg. Tittar du byter uppspelningen till den när den är klar.",
  "This film isn’t on the server yet.": "Filmen finns inte på servern än.",
- "This film is already here in 4K.": "Filmen finns redan här i 4K."
+ "This film is already here in 4K.": "Filmen finns redan här i 4K.",
+ "Invalid time.": "Ogiltig tid.",
+ "No frame there.": "Ingen bildruta där."
 }

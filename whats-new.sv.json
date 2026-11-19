@@ -70,6 +70,15 @@
       }
     }
   },
+  "2026-11-18-house-windows": {
+    "title": "Fliken Hus ser Windows",
+    "items": {
+      "A dual-boot PC in Windows shows as on": {
+        "title": "En dual boot-dator i Windows visas som på",
+        "text": "När en dator med dual boot kör Windows står det nu På · Windows på dess kort i fliken Hus i stället för Av, och dess hälsa syns också. Starta om och Starta om till Linux fungerar från Windows också, och en vanlig omstart kommer tillbaka till Windows. Windows-datorn behöver den nya Windows-hjälparen (agents/lilin-house-windows.py) installerad en gång."
+      }
+    }
+  },
   "2026-11-18-tv-logo-fill": {
     "title": "En trevligare väntan på TV:n",
     "items": {
