@@ -10077,7 +10077,7 @@ function renderHouse() {
 function houseNeeds() {
   if (!state.status?.admin) return [];
   const out = [];
-  for (const issue of (state.house?.issues || []).slice(0, 2)) out.push({ route: 'house/machines', label: issue, meta: T('Machines'), run: () => setView('house/machines') });
+  for (const issue of (state.house?.issues || []).slice(0, 2)) out.push({ label: issue, meta: T('Machines'), run: () => $('[data-anchor="house-machines"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
   const ideas = (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout);
   if (ideas) out.push({ route: 'house/ideas', label: T('New ideas'), meta: T('Ideas and bugs people sent you'), count: ideas, run: () => setView('house/ideas') });
   const stuck = state.downloads.filter(transferAttention);
@@ -10086,17 +10086,11 @@ function houseNeeds() {
   return out.slice(0, 3);
 }
 function updateHouseDot() { if (state.status?.admin) setHouseDot(houseNeeds().length); }
-// The landing: Needs you, then a tile per tool with one live line (Machines last: status, CPU, machines online).
-// A count on a tile means something there wants doing.
+// The landing: Needs you, a tile per tool with one live line, then the machines themselves (status, server, VPN,
+// sharing, power, every machine). A count on a tile means something there wants doing.
 function renderHouseHub(body) {
-  const r = state.house, needs = houseNeeds();
+  const needs = houseNeeds();
   setHouseDot(needs.length);
-  const sv = r?.server;
-  const online = (r?.machines || []).filter((m) => !m.away).length;
-  const issues = r?.issues.length || 0;
-  const machinesLine = r ? [issues ? (issues === 1 ? T('1 thing needs a look') : T('{0} things need a look', issues)) : T('Everything’s fine'),
-    sv?.cpu != null && T('CPU {0} %', sv.cpu), r.agents && r.machines.length && T('{0} of {1} machines online', online, r.machines.length)].filter(Boolean).join(' · ')
-    : state.houseError ? T('Couldn’t check the house') : T('Checking…');
   const stuck = state.downloads.filter(transferAttention).length;
   const active = state.downloads.filter((d) => !d.done).length;
   const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
@@ -10106,7 +10100,6 @@ function renderHouseHub(body) {
       count: stuck, run: () => setView('house/downloads') },
     { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
     ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
-    { route: 'house/machines', label: T('Machines'), line: machinesLine, count: issues, run: () => setView('house/machines') },
   ];
   const lines = {
     'house/activity': T('Who watched what, and when'),
@@ -10124,16 +10117,18 @@ function renderHouseHub(body) {
   body.replaceChildren(
     needs.length > 0 && h('section', { class: 'house-needs', 'aria-labelledby': 'house-needs-head' }, h('h3', { class: 'set-head', id: 'house-needs-head' }, T('Needs you')),
       h('div', { class: 'set-stack' }, needs.map((n) => navRow(n)))),
-    h('div', { class: 'tool-grid' }, tools.map(tile)));
+    h('div', { class: 'tool-grid' }, tools.map(tile)),
+    h('section', { class: 'house-machines', 'data-anchor': 'house-machines' }, machinesContent()));
   // New ideas count here and in the dot: the inbox is read once the hub is open.
   if (!ideasView.loaded && !ideasView.loading) loadIdeas().then(() => { if (state.view === 'house' && !state.sub) renderHouse(); else updateHouseDot(); });
 }
 // House → Machines: the server, VPN, sharing, power and every machine.
-function renderMachines(body) {
-  if (state.houseError) { body.replaceChildren(notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))); return; }
+function renderMachines(body) { body.replaceChildren(...machinesContent()); }
+function machinesContent() {
+  if (state.houseError) return [notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))];
   const r = state.house;
-  if (!r) return;
-  const q = norm(pageFilters.house);
+  if (!r) return [h('p', { class: 'muted' }, T('Checking…'))];
+  const q = state.sub === 'machines' ? norm(pageFilters.house) : '';
   const out = [];
   out.push(r.issues.length
     ? h('div', { class: 'house-status has-issues' },
@@ -10187,7 +10182,7 @@ function renderMachines(body) {
       diskRows(m.disks, (d) => d.mount),
       m.failed.length > 0 && h('p', { class: 'house-failed' }, T('Failed: {0}', m.failed.join(', ')))));
   }
-  body.replaceChildren(...out);
+  return out;
 }
 
 // VPN: the server's torrent tunnel (only qBittorrent uses it) and the Mullvad app on each machine.

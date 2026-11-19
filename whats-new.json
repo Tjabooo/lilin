@@ -7,8 +7,8 @@
       {
         "kind": "improved",
         "audience": "owner",
-        "title": "Machines is a tile now",
-        "text": "The machine status bar at the top of House is gone. Machines is now a tile after the others, showing whether everything's fine, the CPU and how many machines are online, with a count when something needs a look."
+        "title": "Machines right on the House page",
+        "text": "The machine status bar at the top of House is gone. Everything that was behind it (the server, VPN, sharing, power and every machine) now sits right on the House page, under the other buttons."
       }
     ]
   },
