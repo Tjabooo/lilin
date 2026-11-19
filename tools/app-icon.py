@@ -1,94 +1,98 @@
 #!/usr/bin/env python3
-"""Draws Lilin's icons (python3 tools/app-icon.py; needs rsvg-convert): the "play corner" mark, a rounded
-letter L in a gold-to-coral gradient whose open corner holds a play button, on the app's velvet.
+"""Draws Lilin's icons (python3 tools/app-icon.py; needs rsvg-convert, numpy and Pillow): the "li" monogram from the
+wordmark, its bulb lit, in front of the velvet curtain. The marks live in tools/brand.py.
 
-  public/icon-192.png / icon-512.png        manifest "any": rounded square, transparent corners
-  public/maskable-192.png / maskable-512.png  manifest "maskable": full bleed, mark inside the 80 % safe circle
-  public/apple-touch-icon.png               180x180 full bleed, opaque (iOS rounds it itself)
-  public/badge-96.png                       white silhouette for Android's notification bar
-  public/favicon.svg                        the same mark on a 64 grid for browser tabs
-  tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash and launcher icons
+  public/icon-192.png / icon-512.png          manifest "any": rounded square, transparent corners
+  public/maskable-192.png / maskable-512.png  manifest "maskable": full bleed, monogram inside the 80 % safe circle
+                                              (the Samsung TV app's tile too: tv/tizen/build.sh copies maskable-512)
+  public/apple-touch-icon.png                 180x180 full bleed, opaque (iOS rounds it itself)
+  public/badge-96.png                         white silhouette for Android's notification bar
+  public/favicon.svg                          flat vector monogram for browser tabs
+  public/wordmark.svg                         the wordmark, paper and gold, for the share and sign-in pages
+  tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash icon and launcher icons
 
-tools/og-banner.py draws the link-preview card and the Android TV banner with the same MARK.
-With --svg, also writes app-icon.svg (the rounded icon) in the current folder for previews.
+tools/og-banner.py draws the link-preview card and the Android TV banner with the same marks.
 """
 import os
-import subprocess
 import sys
-import tempfile
+
+import numpy as np
+from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import brand  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VELVET, PAPER, GOLD = "#1F1019", "#F6EADF", "#F4C152"
-
-# On the 512 grid (centre ~256,256): the L (stem + foot, round ends) and the play triangle in its corner.
-L_PATH = "M185 120a35 35 0 0 1 35 35v167h115a35 35 0 0 1 0 70H185a35 35 0 0 1-35-35V155a35 35 0 0 1 35-35z"
-PLAY_PATH = "M262 168l92 56a8 8 0 0 1 0 14l-92 56a8 8 0 0 1-12-7V175a8 8 0 0 1 12-7z"
-GRADIENT = ('<linearGradient id="lg" x1="150" y1="120" x2="370" y2="392" gradientUnits="userSpaceOnUse">'
-            '<stop offset="0" stop-color="#FFD978"/><stop offset="1" stop-color="#E8735A"/></linearGradient>')
+ART = 1024  # everything is drawn at this size, then scaled down
 
 
-def mark(glow=True):
-    """The mark's SVG elements (needs GRADIENT and, with glow, a #soft blur filter in <defs>)."""
-    halo = f'<path d="{L_PATH}" fill="{GOLD}" opacity=".45" filter="url(#soft)"/>' if glow else ""
-    return f'{halo}<path d="{L_PATH}" fill="url(#lg)"/><path d="{PLAY_PATH}" fill="{PAPER}"/>'
+def backdrop():
+    """The icon's curtain: darker and closer than the banner's, so the monogram carries at 40 px."""
+    cur = brand.curtain(ART, ART, seed=5, fold=140, light=(0.52, -0.3), spread=0.7, grain=0.008, vignette=(0.40, 0.3),
+                        body=(0.30, 0.05, 0.15), sheen=(0.70, 0.32, 0.45))
+    velvet = np.array([0x1F, 0x10, 0x19]) / 255
+    return cur * 0.8 + velvet * 0.25
 
 
-def svg(rounded):
-    clip = '<clipPath id="c"><rect width="512" height="512" rx="112"/></clipPath>' if rounded else ""
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-<defs>
-  {clip}{GRADIENT}
-  <radialGradient id="bg" cx="50%" cy="42%" r="75%">
-    <stop offset="0" stop-color="#3A1C2E"/><stop offset=".6" stop-color="{VELVET}"/><stop offset="1" stop-color="#140A10"/>
-  </radialGradient>
-  <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><feGaussianBlur stdDeviation="30"/></filter>
-</defs>
-<g{' clip-path="url(#c)"' if rounded else ''}>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  {mark()}
-</g>
-</svg>'''
+def icon(rounded, mono_h):
+    """The full icon as an RGBA image of ART x ART; mono_h = monogram height as a fraction of the side."""
+    h = ART * mono_h
+    mark, _ = brand.monogram(ART / 2, (ART - h) / 2, h, lit=True)
+    defs = f'<clipPath id="c"><rect width="{ART}" height="{ART}" rx="{ART * 0.2227:.1f}"/></clipPath>' if rounded else ""
+    clip = ' clip-path="url(#c)"' if rounded else ""
+    body = f'<g{clip}><image href="{brand.png_data_uri(backdrop())}" width="{ART}" height="{ART}"/>{mark}</g>'
+    return brand.rasterize(brand.svg_doc(ART, ART, body, defs), ART, ART)
 
 
-def silhouette():
-    """One-colour version (notification badge): the L in white with the play button cut out beside it."""
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="120 96 272 320" width="512" height="512">'
-            f'<path d="{L_PATH}" fill="#fff"/><path d="{PLAY_PATH}" fill="#fff"/></svg>')
+def splash():
+    """Android 12+ splash icon: 240 dp drawn at 2x; only the middle 160 dp circle shows, on velvet_deep."""
+    h = 230
+    mark, _ = brand.monogram(240, (480 - h) / 2, h, lit=True, pool=False)  # a pool would end at the circle's edge
+    return brand.rasterize(brand.svg_doc(480, 480, f'<rect width="480" height="480" fill="{brand.VELVET_DEEP}"/>{mark}'), 480, 480)
+
+
+def badge():
+    mark, _ = brand.monogram(48, 6, 84, letters="#fff", bulb="#fff")
+    return brand.rasterize(brand.svg_doc(96, 96, mark), 96, 96)
 
 
 def favicon():
-    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>' + GRADIENT + '</defs>'
-            '<rect width="64" height="64" rx="14" fill="#1F1019"/>'
-            f'<g transform="translate(-0.5 0) scale(.125)"><path d="{L_PATH}" fill="url(#lg)"/><path d="{PLAY_PATH}" fill="{PAPER}"/></g></svg>\n')
+    """64-unit grid: a velvet tile, the monogram in paper, the bulb in gold (no gradients: crisp at 16 px)."""
+    mark, _ = brand.monogram(32, 9, 46)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+            f'<rect width="64" height="64" rx="14" fill="{brand.VELVET}"/>{mark}</svg>\n')
 
 
-def render(src, out, size, opaque=False):
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    cmd = ["rsvg-convert", "-w", str(size), "-h", str(size), "-o", out, src]
-    if opaque:
-        cmd[1:1] = ["-b", VELVET]
-    subprocess.run(cmd, check=True)
+def wordmark_svg():
+    w, h = brand.WORDMARK_BOX
+    mark, _ = brand.wordmark(0, 0, h)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:g} {h:g}" width="{w / 10:g}" height="{h / 10:g}">'
+            f'<title>Lilin</title>{mark}</svg>\n')
+
+
+def write(img, path, size, opaque=False):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    out = img if img.size == (size, size) else img.resize((size, size), Image.LANCZOS)
+    brand.save(out, path, opaque=opaque)
 
 
 def main():
     pub = os.path.join(ROOT, "public")
     res = os.path.join(ROOT, "tv", "android", "app", "src", "main", "res")
-    with tempfile.TemporaryDirectory() as tmp:
-        rounded, full, mono = (os.path.join(tmp, n) for n in ("r.svg", "f.svg", "m.svg"))
-        open(rounded, "w").write(svg(True))
-        open(full, "w").write(svg(False))
-        open(mono, "w").write(silhouette())
-        for size in (192, 512):
-            render(rounded, os.path.join(pub, f"icon-{size}.png"), size)
-            render(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
-        render(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
-        render(mono, os.path.join(pub, "badge-96.png"), 96)
-        render(full, os.path.join(res, "drawable-xhdpi", "splash.png"), 480, opaque=True)
-        render(rounded, os.path.join(res, "mipmap-xhdpi", "ic_launcher.png"), 96)
-        render(rounded, os.path.join(res, "mipmap-xxxhdpi", "ic_launcher.png"), 192)
-    open(os.path.join(pub, "favicon.svg"), "w").write(favicon())
-    if "--svg" in sys.argv:
-        open("app-icon.svg", "w").write(svg(True))
+    rounded = icon(True, 0.585)
+    full = icon(False, 0.55)  # maskable: the monogram's corners stay inside the 80 % circle
+    for size in (192, 512):
+        write(rounded, os.path.join(pub, f"icon-{size}.png"), size)
+        write(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
+    write(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
+    write(badge(), os.path.join(pub, "badge-96.png"), 96)
+    write(splash(), os.path.join(res, "drawable-xhdpi", "splash.png"), 480, opaque=True)
+    write(rounded, os.path.join(res, "mipmap-xhdpi", "ic_launcher.png"), 96)
+    write(rounded, os.path.join(res, "mipmap-xxxhdpi", "ic_launcher.png"), 192)
+    with open(os.path.join(pub, "favicon.svg"), "w") as f:
+        f.write(favicon())
+    with open(os.path.join(pub, "wordmark.svg"), "w") as f:
+        f.write(wordmark_svg())
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ test('ended rooms say so, and other paths are left alone', () => {
   const ended = render(`/c/w/${TOKEN}`, { preview: () => { throw new Error('ended'); } });
   assert.equal(ended.status, 404);
   assert.match(ended.body, /This watch room has ended/);
-  assert.match(ended.body, /og:image" content="[^"]*\/c\/lilin\.png"/);
+  assert.match(ended.body, /og:image" content="[^"]*\/c\/lilin\.jpg"/);
   assert.equal(render('/c/w/short', {}).handled, false);
   assert.equal(render(`/c/${TOKEN.slice(0, 16)}`, {}).handled, false);
 });

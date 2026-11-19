@@ -26,7 +26,7 @@ export function handleWatchPage(req, res, url, { rooms, artwork }) {
   };
   if (!preview) {
     return send(404, page({
-      title: 'This watch room has ended', desc: 'Ask whoever sent the link to start a new one.', url: link, image: `${base}/c/lilin.png`,
+      title: 'This watch room has ended', desc: 'Ask whoever sent the link to start a new one.', url: link, image: `${base}/c/lilin.jpg`,
       body: '<div class="card"><h1>This watch room has ended</h1><p>Ask whoever sent the link to start a new one.</p><p><a class="brand" href="/">Open Lilin</a></p></div>',
     }));
   }
@@ -42,7 +42,7 @@ export function handleWatchPage(req, res, url, { rooms, artwork }) {
     ? `${host} planned a watch party on Lilin: it starts ${when}. Open the link and sign in to join; there's a countdown until then.`
     : `${host} is hosting a Watch Together room on Lilin${viewers > 1 ? ` · ${viewers} watching` : ''}. Open the link and sign in to join; playback stays in sync for everyone.`;
   return send(200, page({
-    title: tr('Watch {0} together', what), desc, url: link, image: art.image || `${base}/c/lilin.png`,
+    title: tr('Watch {0} together', what), desc, url: link, image: art.image || `${base}/c/lilin.jpg`,
     body: `<div class="card"><h1>${esc(tr('Watch {0} together', what))}</h1><p>${esc(when ? tr('{0} invited you (starts {1}). Taking you to the room…', host, when) : tr('{0} invited you. Taking you to the room…', host))}</p>
       <form method="get" action="/"><input type="hidden" name="watch" value="${esc(token)}"><button type="submit">Join the room</button></form>
       <p class="foot">You’ll sign in to Lilin as usual first.</p></div>

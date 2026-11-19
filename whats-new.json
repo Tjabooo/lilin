@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-new-logo",
+    "date": "2026-11-19",
+    "title": "Lilin has a new logo",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "A new look for Lilin",
+        "text": "Lilin has a new logo: the name set like a film title, with the dots of its two i's as lit bulbs. You'll see it at the top of the app, on its icon (add it to your Home Screen again to get the new one), on the TV apps and on the picture people see when you send them a link or an invite."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-credits-card-backdrop",
     "date": "2026-11-19",
     "title": "A richer credits card",

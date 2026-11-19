@@ -144,7 +144,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   const base = baseUrl(req);
   const view = (title, inner, extra) => send(200, page({
     title, desc: 'You’ve been invited to Lilin, your own cinema: films and shows on your phone, your TV, anywhere.',
-    url: `${base}${url.pathname}`, image: `${base}/c/lilin.png`, body: `<div class="card">${inner}</div>`,
+    url: `${base}${url.pathname}`, image: `${base}/c/lilin.jpg`, body: `<div class="card">${inner}</div>`,
   }), extra);
 
   const inv = Object.hasOwn(invites, m[1]) ? invites[m[1]] : null;

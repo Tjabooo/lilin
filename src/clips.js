@@ -928,7 +928,7 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
     return send(200, 'text/html; charset=utf-8', page({
       title: 'Lilin',
       desc: 'Your own cinema: films and shows on your phone, your TV, anywhere.',
-      url: `${base}/c/`, image: `${base}/c/lilin.png`,
+      url: `${base}/c/`, image: `${base}/c/lilin.jpg`,
       body: `<h1>Lilin</h1><p>Opening…</p><script>location.replace('/')</script>`,
     }));
   }
@@ -945,9 +945,10 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
     try { return send(200, fileTypes[p.slice(p.lastIndexOf('.'))], await fs.promises.readFile(file), { 'Cache-Control': 'no-cache' }); }
     catch { return send(404, 'text/plain', 'Not found.'); }
   }
-  if (p === '/c/lilin.png') {
-    const file = new URL('../public/og-lilin.png', import.meta.url);
-    try { return send(200, 'image/png', await fs.promises.readFile(file)); } catch { return send(404, 'text/plain', 'Not found.'); }
+  // The link card. A JPEG (WhatsApp drops previews over ~300 KB); /c/lilin.png stays for links already shared
+  if (p === '/c/lilin.jpg' || p === '/c/lilin.png') {
+    const file = new URL('../public/og-lilin.jpg', import.meta.url);
+    try { return send(200, 'image/jpeg', await fs.promises.readFile(file)); } catch { return send(404, 'text/plain', 'Not found.'); }
   }
 
   const m = p.match(/^\/c\/([A-Za-z0-9_-]{16})(?:\/(video\.mp4|thumb\.jpg|preview\.json|preview\/(\d{1,4})\.jpg))?\/?$/);

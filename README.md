@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/Tjabooo/lilin)](https://github.com/Tjabooo/lilin/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-tjabooo%2Flilin-blue)](https://github.com/Tjabooo/lilin/pkgs/container/lilin)
 
-![Lilin](public/og-lilin.png)
+![Lilin](public/og-lilin.jpg)
 
 A self-hosted media server for your home, made for phones first. Point it at your films and shows
 and watch them in the browser, on your phone or on the TV, with subtitles that fit.
