@@ -241,6 +241,21 @@
 .pf-entry-text strong { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--d-1); }
 .pf-entry-text small { font-size: 12.5px; color: var(--text-2); }
 .pf-entry-marks { display: flex; align-items: center; gap: 6px; }
+.pf-diary-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.pf-diary-head .pf-diary-title { margin-bottom: 0; }
+.pf-diary-filter { display: flex; gap: 6px; }
+.pf-diary-filter .chip { min-height: 32px; padding-inline: 12px; font-size: 13px; }
+.pf-entry-day.is-range { font-size: 14px; letter-spacing: -.02em; white-space: nowrap; }
+.pf-show-run { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 36px; border-bottom: 1px solid var(--hairline); }
+.pf-show-run > .pf-entry { border-bottom: 0; }
+.pf-run-toggle { display: grid; place-items: center; width: 36px; height: 100%; min-height: 44px; padding: 0; color: var(--text-2); background: none; border: 0; }
+.pf-run-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; transform: rotate(90deg); transition: transform var(--d-2) var(--ease-out); }
+.pf-run-toggle[aria-expanded="true"] svg { transform: rotate(-90deg); }
+.pf-run-toggle:hover { color: var(--pf-accent); }
+.pf-run-days { grid-column: 1 / -1; margin: 0 0 10px 46px; padding: 2px 0 2px 12px; list-style: none; border-left: 2px solid color-mix(in srgb, var(--pf-accent) 45%, transparent); }
+.pf-run-days li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
+.pf-run-day { font-weight: 700; color: var(--text-2); text-transform: capitalize; font-variant-numeric: tabular-nums; }
+.pf-run-eps { color: var(--text); }
 
 /* locked, empty, loading, gone */
 .pf-lockcard { position: relative; z-index: 2; display: grid; justify-items: center; gap: 10px; max-width: 440px; margin: var(--s6) auto 0; padding: var(--s5) var(--s5);

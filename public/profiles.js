@@ -339,12 +339,55 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   async function openDiary(ctx, more = false) {
     try {
       const offset = more ? ctx.diary.entries.length : 0;
-      const r = await api(`/api/profiles/${ctx.data.person.id}/diary?offset=${offset}`);
-      ctx.diary = { entries: [...(more ? ctx.diary.entries : []), ...r.entries], more: r.more, total: r.total };
+      const type = diaryType();
+      const r = await api(`/api/profiles/${ctx.data.person.id}/diary?offset=${offset}${type === 'all' ? '' : `&type=${type}`}`);
+      ctx.diary = { entries: [...(more ? ctx.diary.entries : []), ...r.entries], more: r.more, total: r.total, type };
       paint(ctx);
-      if (!more) requestAnimationFrame(() => ctx.page.querySelector('.pf-diary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      if (!more && !ctx.diaryRefilter) requestAnimationFrame(() => ctx.page.querySelector('.pf-diary')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (err) { toast(err.message); }
   }
+
+  // All / Films / Shows, remembered per device.
+  const DIARY_TYPE = 'lilin.diaryType';
+  const diaryType = () => { try { const t = localStorage.getItem(DIARY_TYPE); return t === 'movie' || t === 'tv' ? t : 'all'; } catch { return 'all'; } };
+  function setDiaryType(ctx, type) {
+    try { localStorage.setItem(DIARY_TYPE, type); } catch { /* private mode */ }
+    ctx.diaryRefilter = true;
+    openDiary(ctx).finally(() => { ctx.diaryRefilter = false; });
+  }
+
+  // A month's lines with every show folded into one: all its days that month, its episodes as a range. Films stay
+  // one stub per watch. The folded line sits where the show was last watched.
+  function monthLines(list) {
+    const out = [];
+    const shows = new Map();
+    for (const e of list) {
+      if (e.type !== 'tv') { out.push(e); continue; }
+      let g = shows.get(e.key);
+      if (!g) { g = { ...e, days: [], episodes: [], lines: [] }; shows.set(e.key, g); out.push(g); }
+      g.lines.push(e);
+      g.days.push(Number(e.day.slice(8, 10)));
+      for (const ep of e.episodes || []) if (!g.episodes.some(([s, n]) => s === ep[0] && n === ep[1])) g.episodes.push(ep);
+      if (e.rewatch) g.rewatch = true;
+      if (!e.letterboxd) g.letterboxd = false;
+      if (!g.card && e.card) g.card = e.card;
+    }
+    for (const g of shows.values()) g.episodes.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    return out;
+  }
+  const dayRange = (days) => {
+    const lo = Math.min(...days), hi = Math.max(...days);
+    return lo === hi ? String(lo) : `${lo}–${hi}`;
+  };
+  function episodeSpan(eps) {
+    if (eps.length < 2) return episodesText(eps);
+    const [a, z] = [eps[0], eps[eps.length - 1]];
+    const range = a[0] === z[0] ? T('S{0} E{1}–{2}', a[0], a[1], z[1]) : `${T('S{0} E{1}', a[0], a[1])} – ${T('S{0} E{1}', z[0], z[1])}`;
+    return `${T('{0} episodes', eps.length)} · ${range}`;
+  }
+  const entryMarks = (e) => h('span', { class: 'pf-entry-marks' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
+    e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
+    e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB'));
 
   function diaryList(ctx) {
     const months = new Map();
@@ -353,22 +396,40 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       if (!months.has(m)) months.set(m, []);
       months.get(m).push(e);
     }
-    const out = h('div', { class: 'pf-diary' }, h('h4', { class: 'pf-kicker pf-diary-title' }, T('Diary')));
+    const type = ctx.diary.type || 'all';
+    const out = h('div', { class: 'pf-diary' }, h('div', { class: 'pf-diary-head' }, h('h4', { class: 'pf-kicker pf-diary-title' }, T('Diary')),
+      ctx.noFilters ? null : h('div', { class: 'pf-diary-filter', role: 'group', 'aria-label': T('Show in diary') },
+        [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')]].map(([id, label]) =>
+          h('button', { type: 'button', class: 'chip', 'aria-pressed': String(type === id), onclick: () => type !== id && setDiaryType(ctx, id) }, label)))));
+    if (!ctx.diary.entries.length && type !== 'all') out.append(h('p', { class: 'pf-empty' }, type === 'movie' ? T('No films in the diary yet.') : T('No shows in the diary yet.')));
+    ctx.diaryOpen ||= new Set();
     for (const [month, list] of months) {
       out.append(h('h5', { class: 'pf-month' }, new Date(`${month}-15T12:00:00`).toLocaleDateString(locale(), { month: 'long', year: 'numeric' })),
-        h('ol', { class: 'pf-diary-list' }, list.map((e) => {
+        h('ol', { class: 'pf-diary-list' }, monthLines(list).map((e) => {
           if (e.type === 'movie') return h('li', { class: 'pf-stub-li' }, stub(ctx, e)); // ticket stubs
           const card = e.card;
+          const lines = e.lines || [e];
+          const several = lines.length > 1;
+          const id = `${month}|${e.key}`;
+          const open = several && ctx.diaryOpen.has(id);
+          const eps = e.episodes || [];
           const row = h('button', { type: 'button', class: 'pf-entry', disabled: card?.id == null, onclick: () => card && openTitle(card, row, ctx.nested) },
-            h('span', { class: 'pf-entry-day' }, String(Number(e.day.slice(8, 10)))),
+            h('span', { class: `pf-entry-day${several ? ' is-range' : ''}` }, dayRange(e.days || [Number(e.day.slice(8, 10))])),
             card?.poster ? h('img', { class: 'pf-entry-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy' }) : h('span', { class: 'pf-entry-poster' }),
             h('span', { class: 'pf-entry-text' },
-              h('strong', {}, card?.title || e.title, card?.year && e.type === 'movie' ? h('span', { class: 'muted' }, ` ${card.year}`) : null),
-              e.type === 'tv' && e.episodes?.length ? h('small', {}, episodesText(e.episodes)) : null),
-            h('span', { class: 'pf-entry-marks' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
-              e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
-              e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')));
-          return h('li', {}, row);
+              h('strong', {}, card?.title || e.title),
+              eps.length ? h('small', {}, several ? `${episodeSpan(eps)} · ${T('{0} days', lines.length)}` : episodesText(eps)) : null),
+            entryMarks(e));
+          const li = h('li', { class: several ? 'pf-show-run' : '' }, row);
+          if (several) {
+            li.append(h('button', { type: 'button', class: 'pf-run-toggle', 'aria-expanded': String(open), 'aria-label': open ? T('Hide days') : T('Show days'),
+              onclick: () => { if (open) ctx.diaryOpen.delete(id); else ctx.diaryOpen.add(id); paint(ctx); } }, icon('chevron')));
+            if (open) li.append(h('ol', { class: 'pf-run-days' }, lines.map((l) => h('li', {},
+              h('span', { class: 'pf-run-day' }, new Date(`${l.day}T12:00:00`).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' })),
+              h('span', { class: 'pf-run-eps' }, episodesText(l.episodes || [])),
+              entryMarks({ rewatch: l.rewatch, letterboxd: l.letterboxd })))));
+          }
+          return li;
         })));
     }
     if (ctx.diary.more) out.append(h('button', { type: 'button', class: 'pf-more', onclick: (e) => { e.currentTarget.disabled = true; openDiary(ctx, true); } }, h('span', {}, T('Older')), icon('chevron')));
@@ -725,7 +786,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   function recentLines(d = own.data, limit = 5) {
     const list = (d?.recent || []).slice(0, limit);
     if (!list.length) return null;
-    return diaryList({ nested: false, data: d, diary: { entries: list, more: false } });
+    return diaryList({ nested: false, data: d, diary: { entries: list, more: false }, noFilters: true });
   }
 
   // You → History / Ratings and reviews / Liked: the full lists, drawn into the open You page. redraw(): app.js
@@ -741,7 +802,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const wrap = (...kids) => h('div', { class: 'you-own' }, ...kids);
     if (kind === 'history') {
       if (!ctx.diary) { openDiary(ctx); return [wrap(h('p', { class: 'muted' }, T('Loading…')))]; }
-      if (!ctx.diary.entries.length) return [wrap(h('p', { class: 'pf-empty' }, T('Films and episodes you watch show up here.')))];
+      if (!ctx.diary.entries.length && (ctx.diary.type || 'all') === 'all') return [wrap(h('p', { class: 'pf-empty' }, T('Films and episodes you watch show up here.')))];
       return [wrap(diaryList(ctx))];
     }
     if (kind === 'ratings') {

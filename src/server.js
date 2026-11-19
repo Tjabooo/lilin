@@ -4532,7 +4532,7 @@ async function handleApi(req, res, url) {
         const offset = Number(url.searchParams.get('offset')) || 0;
         if (m[3] === 'diary') {
           if (!shown('recent')) throw new HttpError(403, 'This diary is private.');
-          const d = profiles.diary(target.id, { offset });
+          const d = profiles.diary(target.id, { offset, type: url.searchParams.get('type') });
           return sendJson(res, 200, { ...d, entries: await withCards(d.entries) });
         }
         if (m[3] === 'liked') { // You → Liked: 24 at a time

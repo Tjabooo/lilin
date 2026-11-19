@@ -106,6 +106,10 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
     const diary = await request(`/api/profiles/${ebi.id}/diary`, undefined, 'bo@p.test');
     assert.equal(diary.entries.length, 2);
     assert.equal(diary.more, false);
+    const films = await request(`/api/profiles/${ebi.id}/diary?type=movie`, undefined, 'bo@p.test');
+    assert.deepEqual(films.entries.map((e) => e.type), ['movie'], 'Films only');
+    const shows = await request(`/api/profiles/${ebi.id}/diary?type=tv`, undefined, 'bo@p.test');
+    assert.deepEqual(shows.entries.map((e) => e.type), ['tv'], 'Shows only');
 
     // Friends only: a friend sees it, others don't. Private: nobody but her.
     await request('/api/profiles/me', { visibility: 'friends' }, 'ebi@p.test');

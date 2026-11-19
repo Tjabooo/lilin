@@ -2731,4 +2731,10 @@ export default {
   "Leave a reaction here for friends": "Lämna en reaktion här åt vänner",
   "React at this moment": "Reagera just här",
   "{0} and {1} others": "{0} och {1} till",
+  "Show in diary": "Visa i dagboken",
+  "No films in the diary yet.": "Inga filmer i dagboken än.",
+  "No shows in the diary yet.": "Inga serier i dagboken än.",
+  "{0} days": "{0} dagar",
+  "Hide days": "Dölj dagar",
+  "Show days": "Visa dagar",
 };

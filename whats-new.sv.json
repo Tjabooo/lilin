@@ -1,4 +1,17 @@
 {
+  "2026-11-19-diary-tidy": {
+    "title": "En snyggare dagbok",
+    "items": {
+      "Diary folds each show into one line": {
+        "title": "Dagboken samlar varje serie på en rad",
+        "text": "En serie du tittar på under flera dagar tar nu en rad per månad i dagboken, med dagarna och avsnitten som ett spann (som S1 A1–8). Tryck på pilen för att se varje dag."
+      },
+      "Films or shows only in the diary": {
+        "title": "Bara filmer eller serier i dagboken",
+        "text": "Alla, Filmer och Serier ovanför dagboken väljer vad den visar. Valet sparas på den här enheten."
+      }
+    }
+  },
   "2026-11-19-svt-locked": {
     "title": "Kopieringsskyddade SVT-serier laddas ner ändå",
     "items": {

@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-19-diary-tidy",
+    "date": "2026-11-19",
+    "title": "A tidier diary",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Diary folds each show into one line",
+        "text": "A show you watch over several days now takes one line per month in a diary, with the days and the episodes as a range (like S1 E1–8). Tap the arrow to see each day."
+      },
+      {
+        "kind": "new",
+        "title": "Films or shows only in the diary",
+        "text": "All, Films and Shows above the diary pick what it lists. Your choice is kept on this device."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-svt-locked",
     "date": "2026-11-19",
     "title": "Copy-protected SVT shows download anyway",

@@ -247,7 +247,8 @@ function watches(userId) {
 
 // Diary lines, newest first: one per title per day. { key, type, title, day, at, episodes: [[s, e]], rewatch,
 // stars, liked, letterboxd }. offset/limit page through them; more says whether there are older ones.
-export function diary(userId, { offset = 0, limit = DIARY_PAGE } = {}) {
+// type: 'movie' or 'tv' keeps only films or only shows (film stub numbers still count every film).
+export function diary(userId, { offset = 0, limit = DIARY_PAGE, type = null } = {}) {
   const lines = new Map();
   for (const w of watches(userId)) {
     const id = `${w.key}|${w.day}`;
@@ -263,9 +264,10 @@ export function diary(userId, { offset = 0, limit = DIARY_PAGE } = {}) {
   // Ticket stubs: every film line gets its number, counting from the first film ever watched (No. 1).
   let films = all.filter((l) => l.type === 'movie').length;
   for (const l of all) if (l.type === 'movie') l.stub = films--;
+  const kept = type === 'movie' || type === 'tv' ? all.filter((l) => l.type === type) : all;
   offset = Math.max(0, Number(offset) || 0);
   limit = Math.min(60, Math.max(1, Number(limit) || DIARY_PAGE));
-  const page = all.slice(offset, offset + limit);
+  const page = kept.slice(offset, offset + limit);
   const stars = starsFor(userId, page.map((l) => l.key));
   const liked = likedSet(userId);
   for (const l of page) {
@@ -273,7 +275,7 @@ export function diary(userId, { offset = 0, limit = DIARY_PAGE } = {}) {
     l.stars = stars.get(l.key) ?? null;
     l.liked = liked.has(l.key);
   }
-  return { entries: page, more: all.length > offset + limit, total: all.length };
+  return { entries: page, more: kept.length > offset + limit, total: kept.length };
 }
 
 function starsFor(userId, keys) {
