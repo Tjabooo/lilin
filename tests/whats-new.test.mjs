@@ -118,6 +118,20 @@ test('the shipped whats-new.json is valid and nothing in it is dropped', () => {
   assert.ok(raw.slice(0, firstAnnounced + 1).every((e) => e.announce !== false), 'a quiet history entry sits between announced ones');
 });
 
+test('every shipped note has a Swedish version in whats-new.sv.json', () => {
+  const en = JSON.parse(fs.readFileSync(new URL('../whats-new.json', import.meta.url), 'utf8'));
+  const sv = JSON.parse(fs.readFileSync(new URL('../whats-new.sv.json', import.meta.url), 'utf8'));
+  const missing = [];
+  for (const e of en) {
+    if (!sv[e.id]?.title) missing.push(`${e.id}: title`);
+    for (const item of e.items || []) {
+      const t = sv[e.id]?.items?.[item.title];
+      if (!t?.title || !t?.text) missing.push(`${e.id}: "${item.title}"`);
+    }
+  }
+  assert.deepEqual(missing, [], 'add these to whats-new.sv.json (keyed by id, then English item title)');
+});
+
 test('the build id changes with the files', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-build-'));
   try {
