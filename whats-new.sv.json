@@ -1,4 +1,17 @@
 {
+  "2026-11-19-profile-editor": {
+    "title": "Ett snyggare Redigera profil",
+    "items": {
+      "Edit profile in four tabs": {
+        "title": "Redigera profil i fyra flikar",
+        "text": "Redigera profil är uppdelat i Profil, Favoriter, Utseende och Sida i stället för en lång lista, och textfälten är lättare att läsa och trycka på."
+      },
+      "See your profile while you edit it": {
+        "title": "Se din profil medan du redigerar den",
+        "text": "Ett litet kort högst upp visar din banner, bild, ditt namn, pronomen och din färg, och ändras medan du skriver eller väljer ett nytt utseende."
+      }
+    }
+  },
   "2026-11-19-diary-tidy": {
     "title": "En snyggare dagbok",
     "items": {

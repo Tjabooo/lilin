@@ -2402,6 +2402,7 @@ export default {
   "Only you can see your profile. Others see your name and picture.": "Bara du kan se din profil. Andra ser ditt namn och din bild.",
   "{0}’s profile": "{0}s profil",
   "Profile": "Profil",
+  "Page": "Sida",
   "Couldn’t open this profile": "Kunde inte öppna profilen",
   "On Lilin since {0}": "På Lilin sedan {0}",
   "Share profile": "Dela profil",

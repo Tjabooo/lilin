@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-19-profile-editor",
+    "date": "2026-11-19",
+    "title": "A cleaner Edit profile",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Edit profile in four tabs",
+        "text": "Edit profile is split into Profile, Favourites, Look and Page instead of one long list, and the text fields are easier to read and tap."
+      },
+      {
+        "kind": "new",
+        "title": "See your profile while you edit it",
+        "text": "A small card at the top shows your banner, picture, name, pronouns and colour, and changes as you type or pick a new look."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-diary-tidy",
     "date": "2026-11-19",
     "title": "A tidier diary",

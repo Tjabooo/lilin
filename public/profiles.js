@@ -504,12 +504,13 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     ctx.draft = {
       name: d.person.name || '', handle: d.person.handle, pronouns: d.person.pronouns || '', bio: d.person.bio || '', visibility: d.visibility,
       favorites: (d.favorites || []).map((f) => ({ ...f })), look: { ...d.look }, bannerCard: null, sections: d.sections.map((s) => ({ ...s })),
+      tab: TAB_OF[focus] || 'profile',
     };
     let saved = false;
     const draft = ctx.draft;
     const repaint = () => paint(ctx);
-    const body = h('div', { class: 'sheet-content pf-editor' });
-    const draw = () => body.replaceChildren(...editorNodes(ctx, draft, { repaint, redraw: draw, save }));
+    const body = h('div', { class: 'pf-editor' });
+    const draw = () => body.replaceChildren(...editorNodes(ctx, draft, { repaint, redraw: draw, save, body }));
     async function save(btn) {
       btn.disabled = true;
       try {
@@ -534,7 +535,6 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     }
     draw();
     picker.open([body], opener, () => { if (!saved) { ctx.draft = null; paint(ctx); } }, ctx.nested);
-    if (focus) requestAnimationFrame(() => body.querySelector(`[data-part="${focus}"]`)?.scrollIntoView({ block: 'start' }));
   }
 
   // Letterboxd (letterboxd.js). Linking happens right away, not on Save: it reads their feed, and a typo should say so
@@ -610,75 +610,132 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('p', { class: 'set-hint' }, T('Unlinking takes the Letterboxd films out of your diary, and the stars and reviews it brought over that you haven’t changed.')));
   }
 
-  function editorNodes(ctx, draft, { repaint, redraw, save }) {
+  // The editor is four tabs under a small live card of how your profile looks (on phones the sheet covers the page it
+  // repaints, so the card is what you see change). draft.tab remembers the open tab across redraws.
+  const EDITOR_TABS = [['profile', T('Profile')], ['favorites', T('Favourites')], ['look', T('Look')], ['page', T('Page')]];
+  const TAB_OF = { you: 'profile', letterboxd: 'profile', favorites: 'favorites', look: 'look', sections: 'page', privacy: 'page' };
+
+  function editorCard(ctx, draft) {
+    const d = previewOf(ctx.data, draft);
+    const look = d.look || {};
+    const banner = bannerOf(d);
+    const p = d.person;
+    const bannerClass = look.banner === 'none' ? ' pf-ed-banner-none' : banner ? '' : ` pf-grad pf-grad-${look.banner === 'gradient' ? look.gradient : 'ember'}`;
+    return h('div', { class: `pf-ed-card pf-font-${look.font || 'display'}`, style: `--pf-accent:${look.accent || tintOf(p.name)}`, 'aria-hidden': 'true' },
+      h('div', { class: `pf-ed-banner${bannerClass}` }, banner && look.banner !== 'none' && h('img', { src: small(banner, 'w780'), alt: '', decoding: 'async' })),
+      h('div', { class: 'pf-ed-who' },
+        h('div', { class: 'pf-ed-face' }, people.face(p, { size: 64 })),
+        h('div', { class: 'pf-ed-names' },
+          h('p', { class: 'pf-name pf-ed-name' }, p.name),
+          h('p', { class: 'pf-ed-sub' }, `@${p.handle}`, p.pronouns && h('span', {}, ` · ${p.pronouns}`)))),
+      p.bio && h('p', { class: 'pf-ed-bio' }, p.bio));
+  }
+
+  function editorNodes(ctx, draft, { repaint, redraw, save, body }) {
     const look = draft.look;
+    const tab = draft.tab || 'profile';
+    let card = editorCard(ctx, draft);
+    // typing updates the card and the page without a redraw (that would take the focus out of the field)
+    const live = () => { repaint(); const next = editorCard(ctx, draft); card.replaceWith(next); card = next; };
     const setLook = (patch) => { Object.assign(look, patch); repaint(); redraw(); };
-    const field = (label, input, hint) => h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, label), input, hint);
+    const hint = (...text) => h('p', { class: 'pf-ed-hint' }, ...text);
+    const row = (label, input, { extra = null, note = null } = {}) => h('label', { class: 'pf-ed-row' },
+      h('span', { class: 'pf-ed-label' }, h('span', {}, label), extra), input, note && h('span', { class: 'pf-ed-note' }, note));
+    const block = (label, ...kids) => h('div', { class: 'pf-ed-block' }, h('p', { class: 'pf-ed-label' }, label), ...kids);
+    const titled = (title, ...kids) => h('section', { class: 'pf-ed-section' }, h('h3', { class: 'pf-ed-title' }, title), ...kids);
 
-    // you
-    const name = h('input', { type: 'text', class: 'invite-note', value: draft.name, maxlength: '40', autocomplete: 'nickname', 'aria-label': T('Your name') });
-    name.addEventListener('input', () => { draft.name = name.value; repaint(); });
-    const avatar = ctx.data.person.avatar;
-    const handle = h('input', { type: 'text', class: 'invite-note', value: draft.handle, maxlength: '21', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', 'aria-label': T('Username') });
-    handle.addEventListener('input', () => { draft.handle = handle.value.trim().replace(/^@+/, '').toLowerCase(); repaint(); });
-    const pronouns = h('input', { type: 'text', class: 'invite-note', value: draft.pronouns, maxlength: '24', placeholder: T('e.g. she/her'), 'aria-label': T('Pronouns') });
-    pronouns.addEventListener('input', () => { draft.pronouns = pronouns.value; repaint(); });
-    const count = h('span', { class: 'pf-count' });
-    const bio = h('textarea', { class: 'invite-note pf-bio-input', rows: '4', maxlength: String(MAX_BIO), placeholder: T('A line or two about you and what you watch'), 'aria-label': T('Bio') }, draft.bio);
-    const counted = () => { count.textContent = `${bio.value.length}/${MAX_BIO}`; };
-    bio.addEventListener('input', () => { draft.bio = bio.value; counted(); repaint(); });
-    counted();
-
-    const part = (id, title, ...kids) => h('section', { class: 'pf-part', 'data-part': id }, h('h3', {}, title), ...kids);
-    return [
-      h('h2', { id: 'picker-title' }, T('Edit profile')),
-      h('p', { class: 'picker-sub muted' }, T('Changes show on your profile behind this sheet. Save to keep them.')),
-      part('you', T('You'),
-        field(T('Name'), name, h('span', { class: 'set-hint' }, T('Shown everywhere in Lilin.'))),
-        h('p', { class: 'set-hint pf-pic-hint' }, T('Tap your picture on your profile to change it.'),
-          avatar && removePicture && h('button', { type: 'button', class: 'pf-pic-remove',
-            onclick: async (e) => { e.currentTarget.disabled = true; await removePicture(); ctx.data.person.avatar = null; repaint(); redraw(); } }, T('Remove picture'))),
-        field(T('Username'), h('span', { class: 'pf-at-field' }, h('span', { 'aria-hidden': 'true' }, '@'), handle), h('span', { class: 'set-hint' }, T('3 to 20 letters, numbers, dots or underscores.'))),
-        field(T('Pronouns'), pronouns),
-        field(T('Bio'), bio, count)),
-      part('favorites', T('Favourites'), favoritesEditor(draft, { repaint, redraw })),
-      part('letterboxd', T('Letterboxd'), letterboxdEditor(ctx, { repaint, redraw })),
-      part('look', T('Look'),
-        h('p', { class: 'pf-field-label' }, T('Accent')),
-        h('div', { class: 'pf-swatches' },
+    const panels = {
+      profile: () => {
+        const name = h('input', { type: 'text', class: 'pf-ed-input', value: draft.name, maxlength: '40', autocomplete: 'nickname' });
+        name.addEventListener('input', () => { draft.name = name.value; live(); });
+        const handle = h('input', { type: 'text', class: 'pf-ed-input', value: draft.handle, maxlength: '21', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
+        handle.addEventListener('input', () => { draft.handle = handle.value.trim().replace(/^@+/, '').toLowerCase(); live(); });
+        const pronouns = h('input', { type: 'text', class: 'pf-ed-input', value: draft.pronouns, maxlength: '24', placeholder: T('e.g. she/her') });
+        pronouns.addEventListener('input', () => { draft.pronouns = pronouns.value; live(); });
+        const count = h('span', { class: 'pf-count' });
+        const bio = h('textarea', { class: 'pf-ed-input pf-ed-bio-input', rows: '3', maxlength: String(MAX_BIO), placeholder: T('A line or two about you and what you watch') }, draft.bio);
+        const counted = () => { count.textContent = `${bio.value.length}/${MAX_BIO}`; };
+        bio.addEventListener('input', () => { draft.bio = bio.value; counted(); live(); });
+        counted();
+        const avatar = ctx.data.person.avatar;
+        return [
+          h('div', { class: 'pf-ed-group' },
+            row(T('Name'), name, { note: T('Shown everywhere in Lilin.') }),
+            row(T('Username'), h('span', { class: 'pf-ed-at' }, h('span', { 'aria-hidden': 'true' }, '@'), handle), { note: T('3 to 20 letters, numbers, dots or underscores.') }),
+            row(T('Pronouns'), pronouns),
+            row(T('Bio'), bio, { extra: count })),
+          hint(T('Tap your picture on your profile to change it.'),
+            avatar && removePicture && h('button', { type: 'button', class: 'pf-pic-remove',
+              onclick: async (e) => { e.currentTarget.disabled = true; await removePicture(); ctx.data.person.avatar = null; repaint(); redraw(); } }, T('Remove picture'))),
+          titled(T('Letterboxd'), letterboxdEditor(ctx, { repaint, redraw })),
+        ];
+      },
+      favorites: () => [favoritesEditor(draft, { repaint, redraw })],
+      look: () => [
+        block(T('Accent'), h('div', { class: 'pf-swatches' },
           h('button', { type: 'button', class: 'pf-swatch pf-swatch-auto', 'aria-pressed': String(!look.accent), 'aria-label': T('From your picture colour'), title: T('Automatic'), style: `--c:${tintOf(me()?.name)}`, onclick: () => setLook({ accent: null }) }, 'A'),
           ...ACCENTS.map((c) => h('button', { type: 'button', class: 'pf-swatch', 'aria-pressed': String(look.accent?.toLowerCase() === c.toLowerCase()), 'aria-label': c, style: `--c:${c}`, onclick: () => setLook({ accent: c.toLowerCase() }) })),
           (() => {
             const custom = h('input', { type: 'color', class: 'pf-color', value: look.accent || tintOf(me()?.name).toLowerCase(), 'aria-label': T('Pick any colour') });
-            custom.addEventListener('input', () => { look.accent = custom.value.toLowerCase(); repaint(); });
+            custom.addEventListener('input', () => { look.accent = custom.value.toLowerCase(); live(); });
             custom.addEventListener('change', () => redraw());
             return h('label', { class: `pf-swatch pf-swatch-custom${look.accent && !ACCENTS.some((c) => c.toLowerCase() === look.accent) ? ' on' : ''}`, title: T('Pick any colour') }, custom, icon('plus'));
-          })()),
-        h('p', { class: 'pf-field-label' }, T('Banner')),
-        segmented([['auto', T('Auto')], ['title', T('A title')], ['gradient', T('Colour')], ['none', T('None')]], look.banner, (v) => setLook({ banner: v })),
-        look.banner === 'auto' && h('p', { class: 'set-hint' }, T('A picture from your first favourite, or from what you watched last.')),
-        look.banner === 'gradient' && h('div', { class: 'pf-swatches pf-grads' }, GRADIENTS.map((g) => h('button', { type: 'button', class: `pf-gradbtn pf-grad pf-grad-${g}`, 'aria-pressed': String(look.gradient === g), 'aria-label': g, onclick: () => setLook({ gradient: g }) }))),
-        look.banner === 'title' && bannerPicker(draft, { repaint, redraw }),
-        h('p', { class: 'pf-field-label' }, T('Background')),
-        segmented([['glow', T('Glow')], ['image', T('Picture')], ['plain', T('Plain')]], look.background, (v) => setLook({ background: v })),
-        h('p', { class: 'pf-field-label' }, T('Name')),
-        h('div', { class: 'pf-choices' }, FONTS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-font-${k}`, 'aria-pressed': String(look.font === k), onclick: () => setLook({ font: k }) },
-          h('span', { class: 'pf-choice-sample pf-name-sample' }, 'Aa'), h('span', {}, label)))),
-        h('p', { class: 'pf-field-label' }, T('Posters')),
-        h('div', { class: 'pf-choices' }, POSTERS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-posters-${k}`, 'aria-pressed': String(look.posters === k), onclick: () => setLook({ posters: k }) },
-          h('span', { class: 'pf-choice-sample' }, h('span', { class: 'pf-poster pf-mini' })), h('span', {}, label)))),
-        h('p', { class: 'pf-field-label' }, T('Layout')),
-        segmented([['center', T('Centred')], ['left', T('Left')]], look.align, (v) => setLook({ align: v }))),
-      part('sections', T('Sections'),
-        h('p', { class: 'set-hint' }, T('Choose what shows and in which order. Empty sections stay hidden from others.')),
-        h('ol', { class: 'pf-order' }, draft.sections.map((s, i) => h('li', { class: s.on ? '' : 'off' },
-          h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(s.on), 'aria-label': SECTION_NAMES[s.id], onclick: () => { s.on = !s.on; repaint(); redraw(); } }, h('span', {})),
-          h('span', { class: 'pf-order-name' }, SECTION_NAMES[s.id]),
-          h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} up', SECTION_NAMES[s.id]), disabled: i === 0, onclick: () => { move(draft.sections, i, -1); repaint(); redraw(); } }, icon('up')),
-          h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', SECTION_NAMES[s.id]), disabled: i === draft.sections.length - 1, onclick: () => { move(draft.sections, i, 1); repaint(); redraw(); } }, icon('down')))))),
-      part('privacy', T('Who can see it'),
-        segmented(VISIBILITY, draft.visibility, (v) => { draft.visibility = v; repaint(); redraw(); }),
-        h('p', { class: 'set-hint' }, VISIBILITY_HINTS[draft.visibility])),
+          })())),
+        block(T('Banner'),
+          segmented([['auto', T('Auto')], ['title', T('A title')], ['gradient', T('Colour')], ['none', T('None')]], look.banner, (v) => setLook({ banner: v })),
+          look.banner === 'auto' && hint(T('A picture from your first favourite, or from what you watched last.')),
+          look.banner === 'gradient' && h('div', { class: 'pf-grads' }, GRADIENTS.map((g) => h('button', { type: 'button', class: `pf-gradbtn pf-grad pf-grad-${g}`, 'aria-pressed': String(look.gradient === g), 'aria-label': g, onclick: () => setLook({ gradient: g }) }))),
+          look.banner === 'title' && bannerPicker(draft, { repaint, redraw })),
+        block(T('Background'), segmented([['glow', T('Glow')], ['image', T('Picture')], ['plain', T('Plain')]], look.background, (v) => setLook({ background: v }))),
+        block(T('Name'), h('div', { class: 'pf-choices' }, FONTS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-font-${k}`, 'aria-pressed': String(look.font === k), onclick: () => setLook({ font: k }) },
+          h('span', { class: 'pf-choice-sample pf-name-sample' }, 'Aa'), h('span', {}, label))))),
+        block(T('Posters'), h('div', { class: 'pf-choices' }, POSTERS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-posters-${k}`, 'aria-pressed': String(look.posters === k), onclick: () => setLook({ posters: k }) },
+          h('span', { class: 'pf-choice-sample' }, h('span', { class: 'pf-poster pf-mini' })), h('span', {}, label))))),
+        block(T('Layout'), segmented([['center', T('Centred')], ['left', T('Left')]], look.align, (v) => setLook({ align: v }))),
+      ],
+      page: () => [
+        titled(T('Who can see it'),
+          h('div', { class: 'pf-ed-vis', role: 'radiogroup', 'aria-label': T('Who can see it') }, VISIBILITY.map(([k, label]) => h('button', {
+            type: 'button', role: 'radio', class: 'pf-ed-vis-opt', 'aria-checked': String(draft.visibility === k), onclick: () => { draft.visibility = k; repaint(); redraw(); } },
+          icon(k === 'public' ? 'globe' : k === 'friends' ? 'friends' : 'lock'),
+          h('span', { class: 'pf-ed-vis-text' }, h('strong', {}, label), h('span', {}, VISIBILITY_HINTS[k])))))),
+        titled(T('Sections'),
+          hint(T('Choose what shows and in which order. Empty sections stay hidden from others.')),
+          h('ol', { class: 'pf-order' }, draft.sections.map((s, i) => h('li', { class: s.on ? '' : 'off' },
+            h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(s.on), 'aria-label': SECTION_NAMES[s.id], onclick: () => { s.on = !s.on; repaint(); redraw(); } }, h('span', {})),
+            h('span', { class: 'pf-order-name' }, SECTION_NAMES[s.id]),
+            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} up', SECTION_NAMES[s.id]), disabled: i === 0, onclick: () => { move(draft.sections, i, -1); repaint(); redraw(); } }, icon('up')),
+            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', SECTION_NAMES[s.id]), disabled: i === draft.sections.length - 1, onclick: () => { move(draft.sections, i, 1); repaint(); redraw(); } }, icon('down')))))),
+      ],
+    };
+
+    // Switching tabs keeps the tab row where it is: if it had stuck to the top, the new tab starts right under it.
+    const anchor = h('div', { class: 'pf-ed-anchor', 'aria-hidden': 'true' });
+    const pick = (id, focus = false) => {
+      if (id === tab) return;
+      const sheet = body.closest('.sheet');
+      const stuck = sheet && sheet.scrollTop > anchor.offsetTop;
+      draft.tab = id;
+      redraw();
+      if (stuck) sheet.scrollTop = body.querySelector('.pf-ed-anchor')?.offsetTop ?? 0;
+      if (focus) body.querySelector(`#pf-tab-${id}`)?.focus();
+    };
+    const ids = EDITOR_TABS.map(([id]) => id);
+    const tabs = h('div', { class: 'pf-ed-tabs', role: 'tablist', 'aria-label': T('Edit profile') }, EDITOR_TABS.map(([id, label]) => h('button', {
+      type: 'button', role: 'tab', id: `pf-tab-${id}`, 'aria-selected': String(id === tab), 'aria-controls': 'pf-ed-panel', tabindex: id === tab ? '0' : '-1', onclick: () => pick(id) }, label)));
+    tabs.addEventListener('keydown', (e) => {
+      const by = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!by) return;
+      e.preventDefault();
+      pick(ids[(ids.indexOf(tab) + by + ids.length) % ids.length], true);
+    });
+
+    return [
+      h('h2', { id: 'picker-title', class: 'pf-ed-heading' }, T('Edit profile')),
+      card,
+      anchor,
+      tabs,
+      h('div', { class: 'pf-ed-panel', id: 'pf-ed-panel', role: 'tabpanel', 'aria-labelledby': `pf-tab-${tab}` }, ...panels[tab]()),
       h('div', { class: 'pf-save-bar' }, h('button', { type: 'button', class: 'play-btn', onclick: (e) => save(e.currentTarget) }, T('Save'))),
     ];
   }
