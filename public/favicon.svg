@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <title>Lilin</title>
-  <rect width="128" height="128" rx="27" fill="#FF5649"/>
-  <path fill="#211B2A" transform="translate(38 16) scale(1)" d="M0 9L34 0V5L27 11V67L8 80V13L0 14Z M8 86L48 59H54L50 96H0V91Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="27" fill="#262033"/><g transform="translate(1.28 1.28) scale(0.98)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="#F6EADF">
+  <title>Lilin cinema glasses</title>
+  <path fill-rule="evenodd" d="M8 33Q8 29 13 29H115Q120 29 120 34L116 63Q115 75 103 76L84 77Q74 77 70 67L67 58Q66 54 64 54Q61 54 60 58L57 67Q54 76 43 77L23 75Q13 74 12 64Z
+    M19 40L23 61Q24 65 28 65L44 67Q47 67 48 63L55 40Z M73 40L80 63Q81 67 85 67L101 65Q105 65 106 61L109 40Z"/>
+  <path fill="#FF6157" d="M19 40L23 61Q24 65 28 65L44 67Q47 67 48 63L55 40Z"/>
+  <path fill="#56BFF2" d="M73 40L80 63Q81 67 85 67L101 65Q105 65 106 61L109 40Z"/>
+  <path d="M40 84Q64 99 88 80Q89 91 79 97Q57 110 40 90Q37 86 40 84Z"/>
 </svg>
+</g></svg>

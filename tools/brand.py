@@ -2,7 +2,7 @@
 """Native TV artwork, the shared tagline and the rendering helpers for Lilin's branding.
 
 The TV artwork uses a cinema-title serif with lit bulbs for the two i-dots. The web artwork
-uses the split L and lettering in public/wordmark.svg.
+uses the cinema glasses and lettering in tools/art/viewer.svg and public/wordmark.svg.
 
   WORDMARK   "lilin": Gloock outlines (Duarte Pinto, SIL OFL 1.1) with taller l's (+70 units, columns either side of
              each bulb), the gap in the n's base closed so the foot serifs run on as one stage line, tracking -10,
@@ -300,6 +300,11 @@ def png_data_uri(rgb):
     buf = io.BytesIO()
     Image.fromarray((np.clip(rgb, 0, 1) * 255 + 0.5).astype("uint8")).save(buf, "PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def viewer_stencil(svg, ink):
+    """Print the glasses frame and smile in one ink with open lenses."""
+    return svg.replace("#F6EADF", ink).replace("#FF6157", "none").replace("#56BFF2", "none")
 
 
 def rasterize(svg, w, h):

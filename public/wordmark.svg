@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 96" width="250" height="96" fill="#F6EADF">
   <title>Lilin</title>
-  <g fill="#FF5649">
-    <path id="lilin-initial" d="M0 9L34 0V5L27 11V67L8 80V13L0 14Z M8 86L48 59H54L50 96H0V91Z"/>
-  </g>
   <g id="lilin-type">
-    <path d="M61 8L88 1V6L82 11V85L88 89V96H59V90L65 85V12L61 13Z"/>
-    <path transform="translate(96)" d="M0 9L34 0V5L27 11V67L8 80V13L0 14Z M8 86L48 59H54L50 96H0V91Z"/>
-    <path transform="translate(96)" d="M61 8L88 1V6L82 11V85L88 89V96H59V90L65 85V12L61 13Z"/>
-    <path d="M191 8L212 2L238 63V12L230 9V4L250 0V6L246 10V96H234L203 29V85L211 90V96H189V90L195 85V14L191 13Z"/>
+    <path d="M3 5Q3 1 7 1H22Q26 1 26 5V63Q26 76 39 76H43V94H36Q3 94 3 64Z"/>
+    <path d="M51 42H73V94H51Z"/>
+    <path transform="translate(79)" d="M3 5Q3 1 7 1H22Q26 1 26 5V63Q26 76 39 76H43V94H36Q3 94 3 64Z"/>
+    <path d="M130 42H152V94H130Z"/>
+    <path d="M164 42H185V49Q195 39 211 39Q246 39 246 73V94H224V73Q224 58 209 58Q187 58 187 78V94H164Z"/>
+  </g>
+  <g id="lilin-lenses">
+    <path fill="#FF6157" d="M49 15L73 12Q78 12 77 17L75 28Q74 32 70 33L51 35Q47 35 47 31V19Q47 16 49 15Z"/>
+    <path fill="#56BFF2" transform="translate(79)" d="M49 15L73 12Q78 12 77 17L75 28Q74 32 70 33L51 35Q47 35 47 31V19Q47 16 49 15Z"/>
   </g>
 </svg>

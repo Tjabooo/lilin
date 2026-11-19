@@ -8,6 +8,7 @@ the tidal cinema illustration in tools/art/tidal-screen.jpg and the original out
 import os
 import sys
 
+import numpy as np
 from PIL import Image, ImageOps
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,13 +17,32 @@ import brand  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def print_billboard(art):
+    """Project the one-colour viewer onto the four painted corners of the screen."""
+    with open(os.path.join(ROOT, "tools", "art", "viewer.svg"), encoding="utf-8") as f:
+        viewer = brand.rasterize(brand.viewer_stencil(f.read(), "#fff"), 360, 360)
+    panel = Image.new("L", (800, 420))
+    panel.paste(viewer.getchannel("A"), (220, 36))
+    corners = [(680, 285), (1073, 26), (1057, 366), (668, 461)]
+    # Pillow samples from the panel for each output pixel, so solve screen -> panel.
+    rows, values = [], []
+    for (x, y), (u, v) in zip(corners, [(0, 0), (800, 0), (800, 420), (0, 420)]):
+        rows.extend(([x, y, 1, 0, 0, 0, -u*x, -u*y], [0, 0, 0, x, y, 1, -v*x, -v*y]))
+        values.extend((u, v))
+    coeffs = np.linalg.solve(rows, values)
+    mask = panel.transform(art.size, Image.Transform.PERSPECTIVE, coeffs, Image.Resampling.BICUBIC)
+    ink = Image.blend(art, Image.new("RGBA", art.size, "#211B2A"), 0.86)
+    art.paste(ink, mask=mask)
+
+
 def og(out):
     w, h = 1200, 630
     with Image.open(os.path.join(ROOT, "tools", "art", "tidal-screen.jpg")) as plate:
         art = ImageOps.fit(plate, (w, h), method=Image.LANCZOS).convert("RGBA")
+    print_billboard(art)
     with open(os.path.join(ROOT, "public", "wordmark.svg"), encoding="utf-8") as f:
         ink = "#211B2A"
-        title = f.read().replace("#F6EADF", ink).replace("#FF5649", ink)
+        title = f.read().replace("#F6EADF", ink).replace("#FF6157", "#BB302F").replace("#56BFF2", "#175E96")
         mark = brand.rasterize(title, 540, 207)
     left = 61
     art.alpha_composite(mark, (left, 175))
