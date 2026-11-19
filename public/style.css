@@ -4240,3 +4240,33 @@ html.wrapped-on { overflow: hidden; }
   .credits-card { animation-duration: .01s; }
   .crd-bg img { transition: none; scale: 1; }
 }
+
+/* Phones in a browser tab: "Better from your Home Screen" popup over the player. */
+.hs-nudge {
+  position: absolute; z-index: 8; left: 50%; top: 50%; translate: -50% -50%;
+  width: min(340px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 6px 8px;
+  color: var(--paper);
+  background: rgb(24 16 21 / .9); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / .12); border-radius: var(--r-lg);
+  box-shadow: 0 24px 60px -12px rgb(0 0 0 / .7);
+  animation: menu-in var(--d-2) var(--ease-out);
+}
+.hs-nudge[hidden] { display: none; }
+.hs-nudge-title { margin: 0 12px 6px; font: 600 19px/1.25 var(--display, var(--body)); color: var(--paper); }
+.hs-nudge .fs-guide-lead { margin-bottom: 14px; }
+.hs-nudge .cc-message { margin: 10px 12px 4px; }
+.hs-nudge-add {
+  display: block; width: calc(100% - 24px); margin: 0 12px; min-height: 46px; border: 0; border-radius: 999px;
+  font: 600 15px/1 var(--body); color: #1a1014; background: var(--bulb); cursor: pointer;
+}
+.hs-nudge-add:active, .hs-nudge-ok:active, .hs-nudge-never:active { transform: scale(.97); }
+.hs-nudge-actions { display: flex; justify-content: flex-end; gap: 6px; margin: 8px 6px 0; }
+.hs-nudge-actions button { min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px; font: 600 14px/1 var(--body); cursor: pointer; }
+.hs-nudge-never { color: var(--dust); background: none; }
+.hs-nudge-ok { color: var(--paper); background: rgb(255 255 255 / .12); }
+@media (orientation: landscape) and (max-height: 600px) {
+  .hs-nudge { width: min(560px, calc(100% - 32px)); }
+  .hs-nudge .fs-guide-steps { grid-template-columns: repeat(3, 1fr); }
+  .hs-nudge .fs-guide-steps li { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 6px; font-size: 13px; }
+}

@@ -7533,17 +7533,20 @@ function guideIcon(paths) {
   el.innerHTML = `<svg viewBox="0 0 24 24">${paths}</svg>`;
   return el;
 }
+function iosHomeSteps() {
+  return h('ol', { class: 'fs-guide-steps' },
+    h('li', {}, guideIcon('<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/>'),
+      h('span', {}, T('Tap Share in Safari (behind ••• if you don’t see it).'))),
+    h('li', {}, guideIcon('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>'),
+      h('span', {}, T('Choose Add to Home Screen, keep Open as Web App on, then tap Add.'))),
+    h('li', {}, guideIcon('<rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M18 10v4"/>'),
+      h('span', {}, T('Open Lilin from the new icon and turn your phone sideways.'))));
+}
 function renderFsGuide() {
   fsGuide.replaceChildren(
     h('p', { class: 'audio-title' }, T('Watch fullscreen')),
     h('p', { class: 'fs-guide-lead' }, T('Safari’s bar can’t be hidden, but Lilin from your Home Screen fills the whole screen, with Skip intro, Up next and subtitles still working.')),
-    h('ol', { class: 'fs-guide-steps' },
-      h('li', {}, guideIcon('<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/>'),
-        h('span', {}, T('Tap Share in Safari (behind ••• if you don’t see it).'))),
-      h('li', {}, guideIcon('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>'),
-        h('span', {}, T('Choose Add to Home Screen, keep Open as Web App on, then tap Add.'))),
-      h('li', {}, guideIcon('<rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M18 10v4"/>'),
-        h('span', {}, T('Open Lilin from the new icon and turn your phone sideways.')))),
+    iosHomeSteps(),
     h('p', { class: 'cc-message' }, T('Where you stopped is saved, so this picks up in Continue watching.')),
     h('div', { class: 'cc-divider', role: 'separator' }),
     h('button', { type: 'button', class: 'cc-item fs-guide-native', onclick: () => { closeFsGuide(); try { video.webkitEnterFullscreen(); } catch { /* not ready yet */ } } },
@@ -7562,6 +7565,62 @@ function openFsGuide() {
 // Capture phase: the other menu buttons stop their clicks from bubbling.
 document.addEventListener('click', (e) => { if (!fsGuide.hidden && !fsGuide.contains(e.target) && !fsBtn.contains(e.target)) closeFsGuide(); }, true);
 fsGuide.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeFsGuide(); fsBtn.focus(); } });
+// Phones watching in a browser tab: the first time something plays, suggest the Home Screen app (no
+// browser bars, real fullscreen). "Not now" asks again after a week, "Don't show again" never does.
+// Android Chrome hands over its own install prompt, so there the popup has a one-tap Add button.
+const isPhone = !isIPad && matchMedia('(pointer: coarse) and (max-width: 600px), (pointer: coarse) and (max-height: 600px)').matches;
+const isIPhone = /iPhone|iPod/.test(navigator.userAgent);
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { if (!isPhone) return; e.preventDefault(); installPrompt = e; });
+window.addEventListener('appinstalled', () => { installPrompt = null; closeHsNudge(true); });
+const HS_NUDGE = 'tip:homescreen-nudge';
+const hsNudge = h('div', { class: 'hs-nudge', role: 'dialog', 'aria-labelledby': 'hs-nudge-title', hidden: true });
+playerEl.append(hsNudge);
+let hsNudgeShown = false; // once per page load at most
+function hsNudgeDue() {
+  if (!isPhone || isStandalone || hsNudgeShown) return false;
+  try {
+    const v = localStorage.getItem(HS_NUDGE);
+    return v !== 'never' && (!v || Date.now() - Number(v) > 7 * 864e5);
+  } catch { return false; }
+}
+function closeHsNudge(never) {
+  if (hsNudge.hidden) return;
+  hsNudge.hidden = true;
+  try { localStorage.setItem(HS_NUDGE, never ? 'never' : String(Date.now())); } catch { /* private mode */ }
+}
+function androidHomeSteps() {
+  return h('ol', { class: 'fs-guide-steps' },
+    h('li', {}, guideIcon('<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>'),
+      h('span', {}, T('Tap ⋮ in the corner of your browser.'))),
+    h('li', {}, guideIcon('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>'),
+      h('span', {}, T('Choose Add to Home screen (or Install app), then Add.'))),
+    h('li', {}, guideIcon('<rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M18 10v4"/>'),
+      h('span', {}, T('Open Lilin from the new icon and turn your phone sideways.'))));
+}
+function openHsNudge() {
+  const add = installPrompt && h('button', { type: 'button', class: 'hs-nudge-add', onclick: async () => {
+    const p = installPrompt; installPrompt = null;
+    try { await p.prompt(); const { outcome } = await p.userChoice; closeHsNudge(outcome === 'accepted'); } catch { closeHsNudge(false); }
+  } }, T('Add to Home Screen'));
+  hsNudge.replaceChildren(
+    h('p', { class: 'hs-nudge-title', id: 'hs-nudge-title' }, T('Better from your Home Screen')),
+    h('p', { class: 'fs-guide-lead' }, T('Add Lilin to your Home Screen and it opens like an app: no browser bars, the video fills the whole screen, and Skip intro, Up next and subtitles keep working.')),
+    add || (isIPhone ? iosHomeSteps() : androidHomeSteps()),
+    h('p', { class: 'cc-message' }, T('Where you stopped is saved, so this picks up in Continue watching.')),
+    h('div', { class: 'hs-nudge-actions' },
+      h('button', { type: 'button', class: 'hs-nudge-never', onclick: () => closeHsNudge(true) }, T('Don’t show again')),
+      h('button', { type: 'button', class: 'hs-nudge-ok', onclick: () => closeHsNudge(false) }, T('Not now'))),
+  );
+  hsNudge.hidden = false;
+}
+video.addEventListener('playing', () => {
+  if (!hsNudgeDue()) return;
+  hsNudgeShown = true;
+  setTimeout(() => { if (current && !video.paused) openHsNudge(); else hsNudgeShown = false; }, 1500);
+});
+document.addEventListener('click', (e) => { if (!hsNudge.hidden && !hsNudge.contains(e.target)) closeHsNudge(false); }, true);
+hsNudge.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeHsNudge(false); } });
 function toggleFullscreen() {
   if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
   if (iPadNativeFullscreen) { try { video.webkitEnterFullscreen(); } catch { /* video not ready yet */ } return; }

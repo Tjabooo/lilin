@@ -2738,4 +2738,10 @@ export default {
   "{0} days": "{0} dagar",
   "Hide days": "Dölj dagar",
   "Show days": "Visa dagar",
+  "Better from your Home Screen": "Bättre från hemskärmen",
+  "Add Lilin to your Home Screen and it opens like an app: no browser bars, the video fills the whole screen, and Skip intro, Up next and subtitles keep working.": "Lägg till Lilin på hemskärmen så öppnas den som en app: inga webbläsarfält, videon fyller hela skärmen och Hoppa över intro, Nästa avsnitt och undertexter fungerar som vanligt.",
+  "Tap ⋮ in the corner of your browser.": "Tryck på ⋮ i webbläsarens hörn.",
+  "Choose Add to Home screen (or Install app), then Add.": "Välj Lägg till på startskärmen (eller Installera app) och tryck sedan på Lägg till.",
+  "Add to Home Screen": "Lägg till på hemskärmen",
+  "Don’t show again": "Visa inte igen",
 };

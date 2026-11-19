@@ -1,4 +1,13 @@
 {
+  "2026-11-19-homescreen-popup": {
+    "title": "Mobiler: titta från hemskärmen",
+    "items": {
+      "A nudge to add Lilin to your Home Screen": {
+        "title": "Ett tips om att lägga Lilin på hemskärmen",
+        "text": "När du spelar något på en mobil i webbläsaren visar Lilin hur du lägger den på hemskärmen. Därifrån öppnas den som en app: inga webbläsarfält och videon fyller skärmen. Tryck på Inte nu så påminns du om en vecka, eller Visa inte igen."
+      }
+    }
+  },
   "2026-11-19-profile-editor": {
     "title": "Ett snyggare Redigera profil",
     "items": {

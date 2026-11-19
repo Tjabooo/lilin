@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-homescreen-popup",
+    "date": "2026-11-19",
+    "title": "Phones: watch from your Home Screen",
+    "items": [
+      {
+        "kind": "new",
+        "title": "A nudge to add Lilin to your Home Screen",
+        "text": "When you play something on a phone in the browser, Lilin shows how to add it to your Home Screen. From there it opens like an app: no browser bars and the video fills the screen. Tap Not now to be reminded in a week, or Don't show again."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-profile-editor",
     "date": "2026-11-19",
     "title": "A cleaner Edit profile",
