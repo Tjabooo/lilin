@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-play-now-episode-names",
+    "date": "2026-11-19",
+    "title": "Episode names while downloading",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Episode names in Play now",
+        "text": "Watching an episode while it downloads now shows its name in the player, like \"Season 1, Episode 1: A Shadow of the Past\", not just the season and episode number."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-autoplay-switch",
     "date": "2026-11-19",
     "title": "Autoplay switch in the player",

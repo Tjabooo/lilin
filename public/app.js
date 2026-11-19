@@ -2764,7 +2764,8 @@ function playNowSoon(d) {
 }
 const playNowItem = (d, file, ep = null) => ({ kind: 'part', key: `${d.hash}-${file.index ?? file.fileIndex}`, hash: d.hash, mediaKey: file.mediaKey || undefined,
   title: d.canonicalTitle || d.title, filmTitle: d.canonicalTitle || d.title, show: d.showId || undefined, tmdbId: d.tmdbId ?? undefined,
-  season: ep?.season ?? d.season ?? null, episode: ep?.episode ?? d.episode ?? null });
+  season: ep?.season ?? d.season ?? null, episode: ep?.episode ?? d.episode ?? null,
+  episodeName: ep?.episodeName || (ep == null || ep.episode === d.episode ? d.episodeName : null) || null });
 
 function updateDlCard(el, d) {
   if (!el) return;

@@ -1,4 +1,13 @@
 {
+  "2026-11-19-play-now-episode-names": {
+    "title": "Avsnittsnamn medan det laddas ner",
+    "items": {
+      "Episode names in Play now": {
+        "title": "Avsnittsnamn i Spela nu",
+        "text": "När du tittar på ett avsnitt medan det laddas ner visar spelaren nu dess namn, till exempel \"Säsong 1, avsnitt 1: A Shadow of the Past\", inte bara säsong och avsnittsnummer."
+      }
+    }
+  },
   "2026-11-19-autoplay-switch": {
     "title": "Autouppspelning i spelaren",
     "items": {

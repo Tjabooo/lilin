@@ -107,7 +107,8 @@ function loadDetails(id, seasons, tmdb) {
         seasons: Object.fromEntries((d.seasons || []).map((x) => [x.season_number, {
           name: x.name || null, poster: img('w342', x.poster_path), total: x.episode_count || null,
         }])),
-        episodes: {},
+        // Seasons not asked for this time keep their names (another file name for the same show asks for those).
+        episodes: { ...cache.shows[id]?.episodes },
       };
     }
     for (const n of fresh ? missing : seasons) {
@@ -373,6 +374,15 @@ export function knownShow(title, year) {
 // One episode's TMDB name and still from the cache (link previews), or null.
 export function knownEpisode(title, year, season, episode) {
   return knownShow(title, year)?.episodes?.[season]?.[episode] || null;
+}
+// An episode's TMDB name by show id, for episodes that aren't in the library yet (Play now while it
+// downloads). Answers from the cache at once; a season not cached yet is fetched in the background, so the
+// name is there on the next poll.
+export function episodeNameById(id, season, episode, tmdb) {
+  if (!id || season == null || episode == null) return null;
+  const s = cache.shows[id];
+  if (!s?.episodes?.[season] && tmdb) loadDetails(id, [season], tmdb).catch(() => {});
+  return s?.episodes?.[season]?.[episode]?.name || null;
 }
 export function knownFilm(key, title, year) {
   const explicit = cache.filmFiles[key];

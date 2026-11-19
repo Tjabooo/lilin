@@ -2601,6 +2601,9 @@ async function listDownloads(user, all = false) {
     }));
     const episodes = [];
     const animeCtx = mediaType === 'tv' ? anime.contextForTitle(canonicalTitle) : null;
+    // TMDB episode names, so Play now's player heading says "Season 1, Episode 1: A Shadow of the Past".
+    const tmdbFn = TMDB_TOKEN || TMDB_KEY ? tmdb : null;
+    const episodeNameOf = (s, e) => (mediaType === 'tv' && tmdbId ? shows.episodeNameById(tmdbId, s, e, tmdbFn) : null);
     for (let i = 0; i < videos.length; i++) {
       // The file's own name first: a batch's folder ("Show - 001 ~ 170") isn't this file's episode.
       const base = safeFiles[i].name;
@@ -2611,7 +2614,7 @@ async function listDownloads(user, all = false) {
       for (const { season: s, episode } of list) {
         episodes.push({ season: s, episode, progress: safeFiles[i].progress,
           available: safeFiles[i].available, started: safeFiles[i].started, libraryId: safeFiles[i].libraryId,
-          fileIndex: safeFiles[i].index, mediaKey: safeFiles[i].mediaKey });
+          fileIndex: safeFiles[i].index, mediaKey: safeFiles[i].mediaKey, episodeName: episodeNameOf(s, episode) });
       }
     }
     const packFiles = files.filter((f) => isVideo(f.name)).length;
@@ -2634,6 +2637,7 @@ async function listDownloads(user, all = false) {
     canManage: user.isOwner || mates.includes(owner),
     name: t.name,
     ...parsed,
+    episodeName: parsed.episode != null ? episodeNameOf(parsed.season, parsed.episode) : null,
     progress: t.progress,
     speed: t.dlspeed,
     eta: t.eta >= 8640000 ? null : t.eta,
