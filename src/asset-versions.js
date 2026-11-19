@@ -54,3 +54,16 @@ export function createAssetVersions(dir) {
     return body;
   };
 }
+
+// /c/pages.css with its content version, for the pages the server draws itself (sign-in, invites, share pages).
+// Cloudflare hands browsers a 4-hour cache for .css whatever the server says, so without ?v a phone pairs new
+// page markup with an old stylesheet for hours after a deploy. Re-hashed only when the file's mtime changes.
+const pagesCssFile = new URL('../public/pages.css', import.meta.url);
+let pagesCssCache = { mtime: 0, href: '/c/pages.css' };
+export function pagesCssHref() {
+  try {
+    const { mtimeMs } = fs.statSync(pagesCssFile);
+    if (mtimeMs !== pagesCssCache.mtime) pagesCssCache = { mtime: mtimeMs, href: `/c/pages.css?v=${contentVersion(fs.readFileSync(pagesCssFile))}` };
+  } catch { /* missing file: the plain URL */ }
+  return pagesCssCache.href;
+}

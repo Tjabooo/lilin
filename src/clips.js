@@ -9,6 +9,7 @@
 // The clips are AV1 with separate game / friends / mic tracks, which not every browser can play,
 // so sharing makes a full-resolution, near-lossless H.264 copy with the tracks mixed into one.
 // Unsharing kills the link and deletes that copy.
+import { pagesCssHref } from './asset-versions.js';
 import { translateHtml } from './i18n.js';
 import fs from 'node:fs';
 import { trackChild } from './load.js';
@@ -896,7 +897,7 @@ export function page({ title, desc, url, image, images = [], video, body }) {
   <meta name="twitter:player:stream:content_type" content="video/mp4">` : ''}
   <link rel="icon" href="/c/favicon.svg" type="image/svg+xml">
   <style>${PAGE_CSS}</style>
-  <link rel="stylesheet" href="/c/pages.css">
+  <link rel="stylesheet" href="${pagesCssHref()}">
 </head>
 <body><main>${body}</main></body>
 </html>`;

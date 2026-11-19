@@ -23,6 +23,7 @@
 // 3. gate(): anything but the public paths needs one of those identities.
 import { currentLanguage, tr, translate } from './i18n.js';
 import { signInQrPanel, SIGN_IN_QR_SCRIPT } from './signin-link.js';
+import { pagesCssHref } from './asset-versions.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -469,7 +470,7 @@ let wordmarkSvg = '';
 try {
   wordmarkSvg = fs.readFileSync(new URL('../public/wordmark.svg', import.meta.url), 'utf8')
     .replace(/<title>[^<]*<\/title>/, '').replace(/\s(width|height)="[^"]*"/g, '')
-    .replace('<svg ', '<svg class="wm" aria-hidden="true" focusable="false" ').trim();
+    .replace('<svg ', '<svg class="wm" height="46" aria-hidden="true" focusable="false" ').trim();
 } catch { /* no file: the plain word stands in */ }
 export function brandMark() {
   return wordmarkSvg ? `<span class="brand-wm">${wordmarkSvg}<span class="sr">Lilin</span></span>` : 'Lilin';
@@ -518,7 +519,7 @@ input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--lin
 input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
 button{margin-top:20px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#1a1205;font:600 15px system-ui,sans-serif;cursor:pointer}
 .err{color:#ff8a80;background:#2a1414;border-radius:8px;padding:10px 12px;margin:0 0 6px}code{font-size:12px;color:var(--text)}
-.foot{margin:18px 0 0;font-size:12px}</style><link rel="stylesheet" href="/c/pages.css"></head><body><main>
+.foot{margin:18px 0 0;font-size:12px}</style><link rel="stylesheet" href="${pagesCssHref()}"></head><body><main>
 <h1>${brandMark()}</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
 ${qr ? `<div class="signin-split">${signInQrPanel()}<div class="pw-side">` : ''}<form method="post" action="${esc(action)}">
 <input type="hidden" name="next" value="${esc(safeNext(next))}">
