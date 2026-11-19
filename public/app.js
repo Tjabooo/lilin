@@ -7901,6 +7901,9 @@ async function loadPlayerMedia(f, opts = {}) {
       setHlsSource,
       room: () => party,
       onMetadata: (s) => {
+        // Subtitles once the stream is open (before that the download may not even have its file list). They come
+        // from OpenSubtitles and are saved where the finished file goes, so they stay on after switching to it.
+        if (!s.subsAsked) { s.subsAsked = true; setupPlayerSubs(f, s); }
         if (party) { party.sync(); return; }
         // Resume, but not further than the download has reached.
         const saved = savedProgress(s);

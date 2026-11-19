@@ -1,4 +1,13 @@
 {
+  "2026-11-19-play-now-subtitles": {
+    "title": "Undertexter medan det laddas ner",
+    "items": {
+      "Subtitles in Play now": {
+        "title": "Undertexter i Spela nu",
+        "text": "När du tittar på något medan det laddas ner finns det nu undertexter också. Välj språk som vanligt, så är de kvar när den färdiga filen tar över."
+      }
+    }
+  },
   "2026-11-19-play-now-episode-names": {
     "title": "Avsnittsnamn medan det laddas ner",
     "items": {

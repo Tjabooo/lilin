@@ -290,11 +290,13 @@ const inflight = new Map();
 const upgradeChecked = new Map(); // key -> when we last looked for people's subtitles to replace an AI translation
 // Returns the path of the saved subtitle, downloading the best match if needed. An AI translation
 // is only kept until people's own subtitles turn up.
-export function ensureSubtitle(file, info, lang) {
+// pending: the video is still downloading (Play now) and isn't at `file` yet; the subtitles are saved there
+// anyway (folder made if need be), so they're beside the video once it arrives.
+export function ensureSubtitle(file, info, lang, { pending = false } = {}) {
   lang = String(lang).toLowerCase();
   if (!validLang(lang)) return Promise.reject(fail(400, 'Unknown language.'));
   // A bad or stale id resolves to a path that isn't there: don't spend an OpenSubtitles download on it.
-  if (!fs.existsSync(file)) return Promise.reject(fail(404, 'That video isn’t on the server any more.'));
+  if (!pending && !fs.existsSync(file)) return Promise.reject(fail(404, 'That video isn’t on the server any more.'));
   const existing = findSidecar(file, lang);
   if (existing && !isAutoSidecar(existing)) return Promise.resolve(existing);
   const key = `${file}|${lang}`;
@@ -332,6 +334,7 @@ async function download(file, info, lang, { properOnly = false } = {}) {
   if (!/-->/.test(text)) throw fail(502, 'The subtitle file OpenSubtitles sent wasn’t readable.');
   const auto = isAutoUpload(best.sub);
   const out = auto ? autoSidecarPath(file, lang) : sidecarPath(file, lang);
+  await fs.promises.mkdir(path.dirname(out), { recursive: true });
   await fs.promises.writeFile(out, text, 'utf8');
   if (!auto) await fs.promises.rm(autoSidecarPath(file, lang), { force: true }).catch(() => {});
   noteDownloadsLeft(dl.remaining);

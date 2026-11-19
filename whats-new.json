@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-play-now-subtitles",
+    "date": "2026-11-19",
+    "title": "Subtitles while downloading",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Subtitles in Play now",
+        "text": "Watching something while it downloads now has subtitles too. Pick a language like usual and it stays on when the finished file takes over."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-play-now-episode-names",
     "date": "2026-11-19",
     "title": "Episode names while downloading",

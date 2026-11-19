@@ -730,5 +730,6 @@
  "This film isn’t on the server yet.": "Filmen finns inte på servern än.",
  "This film is already here in 4K.": "Filmen finns redan här i 4K.",
  "Invalid time.": "Ogiltig tid.",
- "No frame there.": "Ingen bildruta där."
+ "No frame there.": "Ingen bildruta där.",
+ "The timing check works once the download has finished.": "Tidskontrollen fungerar när nedladdningen är klar."
 }

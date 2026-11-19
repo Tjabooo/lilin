@@ -117,3 +117,18 @@ test('a failed upgrade keeps the AI translation playing', async () => {
   });
   fs.rmSync(v.dir, { recursive: true, force: true });
 });
+
+test('Play now: subtitles for a video still downloading are saved where the finished file will be', async () => {
+  const live = tempVideo(); // the download as it is now (scratch drive)
+  const dest = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-final-')), 'Show', 'Movie.mp4'); // not there yet
+  await withApi([upload(1)], async () => {
+    const subs = await import('../src/subtitles.js?pending');
+    await assert.rejects(subs.ensureSubtitle(dest, { title: 'Movie' }, 'sv'), /isn’t on the server/);
+    const saved = await subs.ensureSubtitle(dest, { title: 'Movie', hashFile: live.file }, 'sv', { pending: true });
+    assert.equal(saved, path.join(path.dirname(dest), 'Movie.sv.srt'));
+    assert.match(fs.readFileSync(saved, 'utf8'), /-->/);
+    assert.equal(findSidecar(dest, 'sv'), saved);
+  });
+  fs.rmSync(live.dir, { recursive: true, force: true });
+  fs.rmSync(path.dirname(path.dirname(dest)), { recursive: true, force: true });
+});

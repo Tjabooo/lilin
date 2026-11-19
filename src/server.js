@@ -2699,6 +2699,24 @@ async function sourceFile(kind, id) {
   }
   throw new HttpError(400, 'Unknown media type.');
 }
+// Where a video's subtitles are kept and what they're looked up by. A Play now video (still downloading) keeps them
+// where the finished file will be, so they're already beside it once the download completes; its OpenSubtitles hash
+// comes from the file as it is now (the first and last pieces arrive first).
+async function subsTarget(user, kind, id) {
+  if (kind === 'part') {
+    const partId = resolvePartId(String(id || ''));
+    if (user) await partialAccess(user, partId);
+    let entry;
+    try { entry = await partialStreams.entry(partId); }
+    catch (e) { throw new HttpError(e.status || 500, e.message); }
+    const file = entry.finalFile || entry.file;
+    // Partial until the whole file has arrived where it's kept (it's moved off the scratch drive when it finishes).
+    const partial = !partialStreams.status(entry).done || !fileExists(file);
+    return { file, info: { ...infoFor(file), hashFile: partial ? entry.file : file }, partial };
+  }
+  const file = converter.preferConverted(await sourceFile(kind, id));
+  return { file, info: infoFor(file), partial: false };
+}
 // What a travel copy is made from: the original (all audio tracks), with the subtitles saved beside it
 // or beside its MP4 copy.
 async function travelSource(kind, id) {
@@ -5083,8 +5101,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/subs/langs') {
     const kind = url.searchParams.get('kind');
     if (kind) {
-      const file = converter.preferConverted(await sourceFile(kind, url.searchParams.get('id')));
-      const info = infoFor(file);
+      const { file, info } = await subsTarget(user, kind, url.searchParams.get('id'));
       // anime: Japanese audio, so the player turns on English subtitles for people who never chose any.
       // Not for a dual-audio copy of an anime they asked for dubbed.
       const heardDubbed = isDualAudio(file) && wantsDub(user, info?.title);
@@ -5100,9 +5117,10 @@ async function handleApi(req, res, url) {
   if (p === '/api/subs/fetch' && req.method === 'POST') {
     const body = await readJson(req);
     const lang = String(body.lang || '').toLowerCase();
-    const file = converter.preferConverted(await sourceFile(body.kind, body.id));
-    const srt = await subtitles.ensureSubtitle(file, infoFor(file), lang);
-    subsync.ensureSync(srt, file);
+    const { file, info, partial } = await subsTarget(user, body.kind, body.id);
+    const srt = await subtitles.ensureSubtitle(file, info, lang, { pending: partial });
+    // The timing check listens to the video's sound: a download still missing pieces waits until it's watched in full.
+    if (!partial) subsync.ensureSync(srt, file);
     activity.record(req, 'subtitles', `${subtitles.LANG_NAMES[lang] || lang} subtitles for ${titleOf(file)}`, { quietMs: 24 * 3600 * 1000 });
     return sendJson(res, 200, { url: `/api/subs/file/${body.kind}/${encodeURIComponent(body.id)}/${lang}.vtt` });
   }
@@ -5113,10 +5131,11 @@ async function handleApi(req, res, url) {
     const id = body ? body.id : url.searchParams.get('id');
     const lang = String((body ? body.lang : url.searchParams.get('lang')) || '').toLowerCase();
     if (!subtitles.validLang(lang)) throw new HttpError(400, 'Unknown language.');
-    const video = converter.preferConverted(await sourceFile(kind, String(id || '')));
+    const { file: video, partial } = await subsTarget(user, kind, String(id || ''));
     const srt = subtitles.findSidecar(video, lang);
     if (!srt) throw new HttpError(404, 'Those subtitles aren’t on the server.');
-    if (!body) return sendJson(res, 200, subsync.stateOf(srt));
+    if (!body) return sendJson(res, 200, partial ? { ...subsync.stateOf(srt), canSync: false } : subsync.stateOf(srt));
+    if (partial && body.action === 'sync') throw new HttpError(409, 'The timing check works once the download has finished.');
     if (body.action === 'undo') return sendJson(res, 200, subsync.undoSync(srt));
     if (body.action === 'sync') return sendJson(res, 200, subsync.queueSync(srt, video));
     if (body.action === 'shift') {
@@ -5126,8 +5145,8 @@ async function handleApi(req, res, url) {
     }
     throw new HttpError(400, 'Unknown action.');
   }
-  if ((m = p.match(/^\/api\/subs\/file\/(lib|dl)\/([A-Za-z0-9_-]+)\/([a-z]{2,3}(?:-[a-z]{2})?)\.(vtt|srt)$/))) {
-    const file = converter.preferConverted(await sourceFile(m[1], m[2]));
+  if ((m = p.match(/^\/api\/subs\/file\/(lib|dl|part)\/([A-Za-z0-9_-]+)\/([a-z]{2,3}(?:-[a-z]{2})?)\.(vtt|srt)$/))) {
+    const { file } = await subsTarget(user, m[1], m[2]);
     const text = await subtitles.readSubtitle(file, m[3]);
     const vtt = m[4] === 'vtt';
     // Only TVs ask for .srt (browsers get .vtt): shows whether a TV really picked the subtitles up.
