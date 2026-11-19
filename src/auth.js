@@ -24,6 +24,7 @@
 import { currentLanguage, tr, translate } from './i18n.js';
 import { signInQrPanel, SIGN_IN_QR_SCRIPT } from './signin-link.js';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -462,6 +463,39 @@ export function safeNext(next) {
   return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') && !/[\r\n]/.test(n) ? n : '/';
 }
 
+// Lilin's wordmark (public/wordmark.svg, the two i-dots are lit bulbs), inlined at the top of the sign-in
+// and invite pages. The heading keeps the word "Lilin" for screen readers.
+let wordmarkSvg = '';
+try {
+  wordmarkSvg = fs.readFileSync(new URL('../public/wordmark.svg', import.meta.url), 'utf8')
+    .replace(/<title>[^<]*<\/title>/, '').replace(/\s(width|height)="[^"]*"/g, '')
+    .replace('<svg ', '<svg class="wm" aria-hidden="true" focusable="false" ').trim();
+} catch { /* no file: the plain word stands in */ }
+export function brandMark() {
+  return wordmarkSvg ? `<span class="brand-wm">${wordmarkSvg}<span class="sr">Lilin</span></span>` : 'Lilin';
+}
+
+// A small eye button inside every password box (.pw-wrap) that shows or hides what was typed.
+// Plain inline script, no dependencies; the page works the same without it.
+export function passwordPeek() {
+  const show = esc(tr('Show password'));
+  const hide = esc(tr('Hide password'));
+  return `<script>(function () {
+  document.querySelectorAll('.pw-wrap').forEach(function (wrap) {
+    var input = wrap.querySelector('input'); if (!input) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'peek'; b.setAttribute('aria-label', '${show}'); b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', function () {
+      var on = input.type === 'password';
+      input.type = on ? 'text' : 'password';
+      b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? '${hide}' : '${show}');
+      input.focus({ preventScroll: true });
+    });
+    wrap.appendChild(b); wrap.classList.add('has-peek');
+  });
+})();</script>`;
+}
+
 // `action`: where the form posts (the OIDC sign-in under /c/ posts to its own path).
 // `email`: what they typed last time, kept after a wrong password so only the password needs retyping.
 // `qr`: also offer scan-to-sign-in (signin-link.js), shown on wide screens only.
@@ -485,11 +519,11 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:tran
 button{margin-top:20px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#1a1205;font:600 15px system-ui,sans-serif;cursor:pointer}
 .err{color:#ff8a80;background:#2a1414;border-radius:8px;padding:10px 12px;margin:0 0 6px}code{font-size:12px;color:var(--text)}
 .foot{margin:18px 0 0;font-size:12px}</style><link rel="stylesheet" href="/c/pages.css"></head><body><main>
-<h1>Lilin</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
+<h1>${brandMark()}</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
 ${qr ? `<div class="signin-split">${signInQrPanel()}<div class="pw-side">` : ''}<form method="post" action="${esc(action)}">
 <input type="hidden" name="next" value="${esc(safeNext(next))}">
-<label for="email">${tr('Email')}</label><input id="email" name="email" type="email" autocomplete="username" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}>
-<label for="password">${tr('Password')}</label><input id="password" name="password" type="password" autocomplete="current-password" required${typed ? ' autofocus' : ''}>
-<button type="submit">${tr('Sign in')}</button></form>${qr ? '</div></div>' : ''}
-<p class="foot">${help}</p><p class="foot">${langLink('en', 'English')} · ${langLink('sv', 'Svenska')}</p></main>${qr ? SIGN_IN_QR_SCRIPT : ''}</body></html>`;
+<div class="field field-email"><label for="email">${tr('Email')}</label><input id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}></div>
+<div class="field field-password"><label for="password">${tr('Password')}</label><div class="pw-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required${typed ? ' autofocus' : ''}></div></div>
+<button type="submit" class="go">${tr('Sign in')}</button></form>${qr ? '</div></div>' : ''}
+<p class="foot">${help}</p><nav class="lang" aria-label="${tr('Language')}">${langLink('en', 'English')}${langLink('sv', 'Svenska')}</nav></main>${qr ? SIGN_IN_QR_SCRIPT : ''}${passwordPeek()}</body></html>`;
 }

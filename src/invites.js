@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { esc, page, baseUrl } from './clips.js';
-import { passwordProblem } from './auth.js';
+import { passwordProblem, passwordPeek, brandMark } from './auth.js';
 import { translateHtml, translate, tr } from './i18n.js';
 
 const CF_API = (process.env.CF_API_BASE || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
@@ -156,25 +156,26 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   const bound = inv.forEmail;
   const title = bound ? 'Pick your Lilin password' : 'You’re invited to Lilin';
   const form = (email = '', error = '') => (auth ? `
+    <div class="card-brand">${brandMark()}</div>
     <h1>${bound ? 'Pick a password' : 'You’re invited to Lilin'}</h1>
     <p>${bound ? 'From now on you sign in to Lilin with your email and this password.' : 'Your own cinema: films and shows on your phone, your TV, anywhere.'}</p>
     <form method="post">
-      <label for="email">Your email</label>
-      <input id="email" name="email" type="email" required autocomplete="username" ${bound ? 'readonly' : 'autofocus'} value="${esc(bound || email)}" placeholder="you@example.com">
-      <label for="password">Choose a password (10+ characters)</label>
-      <input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}>
-      <label for="again">Same password again</label>
-      <input id="again" name="again" type="password" required minlength="10" autocomplete="new-password">
+      <div class="field field-email"><label for="email">Your email</label>
+      <input id="email" name="email" type="email" required autocomplete="username" ${bound ? 'readonly' : 'autofocus'} value="${esc(bound || email)}" placeholder="you@example.com"></div>
+      <div class="field field-password"><label for="password">Choose a password (10+ characters)</label>
+      <div class="pw-wrap"><input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}></div></div>
+      <div class="field field-password"><label for="again">Same password again</label>
+      <div class="pw-wrap"><input id="again" name="again" type="password" required minlength="10" autocomplete="new-password"></div></div>
       <p class="safe-note">Only you know this password. Lilin scrambles it before saving it, so nobody can see it, not even the people who run Lilin.</p>
       ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
-      <button type="submit">${bound ? 'Save password' : 'Join Lilin'}</button>
+      <button type="submit" class="go">${bound ? 'Save password' : 'Join Lilin'}</button>
     </form>
-    <p class="foot">On a new phone or computer, open Lilin and sign in with this email and password.</p>` : `
+    <p class="foot">On a new phone or computer, open Lilin and sign in with this email and password.</p>${passwordPeek()}` : `
     <h1>You’re invited to Lilin</h1>
     <p>Your own cinema: films and shows on your phone, your TV, anywhere.</p>
     <form method="post">
-      <label for="email">The email you’ll sign in with</label>
-      <input id="email" name="email" type="email" required autocomplete="email" autofocus value="${esc(email)}" placeholder="you@example.com">
+      <div class="field field-email"><label for="email">The email you’ll sign in with</label>
+      <input id="email" name="email" type="email" required autocomplete="email" autofocus value="${esc(email)}" placeholder="you@example.com"></div>
       ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
       <button type="submit">Get access</button>
     </form>

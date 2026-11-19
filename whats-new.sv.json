@@ -1,4 +1,13 @@
 {
+  "2026-11-19-signin-look": {
+    "title": "En snyggare inloggningssida",
+    "items": {
+      "Sign-in and invite pages tidied up": {
+        "title": "Inloggnings- och inbjudningssidan har snyggats till",
+        "text": "Inloggningssidan och inbjudningssidan har nu Lilins nya logga, varje rubrik sitter ihop med sin ruta, rutorna har små ikoner och en ögonknapp visar lösenordet du skrev så att du kan kolla det. På en dator ligger koden du skannar med telefonen i en egen panel bredvid lösenordsformuläret."
+      }
+    }
+  },
   "2026-11-19-discover-keeps-place": {
     "title": "Upptäck minns var du var",
     "items": {

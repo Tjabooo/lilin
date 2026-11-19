@@ -748,5 +748,8 @@
  "Only its maker can change a list.": "Bara den som gjorde listan kan ändra den.",
  "This list is private or gone.": "Listan är privat eller borttagen.",
  "That’s 100 lists already. Delete one first.": "Du har redan 100 listor. Ta bort en först.",
- "A list holds up to 500 titles.": "En lista rymmer upp till 500 titlar."
+ "A list holds up to 500 titles.": "En lista rymmer upp till 500 titlar.",
+ "Show password": "Visa lösenord",
+ "Hide password": "Dölj lösenord",
+ "Language": "Språk"
 }

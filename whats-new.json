@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-signin-look",
+    "date": "2026-11-19",
+    "title": "A neater sign-in page",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Sign-in and invite pages tidied up",
+        "text": "The sign-in page and the invite page now carry the new Lilin logo, each label sits with its box, the boxes have small icons, and an eye button shows the password you typed so you can check it. On a computer, the scan-with-your-phone code sits in its own panel next to the password form."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-discover-keeps-place",
     "date": "2026-11-19",
     "title": "Discover remembers where you were",
