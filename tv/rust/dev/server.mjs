@@ -11,6 +11,8 @@ const root = path.resolve(new URL('../../..', import.meta.url).pathname);
 const upstream = String(process.env.LILIN_URL || '').replace(/\/+$/, '');
 const port = Number(process.argv[2] || 8099);
 const pairing = process.env.TV_DEV_PAIR === '1';
+// TV_DEV_CREDITS=SECONDS: every video's closing credits start there (to try the credits card on any title).
+const fakeCredits = Number(process.env.TV_DEV_CREDITS) || 0;
 if (!upstream) { console.error('Set LILIN_URL'); process.exit(2); }
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
   '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -45,6 +47,10 @@ http.createServer(async (req, res) => {
     }
     const headers = {};
     for (const h of ['x-lilin-tv', 'x-lilin-lang', 'x-lilin-session']) if (req.headers[h]) headers[h] = req.headers[h];
+    if (fakeCredits && /^\/api\/media\/lib\/[^/]+\/credits$/.test(url.pathname)) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ creditsAt: fakeCredits }));
+    }
     try {
       let body;
       if (allowed) { headers['content-type'] = 'application/json'; body = await new Promise((ok) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => ok(b)); }); }

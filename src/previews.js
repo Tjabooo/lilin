@@ -13,6 +13,8 @@ import { trackChild } from './load.js';
 import { background } from './priority.js';
 import { videoFilter } from './phone-stream.js';
 
+const BLANK_STILL_BYTES = 8000;
+
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE || 'ffprobe';
 const VERSION = 1;
@@ -129,7 +131,13 @@ export class Previews {
 
   // Path of sheet n of a video, or null while it isn't written yet.
   // Path to a sharp frame of `file` near `time`, made on first ask (one at a time, background priority).
+  // A (near) black frame (stopped in a dark scene or on the credits' black) is kept, so it isn't grabbed again, but
+  // answered as no frame: the card keeps its episode still instead of a black box. 540p black is ~4 KB, real ones 15 KB+.
   async still(file, time) {
+    const frame = await this.stillFile(file, time);
+    return frame && fs.statSync(frame).size >= BLANK_STILL_BYTES ? frame : null;
+  }
+  async stillFile(file, time) {
     const key = await this.keyFor(file);
     const t = stillTime(time);
     const dir = path.join(this.dir, 'stills');

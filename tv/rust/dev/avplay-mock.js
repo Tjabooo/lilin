@@ -2,7 +2,7 @@
 // at SPEED× real time, so the player's overlay, Skip intro, Up next and menus can be tried in a browser.
 (function () {
   var SPEED = Number((/[?&]speed=(\d+)/.exec(location.search) || [])[1] || 20);
-  var DURATION = 2652000;
+  var DURATION = Number((/[?&]dur=(\d+)/.exec(location.search) || [])[1] || 2652) * 1000; // ?dur=SECONDS
   var t = 0, playing = false, listener = {}, timer = null;
   function tick() {
     if (!playing) return;
