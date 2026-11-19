@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-svt-locked",
+    "date": "2026-11-19",
+    "title": "Copy-protected SVT shows download anyway",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Add works on copy-protected SVT Play titles",
+        "text": "Some shows on SVT Play, like The Terror, are copy protected, so they can't be saved from there. Pressing Add on one used to stop at \"Needs attention\". Now Lilin gets it from the usual sources instead, and the failed SVT copies leave your downloads."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-signin-look",
     "date": "2026-11-19",
     "title": "A neater sign-in page",

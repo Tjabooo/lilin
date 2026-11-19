@@ -944,6 +944,20 @@ async function svtTitleView(user, path) {
   })) })) };
 }
 
+// SVT copy protects some bought-in shows and films (AMC, HBO…): those can't be saved from there, so they
+// go the usual way instead. The first video speaks for the whole title; the answer is kept for a day.
+const svtLocked = new Map(); // path -> { at, locked }
+async function svtProtected(title) {
+  const kept = svtLocked.get(title.path);
+  if (kept && Date.now() - kept.at < 24 * 3600 * 1000) return kept.locked;
+  const first = title.kind === 'film' ? title.videoId : title.seasons?.flatMap((s) => s.episodes)[0]?.videoId;
+  if (!first) return false;
+  let locked = false;
+  try { locked = (await svt.svtVideo(first)).copyProtected; } catch { return false; }
+  svtLocked.set(title.path, { at: Date.now(), locked });
+  return locked;
+}
+
 // Queues a whole film, a season, or chosen episodes. What's already on the server just joins this person's
 // library. `name` (a TMDB title) replaces SVT's so the files land under the show the person picked.
 async function svtAdd(user, title, { seasons = null, episodes = null, name = null, tmdbId = null } = {}) {
@@ -1007,6 +1021,7 @@ function svtAlternative(user, { type, title, originalTitle, year, tmdbId }) {
     const found = await svt.svtTitle(hit.path);
     if (!found) return null;
     if (year && found.year && Math.abs(year - found.year) > 1) return null;
+    if (await svtProtected(found)) return null;
     const message = 'Free on SVT Play, so it’s coming from there. On its way.';
     if (type === 'movie') {
       if (found.kind !== 'film') return null;
@@ -1021,6 +1036,27 @@ function svtAlternative(user, { type, title, originalTitle, year, tmdbId }) {
     await svtAdd(user, found, { seasons: [season], episodes: wanted, name: title, tmdbId });
     return { name: `${title} (SVT Play)`, quality: '1080p', source: 'svt', episodes: wanted, message };
   };
+}
+
+// "Add" on a title SVT copy protects: the same film or show from the usual sources, and the copies
+// that already failed on SVT leave the downloads list.
+async function svtLockedAdd(user, title, seasons, episodes) {
+  const tmdbId = await svtIdentity(title);
+  if (!tmdbId) throw new HttpError(409, 'SVT copy protects this one, and Lilin couldn’t tell which title it is elsewhere. Search for it instead.');
+  const videos = title.kind === 'film' ? [title.videoId] : title.seasons.flatMap((s) => s.episodes.map((e) => e.videoId));
+  for (const v of videos) {
+    const job = v && svtQueue?.get(svt.svtHashOf(v));
+    if (job?.state === 'error') await svtQueue.remove(job.hash).catch(() => {});
+  }
+  const message = 'SVT copy protects this one, so it’s coming from the usual sources instead. On its way.';
+  if (title.kind === 'film') {
+    await startSmartFor(user, { type: 'movie', tmdbId });
+    return { queued: 1, added: 0, have: 0, episodes: [], elsewhere: true, tmdbId, message };
+  }
+  const picked = title.seasons.filter((s) => !s.dated && (!seasons || seasons.includes(s.number)));
+  if (!picked.length) throw new HttpError(409, 'SVT copy protects this one. Search for it to get it from the usual sources.');
+  for (const s of picked) await startSmartFor(user, { type: 'tv', tmdbId, season: s.number, episodes: episodes?.length ? episodes : undefined });
+  return { queued: picked.length, added: 0, have: 0, episodes: episodes || [], elsewhere: true, tmdbId, message };
 }
 
 // ---------- library ----------
@@ -4903,6 +4939,7 @@ async function handleApi(req, res, url) {
     const title = await svt.svtTitle(body.path);
     if (!title) throw new HttpError(404, 'SVT Play doesn’t have this right now.');
     const numbers = (v) => (Array.isArray(v) ? v.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < 5000).slice(0, 500) : null);
+    if (await svtProtected(title)) return sendJson(res, 200, await svtLockedAdd(user, title, numbers(body.seasons), numbers(body.episodes)));
     const result = await svtAdd(user, title, { seasons: numbers(body.seasons), episodes: numbers(body.episodes) });
     activity.record(req, 'download', `${title.title} (SVT Play)`, { quietMs: 60000 });
     return sendJson(res, 200, {

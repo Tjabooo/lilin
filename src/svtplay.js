@@ -208,6 +208,7 @@ export function parseVideo(json) {
   else if (!best) refused = 'SVT Play has no playable stream for this right now.';
   return {
     refused,
+    copyProtected: Boolean(rights.drmCopyProtection),
     url: best?.url || null,
     format: best?.format || null,
     subtitleUrl: subtitle?.url || null,

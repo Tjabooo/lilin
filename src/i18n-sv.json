@@ -751,5 +751,8 @@
  "A list holds up to 500 titles.": "En lista rymmer upp till 500 titlar.",
  "Show password": "Visa lösenord",
  "Hide password": "Dölj lösenord",
- "Language": "Språk"
+ "Language": "Språk",
+ "SVT copy protects this one, so it’s coming from the usual sources instead. On its way.": "SVT har kopieringsskyddat den här, så den hämtas från de vanliga källorna i stället. Den är på väg.",
+ "SVT copy protects this one, and Lilin couldn’t tell which title it is elsewhere. Search for it instead.": "SVT har kopieringsskyddat den här, och Lilin kunde inte avgöra vilken titel det är på andra ställen. Sök efter den i stället.",
+ "SVT copy protects this one. Search for it to get it from the usual sources.": "SVT har kopieringsskyddat den här. Sök efter den för att hämta den från de vanliga källorna."
 }

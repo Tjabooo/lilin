@@ -1,4 +1,13 @@
 {
+  "2026-11-19-svt-locked": {
+    "title": "Kopieringsskyddade SVT-serier laddas ner ändå",
+    "items": {
+      "Add works on copy-protected SVT Play titles": {
+        "title": "Lägg till fungerar på kopieringsskyddade titlar från SVT Play",
+        "text": "Vissa serier på SVT Play, som The Terror, är kopieringsskyddade och kan inte sparas därifrån. Förut stannade Lägg till på \"Behöver åtgärdas\". Nu hämtar Lilin den från de vanliga källorna i stället, och de misslyckade SVT-kopiorna försvinner från dina nedladdningar."
+      }
+    }
+  },
   "2026-11-19-signin-look": {
     "title": "En snyggare inloggningssida",
     "items": {
