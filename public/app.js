@@ -5949,14 +5949,21 @@ document.addEventListener('click', (e) => { if (!ccMenu.hidden && !ccMenu.contai
 
 function renderCcMenu(f, session, message) {
   const items = [{ code: null, name: T('Off') }, ...ccLangs];
-  ccMenu.replaceChildren(
+  // Two halves: the languages scroll on the left, the look and timing of the chosen one sit on the right.
+  const langs = h('div', { class: 'cc-langs' },
+    h('p', { class: 'cc-col-title' }, T('Language')),
     ...items.map((l) => h('button', {
       role: 'menuitemradio', class: 'cc-item', 'aria-checked': String(ccActive === l.code),
       onclick: () => pickPlayerSub(f, session, l),
     }, l.name)),
-    ...(message ? [h('p', { class: 'cc-message' }, message)] : []),
-    ...(ccActive ? [h('div', { class: 'cc-divider', role: 'separator' }), ...[secondSubRow(f, session)].filter(Boolean), ...subLookRows()] : []),
-    ...subSyncItems(f, session));
+    ...(message ? [h('p', { class: 'cc-message' }, message)] : []));
+  const settings = h('div', { class: 'cc-settings' },
+    h('p', { class: 'cc-col-title' }, T('Subtitle settings')),
+    ...(ccActive
+      ? [...[secondSubRow(f, session)].filter(Boolean), ...subLookRows(), ...subSyncItems(f, session)]
+      : [h('p', { class: 'cc-message' }, T('Pick a language to change the size, style and timing.'))]));
+  ccMenu.classList.add('cc-split');
+  ccMenu.replaceChildren(h('div', { class: 'cc-cols' }, langs, settings));
   ccBtn.classList.toggle('is-on', Boolean(ccActive));
 }
 

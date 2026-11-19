@@ -1,4 +1,13 @@
 {
+  "2026-11-19-subtitle-menu-split": {
+    "title": "En rymligare undertextmeny",
+    "items": {
+      "Languages and subtitle settings side by side": {
+        "title": "Språk och undertextinställningar sida vid sida",
+        "text": "Undertextmenyn är bredare nu. Språken ligger till vänster och scrollar för sig, och storlek, stil, höjd, andra språk och tajming ligger till höger, så du slipper scrolla förbi alla språk för att nå dem. På smala telefoner hamnar halvorna under varandra."
+      }
+    }
+  },
   "2026-11-19-player-settings-cog": {
     "title": "En renare spelare",
     "items": {

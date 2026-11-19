@@ -2671,4 +2671,7 @@ export default {
   "Automatic. On a phone, films come in 1080p: at this size 4K looks no sharper. Someone on a bigger screen can still get 4K.": "Automatiskt. På en mobil kommer filmer i 1080p: i den storleken ser 4K inte skarpare ut. Den som tittar på en större skärm kan fortfarande hämta 4K.",
   "Get a sharper copy": "Hämta en skarpare kopia",
   "Downloads the 4K version in the background. Playback moves to it once it’s ready.": "Laddar ner 4K-versionen i bakgrunden. Uppspelningen byter till den när den är klar.",
+  // player: two-column subtitle menu
+  "Subtitle settings": "Undertextinställningar",
+  "Pick a language to change the size, style and timing.": "Välj ett språk för att ändra storlek, stil och tajming.",
 };

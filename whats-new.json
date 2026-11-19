@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-subtitle-menu-split",
+    "date": "2026-11-19",
+    "title": "A roomier subtitle menu",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Languages and subtitle settings side by side",
+        "text": "The subtitle menu is wider now. Languages are on the left and scroll on their own, and the size, style, height, second language and timing are on the right, so you don't have to scroll past every language to reach them. On narrow phones the two halves stack."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-player-settings-cog",
     "date": "2026-11-19",
     "title": "A tidier player",
