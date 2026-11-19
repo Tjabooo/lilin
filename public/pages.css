@@ -8,8 +8,8 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+FEFF, U+FFFD;
 }
 :root {
-  --velvet: #1F1019; --curtain: #2B1724; --seat: #3A2031; --paper: #F6EADF; --dust: #BA9DAD; --bulb: #F4C152; --alert: #FF9B85;
-  --hairline: rgb(246 234 223 / .1); --hairline-2: rgb(246 234 223 / .18);
+  --velvet: #140A14; --curtain: #1D121C; --seat: #2A1C28; --paper: #EFE8E1; --dust: #B8AAB2; --bulb: #FB2C16; --alert: #FF9B85;
+  --hairline: rgb(239 232 225 / .1); --hairline-2: rgb(239 232 225 / .18);
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   color-scheme: dark;
 }
@@ -17,9 +17,9 @@ body {
   margin: 0; min-height: 100vh; min-height: 100dvh;
   color: var(--paper);
   background:
-    radial-gradient(120% 70% at 50% -10%, rgb(58 32 49 / .95), transparent 60%),
-    radial-gradient(60% 40% at 50% -8%, rgb(244 193 82 / .1), transparent 70%),
-    linear-gradient(var(--velvet), #140a10);
+    radial-gradient(120% 70% at 50% -10%, rgb(42 28 40 / .95), transparent 60%),
+    radial-gradient(60% 40% at 50% -8%, rgb(251 44 22 / .1), transparent 70%),
+    linear-gradient(var(--velvet), #0d060d);
   background-attachment: fixed;
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -36,8 +36,8 @@ a { color: var(--bulb); text-underline-offset: 3px; }
 .card::before, body > main:has(form[action$="/login"])::before {
   content: ""; display: block; height: 10px; margin: 0 auto 22px; width: 154px;
   background:
-    radial-gradient(circle, var(--bulb) 3px, rgb(244 193 82 / .35) 4px, transparent 6px) 0 50% / 22px 10px repeat-x;
-  filter: drop-shadow(0 0 6px rgb(244 193 82 / .6));
+    radial-gradient(circle, var(--bulb) 3px, rgb(251 44 22 / .35) 4px, transparent 6px) 0 50% / 22px 10px repeat-x;
+  filter: drop-shadow(0 0 6px rgb(251 44 22 / .6));
 }
 
 /* ---- the share card (clips.js page()) ---- */
@@ -45,8 +45,8 @@ a { color: var(--bulb); text-underline-offset: 3px; }
   position: relative;
   max-width: 440px; padding: 30px 30px 26px;
   background:
-    linear-gradient(90deg, transparent 12%, rgb(244 193 82 / .5) 50%, transparent 88%) top / 100% 1px no-repeat,
-    linear-gradient(180deg, rgb(58 32 49 / .72), rgb(36 19 30 / .94));
+    linear-gradient(90deg, transparent 12%, rgb(251 44 22 / .5) 50%, transparent 88%) top / 100% 1px no-repeat,
+    linear-gradient(180deg, rgb(42 28 40 / .72), rgb(36 19 30 / .94));
   border: 1px solid var(--hairline-2); border-radius: 24px;
   box-shadow: 0 40px 100px -30px rgb(0 0 0 / .75), inset 0 1px 0 rgb(255 255 255 / .06);
   text-align: center;
@@ -63,12 +63,12 @@ input[type=email], input[type=password], input[type=text] {
   background: rgb(18 9 14 / .7); border: 1px solid var(--hairline-2); border-radius: 14px;
   transition: border-color .15s, box-shadow .15s;
 }
-input:focus { outline: none; border-color: rgb(244 193 82 / .7); box-shadow: 0 0 0 4px rgb(244 193 82 / .18); }
+input:focus { outline: none; border-color: rgb(251 44 22 / .7); box-shadow: 0 0 0 4px rgb(251 44 22 / .18); }
 button {
   height: 52px; padding: 0 22px;
   font: 700 16px/1 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--velvet);
   background: var(--bulb); border: 0; border-radius: 999px; cursor: pointer;
-  box-shadow: 0 12px 32px -12px rgb(244 193 82 / .7), inset 0 1px 0 rgb(255 255 255 / .3);
+  box-shadow: 0 12px 32px -12px rgb(251 44 22 / .7), inset 0 1px 0 rgb(255 255 255 / .3);
   transition: filter .15s, transform .12s;
 }
 button:hover { filter: brightness(1.06); }
@@ -93,7 +93,7 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
   background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23BA9DAD' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / 20px no-repeat;
 }
 .pw-wrap .peek[aria-pressed="true"] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F4C152' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M4 4l16 16'/%3E%3C/svg%3E"); }
-.pw-wrap .peek:hover { filter: none; background-color: rgb(246 234 223 / .07); }
+.pw-wrap .peek:hover { filter: none; background-color: rgb(239 232 225 / .07); }
 .pw-wrap .peek:active { transform: none; }
 .card form .safe-note { margin: 4px 0 0; }
 .card form .err { margin: 12px 0 0; }
@@ -104,7 +104,7 @@ button.go { display: block; width: 100%; margin-top: 10px; }
 .card .safe-note {
   display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 0; padding: 11px 14px;
   font-size: 13px; line-height: 1.45; color: var(--dust); text-align: left;
-  background: rgb(244 193 82 / .06); border: 1px solid rgb(244 193 82 / .2); border-radius: 12px;
+  background: rgb(251 44 22 / .06); border: 1px solid rgb(251 44 22 / .2); border-radius: 12px;
 }
 .card .safe-note::before {
   content: ""; flex: none; width: 16px; height: 16px; margin-top: 1px; background: var(--bulb);
@@ -113,26 +113,26 @@ button.go { display: block; width: 100%; margin-top: 10px; }
 .err { color: var(--alert); }
 .ok { color: var(--bulb); }
 /* a shared clip: the video big, framed like a screen in the dark */
-video { border: 1px solid var(--hairline-2); border-radius: 18px; box-shadow: 0 40px 100px -30px rgb(0 0 0 / .8), 0 0 80px -40px rgb(244 193 82 / .25); }
+video { border: 1px solid var(--hairline-2); border-radius: 18px; box-shadow: 0 40px 100px -30px rgb(0 0 0 / .8), 0 0 80px -40px rgb(251 44 22 / .25); }
 .wait { border-color: var(--hairline-2); border-radius: 18px; background: rgb(43 23 36 / .6); }
 
 /* ---- /signin ---- */
 body > main:has(form[action$="/login"]) {
   max-width: 400px; padding: 34px 30px 24px;
   background:
-    linear-gradient(90deg, transparent 12%, rgb(244 193 82 / .5) 50%, transparent 88%) top / 100% 1px no-repeat,
-    linear-gradient(180deg, rgb(58 32 49 / .72), rgb(36 19 30 / .94));
+    linear-gradient(90deg, transparent 12%, rgb(251 44 22 / .5) 50%, transparent 88%) top / 100% 1px no-repeat,
+    linear-gradient(180deg, rgb(42 28 40 / .72), rgb(36 19 30 / .94));
   border: 1px solid var(--hairline-2); border-radius: 26px;
   box-shadow: 0 40px 100px -30px rgb(0 0 0 / .75), inset 0 1px 0 rgb(255 255 255 / .06);
 }
 body > main:has(form[action$="/login"]) > h1 {
   margin: 0 0 6px; text-align: center;
   font: 800 40px/1 var(--display); letter-spacing: -.03em; color: var(--bulb);
-  text-shadow: 0 0 28px rgb(244 193 82 / .45);
+  text-shadow: 0 0 28px rgb(251 44 22 / .45);
 }
 /* the wordmark: its i-dots are the lit bulbs, so it replaces the bulb row */
 .brand-wm { display: inline-block; line-height: 0; }
-.brand-wm .wm { display: block; width: auto; height: 46px; overflow: visible; filter: drop-shadow(0 0 22px rgb(244 193 82 / .28)); }
+.brand-wm .wm { display: block; width: auto; height: 46px; overflow: visible; filter: drop-shadow(0 0 22px rgb(251 44 22 / .28)); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 body > main:has(form[action$="/login"]):has(.brand-wm)::before, .card:has(.card-brand)::before { display: none; }
 body > main:has(form[action$="/login"]) > h1:has(.brand-wm) { margin: 6px 0 14px; line-height: 0; }
@@ -162,7 +162,7 @@ body:not(.qr-on) .signin-split { display: block; }
 .qr-frame {
   position: relative; width: 208px; height: 208px; margin: 0 auto 18px; padding: 10px;
   background: #fff; border-radius: 22px;
-  box-shadow: 0 0 0 1px rgb(244 193 82 / .35), 0 0 46px -8px rgb(244 193 82 / .45), 0 24px 60px -24px rgb(0 0 0 / .8);
+  box-shadow: 0 0 0 1px rgb(251 44 22 / .35), 0 0 46px -8px rgb(251 44 22 / .45), 0 24px 60px -24px rgb(0 0 0 / .8);
   transition: opacity .25s, filter .25s;
 }
 .qr-code, .qr-code svg { display: block; width: 100%; height: 100%; }
@@ -174,7 +174,7 @@ body:not(.qr-on) .signin-split { display: block; }
   font: 800 15px/1 var(--display); letter-spacing: -.02em; color: var(--bulb);
 }
 .qr-side.is-stale .qr-frame { opacity: .35; filter: blur(2px); }
-.qr-side.is-done .qr-frame { box-shadow: 0 0 0 2px var(--bulb), 0 0 60px -4px rgb(244 193 82 / .7); }
+.qr-side.is-done .qr-frame { box-shadow: 0 0 0 2px var(--bulb), 0 0 60px -4px rgb(251 44 22 / .7); }
 .qr-side h2 { margin: 0 0 6px; font: 700 17px/1.3 var(--display); color: var(--paper); }
 .qr-side p { margin: 0 auto; max-width: 280px; font-size: 13px; color: var(--dust); }
 .qr-side .qr-how { margin-bottom: 10px; }
@@ -187,7 +187,7 @@ body:not(.qr-on) .signin-split { display: block; }
 .qr-side .qr-left:empty { display: none; }
 body > main:has(form[action$="/login"]) .qr-side .qr-again {
   display: block; width: auto; height: 40px; margin: 12px auto 0; padding: 0 18px; font-size: 14px;
-  color: var(--paper); background: rgb(246 234 223 / .08); border: 1px solid var(--hairline-2); box-shadow: none;
+  color: var(--paper); background: rgb(239 232 225 / .08); border: 1px solid var(--hairline-2); box-shadow: none;
 }
 body > main:has(form[action$="/login"]) .qr-side .qr-again[hidden] { display: none; }
 .qr-or { display: flex; flex-direction: column; align-items: center; align-self: stretch; gap: 12px; color: var(--dust); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }

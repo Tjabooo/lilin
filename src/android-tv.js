@@ -111,36 +111,36 @@ function page({ home, found, address, prefix = '' }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1F1019">
+<meta name="theme-color" content="#140A14">
 <meta name="robots" content="noindex">
 <title>${esc(tr('Lilin on Android TV'))}</title>
 <link rel="icon" href="/c/favicon.svg" type="image/svg+xml">
 <style>
   @font-face { font-family: "Bricolage Grotesque"; font-weight: 200 800; font-display: swap; src: url("/c/fonts/bricolage-grotesque-latin.woff2") format("woff2"); }
-  :root { --velvet: #1F1019; --curtain: #2B1724; --seat: #3A2031; --paper: #F6EADF; --dust: #BA9DAD; --bulb: #F4C152; --on-bulb: #1F1019; --hair: rgba(246, 234, 223, .1);
+  :root { --velvet: #140A14; --curtain: #1D121C; --seat: #2A1C28; --paper: #EFE8E1; --dust: #B8AAB2; --bulb: #FB2C16; --on-bulb: #140A14; --hair: rgba(246, 234, 223, .1);
     --display: "Bricolage Grotesque", system-ui, sans-serif; color-scheme: dark; }
   * { box-sizing: border-box; }
-  html { background: radial-gradient(ellipse 120% 60% at 50% -10%, #3D2234 0%, rgba(61, 34, 52, 0) 100%), linear-gradient(#1F1019, #160B12) fixed; min-height: 100%; }
+  html { background: radial-gradient(ellipse 120% 60% at 50% -10%, #3D2234 0%, rgba(61, 34, 52, 0) 100%), linear-gradient(#140A14, #160B12) fixed; min-height: 100%; }
   body { margin: 0; color: var(--paper); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
   main { max-width: 680px; margin: 0 auto; padding: max(40px, env(safe-area-inset-top)) 20px max(48px, env(safe-area-inset-bottom)); }
-  .mark { font: 800 26px/1 var(--display); letter-spacing: -.03em; color: var(--bulb); text-shadow: 0 0 18px rgba(244, 193, 82, .45); }
+  .mark { font: 800 26px/1 var(--display); letter-spacing: -.03em; color: var(--bulb); text-shadow: 0 0 18px rgba(251, 44, 22, .45); }
   .mark::before { content: ''; display: block; width: 150px; height: 10px; margin-bottom: 14px;
-    background: radial-gradient(circle, #F4C152 3px, rgba(244, 193, 82, .35) 4px, rgba(244, 193, 82, 0) 6px) 0 50% / 15px 10px repeat-x; }
+    background: radial-gradient(circle, #FB2C16 3px, rgba(251, 44, 22, .35) 4px, rgba(251, 44, 22, 0) 6px) 0 50% / 15px 10px repeat-x; }
   h1 { margin: 26px 0 8px; font: 800 clamp(34px, 8vw, 50px)/1.02 var(--display); letter-spacing: -.025em; }
   .lead { margin: 0 0 30px; color: var(--dust); }
   .steps { list-style: none; margin: 0; padding: 0; counter-reset: none; }
   .card { display: flex; gap: 18px; padding: 22px 22px 20px; margin-bottom: 14px; border-radius: 22px; background: linear-gradient(var(--seat), var(--curtain)); border: 1px solid var(--hair); }
   .card.note { display: block; }
   .n { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--bulb); color: var(--on-bulb);
-    font: 800 20px/1 var(--display); box-shadow: 0 0 22px rgba(244, 193, 82, .35); }
+    font: 800 20px/1 var(--display); box-shadow: 0 0 22px rgba(251, 44, 22, .35); }
   h2 { margin: 6px 0 6px; font: 700 22px/1.2 var(--display); letter-spacing: -.01em; }
   .card p { margin: 0 0 8px; color: var(--dust); }
-  .address { margin: 12px 0 12px; padding: 14px 18px; border-radius: 14px; background: rgba(22, 11, 18, .7); border: 1px solid rgba(244, 193, 82, .35);
+  .address { margin: 12px 0 12px; padding: 14px 18px; border-radius: 14px; background: rgba(22, 11, 18, .7); border: 1px solid rgba(251, 44, 22, .35);
     font: 800 clamp(20px, 5.4vw, 28px)/1.2 var(--display); letter-spacing: .01em; color: var(--bulb); overflow-wrap: anywhere; user-select: all; }
   .after { margin: 18px 4px 0; color: var(--dust); font-size: 15px; }
   .download { display: block; margin-top: 28px; padding: 16px 22px; border-radius: 999px; text-align: center; text-decoration: none;
     background: var(--paper); color: var(--on-bulb); font: 700 17px/1.2 system-ui, sans-serif; }
-  .download:focus-visible, .download:hover { background: var(--bulb); box-shadow: 0 0 0 4px rgba(244, 193, 82, .35); outline: none; }
+  .download:focus-visible, .download:hover { background: var(--bulb); box-shadow: 0 0 0 4px rgba(251, 44, 22, .35); outline: none; }
 </style>
 </head>
 <body><main>

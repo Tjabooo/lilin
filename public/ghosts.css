@@ -22,8 +22,8 @@
 .ghost-emoji.pop { animation: ghost-emoji-pop .42s cubic-bezier(.2, .9, .3, 1.4); }
 @keyframes ghost-emoji-pop { 40% { transform: scale(1.45) rotate(-8deg); } }
 .ghost-tray-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 4px 0; border-top: 1px solid rgb(255 255 255 / .08); }
-.ghost-tray-hint { font-size: 12px; color: rgb(246 234 223 / .62); line-height: 1.3; }
-.ghost-show { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 4px 2px; font: 600 12px/1 var(--body); color: rgb(246 234 223 / .8); background: none; border: 0; cursor: pointer; }
+.ghost-tray-hint { font-size: 12px; color: rgb(239 232 225 / .62); line-height: 1.3; }
+.ghost-show { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 4px 2px; font: 600 12px/1 var(--body); color: rgb(239 232 225 / .8); background: none; border: 0; cursor: pointer; }
 .ghost-show-knob { position: relative; width: 30px; height: 18px; border-radius: 9px; background: rgb(255 255 255 / .2); transition: background .15s; }
 .ghost-show-knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: translate .15s; }
 .ghost-show[aria-checked="true"] .ghost-show-knob { background: var(--bulb); }
@@ -47,7 +47,7 @@
 .ghost-pop.in .ghost-pop-emoji { animation: ghost-emoji-pop .6s .08s cubic-bezier(.2, .9, .3, 1.4) both; }
 .ghost-pop-text { display: grid; gap: 1px; line-height: 1.15; }
 .ghost-pop-text strong { font-size: 13.5px; font-weight: 700; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ghost-pop-text small { font-size: 11.5px; color: rgb(246 234 223 / .62); font-variant-numeric: tabular-nums; }
+.ghost-pop-text small { font-size: 11.5px; color: rgb(239 232 225 / .62); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   .ghost-pop, .ghost-pop.out { translate: none; }
   .ghost-pop.in .ghost-pop-emoji, .ghost-emoji.pop, .ghost-tray { animation: none; }
@@ -56,5 +56,5 @@
 /* marks on the seek bar: small dots just above the track */
 .ghost-marks { position: absolute; inset: 0; pointer-events: none; }
 .ghost-mark { position: absolute; top: calc(50% - 8px); width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 4px rgb(0 0 0 / .6); }
-.ghost-mark.mine { background: rgb(246 234 223 / .55); }
+.ghost-mark.mine { background: rgb(239 232 225 / .55); }
 .player.is-clip .ghost-marks { display: none; }

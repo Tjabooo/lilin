@@ -854,23 +854,23 @@ function sharedClip(token) {
 
 const PAGE_CSS = `
 :root{color-scheme:dark}*{box-sizing:border-box}
-body{margin:0;min-height:100vh;background:#1F1019;color:#F6EADF;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+body{margin:0;min-height:100vh;background:#140A14;color:#EFE8E1;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 main{width:100%;max-width:1100px}
 h1{font:800 clamp(22px,4vw,34px)/1.15 "Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;margin:0 0 4px}
-p{margin:0;color:#BA9DAD}
-video{display:block;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;margin-top:18px;border:1px solid #4B2C3F}
-.brand{color:#F4C152;font-weight:800;letter-spacing:.02em;text-decoration:none}
+p{margin:0;color:#B8AAB2}
+video{display:block;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;margin-top:18px;border:1px solid #3A2A36}
+.brand{color:#FB2C16;font-weight:800;letter-spacing:.02em;text-decoration:none}
 .foot{margin-top:14px;font-size:13px}
-.wait{margin-top:18px;padding:40px;border:1px dashed #4B2C3F;border-radius:14px;text-align:center}
-.card{max-width:460px;margin:0 auto;padding:28px 24px;background:#2B1724;border:1px solid #4B2C3F;border-radius:18px}
+.wait{margin-top:18px;padding:40px;border:1px dashed #3A2A36;border-radius:14px;text-align:center}
+.card{max-width:460px;margin:0 auto;padding:28px 24px;background:#1D121C;border:1px solid #3A2A36;border-radius:18px}
 .card h1{margin-bottom:8px}.card p+p{margin-top:10px}
 form{margin-top:20px;display:grid;gap:10px}
-label{font-size:14px;color:#BA9DAD}
-input[type=email],input[type=password]{font:inherit;color:#F6EADF;background:#1F1019;border:1px solid #4B2C3F;border-radius:12px;padding:12px 14px}
-input[type=email]:focus,input[type=password]:focus{outline:2px solid #F4C152;border-color:transparent}
+label{font-size:14px;color:#B8AAB2}
+input[type=email],input[type=password]{font:inherit;color:#EFE8E1;background:#140A14;border:1px solid #3A2A36;border-radius:12px;padding:12px 14px}
+input[type=email]:focus,input[type=password]:focus{outline:2px solid #FB2C16;border-color:transparent}
 input[readonly]{opacity:.75}
-button{font:700 16px/1 system-ui,sans-serif;color:#1F1019;background:#F4C152;border:0;border-radius:999px;padding:14px 18px;cursor:pointer}
-.err{color:#FF9B85}.ok{color:#F4C152;font-weight:700}`;
+button{font:700 16px/1 system-ui,sans-serif;color:#140A14;background:#FB2C16;border:0;border-radius:999px;padding:14px 18px;cursor:pointer}
+.err{color:#FF9B85}.ok{color:#FB2C16;font-weight:700}`;
 
 export function page({ title, desc, url, image, images = [], video, body }) {
   const og = [
@@ -886,7 +886,7 @@ export function page({ title, desc, url, image, images = [], video, body }) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(desc)}">
-  <meta name="theme-color" content="#F4C152">
+  <meta name="theme-color" content="#FB2C16">
   ${og}
   <meta name="twitter:card" content="${video ? 'player' : 'summary_large_image'}">
   ${image ? `<meta name="twitter:image" content="${esc(image)}">` : ''}

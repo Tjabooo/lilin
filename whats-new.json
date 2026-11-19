@@ -1,5 +1,27 @@
 [
   {
+    "id": "2026-11-20-new-look",
+    "date": "2026-11-20",
+    "title": "Lilin's new colours and logo",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "New Lilin colours",
+        "text": "The Lilin theme is now deep ink with bone-white text and a signal-red light, taken from the new billboard. If you picked another theme in Settings → Appearance, you keep it."
+      },
+      {
+        "kind": "new",
+        "title": "Two new themes: Dusk and Bone",
+        "text": "Dusk is the billboard's purple evening sky, and Bone is a light theme in the same colours. Find them in Settings → Appearance."
+      },
+      {
+        "kind": "improved",
+        "title": "New logo and app icon",
+        "text": "The header has the new LiLiN wordmark, and the app icon is now the red billboard at dusk. A phone may keep the old Home Screen icon until you add Lilin again."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-list-links",
     "date": "2026-11-20",
     "title": "Shared lists look good in chats",

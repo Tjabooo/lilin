@@ -178,6 +178,8 @@ export default {
   "{0} more than one version. Your choice is remembered on this device.": "{0} fler än en version. Ditt val sparas på den här enheten.",
   "Quality": "Kvalitet",
   "Midnight": "Midnatt",
+  "Dusk": "Skymning",
+  "Bone": "Benvit",
   "Forest": "Skog",
   "Ember": "Glöd",
   "Lagoon": "Lagun",

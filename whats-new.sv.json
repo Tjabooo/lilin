@@ -1,4 +1,21 @@
 {
+  "2026-11-20-new-look": {
+    "title": "Lilins nya färger och logga",
+    "items": {
+      "New Lilin colours": {
+        "title": "Nya Lilin-färger",
+        "text": "Lilin-temat är nu djupt bläcksvart med benvit text och ett signalrött ljus, hämtat från den nya skylten. Har du valt ett annat tema under Inställningar → Utseende behåller du det."
+      },
+      "Two new themes: Dusk and Bone": {
+        "title": "Två nya teman: Skymning och Benvit",
+        "text": "Skymning är skyltens lila kvällshimmel och Benvit är ett ljust tema i samma färger. Du hittar dem under Inställningar → Utseende."
+      },
+      "New logo and app icon": {
+        "title": "Ny logga och appikon",
+        "text": "Sidhuvudet har den nya LiLiN-loggan och appikonen är nu den röda skylten i skymningen. En mobil kan behålla den gamla ikonen på hemskärmen tills du lägger till Lilin igen."
+      }
+    }
+  },
   "2026-11-20-list-links": {
     "title": "Delade listor syns snyggt i chattar",
     "items": {

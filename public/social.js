@@ -344,7 +344,7 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
   async function wrappedCard(w, { name }) {
     const css = getComputedStyle(document.documentElement);
     const v = (n, d) => css.getPropertyValue(n).trim() || d;
-    const c = { bg: v('--velvet', '#1F1019'), panel: v('--curtain', '#2B1724'), text: v('--paper', '#F6EADF'), dim: v('--dust', '#BA9DAD'), accent: v('--bulb', '#F4C152'), warm: v('--alert', '#FF9B85') };
+    const c = { bg: v('--velvet', '#140A14'), panel: v('--curtain', '#1D121C'), text: v('--paper', '#EFE8E1'), dim: v('--dust', '#B8AAB2'), accent: v('--bulb', '#FB2C16'), warm: v('--alert', '#FF9B85') };
     const display = v('--display', 'system-ui, sans-serif');
     await document.fonts?.ready;
     const W = 1080, H = 1920, P = 96;
