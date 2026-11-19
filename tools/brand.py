@@ -2,7 +2,7 @@
 """Native TV artwork, the shared tagline and the rendering helpers for Lilin's branding.
 
 The TV artwork uses a cinema-title serif with lit bulbs for the two i-dots. The web artwork
-uses the cinema glasses and lettering in tools/art/viewer.svg and public/wordmark.svg.
+uses the second l and the two i dots in public/wordmark.svg.
 
   WORDMARK   "lilin": Gloock outlines (Duarte Pinto, SIL OFL 1.1) with taller l's (+70 units, columns either side of
              each bulb), the gap in the n's base closed so the foot serifs run on as one stage line, tracking -10,
@@ -18,6 +18,8 @@ Outlines are baked in, so drawing needs no fonts: rsvg-convert for the vectors, 
 import base64
 import io
 import subprocess
+from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import numpy as np
 from PIL import Image
@@ -302,9 +304,16 @@ def png_data_uri(rgb):
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def viewer_stencil(svg, ink):
-    """Print the glasses frame and smile in one ink with open lenses."""
-    return svg.replace("#F6EADF", ink).replace("#FF6157", "none").replace("#56BFF2", "none")
+def face_mark(ink=None):
+    """Lift the central letter and both dots straight from the wordmark."""
+    wordmark = ET.parse(Path(__file__).resolve().parents[1] / "public/wordmark.svg")
+    ns = "{http://www.w3.org/2000/svg}"
+    letter = wordmark.find(f'.//{ns}path[@id="middle-l"]')
+    dots = wordmark.findall(f'.//{ns}g[@id="lilin-lenses"]/{ns}circle')
+    eyes = "".join(f'<circle cx="{d.get("cx")}" cy="{d.get("cy")}" r="{d.get("r")}" '
+                   f'fill="{ink or d.get("fill")}"/>' for d in dots)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="44 -7 112 112" fill="{ink or PAPER}">'
+            f'<path d="{letter.get("d")}"/>{eyes}</svg>')
 
 
 def rasterize(svg, w, h):

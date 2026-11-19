@@ -19,8 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def print_billboard(art):
     """Project the one-colour viewer onto the four painted corners of the screen."""
-    with open(os.path.join(ROOT, "tools", "art", "viewer.svg"), encoding="utf-8") as f:
-        viewer = brand.rasterize(brand.viewer_stencil(f.read(), "#fff"), 360, 360)
+    viewer = brand.rasterize(brand.face_mark("#fff"), 360, 360)
     panel = Image.new("L", (800, 420))
     panel.paste(viewer.getchannel("A"), (220, 36))
     corners = [(680, 285), (1073, 26), (1057, 366), (668, 461)]

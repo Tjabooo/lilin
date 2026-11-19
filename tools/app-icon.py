@@ -4,21 +4,20 @@
   python3 tools/app-icon.py --web             browser, home-screen and notification icons
   python3 tools/app-icon.py                   also rebuild the native Android TV artwork
 
-The cinema glasses come from tools/art/viewer.svg. The native Android TV marks live in tools/brand.py.
+The face comes from the middle of public/wordmark.svg. The native Android TV marks live in tools/brand.py.
 
   public/icon-192.png / icon-512.png          manifest "any": rounded square, transparent corners
   public/maskable-192.png / maskable-512.png  manifest "maskable": full bleed, monogram inside the 80 % safe circle
                                               (the Samsung TV app's tile too: tv/tizen/build.sh copies maskable-512)
   public/apple-touch-icon.png                 180x180 full bleed, opaque (iOS rounds it itself)
   public/badge-96.png                         white silhouette for Android's notification bar
-  public/favicon.svg                          cinema glasses tile for browser tabs
+  public/favicon.svg                          letterform face tile for browser tabs
   tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash icon and launcher icons
 
 tools/og-banner.py draws the link-preview card and the Android TV banner.
 """
 import os
 import sys
-from pathlib import Path
 
 import numpy as np
 from PIL import Image
@@ -70,14 +69,14 @@ def write(img, path, size, opaque=False):
 
 def main():
     pub = os.path.join(ROOT, "public")
-    viewer = (Path(ROOT) / "tools/art/viewer.svg").read_text(encoding="utf-8")
+    viewer = brand.face_mark()
     rounded = brand.rasterize(web_tile(viewer, 0.88, 28), ART, ART)
     full = brand.rasterize(web_tile(viewer, 0.75, 0), ART, ART)
     for size in (192, 512):
         write(rounded, os.path.join(pub, f"icon-{size}.png"), size)
         write(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
     write(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
-    badge = brand.viewer_stencil(viewer, "#fff")
+    badge = brand.face_mark("#fff")
     write(brand.rasterize(badge, 384, 384), os.path.join(pub, "badge-96.png"), 96)
     with open(os.path.join(pub, "favicon.svg"), "w", encoding="utf-8") as f:
         f.write(web_tile(viewer, 0.98, 27))
