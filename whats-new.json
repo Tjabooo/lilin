@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-continue-next-episode",
+    "date": "2026-11-19",
+    "title": "Continue watching keeps the episode you just reached",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Shows no longer vanish from Continue watching",
+        "text": "If you once started an episode from a later season and stopped, that old episode could replace the one you'd just reached with Next episode, and the show could vanish from Continue watching. It now shows the episode you're really on."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-tv-credits-4k",
     "date": "2026-11-19",
     "title": "Credits card and 4K switch on the TVs",

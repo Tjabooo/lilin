@@ -1115,13 +1115,16 @@ function nextUp(showId, files = state.library) {
   const partial = eps.map((f) => ({ f, progress: savedProgress(libraryFile(f)) })).filter((x) => partlyWatched(x.progress))
     .sort((a, b) => (b.progress.at || 0) - (a.progress.at || 0))[0];
   const fin = state.finished?.[titleKeyOf({ show: showId })];
-  // Partway through the finished episode itself or a later one: resume it whatever the clocks say (finishing an
-  // episode deletes its progress, so this is a rewatch or the next one). An older episode goes by which is newer.
-  const notBehind = (f) => f.season > fin.season || (f.season === fin.season && f.episode >= fin.episode);
-  if (partial && (!fin || notBehind(partial.f) || (partial.progress.at || 0) >= fin.at)) return { ...partial, kind: 'resume', at: partial.progress.at || 0 };
+  const next = fin && main.find((f) => f.season > fin.season || (f.season === fin.season && f.episode > fin.episode));
+  // Partway through the finished episode itself or the one after it: resume it whatever the clocks say (a rewatch,
+  // or the next one). Any other episode only when it's newer than the finish: an old peek at a later season
+  // mustn't take the place of the episode they just reached.
+  const resumeAnyway = (f) => (f.season === fin.season && f.episode === fin.episode) || (next && f.season === next.season && f.episode === next.episode);
+  if (partial && (!fin || resumeAnyway(partial.f) || (partial.progress.at || 0) >= fin.at)) return { ...partial, kind: 'resume', at: partial.progress.at || 0 };
   if (fin) {
-    const next = main.find((f) => f.season > fin.season || (f.season === fin.season && f.episode > fin.episode));
-    return next ? { f: next, progress: null, kind: 'next', at: fin.at } : null;
+    // Started and quit at once (not "partway" yet): still the newest thing of this show.
+    const touched = next && savedProgress(libraryFile(next))?.at;
+    return next ? { f: next, progress: null, kind: 'next', at: Math.max(fin.at, touched || 0) } : null;
   }
   return { f: main[0], progress: null, kind: 'start', at: 0 };
 }
