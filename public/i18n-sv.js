@@ -2489,7 +2489,7 @@ export default {
   "1 moment": "1 ögonblick",
   "{0} moments": "{0} ögonblick",
   "Clip one from the player’s ⋯ menu": "Klipp ett från spelarens ⋯-meny",
-  "Nothing yet. Clip a moment from the ⋯ menu while a film or episode plays.": "Inget än. Klipp ett ögonblick från ⋯-menyn medan en film eller ett avsnitt spelas.",
+  "Nothing yet. Clip a moment with the scissors next to the settings cog while a film or episode plays.": "Inget än. Klipp ett ögonblick med saxen bredvid inställningskugghjulet medan en film eller ett avsnitt spelas.",
   "Who watched what, and when": "Vem som såg vad, och när",
   "Subtitles: {0}": "Undertexter: {0}",
   "No subtitles": "Inga undertexter",

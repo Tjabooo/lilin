@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-19-player-settings-cog",
+    "date": "2026-11-19",
+    "title": "A tidier player",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Subtitles, audio, night mode and quality under one cog",
+        "text": "The player bar has fewer buttons now. Press the cog to change subtitles, the audio language, night mode and the sleep timer, or the quality. Each one shows what it's set to, and Settings at the top of each list takes you back."
+      },
+      {
+        "kind": "improved",
+        "title": "Clip a moment has its own button",
+        "text": "The scissors next to the cog start Clip a moment straight away, instead of hiding it in the ⋯ menu."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-ipad-fullscreen",
     "date": "2026-11-19",
     "title": "Fullscreen on iPad",

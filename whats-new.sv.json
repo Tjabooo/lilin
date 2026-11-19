@@ -1,4 +1,17 @@
 {
+  "2026-11-19-player-settings-cog": {
+    "title": "En renare spelare",
+    "items": {
+      "Subtitles, audio, night mode and quality under one cog": {
+        "title": "Undertexter, ljud, nattläge och kvalitet under ett kugghjul",
+        "text": "Spelarens knapprad har färre knappar nu. Tryck på kugghjulet för att ändra undertexter, ljudspråk, nattläge och insomningstimer eller kvalitet. Varje rad visar vad den är inställd på, och Inställningar högst upp i varje lista tar dig tillbaka."
+      },
+      "Clip a moment has its own button": {
+        "title": "Klipp ut ett ögonblick har en egen knapp",
+        "text": "Saxen bredvid kugghjulet startar Klipp ut ett ögonblick direkt, i stället för att den göms i ⋯-menyn."
+      }
+    }
+  },
   "2026-11-19-ipad-fullscreen": {
     "title": "Helskärm på iPad",
     "items": {

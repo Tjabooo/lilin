@@ -1,5 +1,5 @@
 // Moments: cut a short piece of the film or episode you're watching and send it to friends, or copy a
-// link anyone can open. Player ⋯ → Clip a moment: drag the two handles on the zoomed strip (the picture
+// link anyone can open. Player scissors button (next to the cog) → Clip a moment: drag the two handles on the zoomed strip (the picture
 // follows), preview, then Next → note, friends, Send / Copy link. You → Moments lists what friends
 // sent you and the moments you made; unseen ones are For you cards at the top of You. Server side: src/moments.js (/api/moments, /c/m/<token>).
 // Not the owner's game Clips (clips tab); that's why these are called moments.
@@ -42,37 +42,15 @@ export function clampRange(start, end, edge, duration) {
 
 export function createMoments({ h, api, jsonPost, toast, icon, people, me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl,
   current, describe, subCues, inRoom, closeOthers, openMoment, rerender }) {
-  const moreBtn = document.getElementById('more-btn');
-  const moreMenu = document.getElementById('more-menu');
+  const clipBtn = document.getElementById('clip-btn');
   let clip = null; // { start, end, win, panel, step: 'pick' | 'share', ... } while clipping
   const view = { loaded: false, loading: null, data: { mine: [], shared: [], unseen: 0 }, jump: null };
 
-  // ---------- the ⋯ menu ----------
+  // ---------- the Clip a moment button (next to the settings cog) ----------
   const clippable = (f) => Boolean(f) && ['lib', 'dl'].includes(f.kind) && !f.live && !f.trailer;
-  function sync() {
-    moreBtn.hidden = !clippable(current());
-    if (moreBtn.hidden) closeMenu();
-  }
-  function closeMenu() { moreMenu.hidden = true; moreBtn.setAttribute('aria-expanded', 'false'); }
-  function renderMenu() {
-    moreMenu.replaceChildren(
-      h('p', { class: 'audio-title' }, T('More')),
-      h('button', { type: 'button', role: 'menuitem', class: 'cc-item more-item', tabindex: '-1', onclick: () => { closeMenu(); start(); } },
-        icon('share'), h('span', {}, T('Clip a moment'), h('small', {}, T('Send a bit of this to a friend')))));
-  }
-  moreBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const open = moreMenu.hidden;
-    closeOthers();
-    renderMenu();
-    moreMenu.hidden = !open;
-    moreBtn.setAttribute('aria-expanded', String(open));
-    if (open) moreMenu.querySelector('button')?.focus();
-  });
-  moreMenu.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); moreBtn.focus(); }
-  });
-  document.addEventListener('click', (e) => { if (!moreMenu.hidden && !moreMenu.contains(e.target)) closeMenu(); });
+  function sync() { clipBtn.hidden = !clippable(current()); }
+  function closeMenu() {} // the ⋯ menu is gone; kept so callers stay simple
+  clipBtn.addEventListener('click', (e) => { e.stopPropagation(); closeOthers(); start(); });
 
   // ---------- picking the range ----------
   const duration = () => (Number.isFinite(video.duration) ? video.duration : 0);
@@ -318,7 +296,7 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
     needed();
     const { mine = [], shared = [] } = view.data;
     if (!mine.length && !shared.length) {
-      return [h('p', { class: 'set-hint moment-foot' }, view.loaded ? T('Nothing yet. Clip a moment from the ⋯ menu while a film or episode plays.') : T('Loading…'))];
+      return [h('p', { class: 'set-hint moment-foot' }, view.loaded ? T('Nothing yet. Clip a moment with the scissors next to the settings cog while a film or episode plays.') : T('Loading…'))];
     }
     const out = [];
     const body = [];
@@ -352,5 +330,5 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
   // A "sent you a moment" notification: open You → Moments and play it.
   function jumpTo(id) { view.jump = id; view.loaded = false; }
 
-  return { sync, closeMenu, start, stop, open, menuOpen: () => !moreMenu.hidden || Boolean(clip), page, forYou, unseenCount, summary: counts, load, invalidate, jumpTo };
+  return { sync, closeMenu, start, stop, open, menuOpen: () => Boolean(clip), page, forYou, unseenCount, summary: counts, load, invalidate, jumpTo };
 }

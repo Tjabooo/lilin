@@ -3046,8 +3046,8 @@ window.addEventListener('popstate', () => { if (pendingBacks) pendingBacks--; ov
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!playerEl.hidden && playerMenuOpen()) {
-    const back = !ccMenu.hidden ? ccBtn : !audioMenu.hidden ? audioBtn : !nightMenu.hidden ? nightBtn : !qualityMenu.hidden ? qualityBtn
-      : !fsGuide.hidden ? fsBtn : !$('#more-menu').hidden ? $('#more-btn') : null;
+    const back = [settingsMenu, ccMenu, audioMenu, nightMenu, qualityMenu].some((m) => !m.hidden) ? settingsBtn
+      : !fsGuide.hidden ? fsBtn : null;
     closePlayerMenus();
     back?.focus();
     return;
@@ -7043,7 +7043,7 @@ const seekPreview = createSeekPreview(seekTip, () => { if (!seekTip.hidden && se
 const pickUi = createMatch({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyWithToast, pushOverlay, closeTopOverlay,
   openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(), invite,
   enterRoom: async (room) => { await openPlayer({ ...room.media, key: room.media.id, done: true }, { watchRoom: room }); setWatchPanel(true); } });
-// friends: Moments (moments.js): player ⋯ → Clip a moment, and Settings → Moments.
+// friends: Moments (moments.js): player scissors button (next to the cog) → Clip a moment, and Settings → Moments.
 const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl: $('#player'),
   current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
   describe: (f) => {
@@ -7068,6 +7068,75 @@ const helpEl = $('#player-help');
 
 // One player menu or panel at a time: opening one closes the others (they stop their clicks from bubbling,
 // so the "click outside" listeners never see the other buttons). Returns whether anything was open.
+// ---- settings cog ----
+// One cog holds Subtitles, Audio, Night mode and Quality. Their own buttons stay in the DOM (tucked away
+// with .pc-tucked), so availability, labels and menus work as before: a row here presses the hidden
+// button, and each of those menus gets a Settings back row on top.
+const settingsBtn = $('#settings-btn');
+const settingsMenu = $('#settings-menu');
+const tuckedMenus = () => [
+  { btn: ccBtn, menu: ccMenu, label: T('Subtitles'), value: () => ccLangs.find((l) => l.code === ccActive)?.name || T('Off') },
+  { btn: audioBtn, menu: audioMenu, label: T('Audio'), value: () => afterColon(audioBtn) },
+  { btn: nightBtn, menu: nightMenu, label: T('Night mode'), value: () => (nightBtn.classList.contains('is-on') ? nightBtn.getAttribute('aria-label') : T('Off')) },
+  { btn: qualityBtn, menu: qualityMenu, label: T('Quality'), value: () => afterColon(qualityBtn) },
+];
+function afterColon(btn) {
+  const label = btn.getAttribute('aria-label') || '';
+  const at = label.indexOf(': ');
+  return at >= 0 ? label.slice(at + 2) : '';
+}
+function closeSettingsMenu() { settingsMenu.hidden = true; settingsBtn.setAttribute('aria-expanded', 'false'); }
+function renderSettingsMenu() {
+  const rows = tuckedMenus().filter((t) => !t.btn.hidden);
+  settingsMenu.replaceChildren(h('p', { class: 'audio-title' }, T('Settings')), ...rows.map((t) => {
+    const art = t.btn.querySelector('svg')?.cloneNode(true);
+    art?.querySelector('[id]')?.removeAttribute('id'); // the quality badge's id stays unique
+    return h('button', { type: 'button', role: 'menuitem', class: 'cc-item settings-item', onclick: (e) => { e.stopPropagation(); t.btn.click(); } },
+      ...(art ? [art] : []), h('span', { class: 'settings-label' }, t.label), h('span', { class: 'settings-value' }, t.value() || ''),
+      h('span', { class: 'settings-chev', 'aria-hidden': 'true' }, '›'));
+  }));
+}
+function syncSettingsBtn() {
+  settingsBtn.hidden = tuckedMenus().every((t) => t.btn.hidden);
+  if (settingsBtn.hidden) closeSettingsMenu();
+  else if (!settingsMenu.hidden) renderSettingsMenu();
+}
+function openSettingsMenu() {
+  closePlayerMenus('settings');
+  renderSettingsMenu();
+  settingsMenu.hidden = false;
+  settingsBtn.setAttribute('aria-expanded', 'true');
+  settingsMenu.querySelector('button')?.focus();
+}
+settingsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (settingsMenu.hidden) openSettingsMenu(); else closeSettingsMenu();
+});
+settingsMenu.addEventListener('keydown', (e) => {
+  const items = [...settingsMenu.querySelectorAll('button')];
+  const index = items.indexOf(document.activeElement);
+  const target = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
+    : e.key === 'ArrowDown' ? (index + 1) % items.length : e.key === 'ArrowUp' ? (index - 1 + items.length) % items.length : null;
+  if (target != null && items.length) { e.preventDefault(); items[target].focus(); }
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSettingsMenu(); settingsBtn.focus(); }
+});
+document.addEventListener('click', (e) => { if (!settingsMenu.hidden && !settingsMenu.contains(e.target)) closeSettingsMenu(); });
+{
+  const watch = new MutationObserver(syncSettingsBtn);
+  for (const t of tuckedMenus()) {
+    watch.observe(t.btn, { attributes: true, attributeFilter: ['hidden', 'aria-label', 'class'] });
+    // Each sub-menu re-renders itself with replaceChildren, so the back row is put back whenever it goes missing.
+    const addBack = () => {
+      if (t.menu.firstElementChild?.classList.contains('settings-back')) return;
+      t.menu.prepend(h('button', { type: 'button', role: 'menuitem', class: 'cc-item settings-back',
+        onclick: (e) => { e.stopPropagation(); openSettingsMenu(); } }, h('span', { 'aria-hidden': 'true' }, '‹'), T('Settings')));
+    };
+    new MutationObserver(addBack).observe(t.menu, { childList: true });
+    addBack();
+  }
+  syncSettingsBtn();
+}
+
 function closePlayerMenus(except) {
   const was = playerMenuOpen();
   if (except !== 'cc') closeCcMenu();
@@ -7075,14 +7144,15 @@ function closePlayerMenus(except) {
   if (except !== 'night') closeNightMenu();
   if (except !== 'quality') closeQualityMenu();
   if (except !== 'more') momentsUI.closeMenu();
+  if (except !== 'settings') closeSettingsMenu();
   if (except !== 'fs') closeFsGuide();
   if (except !== 'help') helpEl.hidden = true;
   if (except !== 'stats') streamStats.close();
   return was;
 }
-const playerMenuOpen = () => !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
-  || !$('#more-menu').hidden || !helpEl.hidden || streamStats.isOpen();
-const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen(); // friends: Moments
+const playerMenuOpen = () => !settingsMenu.hidden || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
+  || !helpEl.hidden || streamStats.isOpen();
+const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !settingsMenu.hidden || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen(); // friends: Moments
 let lastPointer = 'mouse';
 let overControls = false;
 let uiTimer = null;
@@ -7754,7 +7824,7 @@ async function loadPlayerMedia(f, opts = {}) {
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
   setPlayerTitle(f);
   pauseScreen.load(f.live || !['lib', 'part'].includes(f.kind) ? null : session); // the pause screen's title
-  momentsUI.sync(); // friends: the ⋯ menu (Clip a moment) for library videos
+  momentsUI.sync(); // friends: the Clip a moment button for library videos
   playerEl.classList.toggle('is-clip', plainMedia(f));
   updatePlayState();
   updateTime();

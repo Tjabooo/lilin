@@ -1794,6 +1794,19 @@ body.has-nowbar .toast { bottom: calc(var(--tabs-h) + var(--safe-bottom) + 84px)
 .quality-upgrade svg { flex: none; width: 18px; height: 18px; }
 .quality-upgrade[aria-disabled="true"] { opacity: .6; cursor: default; }
 .quality-btn svg text { font-size: 7px; letter-spacing: -0.2px; }
+/* Settings cog: Subtitles, Audio, Night mode and Quality live in one menu; their own buttons stay tucked away */
+.pc-row .pc-tucked { display: none !important; }
+.settings-menu { width: min(320px, calc(100vw - 32px)); }
+.settings-item::before, .settings-back::before { display: none; }
+.settings-item > svg { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.settings-item > svg text { fill: currentColor; stroke: none; font: 700 7px var(--body); letter-spacing: -0.2px; }
+.settings-label { flex: none; }
+.settings-value { flex: 1 1 auto; min-width: 0; text-align: right; font-size: 13px; font-weight: 500; color: var(--dust); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-chev, .settings-back > span { flex: none; font-size: 20px; line-height: 1; color: rgb(255 255 255 / .55); }
+.settings-back { min-height: 40px; gap: 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: rgb(255 255 255 / .7); }
+.settings-back + * { margin-top: 2px; }
+.settings-cog[aria-expanded="true"] svg { transform: rotate(45deg); }
+.settings-cog svg { transition: transform var(--d-2) var(--ease-out); }
 /* iPhone: how to watch fullscreen (the Home Screen app), in place of iOS's own player */
 .fs-guide { width: min(330px, calc(100vw - 32px)); }
 .fs-guide .audio-title { margin: 8px 12px 4px; }
