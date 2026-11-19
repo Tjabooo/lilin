@@ -1,5 +1,27 @@
 [
   {
+    "id": "2026-11-19-credits-mornings-static",
+    "date": "2026-11-19",
+    "title": "Credits, mornings and channel static",
+    "items": [
+      {
+        "kind": "new",
+        "title": "A credits card when the credits roll",
+        "text": "When the closing credits start, the picture slides into a corner and a card shows the song from the soundtrack (with a link to Spotify or YouTube Music) and what's up next. It says how sure it is: a track named for the end credits, the show's theme, or just from the soundtrack. Tap the small picture or Back to the picture to watch the credits full size."
+      },
+      {
+        "kind": "new",
+        "title": "Discover changes with the time of day",
+        "text": "In the morning Discover gets a warmer glow and a row of short, bright picks. After midnight it goes dark, with a Late night row of strange films under 95 minutes. It goes by the clock on your device."
+      },
+      {
+        "kind": "improved",
+        "title": "Channel static on Live TV",
+        "text": "Switching channels now gives a short burst of static and the channel number in the corner, like an old TV."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-full-quality-waits-for-sound",
     "date": "2026-11-19",
     "title": "Full quality waits for its sound",

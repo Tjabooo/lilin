@@ -502,6 +502,43 @@ export const VIBES = [
       film(985, 'Eraserhead'), film(347031, 'Swiss Army Man'), film(792307, 'Poor Things'), film(103328, 'Holy Motors'), show(67195, 'Legion'),
       show(1920, 'Twin Peaks'), show(65495, 'Atlanta'), show(73411, 'Maniac')],
   },
+  // ---- time of day (hidden: not in the Moods row; public/daypart.js shows one as its own Discover row) ----
+  {
+    id: 'morning-short', hidden: true,
+    name: { en: 'Good morning: short and bright', sv: 'God morgon: kort och ljust' },
+    blurb: { en: 'Warm, light and over before the coffee goes cold.', sv: 'Varmt, lätt och slut innan kaffet hunnit kallna.' },
+    look: ['#c8622a', '#ffcf8a', 'mug'],
+    floor: { rating: 6.6, movie: 300, tv: 100 },
+    queries: [
+      { movie: { with_keywords: kw('cheerful', 'feelgood', 'lighthearted', 'heartwarming', 'comforting', 'joyful', 'whimsical', 'hopeful', 'gentle'),
+        'with_runtime.gte': '60', 'with_runtime.lte': '100', without_genres: g(M.horror, M.thriller, M.crime, M.war, M.history) },
+        tv: { with_keywords: kw('cheerful', 'feelgood', 'lighthearted', 'heartwarming', 'comforting', 'joyful', 'whimsical', 'witty'),
+          'with_runtime.gte': '15', 'with_runtime.lte': '32', without_genres: g(TV.crime, TV.warPolitics, TV.mystery) } },
+      { movie: { with_genres: g(M.comedy, M.animation, M.family), 'with_runtime.gte': '60', 'with_runtime.lte': '95', without_genres: g(M.horror, M.thriller, M.crime, M.war, M.drama) },
+        tv: { with_genres: g(TV.comedy), with_keywords: kw('sitcom', 'workplaceComedy', 'mockumentary'), 'with_runtime.lte': '32', without_genres: g(TV.crime, TV.drama, TV.mystery) } },
+    ],
+    anchors: [film(8392, 'My Neighbor Totoro'), film(116149, 'Paddington'), film(533, 'Wallace & Gromit: The Curse of the Were-Rabbit'), film(7443, 'Chicken Run'),
+      film(10315, 'Fantastic Mr. Fox'), film(120467, 'The Grand Budapest Hotel'),
+      show(8592, 'Parks and Recreation'), show(48891, 'Brooklyn Nine-Nine'), show(61662, "Schitt's Creek"), show(66573, 'The Good Place'), show(125935, 'Abbott Elementary')],
+  },
+  {
+    // Films only: TMDB's runtime filter doesn't hold for shows (Breaking Bad got in), so "under 95 min" would lie.
+    id: 'late-night', hidden: true,
+    name: { en: 'Late night: under 95 min', sv: 'Sent i natt: under 95 min' },
+    blurb: { en: 'Dark, strange and short enough to finish before you nod off.', sv: 'Mörkt, konstigt och kort nog att se klart innan du somnar.' },
+    look: ['#0c0a1c', '#5a3d8c', 'eye'],
+    floor: { rating: 6.3, movie: 250, tv: 60 },
+    queries: [
+      { movie: { with_keywords: kw('surreal', 'surrealism', 'absurd', 'absurdist', 'offbeat', 'mysterious', 'dreamWorld', 'realityVsFantasy', 'timeLoop', 'cult'),
+        'with_runtime.gte': '65', 'with_runtime.lte': '95', without_genres: g(M.family, M.romance, M.music, M.animation, M.action, M.war, M.adventure, M.comedy) } },
+      { movie: { with_genres: g(M.horror, M.scifi, M.mystery), with_keywords: kw('gloomy', 'foreboding', 'grim', 'tense', 'suspenseful', 'mysterious', 'paranoia', 'isolation'),
+        'with_runtime.gte': '65', 'with_runtime.lte': '95', without_genres: g(M.family, M.comedy, M.romance, M.animation) } },
+      { boost: true, movie: { with_keywords: kw('neoNoir', 'oneNight', 'nightlife', 'neon', 'cyberpunk', 'darkComedy'), 'with_runtime.lte': '95' } },
+    ],
+    anchors: [film(985, 'Eraserhead'), film(473, 'Pi'), film(14337, 'Primer'), film(220289, 'Coherence'), film(431, 'Cube'), film(837, 'Videodrome'),
+      film(14139, 'Timecrimes'), film(25623, 'House'), film(1694, 'Re-Animator'), film(2667, 'The Blair Witch Project'),
+      film(4011, 'Beetlejuice'), film(892, 'Delicatessen')],
+  },
 ];
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -580,7 +617,7 @@ export function createVibes(deps) {
   });
 
   function list({ month } = {}) {
-    return VIBES.filter((v) => inSeason(v, month)).map(publicVibe);
+    return VIBES.filter((v) => !v.hidden && inSeason(v, month)).map(publicVibe);
   }
 
   async function anchorTitle([type, id]) {

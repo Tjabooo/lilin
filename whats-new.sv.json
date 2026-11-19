@@ -1,4 +1,21 @@
 {
+  "2026-11-19-credits-mornings-static": {
+    "title": "Eftertexter, morgnar och kanalbrus",
+    "items": {
+      "A credits card when the credits roll": {
+        "title": "Ett eftertextkort när eftertexterna börjar",
+        "text": "När eftertexterna börjar glider bilden in i ett hörn och ett kort visar låten från soundtracket (med en länk till Spotify eller YouTube Music) och vad som kommer härnäst. Det säger hur säkert det är: ett spår som heter något med eftertexter, seriens ledmotiv eller bara från soundtracket. Tryck på den lilla bilden eller Tillbaka till bilden för att se eftertexterna i full storlek."
+      },
+      "Discover changes with the time of day": {
+        "title": "Upptäck ändras efter tid på dygnet",
+        "text": "På morgonen får Upptäck ett varmare sken och en rad med korta, ljusa tips. Efter midnatt blir det mörkt, med en rad för sena kvällar med konstiga filmer under 95 minuter. Den går efter klockan på din enhet."
+      },
+      "Channel static on Live TV": {
+        "title": "Brus mellan kanalerna i Live-tv",
+        "text": "När du byter kanal blir det nu en kort stund brus och kanalnumret i hörnet, som på en gammal tv."
+      }
+    }
+  },
   "2026-11-19-full-quality-waits-for-sound": {
     "title": "Full kvalitet väntar på ljudet",
     "items": {
@@ -32,6 +49,15 @@
       "Turn off autoplay for the next episode": {
         "title": "Stäng av automatisk uppspelning av nästa avsnitt",
         "text": "Inställningskugghjulet i spelaren har en ny brytare: Spela nästa avsnitt automatiskt. Stänger du av den visas Nästa-kortet fortfarande i slutet av ett avsnitt, men det väntar på dig i stället för att räkna ner. Valet sparas på varje enhet."
+      }
+    }
+  },
+  "2026-11-19-house-machines-tile": {
+    "title": "Huset blir prydligare",
+    "items": {
+      "Machines right on the House page": {
+        "title": "Maskinerna direkt i Huset",
+        "text": "Statusraden för maskinerna överst i Huset är borta. Allt som fanns bakom den (servern, VPN, delning, ström och varje maskin) ligger nu direkt i Huset, under de andra knapparna."
       }
     }
   },

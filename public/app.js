@@ -4,7 +4,7 @@ import { WatchSession, offsetCues } from './watch-sync.js';
 import { createNotesView } from './notes-view.js';
 import { createLiveView, channelName, clock as liveClock, programmeLine } from './live.js';
 import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
-import { nextLibraryEpisode, isNextEpisodeTime, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
+import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
 import * as pushDevice from './notifications.js';
@@ -38,6 +38,9 @@ import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme m
 import { ROUTES, allowedRoute, tabsFor, pagesOf, resolve, linkRoute, startRoute } from './routes.js'; // the shell: tabs, addresses, Back
 import { createSearch } from './search.js'; // search: titles + Go to (places.js)
 import { titleModel } from './title-model.js'; // the one title page: its state, gold button, chips and ⋯ menu
+import { createCreditsCard } from './credits-card.js'; // the credits card: picture in the corner, song + Up next
+import { createDaypart } from './daypart.js'; // Discover by time of day: morning + late-night rows and look
+import { createChannelStatic, STATIC_MIN_MS } from './channel-static.js'; // Live TV: grain + corner number on a channel switch
 import { createPauseScreen } from './pause-screen.js'; // the pause screen: logo + synopsis after a few seconds paused
 import { createGettingReady } from './getting-ready.js'; // play first: the player's Getting it ready screen
 
@@ -1411,6 +1414,7 @@ async function renderDiscover() {
       ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: T('Trending this week') }) : null),
       continueRow(),
       newEpisodesRow(),
+      rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
       savedRow(),
       rowSlot(moods, signal),
       trending,
@@ -3996,6 +4000,8 @@ const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, noti
     window.scrollTo({ top: 0 });
     renderDiscover();
   } });
+// Time-of-day Discover: a warm morning row and look, a dark late-night one (daypart.js).
+const daypartUi = createDaypart({ h, cachedApi, carousel, titleCard, owned: (t) => isInstant(t), openVibe: (v, type) => vibesUi.open(v, type) });
 
 // The subtitles the phone player would turn on by itself (see its subtitle setup), so a TV starts with
 // them too: the last used language when it's already saved for this video, else the one from Settings.
@@ -5057,26 +5063,38 @@ const liveMediaOf = (room) => ({ ...room.media, key: room.media.id, done: true, 
 let tuning = null, lastChannel = null, liveDigits = '', liveDigitsTimer = null;
 const liveChannelId = () => (current?.live ? party?.state.live?.channel?.id || current.live.channel?.id : null);
 
-// Switching channels: a short black cut, then the channel's number, name and what's on now slide in like a TV's
-// on-screen info (also when a channel is first tuned in).
-const channelUi = { cut: null, info: null, timer: 0, since: 0 };
+// Switching channels: a moment of static with the channel number in the top right corner, then the channel's
+// number, name and what's on now slide in like a TV's on-screen info (also when a channel is first tuned in).
+const channelUi = { cut: null, static: null, corner: null, info: null, timer: 0, cornerTimer: 0, since: 0 };
 function channelEls() {
   if (!channelUi.cut) {
     channelUi.cut = h('div', { class: 'channel-cut', 'aria-hidden': 'true' });
+    channelUi.static = createChannelStatic({ h }); // the grain while it switches (channel-static.js)
+    channelUi.corner = h('div', { class: 'channel-corner', 'aria-hidden': 'true' });
     channelUi.info = h('div', { class: 'channel-info', 'aria-hidden': 'true' });
-    $('#player-stage').append(channelUi.cut, channelUi.info);
+    $('#player-stage').append(channelUi.cut, channelUi.static.el, channelUi.corner, channelUi.info);
   }
   return channelUi;
 }
-function startChannelCut() {
+function startChannelCut(number) {
   const { cut } = channelEls();
   channelUi.since = Date.now();
   cut.classList.add('is-on');
+  channelUi.static.start();
+  if (number != null) showChannelCorner(number);
+}
+// The channel number in the top right corner, big and plain like a TV's own on-screen display.
+function showChannelCorner(number) {
+  const { corner } = channelEls();
+  corner.textContent = String(number);
+  corner.classList.add('is-in');
+  clearTimeout(channelUi.cornerTimer);
+  channelUi.cornerTimer = setTimeout(() => corner.classList.remove('is-in'), 2600);
 }
 function endChannelCut(waitForPicture) {
   const { cut } = channelEls();
   if (!cut.classList.contains('is-on')) return;
-  const off = () => setTimeout(() => cut.classList.remove('is-on'), Math.max(0, 260 - (Date.now() - channelUi.since)));
+  const off = () => setTimeout(() => { cut.classList.remove('is-on'); channelUi.static.stop(); }, Math.max(0, STATIC_MIN_MS - (Date.now() - channelUi.since)));
   if (!waitForPicture || !video.paused && video.readyState >= 3) { off(); return; }
   let done = false;
   const once = () => { if (done) return; done = true; video.removeEventListener('playing', once); off(); };
@@ -5087,6 +5105,7 @@ function showChannelInfo(live) {
   const ch = live?.channel;
   if (!ch) return;
   const { info } = channelEls();
+  if (ch.number != null) showChannelCorner(ch.number);
   const now = live.now;
   const line = now && programmeLine(now, episodeLabel);
   const done = now ? Math.min(1, Math.max(0, (Date.now() - now.s) / (now.e - now.s))) : 0;
@@ -5111,7 +5130,7 @@ async function tuneIn(id, again = false) {
   if (was === id && !playerEl.hidden && !again) { showPlayerUi(); return; }
   tuning = id;
   const switching = !playerEl.hidden && Boolean(current);
-  if (switching) startChannelCut();
+  if (switching) startChannelCut(liveView.byId(id)?.number);
   let tuned = false;
   try {
     const room = await api(`/api/live/${encodeURIComponent(id)}/tune`, jsonPost({ clientId: watchClient }));
@@ -7197,7 +7216,7 @@ video.addEventListener('play', showPlayerUi);
 video.addEventListener('pause', showPlayerUi);
 // Paused for a few seconds: the picture dims and the title's logo, episode and synopsis show (pause-screen.js).
 const pauseScreen = createPauseScreen({ h, playerEl, stage, video,
-  canRest: () => Boolean(current?.ready) && !menuOpen() && seeking == null && !gettingReady.active() && !playerEl.classList.contains('has-up-next') && !inPip(),
+  canRest: () => Boolean(current?.ready) && !menuOpen() && seeking == null && !gettingReady.active() && !playerEl.classList.contains('has-up-next') && !playerEl.classList.contains('is-credits') && !inPip(),
   info: pauseInfo,
   onRest: (on) => { if (on) { clearTimeout(uiTimer); setUi(false); } else showPlayerUi(); } });
 async function pauseInfo(s) {
@@ -7777,6 +7796,7 @@ function resetPlayerMedia() {
   seekPreview.load(null);
   const old = current;
   resetAudioSelection(old);
+  creditsCard?.leave();
   current = null;
   old?.abort?.abort();
   old?.nextAbort?.abort();
@@ -8036,6 +8056,10 @@ const upNextDismiss = $('#up-next-dismiss');
 const upNextError = $('#up-next-error');
 const upNextStatus = $('#up-next-status');
 let upNextLayoutSignature = '';
+// The credits card (credits-card.js): at the credits the picture moves into a corner and Up next joins the song.
+const creditsCard = createCreditsCard({ h, api, playerEl, stage, video, upNextEl,
+  gapBelow: () => (seekRow.getClientRects().length ? Math.max(16, stage.getBoundingClientRect().bottom - seekRow.getBoundingClientRect().top) : 96),
+  onChange: () => { requestAnimationFrame(layoutSubs); } });
 let autoChain = 0; // episodes started by the countdown since the last key press, click or tap
 
 // ---- skip intro ----
@@ -8103,6 +8127,7 @@ function updateUpNext() {
     && isNextEpisodeTime({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt }));
   upNextEl.hidden = !show;
   playerEl.classList.toggle('has-up-next', show);
+  creditsCard.sync(session, creditsState(session, show, externalPlayer));
   // The countdown starts the moment the card does: at the credits, or at the end of the file.
   const counting = show && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN && autoplayNextOn();
   if (counting && session.autoLeft == null) startAutoplay(session);
@@ -8135,6 +8160,19 @@ function updateUpNext() {
   } else if (!session) upNextStatus.textContent = '';
   const signature = show ? `${next.id}|${video.ended}|${session.upNextBusy}|${session.upNextError}` : '';
   if (signature !== upNextLayoutSignature) { upNextLayoutSignature = signature; layoutSubs(); }
+}
+
+// What the credits card needs: whether the credits are rolling (their start is known and the picture is past it),
+// whether Up next shows, and which title's soundtrack to look in.
+function creditsState(session, next, externalPlayer) {
+  if (!session) return { rolling: false };
+  const rolling = Boolean(session.ready && !party && !session.live && !externalPlayer && !session.upNextDismissed && seeking == null
+    && ['lib', 'part'].includes(session.kind) && nextEpisodePromptAt(video.duration, session.creditsAt) != null && video.currentTime >= session.creditsAt);
+  if (!rolling) return { rolling };
+  const show = session.show != null ? state.libraryShows.find((x) => x.id === session.show) : null;
+  const ref = !state.status?.search ? null : show?.tmdbId ? { type: 'tv', id: show.tmdbId }
+    : !show && session.season == null && session.tmdbId ? { type: 'movie', id: session.tmdbId } : null;
+  return { rolling, next, ref, title: show?.title || session.filmTitle || session.title || '' };
 }
 
 // Counts real seconds while the credits play (or after the end); a pause during the credits pauses it.

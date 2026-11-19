@@ -4109,10 +4109,18 @@ html.wrapped-on { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .pause-card > * { translate: none; transition-delay: 0s !important; } }
 
 
-/* Live TV channel switch (app.js tuneIn): a short black cut, then the channel's number, name and what's on now slide in
-   at the top left like a TV's on-screen info, and leave after a few seconds. */
+/* Live TV channel switch (app.js tuneIn): a moment of static (channel-static.js) with the channel number in the top
+   right corner, then the channel's number, name and what's on now slide in at the top left like a TV's on-screen info,
+   and leave after a few seconds. */
 .channel-cut { position: absolute; inset: 0; z-index: 3; background: #000; opacity: 0; pointer-events: none; }
 .channel-cut.is-on { opacity: 1; }
+.channel-static { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; opacity: 0; filter: contrast(1.15); }
+.channel-static.is-on { opacity: .92; }
+.channel-corner { position: absolute; z-index: 5; top: clamp(18px, 4vh, 40px); right: max(var(--gutter), 3.5vw); pointer-events: none;
+  font: 800 clamp(44px, 30px + 3.4vw, 84px)/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: #fff;
+  text-shadow: 0 0 2px rgb(0 0 0 / .9), 3px 3px 0 rgb(0 0 0 / .55), 0 0 26px var(--glow-color, rgb(255 255 255 / .35));
+  opacity: 0; transition: opacity .5s var(--ease-out); }
+.channel-corner.is-in { opacity: 1; transition-duration: .06s; }
 .channel-info { position: absolute; z-index: 4; top: clamp(64px, 9vh, 96px); left: max(var(--gutter), 3vw); display: flex; align-items: stretch; gap: 14px;
   max-width: min(520px, calc(100% - 2 * var(--gutter))); padding: 12px 18px 12px 12px; color: #fff; pointer-events: none;
   background: linear-gradient(90deg, rgb(0 0 0 / .78), rgb(0 0 0 / .55)); border-radius: 14px; box-shadow: 0 12px 40px -12px rgb(0 0 0 / .7), inset 0 0 0 1px rgb(255 255 255 / .1);
@@ -4129,3 +4137,72 @@ html.wrapped-on { overflow: hidden; }
 .ci-bar { flex: 1; min-width: 80px; height: 3px; border-radius: 2px; background: rgb(255 255 255 / .2); overflow: hidden; }
 .ci-bar i { display: block; height: 100%; width: calc(var(--done) * 100%); background: var(--bulb); }
 @media (prefers-reduced-motion: reduce) { .channel-info { translate: none; } }
+
+/* Time-of-day Discover (daypart.js sets <html data-daypart>). Morning: a soft amber glow from the top and a slightly
+   warmer billboard. After midnight: a deep violet dark, the billboard dimmed and cooled. Static: nothing animates. */
+:root[data-daypart] #view-discover { position: relative; isolation: isolate; }
+:root[data-daypart] #view-discover::before { content: ''; position: absolute; z-index: -1; pointer-events: none;
+  inset: calc(-1 * (var(--safe-top) + var(--head-h) + var(--s2))) calc(-1 * var(--gutter)) auto; height: min(170vh, 1800px); }
+:root[data-daypart="morning"] #view-discover::before {
+  background: radial-gradient(90% 40% at 75% 22%, rgb(255 166 77 / .2), transparent 70%),
+    radial-gradient(70% 45% at 5% 45%, rgb(255 120 60 / .13), transparent 75%),
+    linear-gradient(to bottom, rgb(255 150 70 / .07), transparent 80%); }
+:root[data-daypart="late"] #view-discover::before {
+  background: radial-gradient(100% 60% at 50% 0%, rgb(70 40 140 / .26), transparent 72%),
+    linear-gradient(to bottom, rgb(4 2 14 / .45), rgb(4 2 14 / .25) 60%, transparent); }
+:root[data-scheme="light"][data-daypart="late"] #view-discover::before {
+  background: radial-gradient(100% 60% at 50% 0%, rgb(90 60 170 / .14), transparent 72%); }
+:root[data-daypart="morning"] #view-discover .bb-art { filter: sepia(.14) saturate(1.1) brightness(1.03); }
+:root[data-daypart="late"] #view-discover .bb-art { filter: saturate(.78) brightness(.82) hue-rotate(8deg); }
+.daypart-shelf .shelf-head h3 { display: flex; align-items: center; gap: 10px; }
+.daypart-shelf .shelf-head h3::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.daypart-shelf.is-morning .shelf-head h3::before { background: radial-gradient(circle at 35% 35%, #ffe2a8, #ff9a3c); box-shadow: 0 0 12px 2px rgb(255 160 70 / .55); }
+.daypart-shelf.is-late .shelf-head h3::before { background: radial-gradient(circle at 65% 35%, transparent 38%, #c9b8ff 40%); box-shadow: 0 0 12px 1px rgb(140 110 255 / .45); }
+
+/* The credits card (credits-card.js): at the closing credits the picture shrinks into a corner (an inline transform +
+   clip-path on the <video>) and the card takes the left of the screen with the song and Up next. */
+.player.credits-moving video { transition: transform .7s var(--ease-out), clip-path .7s var(--ease-out); }
+.player.is-credits video { cursor: zoom-in; }
+.player.is-credits .player-stage { background:
+  radial-gradient(70% 70% at 0% 60%, color-mix(in srgb, var(--bulb) 9%, transparent), transparent 70%), #07050a; }
+.player.is-credits .player-subs, .player.is-credits .pause-card, .player.is-credits .player-center { opacity: 0 !important; pointer-events: none !important; }
+.credits-card { position: absolute; z-index: 3; left: max(var(--pad-x), 4vw); top: 50%; translate: 0 -50%;
+  width: min(440px, 44%); max-height: calc(100% - 2 * max(var(--safe-top), 24px)); overflow: auto; overscroll-behavior: contain;
+  display: grid; gap: 14px; color: #f6eadf; animation: crd-in .6s var(--ease-out) both .15s; }
+.credits-card[hidden] { display: none; }
+@keyframes crd-in { from { opacity: 0; translate: -18px -50%; } to { opacity: 1; translate: 0 -50%; } }
+.crd-kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--bulb); }
+.crd-name { margin: -8px 0 0; font: 800 clamp(22px, 18px + 1.2vw, 32px)/1.15 var(--display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.crd-name:empty { display: none; }
+.crd-song { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; padding: 14px 16px;
+  border-radius: var(--r-lg); background: rgb(255 255 255 / .06); border: 1px solid rgb(255 255 255 / .1); }
+.crd-song[hidden] { display: none; }
+.crd-note { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: var(--on-bulb); background: var(--bulb);
+  box-shadow: 0 0 22px -4px var(--glow-color); }
+.crd-note svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.crd-song-text { min-width: 0; }
+.crd-why { margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #c1b6ae; }
+.crd-track { margin: 0; font: 700 17px/1.3 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crd-by { margin: 2px 0 0; font-size: 13px; color: rgb(246 234 223 / .7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crd-by:empty { display: none; }
+.crd-find { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 6px 12px;
+  border-radius: 999px; font-size: 13px; font-weight: 700; color: #f6eadf; text-decoration: none; background: rgb(255 255 255 / .09); }
+.crd-find:hover, .crd-find:focus-visible { background: rgb(255 255 255 / .16); }
+.crd-out svg { width: 14px; height: 14px; display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.crd-next:empty { display: none; }
+.credits-card .up-next { position: static; width: auto; max-height: none; overflow: visible; animation: none;
+  background: rgb(255 255 255 / .06); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: rgb(255 255 255 / .1); }
+.credits-card .up-next[hidden] { display: none; }
+.crd-back { justify-self: start; padding: 6px 2px; border: 0; background: none; color: rgb(246 234 223 / .72); font-size: 13px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.crd-back:hover, .crd-back:focus-visible { color: #fff; }
+/* Phones and narrow windows: the picture goes to the top right, the card sits under it. */
+@media (max-width: 699px) {
+  .credits-card { top: calc(var(--crd-pic-top, 40%) + 16px); translate: none; left: 14px; right: 14px; width: auto;
+    max-height: calc(100% - var(--crd-pic-top, 40%) - 120px); animation-name: crd-in-up; }
+  @keyframes crd-in-up { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: none; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player.credits-moving video { transition-duration: .01s; }
+  .credits-card { animation-duration: .01s; }
+}

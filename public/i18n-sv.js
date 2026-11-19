@@ -2676,4 +2676,10 @@ export default {
   "Pick a language to change the size, style and timing.": "Välj ett språk för att ändra storlek, stil och tajming.",
   // player: autoplay switch in the settings cog
   "Autoplay next episode": "Spela nästa avsnitt automatiskt",
+  // player: the credits card
+  "End credits": "Eftertexter",
+  "Back to the picture": "Tillbaka till bilden",
+  "Over the credits": "Under eftertexterna",
+  "The show’s theme": "Seriens ledmotiv",
+  "From the soundtrack": "Från soundtracket",
 };
