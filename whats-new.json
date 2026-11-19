@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-film-year-match",
+    "date": "2026-11-19",
+    "title": "Older films that wouldn’t download",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Films with a different year now download",
+        "text": "Some films said no release matched even though copies existed, because the uploads use the premiere year while Lilin knew the later cinema year (Clean, Shaven: 1993 vs 1995). Lilin now accepts those copies when nothing closer exists."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-ipad-fullscreen-button",
     "date": "2026-11-19",
     "title": "Fullscreen button on iPad",

@@ -1,4 +1,13 @@
 {
+  "2026-11-19-film-year-match": {
+    "title": "Äldre filmer som inte gick att ladda ner",
+    "items": {
+      "Films with a different year now download": {
+        "title": "Filmer med ett annat årtal laddas nu ner",
+        "text": "Vissa filmer sa att ingen utgåva stämde fast det fanns kopior, eftersom de använder premiäråret medan Lilin kände till det senare biografåret (Clean, Shaven: 1993 mot 1995). Nu tar Lilin de kopiorna när inget närmare finns."
+      }
+    }
+  },
   "2026-11-19-ipad-fullscreen-button": {
     "title": "Helskärmsknapp på iPad",
     "items": {

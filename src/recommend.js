@@ -275,10 +275,13 @@ export function pickBest(results, want, parseName) {
   }
   // Other names of the film (anime: the romanised title, "Kimi no Na wa." for "Your Name.").
   const keys = new Set([key, ...(want.aliases || [])]);
-  return choose(live.filter((r) => {
-    const p = parseName(r.name, { file: false });
-    return p.season == null && keys.has(showKey(p.title)) && (!want.year || !p.year || Math.abs(p.year - want.year) <= 1);
-  }), want, 'movie');
+  const years = new Map();
+  const named = live.filter((r) => { const p = parseName(r.name, { file: false }); years.set(r, p.year); return p.season == null && keys.has(showKey(p.title)); });
+  const near = (gap) => named.filter((r) => !want.year || !years.get(r) || Math.abs(years.get(r) - want.year) <= gap);
+  // TMDB often dates a film by its wide release while uploads use the festival premiere ("Clean, Shaven":
+  // TMDB 1995, every copy 1993). Within a year first; up to three only when nothing closer exists.
+  const close = near(1);
+  return choose(close.length ? close : near(3), want, 'movie');
 }
 
 // Releases already filtered to the right show, season and episode (season.js): the best one, by the
