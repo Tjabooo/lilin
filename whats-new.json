@@ -6,6 +6,11 @@
     "items": [
       {
         "kind": "improved",
+        "title": "Cleaner You tab on phones",
+        "text": "When you're on You, the ring around your picture shows it. The little light above the tab is gone there; the other tabs keep it."
+      },
+      {
+        "kind": "improved",
         "title": "New Lilin colours",
         "text": "The Lilin theme is now deep ink with bone-white text and a signal-red light, taken from the new billboard. If you picked another theme in Settings → Appearance, you keep it."
       },

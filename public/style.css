@@ -382,6 +382,8 @@ body:not(.searching) .search-cancel { display: none; }
 .tab:active svg { transform: scale(.9); }
 /* You: your face instead of an icon (the shared home account keeps the glyph); a dot when something waits for you */
 .tab-face { display: grid; place-items: center; width: 24px; height: 24px; }
+/* the face's ring marks You on its own: no bulb bar above it */
+.tab[data-view="you"]:has(.face)::before { display: none; }
 .tab[aria-current="page"] .tab-face .face { box-shadow: 0 0 0 2px var(--velvet), 0 0 0 3.5px var(--bulb); }
 .tab-dot { position: absolute; top: 6px; left: calc(50% + 7px); width: 10px; height: 10px; font-size: 0; background: var(--bulb); border-radius: 50%; box-shadow: 0 0 0 2px var(--velvet); }
 .me-btn .tab-dot { top: 1px; left: auto; right: 1px; }

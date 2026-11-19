@@ -2,6 +2,10 @@
   "2026-11-20-new-look": {
     "title": "Lilins nya färger och logga",
     "items": {
+      "Cleaner You tab on phones": {
+        "title": "Renare Du-flik på mobilen",
+        "text": "När du är på Du visar ringen runt din bild det. Den lilla lampan ovanför fliken är borta där; de andra flikarna har kvar den."
+      },
       "New Lilin colours": {
         "title": "Nya Lilin-färger",
         "text": "Lilin-temat är nu djupt bläcksvart med benvit text och ett signalrött ljus, hämtat från den nya skylten. Har du valt ett annat tema under Inställningar → Utseende behåller du det."
