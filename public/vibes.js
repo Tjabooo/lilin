@@ -96,6 +96,12 @@ export function todaysMoods(type = 'all', n = 2, day = dailySeed()) {
   return Array.from({ length: Math.min(n, fits.length) }, (_, i) => fits[(day * 3 + i * 4) % fits.length]).filter((m, i, all) => all.indexOf(m) === i);
 }
 
+// The Discover genre a genre mood opens. The film genre decides: TMDB's TV genres merge some (Action & Adventure,
+// Sci-Fi & Fantasy), so matching the TV id first would open Action for Into the unknown. Pure, for the tests.
+export function genreForMood(m, genres = []) {
+  return (m.movie && genres.find((g) => g.movie === m.movie)) || (m.tv && genres.find((g) => g.tv === m.tv)) || null;
+}
+
 const PAGE = 36;
 
 export function createVibes(ui) {
@@ -124,6 +130,7 @@ export function createVibes(ui) {
   }
 
   function open(v, type = 'all') {
+    ui.leaveHome?.(); // Discover remembers your place for the way back
     Object.assign(view, { vibe: v, type: v.types.includes(type) ? type : 'all', seed: null });
     window.scrollTo({ top: 0 });
     ui.rerender();

@@ -1,4 +1,17 @@
 {
+  "2026-11-19-discover-keeps-place": {
+    "title": "Upptäck minns var du var",
+    "items": {
+      "Back to Discover keeps your place": {
+        "title": "Tillbaka till Upptäck behåller din plats",
+        "text": "Öppna en stämning, en genre eller Visa alla och gå tillbaka, så hamnar du där du var på Upptäck: lika långt ner på sidan och lika långt bort på Stämningar-raden och de andra raderna."
+      },
+      "Moods open the right genre": {
+        "title": "Stämningar öppnar rätt genre",
+        "text": "In i det okända öppnade Action i stället för Äventyr, och Inte av denna världen kunde öppna Fantasy i stället för Science fiction. Nu öppnar de sin egen genre."
+      }
+    }
+  },
   "2026-11-19-new-logo": {
     "title": "Lilin har en ny logga",
     "items": {

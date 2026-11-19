@@ -20,7 +20,7 @@ import { createSocial, titleKeyOf, REACTIONS, countdownText, startLabel, namesTe
 import { createReviews } from './reviews.js'; // reviews: stars + written reviews
 import { rateHooks } from './social.js'; // reviews: the Review button beside the thumbs
 import { createDocumentaries } from './documentaries.js';
-import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pages
+import { createVibes, genreForMood } from './vibes.js'; // vibes: Discover's Moods row and pages
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
@@ -949,7 +949,65 @@ function segmented(options, value, onPick, label) {
     }, text)));
 }
 
+// Discover home keeps your place: opening a mood, genre, documentary category or See all remembers how far down the
+// page you were and how far along each row, and coming back (‹ Discover) puts you there again. Rows fill in after
+// the page draws, so it keeps placing you for a few seconds, and stops the moment you scroll or tap yourself.
+let discSpot = null, discRestore = null;
+const discoverAtHome = () => state.view === 'discover' && !instantPage() && !vibesUi.active() && !disc.list && !disc.genre
+  && !(disc.type === 'docs' && documentaries.inCategory());
+// Each row by its name (the nth row of that name when two share one).
+function discoverRows() {
+  const seen = new Map();
+  return [...$('#discover-body').querySelectorAll('.shelf-items')].map((el) => {
+    const name = el.closest('section[aria-label]')?.getAttribute('aria-label') || el.getAttribute('aria-label') || '';
+    const n = (seen.get(name) || 0) + 1;
+    seen.set(name, n);
+    return [`${name}#${n}`, el];
+  });
+}
+function leaveDiscoverHome() {
+  if (!discoverAtHome()) return;
+  const rows = Object.fromEntries(discoverRows().filter(([, el]) => el.scrollLeft > 0).map(([key, el]) => [key, el.scrollLeft]));
+  // The row nearest the top of the screen anchors the place: rows above it can still be filling in on the way back.
+  const top = [...$('#discover-body').querySelectorAll('.shelf[aria-label]')].find((el) => el.getBoundingClientRect().bottom > 0);
+  const anchor = top && { name: top.getAttribute('aria-label'), at: top.getBoundingClientRect().top };
+  discSpot = { type: disc.type, y: window.scrollY, rows, anchor: window.scrollY > 0 ? anchor : null };
+}
+function restoreDiscoverHome() {
+  discRestore?.();
+  const spot = discSpot;
+  discSpot = null;
+  if (!spot || spot.type !== disc.type || (spot.y <= 0 && !Object.keys(spot.rows).length)) return;
+  const rows = new Map(Object.entries(spot.rows));
+  let still = 0, timer = 0;
+  const stop = () => {
+    clearInterval(timer);
+    for (const e of ['wheel', 'touchstart', 'pointerdown', 'keydown']) window.removeEventListener(e, stop, true);
+    if (discRestore === stop) discRestore = null;
+  };
+  const step = () => {
+    if (!discoverAtHome()) return stop();
+    for (const [key, el] of discoverRows()) {
+      const want = rows.get(key);
+      if (want == null) continue;
+      if (Math.abs(el.scrollLeft - want) > 4) el.scrollTo({ left: want, behavior: 'instant' });
+      if (Math.abs(el.scrollLeft - want) <= 4) rows.delete(key);
+    }
+    const anchor = spot.anchor && [...$('#discover-body').querySelectorAll('.shelf[aria-label]')].find((el) => el.getAttribute('aria-label') === spot.anchor.name);
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const target = Math.max(0, Math.min(max, anchor ? window.scrollY + anchor.getBoundingClientRect().top - spot.anchor.at : spot.y));
+    if (Math.abs(window.scrollY - target) > 1) { window.scrollTo({ top: target, behavior: 'instant' }); still = 0; } else still++;
+    if (still >= 6 && !rows.size && (anchor || !spot.anchor)) stop(); // in place and nothing moved for a moment
+  };
+  for (const e of ['wheel', 'touchstart', 'pointerdown', 'keydown']) window.addEventListener(e, stop, { capture: true, passive: true });
+  timer = setInterval(step, 80);
+  setTimeout(stop, 4000);
+  discRestore = stop;
+  requestAnimationFrame(step);
+}
+
 function pickDiscover(changes) {
+  if (changes.genre) leaveDiscoverHome();
   Object.assign(disc, changes, { list: null });
   documentaries.reset();
   vibesUi.reset(); // vibes
@@ -1025,7 +1083,7 @@ function carousel(title, list, seeAll = null, cls = '') {
 
 function row(r) {
   return carousel(r.title, h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': r.title }, r.items.map(titleCard)),
-    h('button', { class: 'see-all', onclick: () => { disc.list = { key: r.key, title: r.title }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')));
+    h('button', { class: 'see-all', onclick: () => { leaveDiscoverHome(); disc.list = { key: r.key, title: r.title }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')));
 }
 
 // ---------- shared by the billboard, peek and title pages ----------
@@ -1280,7 +1338,7 @@ async function forYouRow(seeds, signal) {
   const items = forYouItems(await forYouGroups(seeds, signal));
   if (items.length < 4 || signal.aborted) return null;
   return carousel(T('For you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('For you') }, items.map(titleCard)),
-    h('button', { class: 'see-all', onclick: () => { disc.list = { key: 'for-you', title: T('For you') }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')), 'home-shelf');
+    h('button', { class: 'see-all', onclick: () => { leaveDiscoverHome(); disc.list = { key: 'for-you', title: T('For you') }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')), 'home-shelf');
 }
 async function forYouPage(content, signal) {
   content.replaceChildren(skeletonGrid());
@@ -1388,6 +1446,7 @@ async function renderDiscover() {
     return;
   }
   body.replaceChildren(...(home ? [] : [discoverControls()]), content);
+  if (discoverAtHome()) restoreDiscoverHome(); // back from a category: where you were
 
   if (disc.type === 'docs') {
     if (documentaries.inCategory()) { body.prepend(discoverControls()); return documentaries.render(content, signal); }
@@ -3936,7 +3995,7 @@ function maybeAskFriends() {
 // comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
 const comingSoon = createComingSoonView({ h, icon, toast, savedToast: (text) => watchlistToast(text), watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
-  openList: (list) => { disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
+  openList: (list) => { leaveDiscoverHome(); disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 // reviews: stars + written reviews (reviews.js); its sheets open in the picker
 const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener), sheet: {
   open: (nodes, opener, onClosed) => {
@@ -4006,7 +4065,7 @@ const titleDetails = createTitleDetails({ h, api, me: () => state.me, searchOn: 
 const themeMusic = createThemeMusic({ h, icon, page: () => titleView.showId,
   quiet: () => Boolean(party) || state.sessions.length > 0 || ['in-player', 'trailer-live'].some((c) => document.body.classList.contains(c)),
   watch: [[$('#sheet'), { attributes: true, attributeFilter: ['class', 'hidden'] }], [$('#sheet-body'), { childList: true }], [document.body, { attributes: true, attributeFilter: ['class'] }]] });
-const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => docsBillboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
+const documentaries = createDocumentaries({ h, leaveHome: () => leaveDiscoverHome(), api, jsonPost, toast, icon, notice, carousel, titleCard, heroSlide, billboard: (items, o) => docsBillboard(items, o), segmented, pagedGrid, skeletonGrid, cachedApi, pageHero,
   rerender: () => renderDiscover(),
   canAdd: () => Boolean(state.status.library && state.me?.canDownload !== false), // no qBittorrent needed
   sheet: () => $('#sheet'), sheetBody: () => $('#sheet-body'),
@@ -4017,11 +4076,12 @@ const documentaries = createDocumentaries({ h, api, jsonPost, toast, icon, notic
   waitAndPlay, // play first: Play on one that isn't here yet waits in the player (Getting it ready)
 }); // Discover -> Documentaries and SVT Play titles (documentaries.js)
 // vibes: Discover -> Moods (vibes.js)
-const vibesUi = createVibes({ h, cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => isInstant(t), // what plays at once comes first
+const vibesUi = createVibes({ h, leaveHome: () => leaveDiscoverHome(), cachedApi, carousel, titleCard, segmented, notice, skeletonGrid, rerender: () => renderDiscover(), owned: (t) => isInstant(t), // what plays at once comes first
   // A genre mood's tile opens that genre's page, sorted the mood's way.
   openGenre: (m) => {
-    const genre = (disc.genres || []).find((g) => (m.movie && g.movie === m.movie) || (m.tv && g.tv === m.tv));
+    const genre = genreForMood(m, disc.genres || []);
     if (!genre) return;
+    leaveDiscoverHome();
     Object.assign(disc, { genre, sort: m.sort || 'popular', list: null });
     window.scrollTo({ top: 0 });
     renderDiscover();
@@ -11488,7 +11548,7 @@ async function setView(target, { address = true } = {}) {
 }
 $('#home-link').addEventListener('click', async (e) => {
   e.preventDefault();
-  disc.list = null; disc.genre = null;
+  disc.list = null; disc.genre = null; discSpot = null; // the logo goes to the top
   vibesUi.reset(); // vibes
   if (document.body.classList.contains('searching')) endSearch();
   if (state.route === 'discover') { await renderDiscover(); window.scrollTo({ top: 0 }); }

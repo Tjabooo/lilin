@@ -10,7 +10,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { VIBES, KEYWORDS, discoverParams, poolFrom, scoreTitle, vibeTypes, inSeason, createVibes } from '../src/vibes.js';
-import { orderVibe, rotateVibes, dailySeed, glyphNames } from '../public/vibes.js';
+import { orderVibe, rotateVibes, dailySeed, glyphNames, genreForMood, GENRE_MOODS } from '../public/vibes.js';
 
 const keywordIds = new Set(Object.values(KEYWORDS).map(([id]) => id));
 const idsIn = (value) => String(value || '').split(/[|,]/).filter(Boolean).map(Number);
@@ -239,4 +239,19 @@ test('API: /api/vibes lists the moods and /api/vibes/<id> sends one mood without
 
   r = await call('/api/vibes/no-such-mood');
   assert.equal(r.status, 404);
+});
+
+test('genre moods open their own genre, not one that shares the TV genre', () => {
+  // Discover's merged list: TMDB's TV side folds Action + Adventure and Sci-Fi + Fantasy into one genre each.
+  const genres = [
+    { name: 'Action', movie: 28, tv: 10759 }, { name: 'Adventure', movie: 12, tv: 10759 },
+    { name: 'Fantasy', movie: 14, tv: 10765 }, { name: 'Science Fiction', movie: 878, tv: 10765 },
+    { name: 'Thriller', movie: 53, tv: null }, { name: 'Mystery', movie: 9648, tv: 9648 }, { name: 'Kids', movie: null, tv: 10762 },
+  ];
+  const mood = (id) => GENRE_MOODS.find((m) => m.id === id);
+  assert.equal(genreForMood(mood('g-unknown'), genres).name, 'Adventure');
+  assert.equal(genreForMood(mood('g-space'), genres).name, 'Science Fiction');
+  assert.equal(genreForMood(mood('g-edge'), genres).name, 'Thriller');
+  assert.equal(genreForMood({ movie: null, tv: 10762 }, genres).name, 'Kids'); // TV-only falls back to the TV id
+  assert.equal(genreForMood({ movie: 1, tv: 2 }, genres), null);
 });

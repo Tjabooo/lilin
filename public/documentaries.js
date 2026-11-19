@@ -9,6 +9,7 @@ export function createDocumentaries(ui) {
   const TYPES = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')]];
 
   function open(category) {
+    ui.leaveHome?.(); // Discover remembers your place for the way back
     Object.assign(view, { category, type: 'all', sort: 'popular' });
     window.scrollTo({ top: 0 });
     ui.rerender();

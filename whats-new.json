@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-19-discover-keeps-place",
+    "date": "2026-11-19",
+    "title": "Discover remembers where you were",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Back to Discover keeps your place",
+        "text": "Open a mood, a genre or See all and go back, and Discover puts you where you were: just as far down the page, and just as far along the Moods row and the other rows."
+      },
+      {
+        "kind": "fix",
+        "title": "Moods open the right genre",
+        "text": "Into the unknown opened Action instead of Adventure, and Out of this world could open Fantasy instead of Science Fiction. They now open their own genre."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-new-logo",
     "date": "2026-11-19",
     "title": "Lilin has a new logo",
