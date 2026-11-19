@@ -2862,8 +2862,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .tool .set-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tool:has(.tab-badge) .set-label { padding-right: 26px; }
 .tool:hover { background: var(--surface-2); }
-.house-card-link.has-alert { border-color: var(--bulb); }
-.house-card-link, .house-needs { margin-bottom: var(--s5); }
+.house-needs { margin-bottom: var(--s5); }
 .st-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .st-controls .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .st-controls .segmented button { height: 30px; padding: 0 12px; font-size: 13px; white-space: nowrap; }

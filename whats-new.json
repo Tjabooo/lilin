@@ -1,5 +1,18 @@
 [
   {
+    "id": "2026-11-19-house-machines-tile",
+    "date": "2026-11-19",
+    "title": "Tidier House page",
+    "items": [
+      {
+        "kind": "improved",
+        "audience": "owner",
+        "title": "Machines is a tile now",
+        "text": "The machine status bar at the top of House is gone. Machines is now a tile after the others, showing whether everything's fine, the CPU and how many machines are online, with a count when something needs a look."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-sharp-continue",
     "date": "2026-11-19",
     "title": "Sharper Continue watching",

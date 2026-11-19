@@ -10086,17 +10086,17 @@ function houseNeeds() {
   return out.slice(0, 3);
 }
 function updateHouseDot() { if (state.status?.admin) setHouseDot(houseNeeds().length); }
-// The landing: a status card for the machines (the worst line and a line of numbers; it opens Machines), Needs you,
-// then a tile per tool with one live line. A count on a tile means something there wants doing.
+// The landing: Needs you, then a tile per tool with one live line (Machines last: status, CPU, machines online).
+// A count on a tile means something there wants doing.
 function renderHouseHub(body) {
   const r = state.house, needs = houseNeeds();
   setHouseDot(needs.length);
   const sv = r?.server;
   const online = (r?.machines || []).filter((m) => !m.away).length;
-  const status = h('div', { class: `set-stack house-card-link${r?.issues.length ? ' has-alert' : ''}` }, navRow({ route: 'house/machines', run: () => setView('house/machines'),
-    label: r ? (r.issues.length ? (r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)) : T('Everything’s fine'))
-      : state.houseError ? T('Couldn’t check the house') : T('Checking…'),
-    meta: [T('Machines'), sv && upFor(sv.uptime), sv?.cpu != null && T('CPU {0} %', sv.cpu), r?.agents && r.machines.length && T('{0} of {1} machines online', online, r.machines.length)].filter(Boolean).join(' · ') }));
+  const issues = r?.issues.length || 0;
+  const machinesLine = r ? [issues ? (issues === 1 ? T('1 thing needs a look') : T('{0} things need a look', issues)) : T('Everything’s fine'),
+    sv?.cpu != null && T('CPU {0} %', sv.cpu), r.agents && r.machines.length && T('{0} of {1} machines online', online, r.machines.length)].filter(Boolean).join(' · ')
+    : state.houseError ? T('Couldn’t check the house') : T('Checking…');
   const stuck = state.downloads.filter(transferAttention).length;
   const active = state.downloads.filter((d) => !d.done).length;
   const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
@@ -10106,6 +10106,7 @@ function renderHouseHub(body) {
       count: stuck, run: () => setView('house/downloads') },
     { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
     ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
+    { route: 'house/machines', label: T('Machines'), line: machinesLine, count: issues, run: () => setView('house/machines') },
   ];
   const lines = {
     'house/activity': T('Who watched what, and when'),
@@ -10120,7 +10121,7 @@ function renderHouseHub(body) {
   const tile = ({ label, line, run, route, count }) => h('button', { type: 'button', class: 'tool', 'data-route': route, onclick: run },
     h('span', { class: 'set-label' }, label || T(ROUTES[route].label)), h('span', { class: 'set-hint' }, line || lines[route]),
     (count ?? counts[route]) ? h('b', { class: 'tab-badge' }, String(count ?? counts[route])) : null);
-  body.replaceChildren(status,
+  body.replaceChildren(
     needs.length > 0 && h('section', { class: 'house-needs', 'aria-labelledby': 'house-needs-head' }, h('h3', { class: 'set-head', id: 'house-needs-head' }, T('Needs you')),
       h('div', { class: 'set-stack' }, needs.map((n) => navRow(n)))),
     h('div', { class: 'tool-grid' }, tools.map(tile)));
