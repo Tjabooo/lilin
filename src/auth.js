@@ -464,7 +464,7 @@ export function safeNext(next) {
   return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') && !/[\r\n]/.test(n) ? n : '/';
 }
 
-// Lilin's wordmark (public/wordmark.svg, the two i-dots are lit bulbs), inlined at the top of the sign-in
+// Lilin's wordmark (public/wordmark.svg), inlined at the top of the sign-in
 // and invite pages. The heading keeps the word "Lilin" for screen readers.
 let wordmarkSvg = '';
 try {

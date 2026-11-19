@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1F1019"/><g transform="translate(16.13 9.00) scale(0.05361)"><path d="M0 858V848Q36 848 58.5 826.5Q81 805 81 768V128Q81 92 58.5 70Q36 48 0 48V38H102Q153 38 180 27Q205 16 215 0H225V768Q225 805 247.5 826.5Q270 848 306 848V858ZM286 858V848H287Q323 848 345 826Q367 804 367 768V440Q367 402 351.5 381Q336 360 286 360V350H388Q439 350 466 339Q491 328 501 312H511V768Q511 804 533 826Q555 848 591 848H592V858Z" fill="#F6EADF"/><circle cx="437.5" cy="166.4" r="86.6" fill="#F4C152"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Lilin</title>
+  <defs><linearGradient id="amber" x2=".85" y2="1"><stop stop-color="#FFE19B"/><stop offset=".55" stop-color="#F4BC60"/><stop offset="1" stop-color="#ED9F4B"/></linearGradient></defs>
+  <rect width="128" height="128" rx="27" fill="url(#amber)"/>
+  <path fill="#2A1421" transform="translate(26 14) scale(1)" d="M0 20L14 12V58C14 74 23 82 39 82H65L51 96H39C14 96 0 82 0 59Z       M21 8L35 0V55C35 61 38 63 44 63H84L70 77H44C29 77 21 69 21 56Z"/>
+</svg>

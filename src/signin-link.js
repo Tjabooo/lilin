@@ -52,7 +52,7 @@ export function signInQrPanel() {
     failed: tr('Couldn’t get a code. Use your password instead.'),
   };
   return `<section class="qr-side" id="qr-side" hidden data-words="${esc(JSON.stringify(words))}">
-<div class="qr-frame"><div class="qr-code" id="qr-code" aria-live="polite"></div><span class="qr-mark" aria-hidden="true">Lilin</span></div>
+<div class="qr-frame"><div class="qr-code" id="qr-code" aria-live="polite"></div><img class="qr-mark" src="/c/favicon.svg" width="24" height="24" alt=""></div>
 <h2>${tr('Scan with your phone')}</h2>
 <p class="qr-how">${tr('Open the camera on a phone that’s signed in to Lilin and point it at the code.')}</p>
 <p class="qr-typed" id="qr-typed" hidden>${tr('No camera? In Lilin, open You → Devices and notifications and enter')} <b id="qr-letters"></b></p>

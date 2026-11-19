@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Lilin's brand marks, shared by tools/app-icon.py and tools/og-banner.py.
+"""Native TV artwork, the shared tagline and the rendering helpers for Lilin's branding.
 
-The idea: Lilin is a picture palace in your pocket, and the only warm light in the room is the lilin's bulbs.
-So the wordmark is set in a cinema-title serif and the dots of its two i's are the bulbs, lit. Everything else
-stays quiet: paper-coloured letters on velvet, one gold.
+The TV artwork uses a cinema-title serif with lit bulbs for the two i-dots. The web artwork
+uses the ribbon L and lettering in public/wordmark.svg.
 
   WORDMARK   "lilin": Gloock outlines (Duarte Pinto, SIL OFL 1.1) with taller l's (+70 units, columns either side of
              each bulb), the gap in the n's base closed so the foot serifs run on as one stage line, tracking -10,
              and round bulbs (1.05x Gloock's own dot) for tittles. Units are font units, y down, box from 0,0.
-  MONOGRAM   "li", the same letters: the app icon, favicon and notification badge.
+  MONOGRAM   "li", the same letters for the native Android TV icons.
   TAGLINE    "Your own cinema" in Newsreader Italic (Production Type, SIL OFL 1.1) at opsz 48, kerned by Pango,
              as outlines with the baseline at y=0.
-  curtain()  the velvet stage curtain behind the link card, the TV banner and the app icon: folds that fan out
+  curtain()  the velvet stage curtain behind the native Android TV artwork: folds that fan out
              toward the floor, a stage light from above, velvet's bright fold edges, a little pile and grain.
 
 Outlines are baked in, so drawing needs no fonts: rsvg-convert for the vectors, numpy + Pillow for the curtain.

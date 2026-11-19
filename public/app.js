@@ -9519,7 +9519,7 @@ function showPasswordGate() {
     } catch (err) { msg.textContent = err.message; save.disabled = false; }
   });
   const gate = h('div', { id: 'password-gate', class: 'password-gate', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'gate-title' },
-    h('p', { class: 'password-gate-brand', 'aria-hidden': 'true' }, 'Lilin'), form);
+    h('p', { class: 'password-gate-brand', 'aria-hidden': 'true' }, $('#home-link .wm')?.cloneNode(true) || 'Lilin'), form);
   // Nothing behind it can be reached: no Escape, no clicks, no tabbing out.
   gate.addEventListener('keydown', (e) => { if (e.key === 'Escape') e.preventDefault(); });
   document.body.append(gate);

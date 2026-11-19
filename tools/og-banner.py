@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Draws public/og-lilin.jpg, the 1200x630 card Discord and iMessage show for a Lilin link (/c/, invites): the
-wordmark with its bulbs lit and "Your own cinema", in front of the velvet curtain. Marks: tools/brand.py.
+"""Draws public/og-lilin.jpg, the 1200x630 card for shared Lilin links, using the website wordmark,
+the wordless film photograph in tools/art/film-loop.jpg and the original outlined tagline.
 
   python3 tools/og-banner.py [out.jpg]     # the link card, served as /c/lilin.jpg (needs rsvg-convert, numpy and Pillow)
   python3 tools/og-banner.py --tv          # the Android TV home-screen banner: drawable-xhdpi + -xxxhdpi/banner.png
@@ -8,7 +8,7 @@ wordmark with its bulbs lit and "Your own cinema", in front of the velvet curtai
 import os
 import sys
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import brand  # noqa: E402
@@ -16,22 +16,29 @@ import brand  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def card(w, h, *, mark_h, mark_top, tag_size=None, tag_baseline=None, fold=104, seed=11):
-    bg = brand.curtain(w, h, seed=seed, fold=fold)
-    mark, _ = brand.wordmark(w / 2, mark_top, mark_h, lit=True, anchor="center")
-    tag = brand.tagline(w / 2, tag_baseline, tag_size) if tag_size else ""
-    body = f'<image href="{brand.png_data_uri(bg)}" width="{w}" height="{h}"/>{mark}{tag}'
-    return brand.rasterize(brand.svg_doc(w, h, body), w, h)
-
-
 def og(out):
-    brand.save(card(1200, 630, mark_h=236, mark_top=150, tag_size=40, tag_baseline=462), out, grain=0.005)
+    w, h = 1200, 630
+    with Image.open(os.path.join(ROOT, "tools", "art", "film-loop.jpg")) as photo:
+        art = ImageOps.fit(photo, (w, h), method=Image.LANCZOS).convert("RGBA")
+    with open(os.path.join(ROOT, "public", "wordmark.svg"), encoding="utf-8") as f:
+        mark = brand.rasterize(f.read(), 450, 173)
+    left = 80
+    art.alpha_composite(mark, (left, 190))
+    size = 48
+    tag_center = left + brand.TAGLINE_BOX[0] * size / 200
+    tagline = brand.tagline(tag_center, 436, size, opacity=0.94)
+    art.alpha_composite(brand.rasterize(brand.svg_doc(w, h, tagline), w, h))
+    brand.save(art, out)
     print(out)
 
 
 def tv():
     # Drawn at 1280x720 (4x the 320x180 dp banner); the TV shelf shows it small, so the wordmark is big and alone.
-    art = card(1280, 720, mark_h=330, mark_top=196, fold=112, seed=11)
+    w, h = 1280, 720
+    bg = brand.curtain(w, h, seed=11, fold=112)
+    mark, _ = brand.wordmark(w / 2, 196, 330, lit=True, anchor="center")
+    body = f'<image href="{brand.png_data_uri(bg)}" width="{w}" height="{h}"/>{mark}'
+    art = brand.rasterize(brand.svg_doc(w, h, body), w, h)
     res = os.path.join(ROOT, "tv", "android", "app", "src", "main", "res")
     for folder, size in (("drawable-xhdpi", (320, 180)), ("drawable-xxxhdpi", (640, 360))):
         path = os.path.join(res, folder, "banner.png")
