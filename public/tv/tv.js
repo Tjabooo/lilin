@@ -2068,6 +2068,8 @@
     return { line: T('Starting…'), hint: '', progress: 0.97 };
   }
   // Whether this TV plays 4K HEVC itself (tv/android Codecs.playVariant): the server picks the copy by it.
+  var UPGRADE_RANK = { '2160p': 4, '1440p': 3, '1080p': 2, '720p': 1, SD: 0 };
+  var upgradedFilms = {}; // versionKey -> true once moved to (or tried) a sharper version this session
   // Up next's countdown, per TV like the website's switch in the player cog (Off: the card waits for a press).
   var AUTOPLAY_KEY = 'lilin:tv-autoplay';
   function autoplayOn() { return load(AUTOPLAY_KEY, true) !== false; }
@@ -2199,7 +2201,8 @@
       }
       if (r.play && r.play.kind === 'part') {
         var pf = { id: r.play.id, part: true, url: r.play.url, adaptiveUrl: r.play.adaptiveUrl || null, mediaKey: r.play.mediaKey, title: r.play.title || x.title, filmTitle: x.title,
-          show: r.play.show, season: r.play.season, episode: r.play.episode, showTmdb: x.type === 'tv' ? x.tmdbId : null, still: x.art };
+          show: r.play.show, season: r.play.season, episode: r.play.episode, showTmdb: x.type === 'tv' ? x.tmdbId : null, still: x.art,
+          tmdbId: x.type === 'movie' ? x.tmdbId : null };
         return hand(pf);
       }
       if (r.idle) { idleSince = idleSince || Date.now(); if (Date.now() - idleSince > 60000) r = { phase: 'failed' }; } else idleSince = 0;
@@ -2277,7 +2280,14 @@
         pauseCard.classList.add('show'); el.classList.add('resting');
       }, 3000);
     }
-    var el = h('div', { class: 'screen player' }, osd, subsEl, skipBtn, upNext, menu, spinner);
+    // The credits card (like the website's): when the closing credits start, the picture moves to the right and the
+    // song from the soundtrack (the server's best guess, /api/title/:type/:id/song) and Up next take the left. Up (or
+    // Keep watching / Back) puts the picture back.
+    var credits = h('div', { class: 'credits-card' }, h('p', { class: 'crd-kicker', text: T('End credits') }),
+      h('p', { class: 'crd-name', text: showOf(f) ? showOf(f).title : f.filmTitle || f.title }),
+      h('div', { class: 'crd-song' }, h('p', { class: 'crd-why' }), h('p', { class: 'crd-track' }), h('p', { class: 'crd-by' })),
+      h('p', { class: 'crd-hint', text: T('Up: the picture full size') }));
+    var el = h('div', { class: 'screen player' }, credits, osd, subsEl, skipBtn, upNext, menu, spinner);
     var cardFocus = 0, menuItems = [], menuIndex = 0, osdTimer = null, seekTarget = null, seekTimer = null, tick = null, autoTimer = null;
 
     function now() { try { return av.getCurrentTime() / 1000; } catch (e) { return s.time; } }
@@ -2310,6 +2320,71 @@
       var skipFocus = intro && !menu.classList.contains('show');
       if (skipBtn.classList.contains('focus') !== skipFocus) skipBtn.classList.toggle('focus', skipFocus);
       paintUpNext();
+      syncCredits();
+    }
+    var creditsOn = false, songAsked = false;
+    var CREDITS_RECT = [1000, 210, 824, 464]; // the picture on the right while the card shows (16:9, 1920×1080 page)
+    function creditsRolling() {
+      return !s.closed && !s.ended && !s.dismissed && !s.creditsDismissed && s.creditsAt > 0 && s.time >= s.creditsAt
+        && L.nextPromptAt(s.duration, s.creditsAt) !== null && seekTarget == null && !menu.classList.contains('show');
+    }
+    function syncCredits() {
+      var on = creditsRolling();
+      if (on === creditsOn) return;
+      creditsOn = on;
+      el.classList.toggle('credits', on);
+      try { if (on) av.setDisplayRect(CREDITS_RECT[0], CREDITS_RECT[1], CREDITS_RECT[2], CREDITS_RECT[3]); else av.setDisplayRect(0, 0, 1920, 1080); } catch (e) { /* not now */ }
+      if (on) { osd.classList.remove('show'); askSong(3); }
+    }
+    function askSong(tries) {
+      var id = f.season != null ? showTmdb() : f.tmdbId;
+      if (songAsked && tries === 3) return;
+      songAsked = true;
+      if (!id) return;
+      api('/api/title/' + (f.season != null ? 'tv' : 'movie') + '/' + id + '/song').then(function (d) {
+        if (s.closed) return;
+        if (!d.song) { if (d.pending && tries > 0) setTimeout(function () { askSong(tries - 1); }, 4000); return; }
+        credits.querySelector('.crd-why').textContent = d.song.why === 'credits' ? T('Over the credits') : d.song.why === 'theme' ? T('The show’s theme') : T('From the soundtrack');
+        credits.querySelector('.crd-track').textContent = d.song.title;
+        credits.querySelector('.crd-by').textContent = d.song.by || '';
+        credits.classList.add('has-song');
+      }).catch(function () {});
+    }
+    function dismissCredits() { s.creditsDismissed = true; syncCredits(); }
+
+    // ---- the sharper version (like the website): a first watch starts on a quick 1080p copy and the 4K one downloads
+    // as another version. Once it's ready, playback moves to it at the same spot: once per film, only on 4K TVs, never
+    // on the adaptive or lighter stream, never to Dolby Vision without HDR. The link is asked for first (a Samsung may
+    // have to wait for a relabelled copy), so the picture only stops once the new one is ready to open.
+    var upgradeTicks = 0, upgradeLooks = 0, upgrading = false;
+    function upgradeKey() { return f.versionKey || (f.season == null && f.tmdbId ? 'film:' + f.tmdbId : null); }
+    function upgradeTarget() {
+      var key = upgradeKey();
+      if (!key || f.season != null || !tvUhd() || !s.playing || s.ended || adaptive || lowered || upgrading || upgradedFilms[key]) return null;
+      var item = state.library.filter(function (x) { return x.versionKey === key; })[0];
+      if (!item) { if (++upgradeLooks % 3 === 0) loadLibrary().catch(function () {}); return null; }
+      var here = UPGRADE_RANK[f.versionQuality]; if (here == null) here = 2;
+      var name = function (v) { return (v.file || '') + ' ' + (v.name || '') + ' ' + (v.versionLabel || ''); };
+      return (item.versions || [item]).filter(function (v) {
+        var rank = UPGRADE_RANK[v.versionQuality];
+        return v.mediaKey !== f.mediaKey && v.id !== f.id && !v.converting && rank != null && rank > here
+          && !(/\b(dv|dovi|dolby ?vision)\b/i.test(name(v)) && !/\bhdr(10)?\b/i.test(name(v)));
+      })[0] || null;
+    }
+    function tryUpgrade() {
+      var v = upgradeTarget();
+      if (!v) return;
+      var key = upgradeKey();
+      upgrading = true; upgradedFilms[key] = true;
+      api('/api/play-link?kind=lib&id=' + encodeURIComponent(v.id) + '&variant=' + (window.LILIN_TV_PLAY || 'browser-hevc')).then(function () {
+        if (s.closed || s.ended) return;
+        var at = playingAt();
+        s.time = at;
+        close();
+        screen = history.pop(); // the player is replaced, not stacked
+        play(v, at);
+        toast(T('Switched to the {0} version: it finished downloading.', String(v.versionLabel || '4K').replace(/ · [\d.]+ [GM]B$/, '')));
+      }).catch(function () { upgrading = false; });
     }
     // The next episode: the library's, else the one after it on TMDB (play first fetches it: the cold start has
     // usually started it already, src/cold-start.js follow-ups).
@@ -2671,6 +2746,7 @@
         paint();
         if (s.playing) save(false);
         watchStall();
+        if (++upgradeTicks % 40 === 0) tryUpgrade(); // every 20 s
       }, 500);
       knowSeasons();
       var pref = state.me && state.me.settings && state.me.settings.subLang;
@@ -2690,6 +2766,7 @@
         else if (code === KEY.BACK || code === KEY.LEFT) { menu.classList.remove('show'); showOsd(); }
         return true;
       }
+      if (creditsOn && (code === KEY.UP || (code === KEY.BACK && !upNext.classList.contains('show')))) { dismissCredits(); showOsd(); return true; }
       var cardOn = upNext.classList.contains('show');
       if (cardOn) {
         if (code === KEY.LEFT || code === KEY.RIGHT) { cardFocus = cardFocus ? 0 : 1; stopCountdown(); paint(); return true; }

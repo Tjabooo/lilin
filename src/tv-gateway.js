@@ -28,7 +28,7 @@ const SIGNED_IN = [
   /^\/api\/docs\/home$/,
   /^\/api\/svt\/(add|title)$/,
   /^\/api\/search$/,
-  /^\/api\/title\/(movie|tv)\/\d+\/(page|cast)$/,
+  /^\/api\/title\/(movie|tv)\/\d+\/(page|cast|song)$/, // song: the credits card
   /^\/api\/tv\/[^/]+\/seasons$/,
   /^\/api\/tv\/\d+\/season\/\d+$/, // one season's episodes, for a show page's episode row
   /^\/api\/play-link$/,

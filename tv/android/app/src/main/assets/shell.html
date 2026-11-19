@@ -124,7 +124,8 @@
     close: function () { reset(); document.documentElement.classList.remove('lil-video'); N.close(); },
     stop: function () { st.playing = false; st.state = 'IDLE'; N.stop(); },
     setListener: function (l) { listener = l || {}; },
-    setDisplayRect: function () {},      // always the whole screen, letterboxed
+    // Letterboxed inside this part of the 1920×1080 page (the whole screen unless the credits card moved it).
+    setDisplayRect: function (x, y, w, h) { if (N.rect) N.rect(+x || 0, +y || 0, +w || 1920, +h || 1080); },
     setDisplayMethod: function () {},
     prepare: function () { N.prepare(); },
     prepareAsync: function (ok, fail) { prep = { ok: ok, fail: fail }; N.prepare(); },

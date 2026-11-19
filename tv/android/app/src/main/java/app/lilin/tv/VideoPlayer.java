@@ -60,6 +60,8 @@ final class VideoPlayer implements Player.Listener {
   private boolean buffering;
   private int audioIndex = -1;
   private VideoSize videoSize = VideoSize.UNKNOWN;
+  /** The picture's area in 1920×1080 page units; null = the whole screen. */
+  private float[] rect = null;
 
   private DefaultBandwidthMeter meter;
 
@@ -105,6 +107,7 @@ final class VideoPlayer implements Player.Listener {
     buffering = false;
     audioIndex = -1;
     videoSize = VideoSize.UNKNOWN;
+    rect = null;
 
     DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
         .setUserAgent(userAgent)
@@ -164,6 +167,11 @@ final class VideoPlayer implements Player.Listener {
     }
     box.setVisibility(View.GONE);
     activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+  }
+
+  void setRect(float x, float y, float w, float h) {
+    rect = x <= 0 && y <= 0 && w >= 1920 && h >= 1080 ? null : new float[] { x, y, w, h };
+    fitSurface();
   }
 
   /** index counts audio tracks across the whole file, in the order getTotalTrackInfo lists them. */
@@ -268,13 +276,20 @@ final class VideoPlayer implements Player.Listener {
     int bw = box.getWidth(), bh = box.getHeight();
     if (bw == 0 || bh == 0 || videoSize.width == 0 || videoSize.height == 0) return;
     float aspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height;
-    int w = bw, h = Math.round(bw / aspect);
-    if (h > bh) { h = bh; w = Math.round(bh * aspect); }
+    // The area to fill: the whole box, or the page's rect scaled from 1920×1080 to the box.
+    float sx = bw / 1920f, sy = bh / 1080f;
+    int ax = rect == null ? 0 : Math.round(rect[0] * sx), ay = rect == null ? 0 : Math.round(rect[1] * sy);
+    int aw = rect == null ? bw : Math.round(rect[2] * sx), ah = rect == null ? bh : Math.round(rect[3] * sy);
+    int w = aw, h = Math.round(aw / aspect);
+    if (h > ah) { h = ah; w = Math.round(ah * aspect); }
+    int left = ax + (aw - w) / 2, top = ay + (ah - h) / 2;
     FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) surface.getLayoutParams();
-    if (lp.width == w && lp.height == h) return;
+    if (lp.width == w && lp.height == h && lp.leftMargin == left && lp.topMargin == top && lp.gravity == (Gravity.TOP | Gravity.LEFT)) return;
     lp.width = w;
     lp.height = h;
-    lp.gravity = Gravity.CENTER;
+    lp.gravity = Gravity.TOP | Gravity.LEFT;
+    lp.leftMargin = left;
+    lp.topMargin = top;
     surface.setLayoutParams(lp);
   }
 

@@ -388,6 +388,7 @@
         return answer(JSON.stringify({ tracks: out, current: cur }));
       },
       av_select_audio: function (i) { try { av.setSelectTrack('AUDIO', i); return 1; } catch (e) { return 0; } },
+      av_rect: function (x, y, w, h) { try { av.setDisplayRect(x, y, w, h); } catch (e) { /* not open */ } },
     };
     var wrapped = {};
     Object.keys(env).forEach(function (k) { wrapped[k] = env[k]; });

@@ -29,6 +29,8 @@ final class Bridge {
   @JavascriptInterface public void stop() { onMain(() -> app.player.stop()); }
   @JavascriptInterface public void close() { onMain(() -> app.player.release()); }
   @JavascriptInterface public void selectAudio(int index) { onMain(() -> app.player.selectAudio(index)); }
+  /** Where the picture goes, in the page's 1920×1080 coordinates (the credits card moves it to the right). */
+  @JavascriptInterface public void rect(double x, double y, double w, double h) { onMain(() -> app.player.setRect((float) x, (float) y, (float) w, (float) h)); }
 
   // ---- the app ----
   @JavascriptInterface public void exit() { onMain(app::exit); }

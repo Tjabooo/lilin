@@ -444,3 +444,21 @@ html[data-scheme="light"] .player { --velvet: #1F1019; --curtain: #2B1724; --sea
 .copy-note { margin-top: 18px; color: var(--alert); font-size: 26px; min-height: 0; }
 .copy-note:empty { display: none; }
 .dialog-text { margin: 0 0 30px; color: var(--dust); font-size: 28px; line-height: 1.35; }
+
+/* The credits card: the picture sits on the right (the player's display rect), the song + Up next on the left. */
+.credits-card { position: absolute; left: var(--edge); top: 150px; width: 760px; display: none; color: var(--paper); }
+.player.credits .credits-card { display: block; animation: rise .35s ease-out; }
+.player.credits::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 1000px;
+  background: linear-gradient(90deg, rgba(var(--velvet-rgb), .92) 70%, rgba(var(--velvet-rgb), 0)); }
+.crd-kicker { font-size: 22px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--bulb); }
+.crd-name { font-family: var(--display); font-size: 52px; font-weight: 700; letter-spacing: -.02em; margin-top: 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crd-song { display: none; margin-top: 26px; padding-left: 22px; border-left: 4px solid var(--bulb); }
+.credits-card.has-song .crd-song { display: block; }
+.crd-why { font-size: 22px; color: var(--dust); }
+.crd-track { font-size: 34px; font-weight: 700; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crd-by { font-size: 24px; color: var(--dust); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crd-hint { margin-top: 26px; font-size: 22px; color: var(--dust); opacity: .8; }
+.player.credits .up-next { left: var(--edge); right: auto; bottom: 90px; width: 760px; }
+.player.credits .up-next-art { height: 150px; }
+.player.credits .subs { left: 1000px; right: 96px; bottom: 120px; }

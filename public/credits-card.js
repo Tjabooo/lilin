@@ -8,32 +8,9 @@
 // (it usually plays out the episode) → "Theme"; otherwise the last track of the soundtrack → "From the soundtrack".
 import { T } from './i18n.js';
 import { SERVICES, songQuery } from './details.js';
+import { creditsSong } from './credits-song.js';
 
-const CREDITS_RE = /\b(?:end(?:ing)?|closing|final)\s*(?:credits?|titles?|theme|song)\b|\bend\s*credit|\boutro\b|^ed\b|\bED\s*\d*$/i;
-const THEME_RE = /\b(?:main\s*(?:title|theme)s?|opening\s*(?:theme|titles?|credits)|theme\s*(?:song|from)|title\s*(?:theme|song))\b|\btheme$|^theme\b/i;
-
-// { track, album, why: 'credits' | 'theme' | 'soundtrack' } or null. albums as /api/title/.../details sends them.
-export function creditsSong(albums, { type = 'movie' } = {}) {
-  const list = (albums || []).filter((a) => a?.tracks?.length);
-  if (!list.length) return null;
-  const find = (re) => {
-    for (const album of list) {
-      // the last match: "End Credits" beats an earlier "End Titles (Reprise)"… unless it's a reprise
-      const hits = album.tracks.filter((t) => re.test(t.title || ''));
-      const track = hits.find((t) => !/reprise|instrumental|karaoke/i.test(t.title)) || hits[0];
-      if (track) return { track, album };
-    }
-    return null;
-  };
-  const credits = find(CREDITS_RE);
-  if (credits) return { ...credits, why: 'credits' };
-  if (type === 'tv') {
-    const theme = find(THEME_RE);
-    if (theme) return { ...theme, why: 'theme' };
-  }
-  const album = list[0];
-  return { track: album.tracks[album.tracks.length - 1], album, why: 'soundtrack' };
-}
+export { creditsSong };
 
 // Where the picture goes. The <video> box fills the stage and letterboxes the picture inside it, so the transform
 // is worked out for the picture itself: scaled to `width` and moved to the corner, the black bars clipped off.

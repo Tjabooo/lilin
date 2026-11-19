@@ -19,6 +19,8 @@ const CREDITS: u32 = 3;
 const LANGS_PREF: u32 = 4;
 const SEASONS_NEXT: u32 = 8;
 const PAGE: u32 = 9;
+const SONG: u32 = 10;
+const UPGRADE_LINK: u32 = 11;
 const LANGS_MENU: u32 = 5;
 const SUB_FETCH: u32 = 6;
 const SUB_FILE: u32 = 7;
@@ -30,6 +32,14 @@ const AUTO_T: u32 = 23;
 const REOPEN_T: u32 = 24;
 const PART_T: u32 = 25;
 const REST_T: u32 = 26;
+const SONG_T: u32 = 27;
+
+/// While the credits card shows, the picture sits here (16:9, right of the card).
+const CREDITS_RECT: (f32, f32, f32, f32) = (1000.0, 210.0, 824.0, 464.0);
+const UPGRADE_RANK: &[(&str, i32)] = &[("2160p", 4), ("1440p", 3), ("1080p", 2), ("720p", 1), ("SD", 0)];
+fn upgrade_rank(q: &str) -> Option<i32> {
+    UPGRADE_RANK.iter().find(|(k, _)| *k == q).map(|(_, v)| *v)
+}
 
 /// Resume or start over, when there's a resume point.
 pub fn play_asked(cx: &mut Cx, f: &Value, replace: bool) {
@@ -171,6 +181,15 @@ fn autoplay_on() -> bool {
 }
 
 pub struct Player {
+    /// The credits card: on, put away with Up/Keep watching, the song (why, title, by) and how many asks are left.
+    credits_on: bool,
+    credits_dismissed: bool,
+    song: Option<(String, String, String)>,
+    song_tries: i32,
+    /// The 4K switch: ticks since start, library reloads, and the version being opened.
+    upgrade_ticks: u32,
+    upgrade_looks: u32,
+    upgrading: Option<Value>,
     sid: u32,
     f: Value,
     start_at: f64,
@@ -254,6 +273,13 @@ impl Player {
             }
         }
         let mut p = Player {
+            credits_on: false,
+            credits_dismissed: false,
+            song: None,
+            song_tries: -1,
+            upgrade_ticks: 0,
+            upgrade_looks: 0,
+            upgrading: None,
             sid,
             f,
             start_at: at,
@@ -442,8 +468,81 @@ impl Player {
     fn up_next_on(&self) -> bool {
         self.next.is_some() && !self.dismissed && logic::is_next_time(self.time, self.duration, self.credits_at, self.ended)
     }
+    /// The credits card (like the website's): from the closing credits until Up/Keep watching, the end or a menu.
+    fn credits_rolling(&self) -> bool {
+        let Some(at) = self.credits_at else { return false };
+        !self.closed && !self.ended && !self.dismissed && !self.credits_dismissed && self.menu.is_none() && self.seek_target.is_none()
+            && at > 0.0 && self.time >= at && logic::next_prompt_at(self.duration, self.credits_at).is_some()
+    }
+    fn sync_credits(&mut self, cx: &mut Cx) {
+        let on = self.credits_rolling();
+        if on == self.credits_on {
+            return;
+        }
+        self.credits_on = on;
+        if on {
+            av::rect(CREDITS_RECT.0, CREDITS_RECT.1, CREDITS_RECT.2, CREDITS_RECT.3);
+            self.osd_on = false;
+            if self.song_tries < 0 {
+                self.song_tries = 3;
+                self.ask_song(cx);
+            }
+        } else {
+            av::rect(0.0, 0.0, 1920.0, 1080.0);
+        }
+        cx.redraw();
+    }
+    fn ask_song(&mut self, cx: &mut Cx) {
+        let tv = crate::util::has(&self.f, "season");
+        let id = if tv { show_tmdb(cx, &self.f) } else { crate::util::id(&self.f, "tmdbId").parse::<i64>().unwrap_or(0) };
+        if id > 0 {
+            cx.get(&alloc::format!("/api/title/{}/{}/song", if tv { "tv" } else { "movie" }, id), self.sid, SONG);
+        }
+    }
+    /// A first watch starts on a quick 1080p copy and the 4K one downloads as another version (like the website):
+    /// once it's in the library, playback moves to it at the same spot, once per film, never to Dolby Vision without HDR.
+    /// The link is asked for first (the TV may have to wait for a relabelled copy), so the picture stops only then.
+    fn upgrade_key(&self) -> String {
+        let k = s(&self.f, "versionKey");
+        if !k.is_empty() {
+            return String::from(k);
+        }
+        let t = crate::util::id(&self.f, "tmdbId");
+        if !crate::util::has(&self.f, "season") && !t.is_empty() && t != "0" { alloc::format!("film:{}", t) } else { String::new() }
+    }
+    fn try_upgrade(&mut self, cx: &mut Cx) {
+        let key = self.upgrade_key();
+        if key.is_empty() || crate::util::has(&self.f, "season") || !self.playing || self.ended || self.upgrading.is_some() || cx.upgraded.contains(&key) {
+            return;
+        }
+        let Some(item) = cx.state.library.iter().find(|x| s(x, "versionKey") == key).cloned() else {
+            self.upgrade_looks += 1;
+            if self.upgrade_looks % 3 == 0 {
+                cx.load_library(None);
+            }
+            return;
+        };
+        let here = upgrade_rank(s(&self.f, "versionQuality")).unwrap_or(2);
+        let list: Vec<Value> = match item.get("versions").and_then(|v| v.as_array()) {
+            Some(vs) if !vs.is_empty() => vs.clone(),
+            _ => alloc::vec![item.clone()],
+        };
+        let lower = |v: &Value| crate::util::lower(&alloc::format!("{} {} {}", s(v, "file"), s(v, "name"), s(v, "versionLabel")));
+        let pick = list.into_iter().find(|v| {
+            let n = lower(v);
+            let dv = ["dv", "dovi", "dolby vision", "dolbyvision"].iter().any(|w| crate::util::has_word(&n, w));
+            let hdr = crate::util::has_word(&n, "hdr") || crate::util::has_word(&n, "hdr10");
+            s(v, "mediaKey") != s(&self.f, "mediaKey") && s(v, "id") != s(&self.f, "id") && !crate::util::b(v, "converting")
+                && upgrade_rank(s(v, "versionQuality")).is_some_and(|r| r > here) && !(dv && !hdr)
+        });
+        let Some(v) = pick else { return };
+        cx.upgraded.push(key);
+        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant=browser-hevc", crate::util::enc(s(&v, "id"))), self.sid, UPGRADE_LINK);
+        self.upgrading = Some(v);
+    }
     /// Starts or stops the Up next countdown to match what's on screen; auto-skips intros when asked to.
     fn settle(&mut self, cx: &mut Cx) {
+        self.sync_credits(cx);
         if self.intro_on() && !self.intro_done && self.playing && cx.state.setting("skipIntro") == "auto" {
             self.skip_intro(cx);
         }
@@ -623,7 +722,7 @@ impl Player {
         let t = self.seek_target.unwrap_or(self.time);
         let pos = if self.osd_on { logic::fmt_time(t) } else { String::new() };
         let sub = if self.cues.is_empty() { String::new() } else { logic::cue_text(&self.cues, self.time) };
-        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}", pos, sub, self.intro_on(), self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on)
+        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}|{}|{}", pos, sub, self.intro_on(), self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on, self.credits_on, self.song.is_some())
     }
 }
 
@@ -755,12 +854,36 @@ impl Screen for Player {
             play_glyph(&mut cx.g, gx, r.y + 29.0, 15.0, 30.0, c);
             play_glyph(&mut cx.g, gx + 15.0, r.y + 29.0, 15.0, 30.0, c);
         }
+        // The credits card: the picture is on the right (av::rect), the title, the song and Up next on the left.
+        if self.credits_on {
+            let full = rect(0.0, 0.0, 1000.0, 1080.0);
+            cx.g.hgrad(full, &[(0.0, hexa(0x120A10, 0.94)), (0.7, hexa(0x120A10, 0.92)), (1.0, hexa(0x120A10, 0.0))]);
+            let x = ui::EDGE;
+            let mut y = 150.0;
+            cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("End credits").to_uppercase(), x, y, ui::BULB);
+            y += 40.0;
+            let name = file_title(cx, &self.f);
+            cx.tx.draw_fit(&mut cx.g, display(52.0, 700), &name, x, y, 760.0, ui::PAPER);
+            y += display(52.0, 700).line() + 26.0;
+            if let Some((why, title, by)) = self.song.clone() {
+                cx.g.round(rect(x, y, 4.0, 118.0), 2.0, ui::BULB);
+                cx.tx.draw(&mut cx.g, body(22.0, 400), &why, x + 26.0, y, ui::DUST);
+                cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &title, x + 26.0, y + 32.0, 734.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &by, x + 26.0, y + 82.0, 734.0, ui::DUST);
+                y += 118.0 + 26.0;
+            }
+            cx.tx.draw(&mut cx.g, body(22.0, 400), t!("Up: the picture full size"), x, y, ui::DUST.alpha(0.8));
+        }
         // Up next
         if self.up_next_on() {
             if let Some(next) = self.next.clone() {
-                let r = rect(1920.0 - ui::EDGE - 660.0, 1080.0 - 300.0 - 520.0, 660.0, 520.0);
+                let (r, art_h) = if self.credits_on {
+                    (rect(ui::EDGE, 1080.0 - 90.0 - 420.0, 660.0, 420.0), 150.0)
+                } else {
+                    (rect(1920.0 - ui::EDGE - 660.0, 1080.0 - 300.0 - 520.0, 660.0, 520.0), 250.0)
+                };
                 ui::panel(cx, r, 28.0, hexa(0x1C1018, 0.96));
-                let art = rect(r.x + 30.0, r.y + 30.0, 600.0, 250.0);
+                let art = rect(r.x + 30.0, r.y + 30.0, 600.0, art_h);
                 let still = String::from(s(&next, "still"));
                 let pic = if !still.is_empty() { ui::tmdb_size(&still, "w780") } else { String::from(cx.state.show(s(&next, "show")).map(|x| s(x, "backdrop")).unwrap_or("")) };
                 ui::picture(cx, &pic, art, 12.0, Some(ui::SEAT), 1.0);
@@ -920,6 +1043,12 @@ impl Screen for Player {
             }
             return true;
         }
+        if self.credits_on && (k.code == key::UP || (k.code == key::BACK && !self.up_next_on())) {
+            self.credits_dismissed = true;
+            self.sync_credits(cx);
+            self.show_osd(cx, false);
+            return true;
+        }
         if self.up_next_on() {
             match k.code {
                 key::LEFT | key::RIGHT => {
@@ -978,6 +1107,41 @@ impl Screen for Player {
                 self.stream = alloc::format!("{}{}", cx.server, s(&res.json, "url"));
                 let at = self.start_at;
                 self.open_stream(cx, at);
+            }
+            SONG => {
+                match res.json.get("song").filter(|v| v.is_object()) {
+                    Some(sg) => {
+                        let why = match s(sg, "why") {
+                            "credits" => t!("Over the credits"),
+                            "theme" => t!("The show’s theme"),
+                            _ => t!("From the soundtrack"),
+                        };
+                        self.song = Some((String::from(why), String::from(s(sg, "title")), String::from(s(sg, "by"))));
+                        cx.redraw();
+                    }
+                    None => {
+                        self.song_tries -= 1;
+                        if crate::util::b(&res.json, "pending") && self.song_tries > 0 {
+                            cx.timer(4000.0, self.sid, SONG_T);
+                        }
+                    }
+                }
+            }
+            UPGRADE_LINK => {
+                let Some(v) = self.upgrading.take() else { return };
+                if !res.ok() || self.ended {
+                    return;
+                }
+                let at = { let t = av::time_ms() / 1000.0; if t > 5.0 { t } else { self.time } };
+                self.time = at;
+                self.close(cx);
+                play(cx, &v, at, true);
+                let label = String::from(s(&v, "versionLabel"));
+                let label = match label.rfind(" · ") {
+                    Some(i) if label[i + 3..].ends_with("GB") || label[i + 3..].ends_with("MB") => String::from(&label[..i]),
+                    _ => if label.is_empty() { String::from("4K") } else { label },
+                };
+                cx.toast(&t!("Switched to the {0} version: it finished downloading.", label));
             }
             INTRO => {
                 if let Some(it) = res.json.get("intro") {
@@ -1052,6 +1216,7 @@ impl Screen for Player {
                 self.open_stream(cx, at);
             }
             REST_T => cx.redraw(),
+            SONG_T => self.ask_song(cx),
             TICK_T => {
                 if self.playing && self.seek_target.is_none() {
                     self.time = self.now_time();
@@ -1060,6 +1225,10 @@ impl Screen for Player {
                     self.save(cx, false);
                 }
                 self.watch_stall(cx);
+                self.upgrade_ticks += 1;
+                if self.upgrade_ticks % 40 == 0 {
+                    self.try_upgrade(cx); // every 20 s
+                }
                 self.settle(cx);
                 let sig = self.signature();
                 if sig != self.sig {

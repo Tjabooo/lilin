@@ -96,6 +96,25 @@ fn fold(c: char) -> char {
     }
 }
 
+/// `word` in `text` with no letter or digit right before or after it (a regex \\b for plain words).
+pub fn has_word(text: &str, word: &str) -> bool {
+    let b = text.as_bytes();
+    let mut from = 0;
+    while let Some(i) = text[from..].find(word) {
+        let at = from + i;
+        let end = at + word.len();
+        let edge = |k: usize| !b[k].is_ascii_alphanumeric();
+        if (at == 0 || edge(at - 1)) && (end >= b.len() || edge(end)) {
+            return true;
+        }
+        from = at + 1;
+        if from >= text.len() {
+            break;
+        }
+    }
+    false
+}
+
 pub fn lower(s: &str) -> String {
     s.chars().flat_map(|c| c.to_lowercase()).collect()
 }

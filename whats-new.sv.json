@@ -1,4 +1,17 @@
 {
+  "2026-11-19-tv-credits-4k": {
+    "title": "Eftertextkort och 4K-byte i TV-apparna",
+    "items": {
+      "The credits card on the TV": {
+        "title": "Eftertextkortet på TV:n",
+        "text": "När eftertexterna börjar flyttar bilden till höger och TV:n visar låten från soundtracket och vad som kommer härnäst, precis som på webbplatsen. Tryck Upp för att få bilden i full storlek igen."
+      },
+      "The TV moves to 4K by itself": {
+        "title": "TV:n byter till 4K av sig själv",
+        "text": "När en film startar med en snabb 1080p-kopia och 4K-versionen laddats ner klart medan du tittar byter TV:n till den på samma ställe, en gång per film. Android-TV-apparna uppdaterar sig själva för att visa eftertextkortet med bilden vid sidan."
+      }
+    }
+  },
   "2026-11-19-tv-adaptive": {
     "title": "Stabilare TV-appar på långsamma anslutningar",
     "items": {

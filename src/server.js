@@ -90,6 +90,7 @@ import { checkConfig } from './config-check.js';
 import { raiseServer } from './priority.js';
 import { startPlaybackGuard } from './playback-guard.js';
 import { PhoneStreams, segmentIndex, isHeavy, probe as probePhone } from './phone-stream.js';
+import { creditsSong } from '../public/credits-song.js';
 import { PartialStreams, parsePartialId, roomGate } from './partial-stream.js';
 import { ColdStarts, THROTTLE_BPS } from './cold-start.js';
 import { PlayheadService, playheadBinding, mergeStates } from './playhead.js';
@@ -4739,6 +4740,16 @@ async function handleApi(req, res, url) {
   if ((m = p.match(/^\/api\/title\/(movie|tv)\/(\d+)\/details$/))) {
     if (!tmdbOn()) return sendJson(res, 200, { details: null });
     return sendJson(res, 200, { details: await titleDetails.titleDetails(m[1], m[2]) });
+  }
+  // song: the TV apps' credits card. The same best guess as the website's (public/credits-song.js), from More details'
+  // soundtrack; pending while MusicBrainz is still being asked (the TV asks again).
+  if ((m = p.match(/^\/api\/title\/(movie|tv)\/(\d+)\/song$/))) {
+    if (!tmdbOn()) return sendJson(res, 200, { song: null });
+    const det = await titleDetails.titleDetails(m[1], m[2]);
+    const pick = creditsSong(det?.music?.albums, { type: m[1] });
+    const artist = pick && (pick.track.artist || (/^various artists$/i.test(pick.album.artist || '') ? '' : pick.album.artist));
+    return sendJson(res, 200, { pending: Boolean(det?.musicPending) && !pick,
+      song: pick ? { title: pick.track.title, by: [artist, pick.album.title].filter(Boolean).join(' · '), why: pick.why } : null });
   }
   // One season's episodes with descriptions, running times and air dates, for a title page's episode list.
   if ((m = p.match(/^\/api\/tv\/(\d+)\/season\/(\d+)$/))) {

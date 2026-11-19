@@ -36,6 +36,7 @@ extern "C" {
     fn av_close();
     fn av_audio() -> i32;
     fn av_select_audio(i: i32) -> i32;
+    fn av_rect(x: f64, y: f64, w: f64, h: f64);
 }
 
 /// Where host.js writes answers that don't fit a return value.
@@ -165,5 +166,9 @@ pub mod av {
     }
     pub fn select_audio(i: i32) -> bool {
         unsafe { av_select_audio(i) != 0 }
+    }
+    /// Where the picture goes, in the 1920×1080 page (the credits card moves it to the right).
+    pub fn rect(x: f32, y: f32, w: f32, h: f32) {
+        unsafe { av_rect(x as f64, y as f64, w as f64, h as f64) }
     }
 }

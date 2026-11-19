@@ -260,6 +260,8 @@ pub struct Cx {
     pub ambient: bool,
     toast: Option<(String, f64)>,
     pub auto_chain: u32,
+    /// Films whose sharper version playback already moved to (or tried) this session (player.rs).
+    pub upgraded: Vec<String>,
     pub hidden: bool,
     /// The screen on top (screens that poll check they're the one showing).
     pub top: u32,
@@ -616,6 +618,7 @@ pub extern "C" fn start(p: *mut u8, n: usize) {
         ambient: false,
         toast: None,
         auto_chain: 0,
+        upgraded: Vec::new(),
         hidden: false,
         top: 0,
     };

@@ -244,6 +244,8 @@ impl Ready {
                 }
                 if self.x.tv {
                     f["showTmdb"] = Value::from(self.x.tmdb);
+                } else {
+                    f["tmdbId"] = Value::from(self.x.tmdb); // the 4K switch finds the film's other versions by it
                 }
                 f
             } else {

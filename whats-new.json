@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-19-tv-credits-4k",
+    "date": "2026-11-19",
+    "title": "Credits card and 4K switch on the TVs",
+    "items": [
+      {
+        "kind": "new",
+        "title": "The credits card on the TV",
+        "text": "When the closing credits start, the picture moves to the right and the TV shows the song from the soundtrack and what's up next, like the website. Press Up for the picture full size again."
+      },
+      {
+        "kind": "new",
+        "title": "The TV moves to 4K by itself",
+        "text": "When a film starts on a quick 1080p copy and the 4K version finishes downloading while you watch, the TV switches to it at the same spot, once per film. Android TVs update themselves to show the credits card with the picture on the side."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-tv-adaptive",
     "date": "2026-11-19",
     "title": "Steadier TV apps on slow connections",
