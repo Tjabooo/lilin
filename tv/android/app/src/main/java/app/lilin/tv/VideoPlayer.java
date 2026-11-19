@@ -21,10 +21,13 @@ import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -42,6 +45,9 @@ final class VideoPlayer implements Player.Listener {
   interface Events { void send(JSONObject event); }
 
   private static final int TICK_MS = 500;
+  private static final int NET_MS = 2000;
+  /** A dropped connection or a proxy hiccup (Cloudflare 502/524) is retried this often before the page hears of it. */
+  private static final int LOAD_RETRIES = 8;
 
   private final Activity activity;
   private final FrameLayout box;      // black, full screen: the letterbox bars
@@ -54,6 +60,23 @@ final class VideoPlayer implements Player.Listener {
   private boolean buffering;
   private int audioIndex = -1;
   private VideoSize videoSize = VideoSize.UNKNOWN;
+
+  private DefaultBandwidthMeter meter;
+
+  /** Every 2 s while open: the connection's measured speed, how much is buffered and the video's bitrate (all
+   * 0 when unknown), so the page can move to the adaptive stream before the picture stops. */
+  private final Runnable netTick = new Runnable() {
+    @Override public void run() {
+      if (exo == null) return;
+      long br = 0;
+      Format v = exo.getVideoFormat(), a = exo.getAudioFormat();
+      if (v != null) br += Math.max(0, v.averageBitrate > 0 ? v.averageBitrate : v.bitrate);
+      if (a != null && br > 0) br += Math.max(0, a.averageBitrate > 0 ? a.averageBitrate : a.bitrate);
+      send(event("net").putOpt("bw", meter == null ? 0 : meter.getBitrateEstimate())
+          .putOpt("buf", exo.getTotalBufferedDuration()).putOpt("br", br));
+      main.postDelayed(this, NET_MS);
+    }
+  };
 
   private final Runnable tick = new Runnable() {
     @Override public void run() {
@@ -94,8 +117,11 @@ final class VideoPlayer implements Player.Listener {
         .build();
     DefaultRenderersFactory renderers = new DefaultRenderersFactory(activity)
         .setEnableDecoderFallback(true);
+    meter = DefaultBandwidthMeter.getSingletonInstance(activity);
     exo = new ExoPlayer.Builder(activity, renderers)
-        .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(activity, http)))
+        .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(activity, http))
+            .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(LOAD_RETRIES)))
+        .setBandwidthMeter(meter)
         .setLoadControl(load)
         .setAudioAttributes(new AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -111,6 +137,7 @@ final class VideoPlayer implements Player.Listener {
     exo.setVideoSurfaceView(surface);
     exo.setMediaItem(MediaItem.fromUri(url));
     box.setVisibility(View.VISIBLE);
+    main.postDelayed(netTick, NET_MS);
     activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
   }
 
@@ -129,6 +156,7 @@ final class VideoPlayer implements Player.Listener {
 
   void release() {
     main.removeCallbacks(tick);
+    main.removeCallbacks(netTick);
     if (exo != null) {
       exo.removeListener(this);
       exo.release();
@@ -179,7 +207,15 @@ final class VideoPlayer implements Player.Listener {
 
   @Override public void onPlayerError(PlaybackException error) {
     main.removeCallbacks(tick);
-    send(event("error").putOpt("msg", error.getErrorCodeName()));
+    String msg = error.getErrorCodeName();
+    // Which HTTP status, when the server or a proxy on the way answered with one (ebi saw only BAD_HTTP_STATUS).
+    for (Throwable c = error.getCause(); c != null; c = c.getCause()) {
+      if (c instanceof HttpDataSource.InvalidResponseCodeException) {
+        msg += " " + ((HttpDataSource.InvalidResponseCodeException) c).responseCode;
+        break;
+      }
+    }
+    send(event("error").putOpt("msg", msg));
   }
 
   @Override public void onTracksChanged(Tracks tracks) {

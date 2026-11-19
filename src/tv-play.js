@@ -109,7 +109,7 @@ export async function tvPlay(deps, user, q, { start = false } = {}) {
   if (part) {
     let link = null;
     try { link = await deps.partLink(user, part.id); } catch { return { phase: 'connecting' }; } // not streamable this second
-    if (link && link.ready) return { play: { kind: 'part', ...part, url: link.url, duration: link.status?.duration || null } };
+    if (link && link.ready) return { play: { kind: 'part', ...part, url: link.url, adaptiveUrl: link.adaptiveUrl || null, duration: link.status?.duration || null } };
     return { phase: 'starting', startProgress: link?.status?.startProgress ?? null, startEta: link?.status?.startEta ?? null };
   }
   if (transfers.length) return { phase: 'connecting' };

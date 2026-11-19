@@ -1,4 +1,21 @@
 {
+  "2026-11-19-tv-adaptive": {
+    "title": "Stabilare TV-appar på långsamma anslutningar",
+    "items": {
+      "No more Reconnecting loops on Android TV": {
+        "title": "Inga fler återanslutningsloopar på Android TV",
+        "text": "På en långsam eller ojämn anslutning (till exempel när du tittar långt bort) stannade Android TV-appen och återanslöt om och om igen. Nu spelar den filmen i full kvalitet så länge anslutningen hänger med, och om den inte gör det byter den en gång till en ström som själv anpassar kvaliteten efter anslutningen. Android TV-appen uppdaterar sig själv för att få det här."
+      },
+      "Autoplay switch on the TVs": {
+        "title": "Autouppspelning av och på i TV-apparna",
+        "text": "Tryck Ned medan ett avsnitt spelas: Spela nästa avsnitt automatiskt kan stängas av, precis som på webbplatsen. Nästa väntar då på dig."
+      },
+      "Subtitles and sharp frames on the TVs": {
+        "title": "Undertexter och skarpa bilder i TV-apparna",
+        "text": "Videor du startar medan de fortfarande laddas ner får undertexter på TV:n också, och Fortsätt titta visar en skarp bild från där du slutade."
+      }
+    }
+  },
   "2026-11-19-credits-mornings-static": {
     "title": "Eftertexter, morgnar och kanalbrus",
     "items": {

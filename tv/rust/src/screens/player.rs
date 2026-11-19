@@ -160,6 +160,14 @@ enum MenuAct {
     None,
     Subs(String, String),
     Audio(i32),
+    Autoplay(bool),
+}
+
+/// Up next's countdown, per TV like the website's switch in the player cog (Off: the card waits for a press).
+/// Same key and JSON as the JavaScript app.
+const AUTOPLAY_KEY: &str = "lilin:tv-autoplay";
+fn autoplay_on() -> bool {
+    host::load(AUTOPLAY_KEY).map_or(true, |v| v.trim() != "false")
 }
 
 pub struct Player {
@@ -217,13 +225,16 @@ impl Player {
         let sid = cx.sid();
         let fid = String::from(s(&f, "id"));
         let variant = "browser-hevc";
-        // Play now (ready.rs): a stream of a video that's still downloading, already signed; no intro marks or
-        // subtitles until it's whole.
+        // Play now (ready.rs): a stream of a video that's still downloading, already signed; subtitles (kept where
+        // the finished file lands) but no intro marks until it's whole.
         let part = crate::util::b(&f, "part");
         let mut stream = String::new();
         if part {
             stream = alloc::format!("{}{}", cx.server, s(&f, "url"));
             cx.timer(1.0, sid, PART_T);
+            if !cx.state.setting("subLang").is_empty() {
+                cx.get(&alloc::format!("/api/subs/langs?kind=part&id={}", crate::util::enc(&fid)), sid, LANGS_PREF);
+            }
         } else {
             cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(&fid), variant), sid, LINK);
             let base = alloc::format!("/api/media/lib/{}", crate::util::enc(&fid));
@@ -437,7 +448,7 @@ impl Player {
             self.skip_intro(cx);
         }
         let on = self.up_next_on();
-        let counting = on && !self.busy && !self.held && cx.auto_chain < logic::AUTOPLAY_CHAIN;
+        let counting = on && !self.busy && !self.held && cx.auto_chain < logic::AUTOPLAY_CHAIN && autoplay_on();
         if counting && self.auto_left.is_none() {
             self.auto_left = Some(logic::AUTOPLAY_SECONDS);
             self.auto_last = host::time();
@@ -549,12 +560,16 @@ impl Player {
         if lang.is_empty() {
             return;
         }
-        let body = serde_json::json!({ "kind": "lib", "id": s(&self.f, "id"), "lang": lang });
+        let body = serde_json::json!({ "kind": self.media_kind(), "id": s(&self.f, "id"), "lang": lang });
         cx.post("/api/subs/fetch", body, self.sid, SUB_FETCH);
+    }
+    /// Play now videos (still downloading) are "part" to the subtitle endpoints.
+    fn media_kind(&self) -> &'static str {
+        if crate::util::b(&self.f, "part") { "part" } else { "lib" }
     }
     fn open_menu(&mut self, cx: &mut Cx) {
         self.show_osd(cx, true);
-        cx.get(&alloc::format!("/api/subs/langs?kind=lib&id={}", crate::util::enc(s(&self.f, "id"))), self.sid, LANGS_MENU);
+        cx.get(&alloc::format!("/api/subs/langs?kind={}&id={}", self.media_kind(), crate::util::enc(s(&self.f, "id"))), self.sid, LANGS_MENU);
     }
     fn build_menu(&mut self, langs: &[Value]) {
         let mut items = alloc::vec![
@@ -579,6 +594,12 @@ impl Player {
                 let label = crate::util::join(&[&name_lang, &ch, s(tr, "codec")], " · ");
                 items.push(MenuItem { head: false, label, on: idx == current, act: MenuAct::Audio(idx as i32) });
             }
+        }
+        if self.f.get("season").is_some_and(|v| !v.is_null()) {
+            let auto = autoplay_on();
+            items.push(MenuItem { head: true, label: String::from(t!("Autoplay next episode")), on: false, act: MenuAct::None });
+            items.push(MenuItem { head: false, label: String::from(t!("On")), on: auto, act: MenuAct::Autoplay(true) });
+            items.push(MenuItem { head: false, label: String::from(t!("Off")), on: !auto, act: MenuAct::Autoplay(false) });
         }
         self.menu_i = items.iter().position(|m| m.on && !m.head).unwrap_or(1);
         self.menu = Some(items);
@@ -864,6 +885,7 @@ impl Screen for Player {
                     let act = self.menu.as_ref().and_then(|m| m.get(self.menu_i)).map(|m| match &m.act {
                         MenuAct::Subs(c, n) => MenuAct::Subs(c.clone(), n.clone()),
                         MenuAct::Audio(i) => MenuAct::Audio(*i),
+                        MenuAct::Autoplay(on) => MenuAct::Autoplay(*on),
                         MenuAct::None => MenuAct::None,
                     });
                     self.menu = None;
@@ -878,6 +900,13 @@ impl Screen for Player {
                             if !av::select_audio(i) {
                                 cx.toast(t!("This audio track can’t be picked here."));
                             }
+                        }
+                        Some(MenuAct::Autoplay(on)) => {
+                            host::save(AUTOPLAY_KEY, if on { "true" } else { "false" });
+                            if !on {
+                                self.stop_countdown(cx);
+                            }
+                            self.settle(cx);
                         }
                         _ => {}
                     }

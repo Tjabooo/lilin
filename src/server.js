@@ -3008,6 +3008,7 @@ async function partialLink(req, id) {
   const variant = 'phone1080';
   const exp = Math.floor(Date.now() / 1000) + PLAY_LINK_HOURS * 3600;
   return { ready: true, status, url: `/play/part/${id}/${variant}/${exp}/${signPlay('part', id, variant, exp)}/index.m3u8`,
+    adaptiveUrl: `/play/part/${id}/abr/${exp}/${signPlay('part', id, 'abr', exp)}/master.m3u8`,
     sourceHeight: entry.info.height || null };
 }
 // The library copy of a finished download (by media key), if the library has it yet.
@@ -3190,6 +3191,12 @@ async function tizenLink(req, kind, id) {
 async function playLink(kind, id, variant, audio = null, audioSource = null, retry = false, quality = null, bridge = false) {
   if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new HttpError(400, 'Invalid file.');
   if (bridge && audio !== null && !PHONE_VARIANT.test(variant)) return bridgeLink(kind, id, variant, audio, audioSource);
+  if (audio === null && quality === 'abr') {
+    if (!['lib', 'dl'].includes(kind)) throw new HttpError(400, 'Unknown media type.');
+    const link = adaptiveLink(kind, id);
+    try { link.sourceHeight = (await probePhone(await streamFile(kind, id, 'browser-hevc'))).height || null; } catch { /* unknown */ }
+    return link;
+  }
   if (audio === null && quality) {
     // The player's quality menu names the original's resolution ("made live from the 4K file").
     const link = await playLink(kind, id, await phoneChoice(kind, id, variant, quality), null, null, retry);
@@ -3258,7 +3265,7 @@ async function convertStatusFor(user, plays) {
 
 // The file a signed /play/ path names, once its signature checks out (expiry is the caller's business).
 function verifiedPlayPath(pathname) {
-  const m = pathname.match(/^\/play\/(lib|dl|part)\/([A-Za-z0-9_-]+)\/(browser(?:-hevc)?(?:-a\d+-[a-f0-9]{24})?|tv|phone(?:1080|720)(?:-a\d{1,5})?)\/(\d+)\/([A-Za-z0-9_-]+)(?:\/[^/]*)?$/);
+  const m = pathname.match(/^\/play\/(lib|dl|part)\/([A-Za-z0-9_-]+)\/(browser(?:-hevc)?(?:-a\d+-[a-f0-9]{24})?|tv|abr|phone(?:1080|720)(?:-a\d{1,5})?)\/(\d+)\/([A-Za-z0-9_-]+)(?:\/[^/]*)?$/);
   if (!m) throw new HttpError(404, 'Not found.');
   const [, kind, id, variant, exp, sig] = m;
   const expected = signPlay(kind, id, variant, exp);
@@ -3271,6 +3278,7 @@ function verifiedPlayPath(pathname) {
 async function handlePlay(req, res, url) {
   const { kind, id, variant, exp } = verifiedPlayPath(url.pathname);
   if (exp < Date.now() / 1000) throw new HttpError(410, 'This link has expired. Start playback again.');
+  if (variant === 'abr') return sendAdaptiveMaster(req, res, url, { kind, id, exp });
   if (kind === 'part') {
     if (!PHONE_VARIANT.test(variant)) throw new HttpError(404, 'Not found.');
     return sendPartialPiece(req, res, url, { id, variant });
@@ -3278,6 +3286,37 @@ async function handlePlay(req, res, url) {
   if (PHONE_VARIANT.test(variant)) return sendPhonePiece(req, res, url, { kind, id, variant });
   // Library files name their stream for House → Sharing (cheap); downloads keep the file's own name.
   return sendVideo(req, res, await streamFile(kind, id, variant), { label: kind === 'lib' ? streamLabel(librarySource(id)) : null });
+}
+
+// The adaptive stream (TV apps on a slow or uneven connection): an HLS master playlist over the live 1080p
+// and 720p streams of the same video. Both force a keyframe every 4 s from the same start, so their pieces
+// line up and the player (ExoPlayer) moves between them on its own as the connection changes, without
+// reopening anything. Each rung is its own signed phone link; only the rung being played runs ffmpeg.
+export const ADAPTIVE_RUNGS = [
+  { quality: '1080', bandwidth: 8_000_000, average: 6_200_000, codecs: 'avc1.640028,mp4a.40.2' },
+  { quality: '720', bandwidth: 3_200_000, average: 2_600_000, codecs: 'avc1.64001f,mp4a.40.2' },
+];
+export function adaptiveMaster(rungUrl) {
+  const lines = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-INDEPENDENT-SEGMENTS'];
+  for (const r of ADAPTIVE_RUNGS) {
+    lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${r.bandwidth},AVERAGE-BANDWIDTH=${r.average},CODECS="${r.codecs}"`, rungUrl(`phone${r.quality}`));
+  }
+  return lines.join('\n') + '\n';
+}
+function adaptiveLink(kind, id) {
+  const exp = Math.floor(Date.now() / 1000) + PLAY_LINK_HOURS * 3600;
+  return { url: `/play/${kind}/${id}/abr/${exp}/${signPlay(kind, id, 'abr', exp)}/master.m3u8`, ext: 'm3u8', adaptive: true };
+}
+async function sendAdaptiveMaster(req, res, url, { kind, id, exp }) {
+  if (url.pathname.split('/').pop() !== 'master.m3u8') throw new HttpError(404, 'Not found.');
+  if (kind !== 'part') {
+    const file = await streamFile(kind, id, 'phone1080');
+    if (!fs.existsSync(file)) throw new HttpError(404, 'That file is no longer on the server.');
+  }
+  // Relative to /play/<kind>/<id>/abr/<exp>/<sig>/, so it works the same through the TV gateway.
+  const body = adaptiveMaster((variant) => `../../../${variant}/${exp}/${signPlay(kind, id, variant, exp)}/index.m3u8`);
+  res.writeHead(200, { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/vnd.apple.mpegurl', 'Content-Length': Buffer.byteLength(body) });
+  return res.end(req.method === 'HEAD' ? undefined : body);
 }
 
 // The phone stream's playlist (index.m3u8) or one of its 4-second pieces (s00012.ts). One session per

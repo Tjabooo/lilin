@@ -391,14 +391,32 @@
       } };
   }
   // upNext: the episode after one you finished (it starts from the beginning).
+  // Like the website: a sharp frame where you stopped, grabbed by the server (cached, times rounded to 10 s), fading in
+  // over the still once it's here. Fetched with the TV's session (an <img> can't send it); the still stays if it fails.
+  function sharpFrame(art, id, time) {
+    if (art.getAttribute('data-frame') || typeof URL === 'undefined' || !URL.createObjectURL) return;
+    art.setAttribute('data-frame', '1');
+    var headers = { 'X-Lilin-TV': '1' }, t = token();
+    if (t && t !== 'home') headers['X-Lilin-Session'] = t;
+    fetch(SERVER + '/api/media/lib/' + encodeURIComponent(id) + '/still?t=' + Math.floor(time / 10) * 10, { headers: headers, credentials: 'omit' })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.blob(); })
+      .then(function (blob) {
+        var frame = h('img', { class: 'frame', alt: '', decoding: 'async' });
+        frame.onload = function () { frame.className = 'frame in'; };
+        frame.src = URL.createObjectURL(blob);
+        art.insertBefore(frame, art.querySelector('.bar'));
+      }).catch(function () { /* no frame there: the still stays */ });
+  }
   function continueCard(f, upNext) {
     var p = upNext ? { time: 0, duration: 1 } : state.progress[L.progressRef(f)];
     var showInfo = showOf(f);
     var pct = Math.min(100, p.time / p.duration * 100);
     var pic = lazy(f.season != null ? bigger(f.still) || (showInfo && showInfo.backdrop) : f.backdrop || f.poster);
-    return { key: f.id, wake: pic.wake,
+    var art = h('div', { class: 'art' }, pic.el, h('div', { class: 'bar' }, h('i', { style: 'width:' + pct.toFixed(1) + '%' })));
+    var wake = upNext || !(p.time > 30) ? pic.wake : function () { pic.wake(); sharpFrame(art, f.id, p.time); };
+    return { key: f.id, wake: wake,
       el: h('div', { class: 'card wide' },
-        h('div', { class: 'art' }, pic.el, h('div', { class: 'bar' }, h('i', { style: 'width:' + pct.toFixed(1) + '%' }))),
+        art,
         h('div', { class: 'name', text: showInfo ? showInfo.title : f.filmTitle || f.title }),
         h('div', { class: 'sub', text: [L.episodeLabel(f), f.episodeName, upNext ? T('Up next') : L.minutesLeft(p)].filter(Boolean).join(' · ') })),
       open: function () { play(f, p.time); } };
@@ -2050,6 +2068,11 @@
     return { line: T('Starting…'), hint: '', progress: 0.97 };
   }
   // Whether this TV plays 4K HEVC itself (tv/android Codecs.playVariant): the server picks the copy by it.
+  // Up next's countdown, per TV like the website's switch in the player cog (Off: the card waits for a press).
+  var AUTOPLAY_KEY = 'lilin:tv-autoplay';
+  function autoplayOn() { return load(AUTOPLAY_KEY, true) !== false; }
+  // The Android TV shell (ExoPlayer behind an AVPlay-shaped object) says which video it wants; Samsung doesn't.
+  function onAndroid() { return Boolean(window.LILIN_TV_PLAY); }
   function tvUhd() { return String(window.LILIN_TV_PLAY || 'browser-hevc').split('&')[0] === 'browser-hevc'; }
   function targetQuery(x) {
     return 'type=' + x.type + '&tmdbId=' + x.tmdbId + (x.type === 'tv' ? '&season=' + x.season + '&episode=' + x.episode : '') + (tvUhd() ? '' : '&uhd=0');
@@ -2175,7 +2198,7 @@
         return hand(f);
       }
       if (r.play && r.play.kind === 'part') {
-        var pf = { id: r.play.id, part: true, url: r.play.url, mediaKey: r.play.mediaKey, title: r.play.title || x.title, filmTitle: x.title,
+        var pf = { id: r.play.id, part: true, url: r.play.url, adaptiveUrl: r.play.adaptiveUrl || null, mediaKey: r.play.mediaKey, title: r.play.title || x.title, filmTitle: x.title,
           show: r.play.show, season: r.play.season, episode: r.play.episode, showTmdb: x.type === 'tv' ? x.tmdbId : null, still: x.art };
         return hand(pf);
       }
@@ -2319,7 +2342,7 @@
       var next = nextUp();
       var on = Boolean(next && !s.dismissed && L.isNextTime(s.time, s.duration, s.creditsAt, s.ended));
       if (upNext.classList.contains('show') !== on) upNext.classList.toggle('show', on);
-      var counting = on && !s.busy && autoChain < L.AUTOPLAY_CHAIN;
+      var counting = on && !s.busy && autoChain < L.AUTOPLAY_CHAIN && autoplayOn();
       if (counting && s.autoLeft == null) startCountdown();
       else if (!on) stopCountdown();
       if (!on) return;
@@ -2412,14 +2435,15 @@
     }
 
     // ---- subtitles and audio (▼) ----
+    var subKind = f.part ? 'part' : 'lib'; // Play now videos get subtitles too (kept where the finished file lands)
     function subLangs() {
-      return api('/api/subs/langs?kind=lib&id=' + encodeURIComponent(f.id)).then(function (d) { return d.languages || []; }).catch(function () { return []; });
+      return api('/api/subs/langs?kind=' + subKind + '&id=' + encodeURIComponent(f.id)).then(function (d) { return d.languages || []; }).catch(function () { return []; });
     }
     function setSubs(lang) {
       s.subLang = lang || '';
       s.cues = null; subsEl.textContent = '';
       if (!lang) return Promise.resolve();
-      return api('/api/subs/fetch', { kind: 'lib', id: f.id, lang: lang })
+      return api('/api/subs/fetch', { kind: subKind, id: f.id, lang: lang })
         .then(function (r) { return fetch(SERVER + r.url, { credentials: 'omit' }); })
         .then(function (r) { return r.text(); })
         .then(function (text) { if (s.subLang === lang) s.cues = L.parseVtt(text); })
@@ -2444,6 +2468,16 @@
           try { var cur = av.getCurrentStreamInfo().filter(function (t) { return t.type === 'AUDIO'; })[0]; current = cur ? cur.index : -1; } catch (e) { /* unknown */ }
           menuItems.push({ head: T('Audio') });
           tracks.forEach(function (t) { menuItems.push({ label: t.name, on: t.index === current, act: function () { try { av.setSelectTrack('AUDIO', t.index); } catch (e) { toast(T('This audio track can’t be picked here.')); } } }); });
+        }
+        if (f.season != null) {
+          menuItems.push({ head: T('Autoplay next episode') });
+          [[true, T('On')], [false, T('Off')]].forEach(function (o) {
+            menuItems.push({ label: o[1], on: autoplayOn() === o[0], act: function () {
+              try { localStorage.setItem(AUTOPLAY_KEY, JSON.stringify(o[0])); } catch (e) { /* full */ }
+              if (!o[0]) stopCountdown();
+              paintUpNext();
+            } });
+          });
         }
         menuIndex = menuItems.findIndex(function (m) { return m.on; });
         if (menuIndex < 0) menuIndex = 1;
@@ -2503,15 +2537,25 @@
     // A slow connection (slower than the video's bitrate) stalls again and again: the first stall during playback switches to
     // the 720p live stream (about 2.5 Mbit/s) instead of reopening the same file. The first load gets a minute,
     // since a big film's index alone can take longer than 12 s on such a connection.
+    // Android (ExoPlayer) is different: it rebuffers and retries by itself, so reopening only threw its buffer away
+    // and showed "Reconnecting…" over and over on a slow line. There the original file plays (the website's quality)
+    // until the connection proves too slow for it (a slow first load, a long or repeated stall, or the player's own
+    // bandwidth estimate below the video's bitrate); then it moves once to the adaptive stream (1080p/720p, which
+    // ExoPlayer switches between on its own). Only 90 s with nothing moving reopens it.
     var streamUrl = null, bufferingSince = 0, movedAt = 0, lastPlayMs = -1, retries = 0, reopening = false;
     var framed = false, stalls = 0, lowered = false;
+    var exo = onAndroid(), adaptive = false, openedAt = 0, stallTimes = [], net = null;
+    if (exo && window.__mq) window.__mq.handlers.net = function (e) { net = e; net.at = Date.now(); };
     function openStream(at) {
       av.open(streamUrl);
-      movedAt = Date.now(); bufferingSince = 0; framed = false;
+      movedAt = openedAt = Date.now(); bufferingSince = 0; framed = false;
         av.setDisplayRect(0, 0, 1920, 1080);
         try { av.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) { /* older firmware */ }
         av.setListener({
-          onbufferingstart: function () { spinner.textContent = T('Loading…'); spinner.classList.add('show'); bufferingSince = Date.now(); },
+          onbufferingstart: function () {
+            spinner.textContent = T('Loading…'); spinner.classList.add('show'); bufferingSince = Date.now();
+            if (framed && seekTarget == null) stallTimes = stallTimes.filter(function (t) { return bufferingSince - t < 180000; }).concat([bufferingSince]);
+          },
           onbufferingcomplete: function () { spinner.classList.remove('show'); bufferingSince = 0; },
           oncurrentplaytime: function (ms) {
             if (seekTarget == null) s.time = ms / 1000;
@@ -2536,16 +2580,42 @@
           } else go();
         }, function (e) { if (!reopen()) fail(String(e && e.name || e)); });
     }
-    function reopen(slow) {
-      if (s.closed || reopening || !streamUrl || retries >= 5) return false;
-      retries++; reopening = true;
-      if (slow) stalls++;
-      var lower = slow && stalls >= 1 && !lowered && !f.part;
+    function playingAt() {
       var at = s.time;
       try {
         var live = av.getCurrentTime() / 1000;
         if (live > 5 || at <= 5) at = live;
       } catch (e) { /* keep the last reported position */ }
+      return at;
+    }
+    // Android: once, from the file to the adaptive stream at the same spot.
+    function goAdaptive() {
+      if (adaptive || lowered || reopening || s.closed || (f.part && !f.adaptiveUrl)) return false;
+      adaptive = true; reopening = true;
+      var at = s.time = playingAt();
+      save(true);
+      spinner.textContent = T('Slow connection: switching to a stream that adapts to it…'); spinner.classList.add('show');
+      try { av.stop(); } catch (e) { /* already */ }
+      try { av.close(); } catch (e) { /* already */ }
+      var go = function (url) {
+        reopening = false;
+        if (s.closed) return;
+        streamUrl = url; retries = 0; stallTimes = []; net = null;
+        try { openStream(at); } catch (e) { fail(e.message); }
+      };
+      if (f.part) { go(SERVER + f.adaptiveUrl); return true; }
+      var base = String(window.LILIN_TV_PLAY || 'browser').split('&')[0];
+      api('/api/play-link?kind=lib&id=' + encodeURIComponent(f.id) + '&variant=' + base + '&quality=abr')
+        .then(function (link) { go(SERVER + link.url); }, function () { go(streamUrl); });
+      return true;
+    }
+    function reopen(slow) {
+      if (s.closed || reopening || !streamUrl || retries >= 5) return false;
+      if (exo && !adaptive && retries >= 1 && goAdaptive()) return true; // the file failed twice: the adaptive stream instead
+      retries++; reopening = true;
+      if (slow) stalls++;
+      var lower = !exo && slow && stalls >= 1 && !lowered && !f.part;
+      var at = playingAt();
       s.time = at;
       save(true);
       spinner.textContent = T('Reconnecting…'); spinner.classList.add('show');
@@ -2569,6 +2639,16 @@
     function watchStall() {
       if (reopening || s.ended || seekTarget != null) return;
       var t = Date.now();
+      if (exo) {
+        if (!adaptive) {
+          var slowStart = !framed && t - openedAt > 25000;
+          var longStall = framed && bufferingSince && t - bufferingSince > 6000;
+          var slowNet = framed && net && t - net.at < 5000 && net.bw > 0 && net.br > 0 && net.bw < net.br * 1.2 && net.buf < 15000;
+          if ((slowStart || longStall || stallTimes.length >= 2 || slowNet) && goAdaptive()) return;
+        }
+        if ((bufferingSince && t - bufferingSince > 90000) || (s.playing && t - movedAt > 90000)) reopen();
+        return;
+      }
       var limit = framed ? 15000 : 60000;
       if ((bufferingSince && t - bufferingSince > limit) || (s.playing && t - movedAt > limit)) reopen(Boolean(bufferingSince) || framed);
     }
@@ -2593,12 +2673,12 @@
         watchStall();
       }, 500);
       knowSeasons();
-      if (f.part) return; // no intro marks or subtitles until it's whole
+      var pref = state.me && state.me.settings && state.me.settings.subLang;
+      if (pref) subLangs().then(function (langs) { if (langs.some(function (l) { return l.code === pref; })) setSubs(pref); });
+      if (f.part) return; // no intro marks until it's whole
       var base = '/api/media/lib/' + encodeURIComponent(f.id);
       api(base + '/intro').then(function (d) { if (d.intro && d.intro.end - d.intro.start >= 5) s.intro = d.intro; }).catch(function () {});
       api(base + '/credits').then(function (d) { if (d.creditsAt > 0) s.creditsAt = d.creditsAt; }).catch(function () {});
-      var pref = state.me && state.me.settings && state.me.settings.subLang;
-      if (pref) subLangs().then(function (langs) { if (langs.some(function (l) { return l.code === pref; })) setSubs(pref); });
     }
 
     show({ el: el, leave: close, key: function (code) {

@@ -1,5 +1,27 @@
 [
   {
+    "id": "2026-11-19-tv-adaptive",
+    "date": "2026-11-19",
+    "title": "Steadier TV apps on slow connections",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "No more Reconnecting loops on Android TV",
+        "text": "On a slow or uneven connection (watching from far away, for example) the Android TV app used to stop and reconnect over and over. It now keeps playing the full-quality file while the connection keeps up, and if it can't, it moves once to a stream that adjusts its quality to the connection by itself. The Android TV app updates itself to get this."
+      },
+      {
+        "kind": "new",
+        "title": "Autoplay switch on the TVs",
+        "text": "Press Down while an episode plays: Autoplay next episode can be turned off, like on the website. Up next then waits for you."
+      },
+      {
+        "kind": "improved",
+        "title": "Subtitles and sharp frames on the TVs",
+        "text": "Videos you start while they're still downloading get subtitles on the TV too, and Continue watching shows a sharp frame from where you stopped."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-credits-mornings-static",
     "date": "2026-11-19",
     "title": "Credits, mornings and channel static",

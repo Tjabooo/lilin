@@ -74,6 +74,8 @@ pub struct Card {
     pub title: String,
     pub sub: String,
     pub img: String,
+    /// Drawn over img once it has loaded (Continue watching's sharp frame where you stopped); img stays if it fails.
+    pub frame: String,
     /// A wide picture for the screen's backdrop while this card has focus.
     pub back: String,
     pub badge: bool,
@@ -90,7 +92,7 @@ pub struct Card {
 }
 impl Card {
     pub fn new(key: String, kind: Kind, title: String, act: Act) -> Card {
-        Card { key, kind, title, sub: String::new(), img: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None, tint: None }
+        Card { key, kind, title, sub: String::new(), img: String::new(), frame: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None, tint: None }
     }
     pub fn hash(&self) -> u64 {
         ui::hash(&self.key)
@@ -263,6 +265,10 @@ pub fn continue_card(cx: &Cx, f: &Value, up_next: bool) -> Option<Card> {
     c.hero = Some(serde_json::json!({ "title": c.title, "overview": over, "type": ty, "year": show.map(|x| x.get("year").cloned().unwrap_or(Value::Null)).unwrap_or_else(|| f.get("year").cloned().unwrap_or(Value::Null)) }));
     if !up_next {
         c.bar = Some(Some((time / dur).min(1.0) as f32));
+        if time > 30.0 {
+            let at = (libm::floor(time / 10.0) * 10.0) as i64;
+            c.frame = alloc::format!("{}/api/media/lib/{}/still?t={}", cx.server, crate::util::enc(s(f, "id")), at);
+        }
     }
     Some(c)
 }
@@ -349,7 +355,10 @@ pub fn draw_card(cx: &mut Cx, c: &Card, x: f32, y: f32, lit: f32) {
         cx.tx.draw_center(&mut cx.g, f, &c.title, r.x + r.w / 2.0, r.y + (r.h - lh) / 2.0, ui::DUST.mix(ui::PAPER, lit));
         return;
     }
-    let shown = ui::picture(cx, &c.img, r, radius, Some(ui::SEAT), 1.0);
+    let mut shown = ui::picture(cx, &c.img, r, radius, Some(ui::SEAT), 1.0);
+    if !c.frame.is_empty() {
+        shown |= ui::picture(cx, &c.frame, r, radius, None, 1.0);
+    }
     if !shown {
         // No picture (yet): the title, quietly, so the card is never just a blank box.
         let f = display(26.0, 700);

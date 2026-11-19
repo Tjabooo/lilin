@@ -280,7 +280,15 @@
         var url = str(up, ul);
         loading[id] = true;
         // The Accept of the TV's own <img>: hosts that pick a format (SVT's format=auto) must not send AVIF.
-        fetch(url, { credentials: 'omit', headers: { Accept: 'image/webp,image/apng,image/*,*/*;q=0.8' } }).then(function (r) {
+        var headers = { Accept: 'image/webp,image/apng,image/*,*/*;q=0.8' };
+        // Lilin's own pictures (Continue watching frames) need the TV's session, like its API calls.
+        if (/\/api\/media\//.test(url)) {
+          headers['X-Lilin-TV'] = '1';
+          var tok = null;
+          try { tok = root.localStorage.getItem('lilin:tv-session'); } catch (e) { /* blocked */ }
+          if (tok && tok !== 'home') headers['X-Lilin-Session'] = tok;
+        }
+        fetch(url, { credentials: 'omit', headers: headers }).then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.blob();
         }).then(decode).then(guard(function (pic) {

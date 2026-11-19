@@ -123,6 +123,18 @@ test('film identification API requires owner access and changes only the selecte
       assert.ok(link.url.startsWith('/play/lib/'));
       const byte = await fetch(`http://127.0.0.1:${port}${link.url}`, { headers: { Range: 'bytes=0-0' } });
       assert.equal(byte.status, 206); await byte.arrayBuffer();
+      // TV apps on a slow connection: the adaptive master lists the 1080p and 720p live streams, signed, relative.
+      const libId = link.url.split('/')[3];
+      const abr = await request(`/api/play-link?kind=lib&id=${libId}&variant=browser&quality=abr`);
+      assert.match(abr.url, /^\/play\/lib\/[^/]+\/abr\/\d+\/[^/]+\/master\.m3u8$/); assert.equal(abr.adaptive, true);
+      const masterUrl = new URL(abr.url, `http://127.0.0.1:${port}`);
+      const master = await fetch(masterUrl);
+      assert.equal(master.status, 200);
+      const rungs = (await master.text()).split('\n').filter((l) => l && !l.startsWith('#'));
+      assert.deepEqual(rungs.map((r) => new URL(r, masterUrl).pathname.split('/')[4]), ['phone1080', 'phone720']);
+      const rung = await fetch(new URL(rungs[1], masterUrl), { method: 'HEAD' });
+      assert.notEqual(rung.status, 403, 'each rung carries its own valid signature'); await rung.arrayBuffer();
+      assert.equal((await fetch(new URL(abr.url.replace(/[^/]+\/master\.m3u8$/, 'x'.repeat(43) + '/master.m3u8'), masterUrl))).status, 403);
       assert.equal((await request('/api/library', undefined, 'member@test.local')).items.length, 0);
       await request('/api/me', { name: 'Dad' });
       assert.equal((await request(`${base}/preview`)).host, 'Dad', 'Profile names update an open room immediately');
