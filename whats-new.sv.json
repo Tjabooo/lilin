@@ -8,6 +8,15 @@
       }
     }
   },
+  "2026-11-19-continue-next-episode": {
+    "title": "Fortsätt titta behåller avsnittet du just kommit till",
+    "items": {
+      "Shows no longer vanish from Continue watching": {
+        "title": "Serier försvinner inte längre från Fortsätt titta",
+        "text": "Om du en gång börjat på ett avsnitt från en senare säsong och slutat kunde det gamla avsnittet ersätta det du just kommit till med Nästa avsnitt, och serien kunde försvinna från Fortsätt titta. Nu visas avsnittet du faktiskt är på."
+      }
+    }
+  },
   "2026-11-19-tv-credits-4k": {
     "title": "Eftertextkort och 4K-byte i TV-apparna",
     "items": {
