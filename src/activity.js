@@ -15,10 +15,12 @@ const lastSeen = new Map();          // user -> { at, device }
 const recentKeys = new Map();        // dedup key -> time
 let resolveName = null;
 let resolveAvatar = null;
+let resolveId = null;
 
-export function initActivity({ dataDir, nameForUser = null, avatarForUser = null }) {
+export function initActivity({ dataDir, nameForUser = null, avatarForUser = null, idForUser = null }) {
   resolveName = nameForUser;
   resolveAvatar = avatarForUser;
+  resolveId = idForUser;
   file = path.join(dataDir, '.lilin-activity.jsonl');
   try {
     events = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-KEEP).map((l) => {
@@ -99,9 +101,14 @@ export function report(limit = 300) {
     if (!avatars.has(user)) avatars.set(user, resolveAvatar?.(user) || null);
     return avatars.get(user);
   };
+  const ids = new Map();
+  const idOf = (user) => {
+    if (!ids.has(user)) ids.set(user, resolveId?.(user) ?? null);
+    return ids.get(user);
+  };
   return {
-    people: [...lastSeen.entries()].map(([user, s]) => ({ user, name: nameOf(user), avatar: avatarOf(user), ...s })).sort((a, b) => b.at - a.at),
-    events: events.slice(-limit).reverse().map((e) => ({ ...e, name: nameOf(e.user), avatar: avatarOf(e.user),
+    people: [...lastSeen.entries()].map(([user, s]) => ({ user, id: idOf(user), name: nameOf(user), avatar: avatarOf(user), ...s })).sort((a, b) => b.at - a.at),
+    events: events.slice(-limit).reverse().map((e) => ({ ...e, id: idOf(e.user), name: nameOf(e.user), avatar: avatarOf(e.user),
       ...(e.action === 'revoke' ? { subjectName: nameOf(e.detail) } : {}) })),
   };
 }

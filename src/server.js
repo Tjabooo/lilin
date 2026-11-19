@@ -184,7 +184,7 @@ const LIVE_TV_PICKS_GB = Math.max(0, Number(process.env.LIVE_TV_PICKS_GB) || 0);
 const PICKS_RESERVE = 300 * 1024 ** 3; // the media drive always keeps this much free for people's own downloads
 const TV_PICK_TAG = 'lilin-tv';
 const FRESH_DAYS = 14;                 // the Fresh channel: picks, plus anything that arrived this recently
-activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail });
+activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail, idForUser: accounts.idForEmail });
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR,
   notesEmails: String(process.env.NOTES_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean) });
 reviews.initReviews(); // reviews: own table in the accounts database

@@ -123,7 +123,10 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
     assert.deepEqual(seen.friends.map((f) => f.name), ['Bo']);
     await request('/api/profiles/me', { visibility: 'private' }, 'ebi@p.test');
     assert.equal((await request(`/api/profiles/${ebi.id}`, undefined, 'bo@p.test')).locked, true);
-    assert.equal((await request(`/api/profiles/${ebi.id}`, undefined, 'owner@p.test')).locked, true, 'not even the owner');
+    const peek = await request(`/api/profiles/${ebi.id}`, undefined, 'owner@p.test');
+    assert.equal(peek.locked, false, 'owners see private pages');
+    assert.equal(peek.ownerPeek, true);
+    assert.equal(seen.ownerPeek, false, 'a friend looking at a friends-only page is not peeking');
     assert.equal((await request('/api/profiles/me', undefined, 'ebi@p.test')).locked, false);
 
     // Restricted people: locked both ways.

@@ -169,6 +169,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('div', { class: 'pf-sub' }, ...sub.flatMap((x, i) => (i ? [h('span', { class: 'pf-dot', 'aria-hidden': 'true' }, '·'), x] : [x]))),
       !d.locked && p.bio && h('p', { class: 'pf-bio' }, p.bio),
       actions(ctx, d),
+      d.ownerPeek && h('p', { class: 'pf-vis pf-owner-peek', title: T('Owners can see every profile.') }, icon('lock'),
+        d.visibility === 'friends' ? T('Friends only · you see it as an owner') : T('Private · you see it as an owner')),
       !d.locked && on(d, 'stats') && d.stats && statsRow(d.stats));
   }
 

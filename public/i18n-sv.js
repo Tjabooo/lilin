@@ -1,5 +1,9 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  // activity: owners open profiles from Activity
+  "Owners can see every profile.": "Ägare kan se alla profiler.",
+  "Friends only · you see it as an owner": "Bara vänner · du ser den som ägare",
+  "Private · you see it as an owner": "Privat · du ser den som ägare",
   "Coming soon": "Kommer snart",
   // comingsoon: Discover's Coming soon row and page
   "tomorrow": "imorgon",

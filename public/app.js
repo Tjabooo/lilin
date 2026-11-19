@@ -10016,9 +10016,12 @@ function activityCard(s) {
   const span = clock(s.from) === clock(s.at) ? clock(s.at) : `${clock(s.from)}–${clock(s.at)}`;
   return h('li', { class: `act-card${system ? ' is-system' : ''}` },
     h('div', { class: 'act-card-head' },
-      people.face(e, { size: 34 }),
+      system ? people.face(e, { size: 34 }) : people.faceButton(e, { size: 34 }),
       h('div', { class: 'act-who' },
-        h('span', { class: 'act-name', title: e.user }, system ? T('Lilin itself') : personName(e)),
+        !system && e.id
+          ? h('button', { type: 'button', class: 'act-name act-name-btn', title: T('Open {0}’s profile', personName(e)),
+            onclick: (ev) => profiles.open({ id: e.id, name: personName(e), avatar: e.avatar }, ev.currentTarget) }, personName(e))
+          : h('span', { class: 'act-name', title: e.user }, system ? T('Lilin itself') : personName(e)),
         !system && h('span', { class: 'act-where' }, activityDevice(e))),
       h('span', { class: 'act-span' }, span)),
     h('ul', { class: `act-lines${lines.length === 1 ? ' is-single' : ''}` }, lines.map(activityLine)));
@@ -10077,7 +10080,10 @@ function renderActivity() {
   }
   const picked = state.activityPerson && (state.activity.people || []).find((p) => p.user === state.activityPerson);
   out.push(h('div', { class: 'act-feed-head' },
-    h('h3', { class: 'activity-head' }, picked ? T('What {0} did', personName(picked)) : T('What happened')),
+    h('div', { class: 'act-feed-title' },
+      h('h3', { class: 'activity-head' }, picked ? T('What {0} did', personName(picked)) : T('What happened')),
+      picked?.id && h('button', { type: 'button', class: 'chip act-profile-btn',
+        onclick: (ev) => profiles.open({ id: picked.id, name: personName(picked), avatar: picked.avatar }, ev.currentTarget) }, T('Profile'))),
     segmented(ACTIVITY_FILTERS.map(([k, t]) => [k, T(t)]), filter, (k) => { state.activityFilter = k; renderActivity(); }, T('Show'))));
   if (!events.length) out.push(h('p', { class: 'muted act-empty' }, q || filter !== 'all' || picked ? T('Nothing matches.') : T('Nothing has happened yet.')));
   for (const d of days) out.push(...foldGroup(d.key, 'p', 'activity-day', d.label, d.n, [d.list], Boolean(q)));

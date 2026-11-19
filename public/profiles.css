@@ -110,6 +110,7 @@
 .pf-friend:hover:not(:disabled) { background: var(--pf-accent); filter: brightness(1.08); }
 .pf-vis { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .pf-vis svg { width: 15px; height: 15px; }
+.pf-owner-peek { margin: 4px 0 0; justify-content: center; }
 .pf-is-friend { color: var(--pf-accent); }
 
 /* name fonts (also the samples in the editor) */

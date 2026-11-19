@@ -306,6 +306,13 @@ export function avatarForEmail(identity) {
 }
 
 // One source for person labels. Looking up an old log entry must never create an account.
+// The account id behind an activity identity (email, or "Home network"), so Activity can open profiles.
+export function idForEmail(identity) {
+  const raw = String(identity || '').trim();
+  const key = raw === 'Home network' ? HOME : raw.toLowerCase();
+  return db?.prepare('SELECT id FROM users WHERE email = ?').get(key)?.id ?? null;
+}
+
 export function displayNameFor(identity) {
   const raw = String(identity || '').trim();
   const key = raw === 'Home network' ? HOME : raw.toLowerCase();

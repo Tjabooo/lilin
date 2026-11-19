@@ -163,6 +163,7 @@ export function access(viewer, target) {
   if (isRestricted(viewer) || isRestricted(target)) return 'locked';
   const vis = profileOf(target).visibility;
   if (vis === 'public') return 'full';
+  if (viewer?.isOwner) return 'full'; // the server's owners see every page, private or friends-only
   if (vis === 'friends' && areFriends(viewer.id, target.id)) return 'full';
   return 'locked';
 }
@@ -365,7 +366,9 @@ export function view(viewer, target) {
   const lb = letterboxd.status(target.id);
   return {
     person: { ...person, pronouns: p.pronouns, bio: p.bio, since: target.createdAt },
-    me: self, locked: false, visibility: p.visibility, friend, look: p.look, sections: p.sections,
+    me: self, locked: false, visibility: p.visibility, friend,
+    // an owner looking at a page that isn't shared with them (private, or friends-only and not friends)
+    ownerPeek: !self && Boolean(viewer?.isOwner) && p.visibility !== 'public' && !(p.visibility === 'friends' && areFriends(viewer.id, target.id)), look: p.look, sections: p.sections,
     favorites: on('favorites') ? p.favorites : [],
     recent: on('recent') ? recent(target.id, 8) : [],
     stats: on('stats') ? stats(target.id) : null,
