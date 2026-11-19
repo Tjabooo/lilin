@@ -2442,6 +2442,7 @@ function renderTitle() {
       patchUnifiedLibrary(); renderTitle();
     },
   }) : filmVersionPick(t, () => renderTitle()));
+  const reactions = rateKey && h('div', { class: 'title-reactions' }, social.rateRow(rateKey, t.title));
   $('#sheet-body').replaceChildren(titleView.hero,
     h('div', { class: 'sheet-content' },
       pageTitle(t.title, t.type, t.id),
@@ -2449,6 +2450,7 @@ function renderTitle() {
       titleStateLine(c),
       bar,
       c.watch,
+      tv && reactions, // shows: up top, not below a long episode list
       c.fa, versions || null,
       c.tvd?.panel, tv && state.status.admin && transferSummary(() => c.stateOf().transfers, t.title, { lead: () => false }),
       model.inline.includes('identityNote') && h('p', { class: 'identity-note' }, state.me?.isOwner
@@ -2456,7 +2458,7 @@ function renderTitle() {
         : T('Several films match this filename. The server’s owner can identify this file.')),
       t.overview && h('p', { class: 'overview' }, t.overview),
       tv && episodeList(c),
-      rateKey && h('div', { class: 'title-reactions' }, social.rateRow(rateKey, t.title)),
+      !tv && reactions,
       reviews.section(rateKey, t.title), // reviews
       castRail(t.type, t.id) || castLine(t.type, t.id),
       moreLike(t.type, t.id),
