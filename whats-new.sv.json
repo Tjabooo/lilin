@@ -1,4 +1,13 @@
 {
+  "2026-11-19-ipad-fullscreen": {
+    "title": "Helskärm på iPad",
+    "items": {
+      "No clock or battery over the video on iPad": {
+        "title": "Ingen klocka eller batteri över videon på iPad",
+        "text": "I Lilin-appen på hemskärmen på din iPad öppnas videor nu i helskärm, så tiden och batteriet längst upp försvinner medan du tittar. Svep nedåt eller tryck på helskärmsknappen för att lämna den."
+      }
+    }
+  },
   "2026-11-18-tv-logo-fill": {
     "title": "En trevligare väntan på TV:n",
     "items": {
