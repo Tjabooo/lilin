@@ -1788,15 +1788,17 @@ body.has-nowbar .toast { bottom: calc(var(--tabs-h) + var(--safe-bottom) + 84px)
 .cc-menu.cc-split { display: flex; flex-direction: column; width: min(600px, calc(100vw - 32px)); overflow: hidden; }
 .cc-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); flex: 1 1 auto; min-height: 0; }
 .cc-langs, .cc-settings { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 4px; }
-.cc-langs { padding-right: 6px; border-right: 1px solid rgb(255 255 255 / .1); }
+/* contain: size keeps the language list out of the height sum, so the menu is as tall as the settings and the list scrolls */
+.cc-langs { padding-right: 6px; border-right: 1px solid rgb(255 255 255 / .1); contain: size; }
+.cc-cols { min-height: 220px; }
 .cc-settings { padding-left: 6px; }
 .cc-col-title { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 12px 6px; font: 700 12px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: rgb(255 255 255 / .6); background: rgb(24 16 21 / .92); }
 .cc-settings .cc-row { grid-template-columns: 60px 1fr; }
 /* Narrow phones: stack them, languages first in a shorter scrolling list */
 @media (max-width: 520px) {
   .cc-menu.cc-split { overflow-y: auto; }
-  .cc-cols { grid-template-columns: 1fr; flex: none; }
-  .cc-langs { max-height: 34dvh; padding-right: 0; border-right: 0; border-bottom: 1px solid rgb(255 255 255 / .1); }
+  .cc-cols { grid-template-columns: 1fr; flex: none; min-height: 0; }
+  .cc-langs { contain: none; max-height: 34dvh; padding-right: 0; border-right: 0; border-bottom: 1px solid rgb(255 255 255 / .1); }
   .cc-settings { padding-left: 0; overflow: visible; }
 }
 /* Bedtime: night mode and the sleep timer */
