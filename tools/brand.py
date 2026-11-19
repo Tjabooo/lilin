@@ -2,7 +2,7 @@
 """Native TV artwork, the shared tagline and the rendering helpers for Lilin's branding.
 
 The TV artwork uses a cinema-title serif with lit bulbs for the two i-dots. The web artwork
-uses the ribbon L and lettering in public/wordmark.svg.
+uses the split L and lettering in public/wordmark.svg.
 
   WORDMARK   "lilin": Gloock outlines (Duarte Pinto, SIL OFL 1.1) with taller l's (+70 units, columns either side of
              each bulb), the gap in the n's base closed so the foot serifs run on as one stage line, tracking -10,

@@ -4,14 +4,14 @@
   python3 tools/app-icon.py --web             browser, home-screen and notification icons
   python3 tools/app-icon.py                   also rebuild the native Android TV artwork
 
-The website's ribbon L comes from public/wordmark.svg. The native Android TV marks live in tools/brand.py.
+The website's split L comes from public/wordmark.svg. The native Android TV marks live in tools/brand.py.
 
   public/icon-192.png / icon-512.png          manifest "any": rounded square, transparent corners
   public/maskable-192.png / maskable-512.png  manifest "maskable": full bleed, monogram inside the 80 % safe circle
                                               (the Samsung TV app's tile too: tv/tizen/build.sh copies maskable-512)
   public/apple-touch-icon.png                 180x180 full bleed, opaque (iOS rounds it itself)
   public/badge-96.png                         white silhouette for Android's notification bar
-  public/favicon.svg                          ribbon tile for browser tabs
+  public/favicon.svg                          split-L tile for browser tabs
   tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash icon and launcher icons
 
 tools/og-banner.py draws the link-preview card and the Android TV banner.
@@ -56,19 +56,16 @@ def splash():
 
 
 def web_mark(path, scale, fill):
-    # The L is 84 × 96. Its long left stem and low foot need a small optical offset.
-    x, y = 68 - 42 * scale, 62 - 48 * scale
+    # The L is 54 × 96. Its long left stem and low foot need a small optical offset.
+    x, y = 65 - 27 * scale, 64 - 48 * scale
     return f'<path fill="{fill}" transform="translate({x:g} {y:g}) scale({scale:g})" d="{path}"/>'
 
 
 def web_tile(path, scale, radius):
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">\n'
             '  <title>Lilin</title>\n'
-            '  <defs><linearGradient id="amber" x2=".85" y2="1">'
-            '<stop stop-color="#FFE19B"/><stop offset=".55" stop-color="#F4BC60"/>'
-            '<stop offset="1" stop-color="#ED9F4B"/></linearGradient></defs>\n'
-            f'  <rect width="128" height="128" rx="{radius}" fill="url(#amber)"/>\n'
-            f'  {web_mark(path, scale, "#2A1421")}\n</svg>\n')
+            f'  <rect width="128" height="128" rx="{radius}" fill="#FF5649"/>\n'
+            f'  {web_mark(path, scale, "#211B2A")}\n</svg>\n')
 
 
 def write(img, path, size, opaque=False):
@@ -80,17 +77,17 @@ def write(img, path, size, opaque=False):
 def main():
     pub = os.path.join(ROOT, "public")
     source = ElementTree.parse(os.path.join(pub, "wordmark.svg"))
-    ribbon = source.find('.//*[@id="lilin-ribbon"]').attrib["d"]
-    rounded = brand.rasterize(web_tile(ribbon, 0.92, 28), ART, ART)
-    full = brand.rasterize(web_tile(ribbon, 0.80, 0), ART, ART)
+    initial = source.find('.//*[@id="lilin-initial"]').attrib["d"]
+    rounded = brand.rasterize(web_tile(initial, 0.92, 28), ART, ART)
+    full = brand.rasterize(web_tile(initial, 0.80, 0), ART, ART)
     for size in (192, 512):
         write(rounded, os.path.join(pub, f"icon-{size}.png"), size)
         write(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
     write(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
-    badge = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">{web_mark(ribbon, 1.1, "#fff")}</svg>'
+    badge = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">{web_mark(initial, 1.1, "#fff")}</svg>'
     write(brand.rasterize(badge, 384, 384), os.path.join(pub, "badge-96.png"), 96)
     with open(os.path.join(pub, "favicon.svg"), "w", encoding="utf-8") as f:
-        f.write(web_tile(ribbon, 1, 27))
+        f.write(web_tile(initial, 1, 27))
 
     if "--web" in sys.argv:
         return

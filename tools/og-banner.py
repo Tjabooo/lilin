@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Draws public/og-lilin.jpg, the 1200x630 card for shared Lilin links, using the website wordmark,
-the wordless film photograph in tools/art/film-loop.jpg and the original outlined tagline.
+the tidal cinema illustration in tools/art/tidal-screen.jpg and the original outlined tagline.
 
   python3 tools/og-banner.py [out.jpg]     # the link card, served as /c/lilin.jpg (needs rsvg-convert, numpy and Pillow)
   python3 tools/og-banner.py --tv          # the Android TV home-screen banner: drawable-xhdpi + -xxxhdpi/banner.png
@@ -18,15 +18,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def og(out):
     w, h = 1200, 630
-    with Image.open(os.path.join(ROOT, "tools", "art", "film-loop.jpg")) as photo:
-        art = ImageOps.fit(photo, (w, h), method=Image.LANCZOS).convert("RGBA")
+    with Image.open(os.path.join(ROOT, "tools", "art", "tidal-screen.jpg")) as plate:
+        art = ImageOps.fit(plate, (w, h), method=Image.LANCZOS).convert("RGBA")
     with open(os.path.join(ROOT, "public", "wordmark.svg"), encoding="utf-8") as f:
-        mark = brand.rasterize(f.read(), 450, 173)
-    left = 80
-    art.alpha_composite(mark, (left, 190))
-    size = 48
+        ink = "#211B2A"
+        title = f.read().replace("#F6EADF", ink).replace("#FF5649", ink)
+        mark = brand.rasterize(title, 540, 207)
+    left = 61
+    art.alpha_composite(mark, (left, 175))
+    size = 40
     tag_center = left + brand.TAGLINE_BOX[0] * size / 200
-    tagline = brand.tagline(tag_center, 436, size, opacity=0.94)
+    tagline = brand.tagline(tag_center, 435, size, fill=ink, opacity=1)
     art.alpha_composite(brand.rasterize(brand.svg_doc(w, h, tagline), w, h))
     brand.save(art, out)
     print(out)

@@ -1,16 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 96" width="250" height="96" fill="#F6EADF">
   <title>Lilin</title>
-  <g fill="#F4C152">
-    <path id="lilin-ribbon" d="M0 20L14 12V58C14 74 23 82 39 82H65L51 96H39C14 96 0 82 0 59Z
-      M21 8L35 0V55C35 61 38 63 44 63H84L70 77H44C29 77 21 69 21 56Z"/>
+  <g fill="#FF5649">
+    <path id="lilin-initial" d="M0 9L34 0V5L27 11V67L8 80V13L0 14Z M8 86L48 59H54L50 96H0V91Z"/>
   </g>
   <g id="lilin-type">
-    <circle cx="98.5" cy="18" r="9.5"/>
-    <path d="M90 36H107V96H90Z"/>
-    <path d="M118 9L135 0V74Q135 82 143 82H148L141 96H136Q118 96 118 77Z"/>
-    <circle cx="161.5" cy="18" r="9.5"/>
-    <path d="M153 36H170V96H153Z"/>
-    <path d="M182 36H199V44Q207 34 221 34C239 34 250 46 250 65V96H232V65
-      Q232 49 219 49C207 49 200 56 200 68V96H182Z"/>
+    <path d="M61 8L88 1V6L82 11V85L88 89V96H59V90L65 85V12L61 13Z"/>
+    <path transform="translate(96)" d="M0 9L34 0V5L27 11V67L8 80V13L0 14Z M8 86L48 59H54L50 96H0V91Z"/>
+    <path transform="translate(96)" d="M61 8L88 1V6L82 11V85L88 89V96H59V90L65 85V12L61 13Z"/>
+    <path d="M191 8L212 2L238 63V12L230 9V4L250 0V6L246 10V96H234L203 29V85L211 90V96H189V90L195 85V14L191 13Z"/>
   </g>
 </svg>
