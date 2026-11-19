@@ -1,4 +1,17 @@
 {
+  "2026-11-20-list-links": {
+    "title": "Delade listor syns snyggt i chattar",
+    "items": {
+      "List links show their posters": {
+        "title": "Listlänkar visar sina affischer",
+        "text": "När du delar en lista och klistrar in länken i Discord eller en annan chatt visar förhandsvisningen listans namn och en rad med dess första affischer. Privata listor visar inget om sig själva."
+      },
+      "A new Lilin link picture": {
+        "title": "En ny bild för Lilin-länkar",
+        "text": "Länkar till Lilin, inbjudningar och tittarrum utan egen bild visar nu den nya Lilin-skylten."
+      }
+    }
+  },
   "2026-11-19-homescreen-popup": {
     "title": "Mobiler: titta från hemskärmen",
     "items": {

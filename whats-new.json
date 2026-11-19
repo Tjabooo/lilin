@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-20-list-links",
+    "date": "2026-11-20",
+    "title": "Shared lists look good in chats",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "List links show their posters",
+        "text": "When you share a list and paste the link in Discord or another chat, the preview shows the list's name and a row of its first posters. Private lists show nothing about themselves."
+      },
+      {
+        "kind": "improved",
+        "title": "A new Lilin link picture",
+        "text": "Links to Lilin itself, invites and watch rooms without artwork now show the new Lilin billboard."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-homescreen-popup",
     "date": "2026-11-19",
     "title": "Phones: watch from your Home Screen",

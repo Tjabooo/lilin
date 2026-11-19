@@ -79,3 +79,15 @@ test('ghosts: per film or episode, own + friends only, no doubles, limits', () =
   for (let i = 0; i < 28; i++) ghosts.add(anna.id, { ...film, at: i * 10, emoji: '🔥' }, 5000);
   assert.throws(() => ghosts.add(anna.id, { ...film, at: 999, emoji: '🔥' }, 5000), /Easy/);
 });
+
+test('lists: shared() gives the link card data, never for private lists', async () => {
+  const { anna } = setup();
+  const l = await lists.create(anna.id, { name: 'cosy', keys: ['movie:603', 'movie:550'] }, { resolve });
+  const s = lists.shared(l.id);
+  assert.equal(s.name, 'cosy');
+  assert.equal(s.count, 2);
+  assert.deepEqual(s.posters, [cards['movie:603'].poster]);
+  lists.update(anna.id, l.id, { private: true });
+  assert.equal(lists.shared(l.id), null);
+  assert.equal(lists.shared('nope'), null);
+});

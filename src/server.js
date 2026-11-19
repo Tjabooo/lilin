@@ -68,6 +68,7 @@ import { NotesStore } from './notes.js';
 import { NotesUploads, mediaType } from './notes-media.js';
 import { NotesOcr } from './notes-ocr.js';
 import * as noteShare from './note-share.js';
+import * as listShare from './list-share.js'; // shared list links with a poster card, /c/l/<id>
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
@@ -5761,6 +5762,7 @@ async function handleRequest(req, res) {
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
         && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))
         && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
+        && !(await listShare.handlePublic(req, res, url, { cacheDir: path.join(CACHE_DIR, 'list-cards'), nameOf: (id) => accounts.userById(id)?.name || '' }))
         && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))
         && !(['GET', 'HEAD'].includes(req.method) && clips.sendDeadLink(req, res))) throw new HttpError(404, 'Not found.');
     }

@@ -85,7 +85,8 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
   }
 
   async function share(d) {
-    const url = `${location.origin}/#list/${d.id}`;
+    // /c/l/ so Discord & co. can show the list's name and posters (list-share.js); people land on /#list/<id>.
+    const url = `${location.origin}/c/l/${d.id}`;
     if (navigator.share && matchMedia('(pointer: coarse)').matches) {
       try { await navigator.share({ title: d.name, url }); return; } catch (err) { if (err?.name === 'AbortError') return; }
     }

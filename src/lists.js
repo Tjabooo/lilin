@@ -166,3 +166,12 @@ export function remove(userId, id) {
   db().prepare('DELETE FROM list_items WHERE list_id = ?').run(id);
   db().prepare('DELETE FROM lists WHERE id = ?').run(id);
 }
+
+// A list that isn't private, for its public link card (list-share.js): name, maker, count and the first posters. Null otherwise.
+export function shared(id, posters = 5) {
+  const r = row(id);
+  if (!r || r.private) return null;
+  const firsts = db().prepare('SELECT title, poster, backdrop FROM list_items WHERE list_id = ? ORDER BY position, added_at LIMIT 40').all(r.id);
+  return { id: r.id, name: r.name, about: r.about, userId: r.user_id, updated: r.updated_at, count: count(r.id),
+    posters: firsts.map((i) => img(i.poster)).filter(Boolean).slice(0, posters), backdrop: firsts.map((i) => img(i.backdrop)).find(Boolean) || null };
+}
