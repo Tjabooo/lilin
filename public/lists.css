@@ -1,0 +1,73 @@
+/* Lists (lists.js): cards on profiles (a fan of five posters), a list's own page (built on the profile page, .pf),
+   its editor in the picker, and the Add to a list sheet. */
+
+/* cards */
+.ls-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(46%, 230px), 1fr)); gap: var(--s4) clamp(12px, 3vw, 24px); margin: 0; padding: 0; list-style: none; }
+.ls-card { display: grid; gap: 10px; width: 100%; padding: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; }
+.ls-fan { position: relative; display: block; aspect-ratio: 2.55 / 1; }
+.ls-fan-p { position: absolute; top: 0; bottom: 0; left: calc(var(--i) * 18.6%); aspect-ratio: 2 / 3; z-index: calc(5 - var(--i)); overflow: hidden;
+  border-radius: min(var(--pf-r, 8px), 6px); background: var(--surface-2); box-shadow: 0 0 0 1px rgb(0 0 0 / .35), 6px 0 14px -6px rgb(0 0 0 / .7);
+  transition: translate .3s cubic-bezier(.2, .8, .2, 1); }
+.ls-fan-p.empty { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.ls-fan-p img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ls-card:hover .ls-fan-p, .ls-card:focus-visible .ls-fan-p { translate: calc(var(--i) * 5px) -2px; }
+.ls-card-text { display: grid; gap: 2px; min-width: 0; }
+.ls-card-text strong { font: 750 15.5px/1.25 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--d-1); }
+.ls-card:hover .ls-card-text strong { color: var(--pf-accent, var(--bulb)); }
+.ls-card-text small { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+.ls-lock { display: inline-grid; }
+.ls-lock svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.ls-fan-new { display: grid; place-items: center; border: 1.5px dashed var(--line); border-radius: var(--r-sm); color: var(--text-2); transition: color var(--d-1), border-color var(--d-1); }
+.ls-fan-new svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; }
+.ls-new:hover .ls-fan-new { color: var(--pf-accent, var(--bulb)); border-color: var(--pf-accent, var(--bulb)); }
+
+/* a list's page */
+.ls-page { --pf-accent: var(--bulb); }
+.ls-wash { height: min(700px, 90vh); }
+.ls-head { position: relative; z-index: 2; display: grid; justify-items: start; gap: 8px; max-width: var(--pf-w); margin: 0 auto;
+  padding: calc(var(--pf-bar, 60px) + var(--s5)) var(--gutter) 0; }
+.ls-maker { display: inline-flex; align-items: center; gap: 8px; padding: 3px 12px 3px 3px; font: 600 13px/1 var(--body); color: var(--text-2);
+  background: color-mix(in srgb, var(--surface-1) 70%, transparent); border: 1px solid var(--hairline); border-radius: 999px; cursor: pointer; }
+.ls-maker:hover { color: var(--text); }
+.ls-name { margin: 4px 0 0; font: 800 clamp(28px, 5vw, 42px)/1.05 var(--display); letter-spacing: -0.02em; text-wrap: balance; }
+.ls-about { margin: 0; max-width: 62ch; font-size: 15.5px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ls-meta { margin: 0; font-size: 13px; color: var(--text-3); }
+.ls-grid { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(30%, 116px), 1fr)); gap: clamp(10px, 2.4vw, 18px);
+  max-width: var(--pf-w); margin: var(--s5) auto 0; padding: 0 var(--gutter) var(--s7, 64px); list-style: none; }
+.ls-grid li { position: relative; }
+.ls-grid.ranked { row-gap: clamp(22px, 4vw, 30px); }
+/* ranked: the number sits under the poster's corner, big and hollow */
+.ls-rank { position: absolute; left: -4px; bottom: -16px; z-index: 2; font: 800 34px/1 var(--display); letter-spacing: -0.04em; color: var(--velvet, #0d0b0a);
+  -webkit-text-stroke: 1.5px var(--pf-accent); paint-order: stroke fill; pointer-events: none; font-variant-numeric: tabular-nums; }
+.ls-empty { position: relative; z-index: 2; display: grid; justify-items: center; gap: 14px; max-width: 420px; margin: var(--s6) auto 0; padding: 0 var(--gutter); text-align: center; color: var(--text-2); }
+.ls-empty p { margin: 0; }
+
+/* the editor + New list */
+.ls-switch-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.ls-switch-row > span { display: grid; gap: 2px; }
+.ls-switch-row strong { font-weight: 650; }
+.ls-order li { gap: 8px; padding-left: 6px; }
+.ls-order-poster { flex: none; width: 28px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; background: var(--surface-1); }
+.ls-order .pf-order-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-delete { color: #ff8a8a; }
+.ls-delete.confirm { color: #fff; background: #b4232a; border-color: #b4232a; }
+
+/* Add to a list */
+.ls-add-list { display: grid; gap: 6px; margin: var(--s3) 0 6px; }
+.ls-add-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 26px; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 6px 12px 6px 6px;
+  font: inherit; color: inherit; text-align: left; background: var(--surface-2); border: 1px solid transparent; border-radius: var(--r-sm); cursor: pointer; transition: border-color var(--d-1), background var(--d-1); }
+.ls-add-row:hover { border-color: var(--line); }
+.ls-add-poster { display: grid; place-items: center; width: 40px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 4px; color: var(--text-2); background: var(--surface-1); }
+.ls-add-poster img { width: 100%; height: 100%; object-fit: cover; }
+.ls-add-poster svg, .ls-add-check svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.ls-add-text { display: grid; gap: 2px; min-width: 0; }
+.ls-add-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.ls-add-text small { font-size: 12.5px; color: var(--text-2); }
+.ls-add-check { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: transparent; border: 1.5px solid var(--line); transition: all var(--d-1); }
+.ls-add-row[aria-pressed="true"] { border-color: color-mix(in srgb, var(--bulb) 45%, transparent); }
+.ls-add-row[aria-pressed="true"] .ls-add-check { color: var(--velvet, #0d0b0a); background: var(--bulb); border-color: var(--bulb); }
+.ls-add-new { background: none; border: 1.5px dashed var(--line); }
+.ls-add-new .ls-add-poster { background: none; }
+
+/* the List pill beside the thumbs (next to Review) */
+.rate-list svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }

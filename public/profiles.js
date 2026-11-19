@@ -18,7 +18,7 @@ const ACCENTS = ['#F4C152', '#FF9B85', '#E9A0C4', '#C3ACF2', '#93D6BA', '#97C9F2
 const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
 const FONTS = [['display', T('Bold')], ['condensed', T('Tall')], ['light', T('Light')], ['serif', T('Serif')], ['mono', T('Mono')], ['rounded', T('Rounded')]];
 const POSTERS = [['soft', T('Soft')], ['square', T('Square')], ['round', T('Round')], ['polaroid', T('Polaroid')]];
-const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), reviews: T('Reviews'), liked: T('Liked'), friends: T('Friends') };
+const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
   public: T('Everyone on this Lilin can see your profile.'),
@@ -32,7 +32,7 @@ const small = (url, size = 'w185') => (url ? String(url).replace(/\/t\/p\/(w\d+|
 const big = (url) => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w1280/') : null);
 
 export function createProfiles({ h, api, jsonPost, toast, icon, people, me, openTitle, overlay, picker, copyText, friendsChanged = () => {},
-  changePicture, removePicture, saveName, mineChanged = () => {} }) {
+  changePicture, removePicture, saveName, mineChanged = () => {}, lists = () => null, toneOf = () => Promise.resolve(null) }) {
   const locale = () => appLocale;
   const nestedNow = () => ['#sheet', '#picker'].some((s) => document.querySelector(s)?.classList.contains('open'))
     || Boolean(document.querySelector('.pf.pf-nested.open'));
@@ -110,14 +110,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     page.setAttribute('aria-label', T('{0}’s profile', d.person.name));
     const scrollTop = page.scrollTop;
     const banner = bannerOf(d);
-    page.replaceChildren(
+    page.replaceChildren(...[ // filter: replaceChildren writes null/false out as text
       topBar(ctx, d),
       look.background === 'image' && banner ? h('div', { class: 'pf-wash', 'aria-hidden': 'true' }, h('img', { src: small(banner, 'w300'), alt: '', decoding: 'async' })) : null,
       h('div', { class: `pf-banner${banner ? '' : ` pf-grad pf-grad-${look.banner === 'gradient' ? look.gradient : 'ember'}`}${look.banner === 'none' ? ' pf-banner-none' : ''}`, 'aria-hidden': 'true' },
         banner && look.banner !== 'none' && h('img', { src: banner, alt: '', decoding: 'async' })),
       head(ctx, d),
       ...(d.locked ? [lockedNote(ctx, d)] : sections(ctx, d)),
-      !d.locked && d.person.since && h('p', { class: 'pf-since' }, T('On Lilin since {0}', new Date(d.person.since).toLocaleDateString(locale(), { month: 'long', year: 'numeric' }))));
+      !d.locked && d.person.since && h('p', { class: 'pf-since' }, T('On Lilin since {0}', new Date(d.person.since).toLocaleDateString(locale(), { month: 'long', year: 'numeric' })))].filter(Boolean));
     page.scrollTop = scrollTop;
   }
 
@@ -295,6 +295,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       return sectionBox('liked', T('Liked'), h('span', { class: 'pf-sec-note' }, d.stats?.likes > list.length ? T('{0} in all', d.stats.likes) : null),
         h('ul', { class: 'pf-strip' }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))));
     },
+    // lists (lists.js): their shelves, each a fan of posters; yours end with New list.
+    lists(ctx, d) {
+      const all = d.lists || [];
+      const ui = lists();
+      if (!ui || (!all.length && !d.me)) return null;
+      return sectionBox('lists', T('Lists'), all.length ? h('span', { class: 'pf-sec-note' }, String(all.length)) : null,
+        ui.cards(all, { mine: d.me, nested: ctx.nested, onNew: (l) => { load(ctx); setTimeout(() => ui.open(l.id, null, { nested: ctx.nested }), 340); } }));
+    },
     friends(ctx, d) {
       const list = d.friends || [];
       if (!list.length) return null;
@@ -349,6 +357,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     for (const [month, list] of months) {
       out.append(h('h5', { class: 'pf-month' }, new Date(`${month}-15T12:00:00`).toLocaleDateString(locale(), { month: 'long', year: 'numeric' })),
         h('ol', { class: 'pf-diary-list' }, list.map((e) => {
+          if (e.type === 'movie') return h('li', { class: 'pf-stub-li' }, stub(ctx, e)); // ticket stubs
           const card = e.card;
           const row = h('button', { type: 'button', class: 'pf-entry', disabled: card?.id == null, onclick: () => card && openTitle(card, row, ctx.nested) },
             h('span', { class: 'pf-entry-day' }, String(Number(e.day.slice(8, 10)))),
@@ -364,6 +373,53 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     }
     if (ctx.diary.more) out.append(h('button', { type: 'button', class: 'pf-more', onclick: (e) => { e.currentTarget.disabled = true; openDiary(ctx, true); } }, h('span', {}, T('Older')), icon('chevron')));
     return out;
+  }
+
+  // ---------- ticket stubs ----------
+  // Every film in the diary is a torn cinema stub in its poster's colour: the title and your marks on the big part,
+  // the day, the time you watched and its number (your nth film) on the torn-off end. Each one sits a little askew,
+  // the same way every time (from its key and day), so scrolling the diary is like going through a drawer of them.
+  function stub(ctx, e) {
+    const card = e.card;
+    const title = card?.title || e.title;
+    const at = new Date(e.at);
+    const date = new Date(`${e.day}T12:00:00`);
+    const seed = [...`${e.key}${e.day}`].reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 7);
+    const tilt = ((seed % 1000) / 1000 - 0.5) * 3.2; // -1.6° to 1.6°
+    const nudge = (((seed >>> 10) % 100) / 100) * 14 - 7; // px sideways
+    const btn = h('button', { type: 'button', class: 'pf-stub', disabled: card?.id == null, style: `--tilt:${tilt.toFixed(2)}deg;--nudge:${nudge.toFixed(1)}px`,
+      'aria-label': [title, card?.year, date.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }), e.stub && T('Ticket {0}', e.stub)].filter(Boolean).join(', '),
+      onclick: () => card && openTitle(card, btn, ctx.nested) },
+      h('span', { class: 'pf-stub-main' },
+        card?.poster ? h('img', { class: 'pf-stub-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-stub-poster' }),
+        h('span', { class: 'pf-stub-text' },
+          h('span', { class: 'pf-stub-kicker', 'aria-hidden': 'true' }, e.rewatch ? T('Admit one · again') : T('Admit one')),
+          h('strong', { class: 'pf-stub-title' }, title),
+          h('span', { class: 'pf-stub-marks' }, card?.year ? h('span', { class: 'pf-stub-year' }, String(card.year)) : null, stars(e.stars),
+            e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
+            e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
+            e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')))),
+      h('span', { class: 'pf-stub-end', 'aria-hidden': 'true' },
+        h('span', { class: 'pf-stub-month' }, date.toLocaleDateString(locale(), { month: 'short' }).replace('.', '')),
+        h('span', { class: 'pf-stub-day' }, String(date.getDate())),
+        h('span', { class: 'pf-stub-time' }, e.letterboxd ? String(date.getFullYear()) : at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })),
+        e.stub ? h('span', { class: 'pf-stub-no' }, `№ ${String(e.stub).padStart(4, '0')}`) : null));
+    // The poster's colour, worked out once per device (app.js keeps them); a calm ink until it's known.
+    if (card?.poster) toneOf(card.poster).then((hex) => { const c = stubColour(hex); if (c) { btn.style.setProperty('--stub', c.paper); btn.style.setProperty('--stub-ink', c.ink); } });
+    return btn;
+  }
+  // A poster's average colour is usually a muddy dark: lift it to a printed-card tone that keeps its hue.
+  function stubColour(hex) {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+    if (!m) return null;
+    const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+    let hue = 0;
+    if (d) hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hue = Math.round(hue * 60 + 360) % 360;
+    const sat = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+    const s = Math.round(Math.min(0.62, sat < 0.08 ? sat : Math.max(0.34, sat * 1.3)) * 100);
+    return { paper: `hsl(${hue} ${s}% 33%)`, ink: `hsl(${hue} ${Math.min(40, s)}% 91%)` };
   }
 
   function episodesText(eps = []) {
@@ -711,5 +767,5 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     } catch (err) { toast(err.message); if (btn) btn.disabled = false; else ctx.likedAll = { liked: [], more: false }; }
   }
 
-  return { open, openMine, fromHash, mine, mineNow, forgetMine, numbers, recentLines, privateList };
+  return { open, openMine, fromHash, mine, mineNow, forgetMine, numbers, recentLines, privateList, titleSearch };
 }

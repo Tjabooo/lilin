@@ -34,6 +34,8 @@ import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
+import * as lists from './lists.js'; // lists: shelves people put together and share (lists.js)
+import * as ghosts from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later (ghosts.js)
 import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
@@ -185,6 +187,8 @@ activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor,
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR,
   notesEmails: String(process.env.NOTES_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean) });
 reviews.initReviews(); // reviews: own table in the accounts database
+lists.initLists(); // lists: own tables in the accounts database
+ghosts.initGhosts(); // ghost reactions: own table in the accounts database
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
 const push = new PushStore(DATA_DIR);
 // Sends `kind` to each person who has it switched on, in the background.
@@ -4148,6 +4152,52 @@ async function handleApi(req, res, url) {
     }
     return sendJson(res, 200, { ...reviewsFor(key, Boolean(body.all)), rating: social.ratingFor(user.id, key, personName, avatarOf, socialSight(user)) });
   }
+  // ghost reactions (ghosts.js): yours and your friends' on the film or episode playing; drop one; take one back.
+  if (p === '/api/ghosts' || p === '/api/ghosts/delete') {
+    try {
+      if (accounts.isRestricted(user) || !profiles.canHaveProfile(user)) {
+        if (req.method === 'GET') return sendJson(res, 200, { reactions: [], emoji: [], off: true });
+        throw new HttpError(403, 'Reactions aren’t available on your account.');
+      }
+      if (req.method === 'GET') {
+        const hide = accounts.restrictedIds();
+        const q = Object.fromEntries(url.searchParams);
+        return sendJson(res, 200, ghosts.forVideo(user.id, q, { friends: new Set(friends.friendIds(user.id)), hidden: (id) => hide.has(id), nameOf: personName, avatarOf }));
+      }
+      const body = await readJson(req, 4000);
+      if (p === '/api/ghosts/delete') { ghosts.remove(user.id, body.id); return sendJson(res, 200, { ok: true }); }
+      return sendJson(res, 200, { reaction: ghosts.add(user.id, body) });
+    } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+  }
+  // lists (lists.js): shelves of films and shows on profiles, each with its own link. Seeing one = seeing its maker's profile.
+  if (p === '/api/lists' || p.startsWith('/api/lists/')) {
+    try {
+      const canSee = (ownerId) => { const o = accounts.userById(ownerId); try { return Boolean(o) && ['self', 'full'].includes(profiles.access(user, o)); } catch { return false; } };
+      const maker = (l) => { const o = accounts.userById(l.userId); const pf = o && profiles.profileOf(o); return { ...l, person: o ? { id: o.id, name: o.name, avatar: o.avatar, handle: pf?.handle } : null }; };
+      if (p === '/api/lists' && req.method === 'GET') { // yours (the Add to list picker marks the ones holding ?key)
+        if (!profiles.canHaveProfile(user)) return sendJson(res, 200, { lists: [], off: true });
+        return sendJson(res, 200, { lists: lists.listsOf(user.id, { self: true, key: url.searchParams.get('key') }) });
+      }
+      if (p === '/api/lists' && req.method === 'POST') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Lists aren’t available on this account.');
+        const l = await lists.create(user.id, await readJson(req, 16000), { resolve: profileCard });
+        live.publish('profile', { audience: 'user', userId: user.id });
+        return sendJson(res, 200, { list: maker(l) });
+      }
+      const lm = p.match(/^\/api\/lists\/([a-z0-9]{10})(?:\/(add|remove|delete))?$/);
+      if (!lm) throw new HttpError(404, 'Not found.');
+      if (req.method === 'GET') return sendJson(res, 200, { list: maker(lists.get(lm[1], user.id, canSee)) });
+      if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Lists aren’t available on this account.');
+      const body = await readJson(req, 64 * 1024);
+      let out;
+      if (lm[2] === 'add') out = { list: await lists.add(user.id, lm[1], body.key, { resolve: profileCard }) };
+      else if (lm[2] === 'remove') out = { list: lists.removeItem(user.id, lm[1], body.key) };
+      else if (lm[2] === 'delete') { lists.remove(user.id, lm[1]); out = { ok: true }; }
+      else out = { list: maker(lists.update(user.id, lm[1], body)) };
+      live.publish('profile', { audience: 'user', userId: user.id });
+      return sendJson(res, 200, out);
+    } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+  }
   if (p === '/api/social/ratings') {
     const keys = String(url.searchParams.get('keys') || '').split(',').slice(0, 500);
     return sendJson(res, 200, { ratings: social.ratingsFor(user.id, keys) });
@@ -5603,7 +5653,7 @@ async function handleRequest(req, res) {
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
         || /^\/api\/live\/(?:channels|[\w-]{1,40}\/(?:tune|chat\/delete))$/.test(url.pathname)
         || /^\/api\/watch(?:\/plan|\/[A-Za-z0-9_-]{24}\/(join|heartbeat|control|leave|switch|invite|chat|react|schedule|cancel))?$/.test(url.pathname)
-        || url.pathname === '/api/social/rate' || /^\/api\/reviews(?:\/delete)?$/.test(url.pathname) || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname) || url.pathname === '/api/tv/play'
+        || url.pathname === '/api/social/rate' || /^\/api\/reviews(?:\/delete)?$/.test(url.pathname) || /^\/api\/ghosts(?:\/delete)?$/.test(url.pathname) || /^\/api\/lists(?:\/[a-z0-9]{10}(?:\/(?:add|remove|delete))?)?$/.test(url.pathname) || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname) || url.pathname === '/api/tv/play'
         || /^\/c\/jf\/v1\/(pair\/start|progress|disconnect)$/.test(url.pathname) || /^\/api\/jellyfin\/(approve|[\w-]+\/remove)$/.test(url.pathname)));
     if (!allowed) throw new HttpError(405, 'Method not allowed.');
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);

@@ -286,6 +286,14 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET` | `/api/reviews?key=[&all=1]` | A title's reviews (reviews.js): `{ average, ratings, count, thumb, mine, reviews: [{ userId, name, avatar, stars, text, spoiler, created, edited, mine, friend, canRemove }] }`; two reviews without `all`. Average only from 2 people's stars. Restricted people get `{ restricted: true }` and nobody sees theirs |
 | `POST` | `/api/reviews` | Your review `{ key, title, stars: 1-5 \| null, text (plain, ≤ 2000), spoiler, thumb? }`; stars set your thumb (4-5 up, 1-2 down, 3 none). 403 for restricted people, 429 past 20 writes in 10 min. Live topic `reviews` |
 | `POST` | `/api/reviews/delete` | `{ key, userId? }`: your own review, or anyone's for the owner (the thumb stays) |
+| `GET` | `/api/lists[?key=]` | Your lists (lists.js), newest change first, each `{ id, name, about, ranked, private, count, preview }`; `key` adds `has` (holds that title). Restricted / Home network: `{ lists: [], off: true }` |
+| `POST` | `/api/lists` | New list `{ name (≤ 80), about (≤ 600), ranked, private, key? \| keys? }` → `{ list }`. 100 lists per person, 500 titles per list |
+| `GET` | `/api/lists/<id>` | One list with `items` (title snapshots) and its maker; 404 unless you can see the maker's profile (and it isn't private) |
+| `POST` | `/api/lists/<id>` | Change `{ name, about, ranked, private, order: [keys] }` (maker only) |
+| `POST` | `/api/lists/<id>/add`, `/remove`, `/delete` | `{ key }` puts a title at the end / takes it off; `delete` removes the list |
+| `GET` | `/api/ghosts?key=[&season=&episode=]` | Ghost reactions on a film or episode (ghosts.js): yours and friends', `{ reactions: [{ id, userId, name, avatar, at, emoji, mine }], emoji }`. Restricted people's are hidden; they get `off: true` |
+| `POST` | `/api/ghosts` | Leave one `{ key, season?, episode?, at (seconds), emoji }` (one of `emoji`); the same emoji within 2 s is the same reaction. 30 a minute, 400 per video |
+| `POST` | `/api/ghosts/delete` | `{ id }`: take one of yours back |
 | `GET`, `POST` | `/api/admin/settings` | Auto-delete rules and defaults (`ADMIN_EMAILS` only) |
 | `GET` | `/api/admin/users` | Everyone who has used Lilin, with their library size (`ADMIN_EMAILS` only) |
 | `POST` | `/api/admin/users/<id>` | `{ canDownload?, canInvite?, restricted?, keep?, libraryWith? }` (`ADMIN_EMAILS` only) |

@@ -731,5 +731,22 @@
  "This film is already here in 4K.": "Filmen finns redan här i 4K.",
  "Invalid time.": "Ogiltig tid.",
  "No frame there.": "Ingen bildruta där.",
- "The timing check works once the download has finished.": "Tidskontrollen fungerar när nedladdningen är klar."
+ "The timing check works once the download has finished.": "Tidskontrollen fungerar när nedladdningen är klar.",
+ "Which film or episode?": "Vilken film eller vilket avsnitt?",
+ "Which episode?": "Vilket avsnitt?",
+ "Pick one of the reactions.": "Välj en av reaktionerna.",
+ "When in the video?": "Var i videon?",
+ "Easy there. Try again in a moment.": "Lugn i stormen. Försök igen om en stund.",
+ "That’s a lot of reactions for one video. Remove a few first.": "Det är många reaktioner för en video. Ta bort några först.",
+ "That reaction is gone already.": "Den reaktionen är redan borta.",
+ "Reactions aren’t available on your account.": "Reaktioner finns inte på ditt konto.",
+ "Lists aren’t available on this account.": "Listor finns inte på det här kontot.",
+ "Give the list a name.": "Ge listan ett namn.",
+ "Keep the name under 80 characters.": "Håll namnet under 80 tecken.",
+ "Keep the description under 600 characters.": "Håll beskrivningen under 600 tecken.",
+ "That list is gone.": "Den listan finns inte längre.",
+ "Only its maker can change a list.": "Bara den som gjorde listan kan ändra den.",
+ "This list is private or gone.": "Listan är privat eller borttagen.",
+ "That’s 100 lists already. Delete one first.": "Du har redan 100 listor. Ta bort en först.",
+ "A list holds up to 500 titles.": "En lista rymmer upp till 500 titlar."
 }

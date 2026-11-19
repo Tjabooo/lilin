@@ -24,7 +24,9 @@ import { createVibes } from './vibes.js'; // vibes: Discover's Moods row and pag
 import { createPeople } from './people.js';
 import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
+import { createLists } from './lists.js'; // lists: shelves on profiles, with their own links
 import { createMoments } from './moments.js'; // friends: Moments
+import { createGhosts } from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { createInvite } from './invite.js'; // one Invite sheet: Lilin, Friend, Room, Pick, Moment
 import { createBillboard } from './billboard.js';
@@ -121,6 +123,8 @@ const ICONS = {
   up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
   down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   // play first: the quiet mark on titles that play at once (they're on the server)
+  list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h6M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01M18 15v5M15.5 17.5h5"/></svg>',
+  smile: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2M9.2 9.6h.01M14.8 9.6h.01"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M13.2 2.8 5.6 13.1h5.6l-1 8.1 7.7-10.4h-5.6z"/></svg>',
 };
 const icon = (name) => { const s = h('span'); s.innerHTML = ICONS[name]; return s.firstChild; };
@@ -883,6 +887,19 @@ function sampleTone(store, id, img) {
     for (const k of keys.slice(0, Math.max(0, keys.length - 1500))) delete store[k]; // the newest 1500 posters
     try { localStorage.setItem(TONE_KEY, JSON.stringify(store)); } catch { /* full: next time */ }
   }, 2000);
+}
+// A poster's colour as a promise (ticket stubs on profiles): remembered, or read now from the tiny copy.
+function toneFor(url) {
+  const known = posterTone(url);
+  if (known || !tmdbArt(url)) return Promise.resolve(known);
+  const store = toneStore(), id = toneId(url);
+  if (!/^[A-Za-z0-9_-]{4,64}\.(jpg|png)$/.test(id)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => { sampleTone(store, id, img); resolve(store[id] || null); };
+    img.onerror = () => resolve(null);
+    img.src = `/api/art?path=${encodeURIComponent(`/t/p/w92/${id}`)}`;
+  });
 }
 function toneArt(url, tone) {
   const tmdb = tmdbArt(url);
@@ -3928,13 +3945,10 @@ const reviews = createReviews({ h, api, jsonPost, toast, people, me: () => state
   draw: (nodes) => $('#picker-body').replaceChildren(...nodes.filter(Boolean)),
   close: () => closeTopOverlay(),
 } });
-rateHooks.extra = (key, title, hooks) => reviews.rateButton(key, title, hooks);
+rateHooks.extra = (key, title, hooks) => [reviews.rateButton(key, title, hooks), listsUI.listButton(key, title)]; // reviews + lists
 // profiles: everyone's own page (profiles.js). Its editor opens in the picker; over a profile that sits above a
 // title page (nested), the picker is lifted above it too (.over-pf).
-const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyText,
-  openTitle: openTitleFromProfile,
-  overlay: { push: pushOverlay, close: closeTopOverlay },
-  picker: {
+const profilePicker = {
     open: (nodes, opener, onClosed, over) => {
       $('#picker-body').replaceChildren(...nodes.filter(Boolean));
       for (const el of [$('#picker'), $('#picker-backdrop')]) el.classList.toggle('over-pf', Boolean(over));
@@ -3945,13 +3959,22 @@ const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () 
       }));
     },
     close: () => closeTopOverlay(),
-  },
+};
+const profiles = createProfiles({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyText,
+  openTitle: openTitleFromProfile,
+  overlay: { push: pushOverlay, close: closeTopOverlay },
+  picker: profilePicker,
   friendsChanged: () => { friendsUI.invalidate(); if (settingsOpen()) renderSettingsWhenStill(); },
   // your name and picture live on your profile (Settings no longer edits them)
   changePicture: ({ opener, over, done }) => editPicture({ person: state.me, opener, over, done }),
   removePicture: () => removePicture({ person: state.me }),
   saveName: async (name) => { state.me = (await api('/api/me', jsonPost({ name }))).me; renderMeButton(); },
+  lists: () => listsUI, toneOf: toneFor, // lists section + ticket stubs
   mineChanged: () => { if (settingsOpen()) renderSettingsWhenStill(); } }); // You's card and lines show the saved profile
+// lists (lists.js): the List pill beside the thumbs, list pages (/#list/<id>) and the Lists section on profiles.
+const listsUI = createLists({ h, api, jsonPost, toast, icon, people, me: () => state.me, copyText, openTitle: openTitleFromProfile,
+  overlay: { push: pushOverlay, close: closeTopOverlay }, picker: profilePicker, openProfile: (p, opener) => profiles.open(p, opener),
+  titleSearch: (o) => profiles.titleSearch(o), changed: () => profiles.forgetMine?.() });
 // A poster on a profile. Profiles opened over a title page close first, and the title opens in that page (Back
 // returns to the title it was on).
 async function openTitleFromProfile(card, opener, nested) {
@@ -7071,6 +7094,9 @@ const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () 
   closeOthers: () => closePlayerMenus('more'),
   openMoment: (m) => openPlayer({ kind: 'moment', id: m.id, url: m.url, title: [m.title, m.label].filter(Boolean).join(' · '), subtitles: m.subtitles }),
   rerender: () => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); } });
+// ghost reactions (ghosts.js): the smiley beside the scissors, friends' pop-ups over the picture, marks on the seek bar.
+const ghostsUI = createGhosts({ h, api, jsonPost, toast, icon, people, me: () => state.me, video, playerEl: $('#player'), seekEl: $('#seek'),
+  current: () => current, about: (f) => watchAbout(f), fmtTime, closeOthers: () => closePlayerMenus('ghosts'), showUi: () => showPlayerUi() });
 const playBtns = [$('#pc-play'), $('.pc-big-play')];
 const muteBtn = $('#pc-mute');
 const volInput = $('#pc-vol');
@@ -7180,6 +7206,7 @@ function closePlayerMenus(except) {
   if (except !== 'night') closeNightMenu();
   if (except !== 'quality') closeQualityMenu();
   if (except !== 'more') momentsUI.closeMenu();
+  if (except !== 'ghosts') ghostsUI.closeTray(); // ghost reactions
   if (except !== 'settings') closeSettingsMenu();
   if (except !== 'fs') closeFsGuide();
   if (except !== 'help') helpEl.hidden = true;
@@ -7188,7 +7215,7 @@ function closePlayerMenus(except) {
 }
 const playerMenuOpen = () => !settingsMenu.hidden || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !fsGuide.hidden
   || !helpEl.hidden || streamStats.isOpen();
-const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !settingsMenu.hidden || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen(); // friends: Moments
+const menuOpen = () => fsBtn.getAttribute('aria-expanded') === 'true' || !settingsMenu.hidden || !ccMenu.hidden || !audioMenu.hidden || !nightMenu.hidden || !qualityMenu.hidden || !helpEl.hidden || momentsUI.menuOpen() || ghostsUI.trayOpen(); // friends: Moments, ghost reactions
 let lastPointer = 'mouse';
 let overControls = false;
 let uiTimer = null;
@@ -7792,6 +7819,7 @@ document.addEventListener('keyup', (e) => { if (e.key === ' ' && playerKeyTarget
 function resetPlayerMedia() {
   saveProgress(true);
   momentsUI.stop(); // friends: leave Clip a moment
+  ghostsUI.stop(); // ghost reactions
   playedSince = 0; playTick = null;
   seekPreview.load(null);
   const old = current;
@@ -7869,6 +7897,7 @@ async function loadPlayerMedia(f, opts = {}) {
   setPlayerTitle(f);
   pauseScreen.load(f.live || !['lib', 'part'].includes(f.kind) ? null : session); // the pause screen's title
   momentsUI.sync(); // friends: the Clip a moment button for library videos
+  ghostsUI.sync(); // ghost reactions on this film or episode
   playerEl.classList.toggle('is-clip', plainMedia(f));
   updatePlayState();
   updateTime();
@@ -11507,6 +11536,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   if (start !== 'discover') await setView(start);
   else { state.route = 'discover'; rememberView('discover'); $('.tab[data-view="discover"]').setAttribute('aria-current', 'page'); renderDiscover(); }
   profiles.fromHash(linkHash);
+  listsUI.fromHash(linkHash); // lists
   const watchToken = new URL(location.href).searchParams.get('watch');
   if (watchToken) await offerWatchRoom(watchToken);
   // pick: a Pick together invite (or its link) opens Lilin as ?pick=<id>

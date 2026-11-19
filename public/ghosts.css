@@ -1,0 +1,60 @@
+/* Ghost reactions (ghosts.js): the tray above the player's buttons, friends' pop-ups over the picture (low on the
+   left, clear of subtitles and of Watch Together's chat) and the marks on the seek bar. */
+
+.ghost-btn svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+.ghost-btn[aria-expanded="true"] { color: var(--bulb); }
+
+/* the tray */
+.ghost-tray {
+  position: absolute; right: var(--pad-x, 16px); bottom: calc(var(--safe-bottom, 0px) + 96px); z-index: 6; pointer-events: auto;
+  display: grid; gap: 8px; width: min(316px, calc(100vw - 2 * var(--pad-x, 16px))); padding: 10px;
+  background: rgb(18 14 12 / .82); border: 1px solid rgb(255 255 255 / .1); border-radius: 20px;
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 18px 50px -12px rgb(0 0 0 / .7);
+  transform-origin: 90% 100%; animation: ghost-tray-in .18s cubic-bezier(.2, .9, .3, 1.2);
+}
+.ghost-tray[hidden] { display: none; }
+@keyframes ghost-tray-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
+.ghost-tray-emoji { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.ghost-emoji { display: grid; place-items: center; aspect-ratio: 1; padding: 0; font-size: 26px; line-height: 1; background: none; border: 0; border-radius: 12px; cursor: pointer;
+  transition: transform .12s, background .12s; }
+.ghost-emoji:hover, .ghost-emoji:focus-visible { background: rgb(255 255 255 / .1); transform: scale(1.12); outline: none; }
+.ghost-emoji.pop { animation: ghost-emoji-pop .42s cubic-bezier(.2, .9, .3, 1.4); }
+@keyframes ghost-emoji-pop { 40% { transform: scale(1.45) rotate(-8deg); } }
+.ghost-tray-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 4px 0; border-top: 1px solid rgb(255 255 255 / .08); }
+.ghost-tray-hint { font-size: 12px; color: rgb(246 234 223 / .62); line-height: 1.3; }
+.ghost-show { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 4px 2px; font: 600 12px/1 var(--body); color: rgb(246 234 223 / .8); background: none; border: 0; cursor: pointer; }
+.ghost-show-knob { position: relative; width: 30px; height: 18px; border-radius: 9px; background: rgb(255 255 255 / .2); transition: background .15s; }
+.ghost-show-knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: translate .15s; }
+.ghost-show[aria-checked="true"] .ghost-show-knob { background: var(--bulb); }
+.ghost-show[aria-checked="true"] .ghost-show-knob::after { translate: 12px 0; }
+
+/* pop-ups */
+.ghost-pops { position: absolute; z-index: 3; left: var(--pad-x, 16px); bottom: 34%; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+.ghost-pop {
+  display: flex; align-items: center; gap: 9px; padding: 5px 14px 5px 5px; border-radius: 26px;
+  color: var(--on-image, #fff); background: rgb(14 11 10 / .66); border: 1px solid rgb(255 255 255 / .1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / .6);
+  opacity: 0; translate: -14px 0; transition: opacity .3s, translate .4s cubic-bezier(.2, .9, .3, 1.2);
+}
+.ghost-pop.in { opacity: 1; translate: 0 0; }
+.ghost-pop.out { opacity: 0; translate: 0 -10px; transition: opacity .4s, translate .4s; }
+.ghost-pop.mine { background: rgb(14 11 10 / .5); }
+.ghost-pop-faces { display: flex; }
+.ghost-pop-faces .face + .face { margin-left: -9px; box-shadow: 0 0 0 2px rgb(14 11 10 / .9); }
+.ghost-pop-emoji { font-size: 28px; line-height: 1; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .4)); }
+.ghost-pop.in .ghost-pop-emoji { animation: ghost-emoji-pop .6s .08s cubic-bezier(.2, .9, .3, 1.4) both; }
+.ghost-pop-text { display: grid; gap: 1px; line-height: 1.15; }
+.ghost-pop-text strong { font-size: 13.5px; font-weight: 700; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghost-pop-text small { font-size: 11.5px; color: rgb(246 234 223 / .62); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .ghost-pop, .ghost-pop.out { translate: none; }
+  .ghost-pop.in .ghost-pop-emoji, .ghost-emoji.pop, .ghost-tray { animation: none; }
+}
+
+/* marks on the seek bar: small dots just above the track */
+.ghost-marks { position: absolute; inset: 0; pointer-events: none; }
+.ghost-mark { position: absolute; top: calc(50% - 8px); width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 4px rgb(0 0 0 / .6); }
+.ghost-mark.mine { background: rgb(246 234 223 / .55); }
+.player.is-clip .ghost-marks { display: none; }

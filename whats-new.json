@@ -34,6 +34,28 @@
     ]
   },
   {
+    "id": "2026-11-19-lists-stubs-ghosts",
+    "date": "2026-11-19",
+    "title": "Lists, ticket stubs and ghost reactions",
+    "items": [
+      {
+        "kind": "new",
+        "title": "Ghost reactions",
+        "text": "Tap the smiley in the player to leave an emoji at that exact moment. When a friend watches the same film or episode later, it pops up at that second, like \"ebi 💀 41:12\". The seek bar shows small dots where friends reacted. You can turn friends’ reactions off from the same smiley."
+      },
+      {
+        "kind": "new",
+        "title": "Lists",
+        "text": "Put films and shows together in lists, like \"films that ruined my sleep\". Tap List next to the thumbs on any title page, number them if it’s a ranking, and share the link. Lists show on your profile for the people who can see it, or keep one just for you."
+      },
+      {
+        "kind": "new",
+        "title": "Ticket stubs in your diary",
+        "text": "Every film in your profile’s diary is now a little torn ticket stub in the poster’s colour, with the day, the time you watched it and its number in your film history."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-play-now-subtitles",
     "date": "2026-11-19",
     "title": "Subtitles while downloading",

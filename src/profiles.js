@@ -5,7 +5,7 @@
 //
 // Most people will never open the editor, so an untouched profile still has to look like something: a handle is
 // made from the name on first view, the banner comes from a favourite or the last thing they watched, and the
-// accent from their face tint (people.js) unless they pick one.
+// accent from their face tint (people.js) unless they pick one. Their lists (lists.js) are a section too.
 //
 // Who can see a profile (visibility): 'public' = everyone on this Lilin, 'friends' = friends only (the default,
 // since nobody chose to show their watching before profiles existed), 'private' = only the person themselves.
@@ -23,10 +23,12 @@ import { database, userById, isRestricted } from './accounts.js';
 import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey } from './social.js';
 import * as letterboxd from './letterboxd.js';
+import { listsOf } from './lists.js';
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
-export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'reviews', 'liked', 'friends'];
+export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'reviews', 'lists', 'liked', 'friends'];
+const NEW_AFTER = { lists: 'reviews' }; // sections that came later, and the one they follow
 const SECTIONS_OFF = new Set(); // every section starts on; empty ones hide themselves for visitors
 export const FONTS = ['display', 'condensed', 'light', 'serif', 'mono', 'rounded'];
 export const POSTERS = ['soft', 'square', 'round', 'polaroid'];
@@ -109,7 +111,12 @@ export function cleanSections(raw) {
     const id = typeof s === 'string' ? s : s?.id;
     if (SECTIONS.includes(id) && !out.some((o) => o.id === id)) out.push({ id, on: typeof s === 'string' ? true : s.on !== false });
   }
-  for (const id of SECTIONS) if (!out.some((o) => o.id === id)) out.push({ id, on: !SECTIONS_OFF.has(id) });
+  // Sections added since a profile was saved (lists) go in after their neighbour; anything else missing at the end.
+  for (const id of SECTIONS) {
+    if (out.some((o) => o.id === id)) continue;
+    const after = NEW_AFTER[id] ? out.findIndex((o) => o.id === NEW_AFTER[id]) : -1;
+    out.splice(after < 0 ? out.length : after + 1, 0, { id, on: !SECTIONS_OFF.has(id) });
+  }
   return out;
 }
 
@@ -253,6 +260,9 @@ export function diary(userId, { offset = 0, limit = DIARY_PAGE } = {}) {
     if (w.type === 'tv' && w.season != null && w.episode != null && !l.episodes.some(([s, e]) => s === w.season && e === w.episode)) l.episodes.push([w.season, w.episode]);
   }
   const all = [...lines.values()].sort((a, b) => b.at - a.at);
+  // Ticket stubs: every film line gets its number, counting from the first film ever watched (No. 1).
+  let films = all.filter((l) => l.type === 'movie').length;
+  for (const l of all) if (l.type === 'movie') l.stub = films--;
   offset = Math.max(0, Number(offset) || 0);
   limit = Math.min(60, Math.max(1, Number(limit) || DIARY_PAGE));
   const page = all.slice(offset, offset + limit);
@@ -361,6 +371,7 @@ export function view(viewer, target) {
     reviews: on('reviews') ? reviewsBy(target.id) : { reviews: [], more: false },
     liked: on('liked') ? likedBy(target.id) : [],
     friends: on('friends') ? friendsOf(target.id) : [],
+    lists: on('lists') ? listsOf(target.id, { self }) : [],
     // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.
     letterboxd: !lb.linked ? (self ? { linked: false } : null) : self ? lb : { linked: true, username: lb.username, url: lb.url },
   };

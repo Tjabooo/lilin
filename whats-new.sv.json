@@ -25,6 +25,23 @@
       }
     }
   },
+  "2026-11-19-lists-stubs-ghosts": {
+    "title": "Listor, biljettstubbar och spökreaktioner",
+    "items": {
+      "Ghost reactions": {
+        "title": "Spökreaktioner",
+        "text": "Tryck på smileyn i spelaren för att lämna en emoji just där. När en vän tittar på samma film eller avsnitt senare dyker den upp på samma sekund, som \"ebi 💀 41:12\". Tidslinjen visar små prickar där vänner reagerat. Vänners reaktioner kan stängas av från samma smiley."
+      },
+      "Lists": {
+        "title": "Listor",
+        "text": "Samla filmer och serier i listor, som \"filmer som förstörde min sömn\". Tryck på Lista bredvid tummarna på en titelsida, numrera dem om det är en topplista och dela länken. Listor syns på din profil för dem som kan se den, eller håll en helt för dig själv."
+      },
+      "Ticket stubs in your diary": {
+        "title": "Biljettstubbar i din dagbok",
+        "text": "Varje film i din profils dagbok är nu en liten riven biljettstubbe i affischens färg, med dagen, tiden du såg den och dess nummer i din filmhistorik."
+      }
+    }
+  },
   "2026-11-19-play-now-subtitles": {
     "title": "Undertexter medan det laddas ner",
     "items": {
