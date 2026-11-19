@@ -2674,4 +2674,6 @@ export default {
   // player: two-column subtitle menu
   "Subtitle settings": "Undertextinställningar",
   "Pick a language to change the size, style and timing.": "Välj ett språk för att ändra storlek, stil och tajming.",
+  // player: autoplay switch in the settings cog
+  "Autoplay next episode": "Spela nästa avsnitt automatiskt",
 };

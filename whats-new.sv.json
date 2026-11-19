@@ -1,4 +1,13 @@
 {
+  "2026-11-19-autoplay-switch": {
+    "title": "Autouppspelning i spelaren",
+    "items": {
+      "Turn off autoplay for the next episode": {
+        "title": "Stäng av automatisk uppspelning av nästa avsnitt",
+        "text": "Inställningskugghjulet i spelaren har en ny brytare: Spela nästa avsnitt automatiskt. Stänger du av den visas Nästa-kortet fortfarande i slutet av ett avsnitt, men det väntar på dig i stället för att räkna ner. Valet sparas på varje enhet."
+      }
+    }
+  },
   "2026-11-19-sharp-continue": {
     "title": "Skarpare Fortsätt titta",
     "items": {

@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-autoplay-switch",
+    "date": "2026-11-19",
+    "title": "Autoplay switch in the player",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Turn off autoplay for the next episode",
+        "text": "The settings cog in the player has a new Autoplay next episode switch. Turn it off and the Up next card still shows at the end of an episode, but it waits for you instead of counting down. It's remembered on each device."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-house-machines-tile",
     "date": "2026-11-19",
     "title": "Tidier House page",

@@ -4634,7 +4634,7 @@ function openRemote(session, { replace = false } = {}) {
     // Counts only when the episode really plays out: at the credits, or after the TV finished it
     // (not after someone stopped it with the TV's own remote halfway through the credits).
     const ended = tvFinished(reading);
-    const counting = show && !cue.busy && !cue.error && autoChain < AUTOPLAY_CHAIN && (st.state === 'playing' || ended);
+    const counting = show && !cue.busy && !cue.error && autoChain < AUTOPLAY_CHAIN && autoplayNextOn() && (st.state === 'playing' || ended);
     if (counting && cue.autoLeft == null && !cue.autoTimer) startTvAutoplay();
     else if (!counting && !(show && st.state === 'paused')) stopTvAutoplay();
     if (!show) return;
@@ -7081,19 +7081,39 @@ function afterColon(btn) {
   const at = label.indexOf(': ');
   return at >= 0 ? label.slice(at + 2) : '';
 }
+// Autoplay next episode: a switch right in the cog (per device). Off = the Up next card still shows, without the countdown.
+const AUTOPLAY_KEY = 'lilin:autoplayNext';
+function autoplayNextOn() { try { return localStorage.getItem(AUTOPLAY_KEY) !== '0'; } catch { return true; } }
+const playingEpisode = () => current?.kind === 'lib' && current.season != null && current.episode != null;
+function autoplayRow() {
+  const on = autoplayNextOn();
+  const art = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  art.setAttribute('viewBox', '0 0 24 24'); art.setAttribute('aria-hidden', 'true');
+  art.innerHTML = '<path d="M5 6v12l7-6zM13 6v12l7-6z"/>';
+  return h('button', { type: 'button', role: 'menuitemcheckbox', 'aria-checked': String(on), class: 'cc-item settings-item settings-toggle',
+    onclick: (e) => {
+      e.stopPropagation();
+      try { localStorage.setItem(AUTOPLAY_KEY, on ? '0' : '1'); } catch { /* private mode */ }
+      updateUpNext();
+      renderSettingsMenu();
+      settingsMenu.querySelector('.settings-toggle')?.focus();
+    } },
+  art, h('span', { class: 'settings-label' }, T('Autoplay next episode')), h('span', { class: 'settings-switch', 'aria-hidden': 'true' }));
+}
 function closeSettingsMenu() { settingsMenu.hidden = true; settingsBtn.setAttribute('aria-expanded', 'false'); }
 function renderSettingsMenu() {
   const rows = tuckedMenus().filter((t) => !t.btn.hidden);
+  const extra = playingEpisode() ? [autoplayRow()] : [];
   settingsMenu.replaceChildren(h('p', { class: 'audio-title' }, T('Settings')), ...rows.map((t) => {
     const art = t.btn.querySelector('svg')?.cloneNode(true);
     art?.querySelector('[id]')?.removeAttribute('id'); // the quality badge's id stays unique
     return h('button', { type: 'button', role: 'menuitem', class: 'cc-item settings-item', onclick: (e) => { e.stopPropagation(); t.btn.click(); } },
       ...(art ? [art] : []), h('span', { class: 'settings-label' }, t.label), h('span', { class: 'settings-value' }, t.value() || ''),
       h('span', { class: 'settings-chev', 'aria-hidden': 'true' }, '›'));
-  }));
+  }), ...extra);
 }
 function syncSettingsBtn() {
-  settingsBtn.hidden = tuckedMenus().every((t) => t.btn.hidden);
+  settingsBtn.hidden = tuckedMenus().every((t) => t.btn.hidden) && !playingEpisode();
   if (settingsBtn.hidden) closeSettingsMenu();
   else if (!settingsMenu.hidden) renderSettingsMenu();
 }
@@ -7824,6 +7844,7 @@ async function loadPlayerMedia(f, opts = {}) {
   resetPlayerMedia();
   const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
+  syncSettingsBtn();
   setPlayerTitle(f);
   pauseScreen.load(f.live || !['lib', 'part'].includes(f.kind) ? null : session); // the pause screen's title
   momentsUI.sync(); // friends: the Clip a moment button for library videos
@@ -8072,7 +8093,7 @@ function updateUpNext() {
   upNextEl.hidden = !show;
   playerEl.classList.toggle('has-up-next', show);
   // The countdown starts the moment the card does: at the credits, or at the end of the file.
-  const counting = show && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN;
+  const counting = show && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN && autoplayNextOn();
   if (counting && session.autoLeft == null) startAutoplay(session);
   else if (!counting && session) stopAutoplay(session);
   if (show) {
