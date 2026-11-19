@@ -1,4 +1,13 @@
 {
+  "2026-11-19-fullscreen-sub-order": {
+    "title": "Undertexter i helskärm på iPad och iPhone",
+    "items": {
+      "Two-line subtitles in the right order": {
+        "title": "Undertexter på två rader i rätt ordning",
+        "text": "I helskärmsspelaren på iPad och iPhone hamnade första raden ibland under den andra i vissa serier, så texten lästes baklänges. Nu står raderna i rätt ordning där också."
+      }
+    }
+  },
   "2026-11-19-film-year-match": {
     "title": "Äldre filmer som inte gick att ladda ner",
     "items": {

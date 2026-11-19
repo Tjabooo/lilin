@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-19-fullscreen-sub-order",
+    "date": "2026-11-19",
+    "title": "Subtitles in fullscreen on iPad and iPhone",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Two-line subtitles in the right order",
+        "text": "In the iPad and iPhone fullscreen player, some shows put the first line of a two-line subtitle underneath the second, so it read backwards. The lines now stay in order there too."
+      }
+    ]
+  },
+  {
     "id": "2026-11-19-film-year-match",
     "date": "2026-11-19",
     "title": "Older films that wouldn’t download",

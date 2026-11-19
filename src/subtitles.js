@@ -550,18 +550,30 @@ function prefetchNext(video, characters) {
 
 // SRT to WebVTT: header, dotted timestamps, ASS override tags removed. Lines tagged {\an7}–{\an9}
 // (signs and captions placed at the top of the picture) keep that position as a `line:0` cue setting.
+// Some files split one two-line subtitle into two cues with the same timing. The page draws those in
+// order, but the browser's own caption drawing (iOS/iPadOS fullscreen, picture in picture) stacks them
+// bottom-up, so the first line lands underneath. Same-timed neighbours become one cue, lines in order.
 export function srtToVtt(srt) {
-  const body = srt
-    .replace(/^\s+/, '')
-    .split(/\n\s*\n/)
-    .map((cue) => {
-      const top = /\{\\an[789]\}/.test(cue);
-      return cue
-        .replace(/\{\\[^}]*\}/g, '')
-        .replace(/(\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
-        .replace(/^(.*-->\s*\S+).*$/m, top ? '$1 line:0' : '$1');
-    })
-    .join('\n\n');
+  const cues = [];
+  for (const block of srt.replace(/^\s+/, '').split(/\n\s*\n/)) {
+    const top = /\{\\an[789]\}/.test(block);
+    const cue = block
+      .replace(/\{\\[^}]*\}/g, '')
+      .replace(/(\d{1,2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
+      .replace(/^(.*-->\s*\S+).*$/m, top ? '$1 line:0' : '$1');
+    const lines = cue.split('\n');
+    const at = lines.findIndex((l) => l.includes('-->'));
+    if (at < 0) { cues.push({ raw: cue }); continue; }
+    const timing = lines[at].trim();
+    const text = lines.slice(at + 1).join('\n').replace(/\s+$/, '');
+    const prev = cues[cues.length - 1];
+    if (prev && prev.timing === timing) {
+      if (text) prev.text = prev.text ? `${prev.text}\n${text}` : text;
+      continue;
+    }
+    cues.push({ head: lines.slice(0, at + 1).join('\n'), timing, text });
+  }
+  const body = cues.map((c) => c.raw ?? (c.text ? `${c.head}\n${c.text}` : c.head)).join('\n\n');
   return `WEBVTT\n\n${body}`;
 }
 

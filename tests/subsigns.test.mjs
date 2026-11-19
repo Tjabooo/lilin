@@ -42,3 +42,9 @@ test('subtitles without fonts, or with one font, are left alone', () => {
   const one = [cue(1, 1, 2, say('Hello.')), cue(2, 1, 2, say('Hi.'))].join('\n\n');
   assert.equal(tidySigns(one), one);
 });
+
+test('two cues with the same timing become one cue, first line on top', () => {
+  const vtt = srtToVtt([cue(1, 1, 2, 'HOW DO YOU THINK'), cue(2, 1, 2, "THAT'S GONNA WORK?"), cue(3, 3, 4, 'I DON\'T KNOW.')].join('\n\n'));
+  assert.match(vtt, /00:00:01\.000 --> 00:00:02\.000\nHOW DO YOU THINK\nTHAT'S GONNA WORK\?\n\n3\n/);
+  assert.equal(vtt.split('-->').length - 1, 2);
+});
