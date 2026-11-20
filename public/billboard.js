@@ -174,11 +174,8 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
       for (const p of pictures) p.style.translate = t;
       if (frame) frame.style.translate = t;
     };
-    // Not in Firefox (html.no-glass): it scrolls off the main thread, so a picture moved from JS trails the page a frame
-    // behind and jitters, and each move repaints the art's fade mask and the trailer iframe (ebi, 2026-11-20).
-    const flat = document.documentElement.classList.contains('no-glass');
     const onPageScroll = () => { if (!shiftFrame && !reduced()) shiftFrame = requestAnimationFrame(shift); };
-    if (!flat) window.addEventListener('scroll', onPageScroll, { passive: true });
+    window.addEventListener('scroll', onPageScroll, { passive: true });
     function stop() {
       clearInterval(timer); stopTrailer();
       io.disconnect(); mo?.disconnect();

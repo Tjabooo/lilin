@@ -1,13 +1,4 @@
 {
-  "2026-11-20-firefox-scroll": {
-    "title": "Mjukare scrollning i Firefox",
-    "items": {
-      "Firefox scrolls smoothly again": {
-        "title": "Firefox scrollar mjukt igen",
-        "text": "I Firefox glider inte längre den stora bannern på Upptäck med när du scrollar, och raderna slutar med en ren kant i stället för att tona ut. Båda fick scrollningen att hacka där."
-      }
-    }
-  },
   "2026-11-20-themed-tab-icon": {
     "title": "Flikikonen följer ditt tema",
     "items": {
