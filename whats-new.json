@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-profile-liked-all",
+    "date": "2026-11-20",
+    "title": "See everything someone liked",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "See all likes on a profile",
+        "text": "The Liked row on a profile now has a See all button. It opens every title they liked as a grid, and Show less folds it back."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-shared-clips-lite",
     "date": "2026-11-20",
     "title": "Shared clips on slower connections",

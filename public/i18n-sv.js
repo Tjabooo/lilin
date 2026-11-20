@@ -2435,6 +2435,7 @@ export default {
   "Stars you give films and shows show up here.": "Stjärnor du ger filmer och serier syns här.",
   "Reviews you write show up here.": "Recensioner du skriver syns här.",
   "More reviews": "Fler recensioner",
+  "See all {0} likes": "Visa alla {0} gillade",
   "{0} in all": "{0} totalt",
   "Diary": "Dagbok",
   "Older": "Äldre",

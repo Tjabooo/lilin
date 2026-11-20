@@ -1,4 +1,13 @@
 {
+  "2026-11-20-profile-liked-all": {
+    "title": "Se allt någon har gillat",
+    "items": {
+      "See all likes on a profile": {
+        "title": "Se alla gillade på en profil",
+        "text": "Raden Gillade på en profil har nu en Visa alla-knapp. Den visar allt de har gillat i ett rutnät, och Visa mindre fäller ihop det igen."
+      }
+    }
+  },
   "2026-11-20-shared-clips-lite": {
     "title": "Delade klipp på långsammare anslutningar",
     "items": {

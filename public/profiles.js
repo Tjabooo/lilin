@@ -43,7 +43,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (!target || (!target.id && !target.handle)) return;
     const nested = nestedNow();
     const page = h('div', { class: `pf${nested ? ' pf-nested' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': target.name ? T('{0}’s profile', target.name) : T('Profile'), tabindex: '-1' });
-    const ctx = { page, nested, data: null, target, draft: null, diary: null, allReviews: null };
+    const ctx = { page, nested, data: null, target, draft: null, diary: null, allReviews: null, likedAll: null };
     page.append(skeleton(target, ctx));
     document.body.append(page);
     // The bar turns to glass (and shows the @username) once the banner has scrolled away.
@@ -292,10 +292,18 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         more && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadReviews(ctx, e.currentTarget) }, h('span', {}, T('More reviews')), icon('chevron')));
     },
     liked(ctx, d) {
-      const list = d.liked || [];
+      const first = d.liked || [];
+      const all = ctx.likedAll; // See all: every like, 24 at a time, as a wrapping grid
+      const list = all?.liked.length ? all.liked : first;
       if (!list.length) return null;
-      return sectionBox('liked', T('Liked'), h('span', { class: 'pf-sec-note' }, d.stats?.likes > list.length ? T('{0} in all', d.stats.likes) : null),
-        h('ul', { class: 'pf-strip' }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))));
+      const total = d.stats?.likes;
+      const hasMore = total ? total > first.length : first.length >= 12;
+      const tail = all
+        ? [all.more && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadLiked(ctx, e.currentTarget) }, h('span', {}, T('More')), icon('chevron')),
+          h('button', { type: 'button', class: 'pf-more pf-less', onclick: () => { ctx.likedAll = null; paint(ctx); ctx.page.querySelector('.pf-sec-liked')?.scrollIntoView({ block: 'nearest' }); } }, h('span', {}, T('Show less')), icon('chevron'))]
+        : [hasMore && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadLiked(ctx, e.currentTarget) }, h('span', {}, total ? T('See all {0} likes', total) : T('See all')), icon('chevron'))];
+      return sectionBox('liked', T('Liked'), h('span', { class: 'pf-sec-note' }, total > list.length ? T('{0} in all', total) : null),
+        h('ul', { class: `pf-strip${all ? ' pf-strip-all' : ''}` }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))), ...tail);
     },
     // lists (lists.js): their shelves, each a fan of posters; yours end with New list.
     lists(ctx, d) {
@@ -527,7 +535,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         mineChanged();
         saved = true;
         ctx.draft = null;
-        ctx.diary = null; ctx.allReviews = null;
+        ctx.diary = null; ctx.allReviews = null; ctx.likedAll = null;
         paint(ctx);
         ctx.page.dataset.handle = ctx.data.person.handle;
         history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
@@ -544,7 +552,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   // by film in the background, so the editor polls how far it got.
   function letterboxdEditor(ctx, { repaint, redraw }) {
     const lb = ctx.data.letterboxd || { linked: false };
-    const done = (data) => { ctx.data = { ...ctx.data, ...data }; own.data = ctx.data; own.at = Date.now(); ctx.diary = null; ctx.allReviews = null; mineChanged(); repaint(); redraw(); };
+    const done = (data) => { ctx.data = { ...ctx.data, ...data }; own.data = ctx.data; own.at = Date.now(); ctx.diary = null; ctx.allReviews = null; ctx.likedAll = null; mineChanged(); repaint(); redraw(); };
     const run = async (btn, url, body, ok) => {
       btn.disabled = true;
       try { done(await api(url, jsonPost(body))); if (ok) toast(ok); } catch (err) { toast(err.message); btn.disabled = false; }
