@@ -1,4 +1,16 @@
 [
+{
+  "id": "2026-11-20-retry-other-copy",
+  "date": "2026-11-20",
+  "title": "Better second tries",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "A dead copy isn't tried twice",
+      "text": "When the copy Lilin picked for a show never starts, it now really looks for a different one instead of trying the same dead copy again."
+    }
+  ]
+},
   {
     "id": "2026-11-20-quieter-toasts",
     "date": "2026-11-20",

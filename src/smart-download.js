@@ -182,7 +182,8 @@ export function raceSwapped(oldHash, newHash, { name, link = null, ref = null, u
 const slow = new Map();          // info hash -> when it was found too slow
 const SLOW_TTL = 24 * 60 * 60 * 1000;
 function isSlow(r) {
-  const at = slow.get(hashOf(r));
+  // A search result with only a page link (1337x) has no hash yet: it's skipped by that link instead.
+  const at = slow.get(hashOf(r)) || (r.ref ? slow.get(`ref:${r.ref}`) : null);
   return Boolean(at && Date.now() - at < SLOW_TTL);
 }
 // The speed (bytes/s) this download needs to play while it downloads, null when it isn't measured
@@ -200,6 +201,7 @@ export function slowFound(hash) {
   for (const [h, at] of slow) if (Date.now() - at > SLOW_TTL) slow.delete(h);
   const origin = origins.get(hash);
   origins.delete(hash);
+  if (origin?.ref) slow.set(`ref:${origin.ref}`, Date.now());
   if (!origin || origin.spec.retry) return null;
   const { only, ...spec } = origin.spec;
   return startSmartJob({ ...spec, retry: true }, origin.deps);

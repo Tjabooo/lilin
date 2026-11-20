@@ -398,3 +398,22 @@ test('a Best download found too slow is replaced once, never by itself', async (
   assert.equal(swarmNeed(hashes[1]), null, 'the second try is kept, whatever its speed');
   assert.equal(slowFound(hashes[1]), null);
 });
+
+test('a dropped pick known only by its page link is not picked again on the retry', async () => {
+  const { slowFound } = await import('../src/smart-download.js');
+  const added = [];
+  const hash = 'abcdef0123456789abcdef0123456789abcdef01';
+  const rows = [
+    { name: 'Skint.2022.S01.720p.WEB-DL.H264-GRP', seeders: 10, size: 4 * GB, ref: '/torrent/1/skint/', source: '1337x' },
+    { name: 'Skint.2022.S01.1080p.WEB-DL.H264-OTHER', seeders: 3, size: 6 * GB, ref: '/torrent/2/skint/', source: '1337x' },
+  ];
+  const deps = { parseName, sleep: async () => {}, freeBytes: async () => 900 * GB,
+    magnetFor1337x: async (ref) => `magnet:?xt=urn:btih:${ref.includes('/1/') ? hash : 'f'.repeat(40)}`,
+    addDownload: async (d) => { added.push(d.name); return { hash: 'x' }; }, searchTorrents: async () => ({ results: rows }) };
+  await wait(startSmartJob({ type: 'movie', title: 'Skint', year: 2022, want: { profile: 'best', runtime: 60 } }, deps));
+  const first = added[0];
+  const retry = slowFound(first === rows[0].name ? hash : 'f'.repeat(40));
+  assert.ok(retry);
+  await wait(retry);
+  assert.notEqual(added[1], first, 'the dropped page-link pick is skipped');
+});

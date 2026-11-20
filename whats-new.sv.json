@@ -1,4 +1,14 @@
 {
+
+  "2026-11-20-retry-other-copy": {
+    "title": "Bättre andra försök",
+    "items": {
+      "A dead copy isn't tried twice": {
+        "title": "En död kopia provas inte två gånger",
+        "text": "När kopian Lilin valde för en serie aldrig kommer igång letar den nu verkligen efter en annan i stället för att prova samma döda kopia igen."
+      }
+    }
+  },
   "2026-11-20-quieter-toasts": {
     "title": "Tystare och snyggare meddelanden",
     "items": {
