@@ -3351,6 +3351,8 @@ function pageFacts(base, type, id) {
       page.genres?.length && h('li', {}, page.genres.slice(0, 3).join(', ')),
     ].filter(Boolean);
     if (before) before.before(...extra); else list.append(...extra);
+    // Cards from Continue watching, New episodes or someone's list carry no rating: TMDB's fills it in.
+    if (!list.querySelector('.fact-rating') && page.rating) list.append(h('li', { class: 'fact-rating' }, `★ ${fmtRating(page.rating)}`));
     if (page.tagline && !list.parentNode.querySelector('.page-tagline')) list.before(h('p', { class: 'page-tagline' }, page.tagline));
   }).catch(() => {});
   return list;

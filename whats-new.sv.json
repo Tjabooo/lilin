@@ -1,4 +1,13 @@
 {
+  "2026-11-20-page-ratings": {
+    "title": "Betyg på varje titelsida",
+    "items": {
+      "Every title page shows its rating": {
+        "title": "Varje titelsida visar sitt betyg",
+        "text": "Serier du öppnar från Fortsätt titta eller Nya avsnitt, och titlar du öppnar från någons lista, visar nu sitt ★-betyg precis som allt annat."
+      }
+    }
+  },
   "2026-11-20-profile-liked-all": {
     "title": "Se allt någon har gillat",
     "items": {

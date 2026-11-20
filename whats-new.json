@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-page-ratings",
+    "date": "2026-11-20",
+    "title": "Ratings on every title page",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Every title page shows its rating",
+        "text": "Shows opened from Continue watching or New episodes, and titles opened from someone's list, now show their ★ rating like everything else."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-profile-liked-all",
     "date": "2026-11-20",
     "title": "See everything someone liked",
