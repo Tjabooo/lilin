@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-20-play-jumps-queue",
+  "date": "2026-11-20",
+  "title": "Skipping ahead in a show",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "The episode you press Play on downloads first",
+      "text": "Lilin downloads a show’s episodes one at a time, in order. If you pressed Play on a later episode before the earlier ones were done, it could sit at “Almost ready” waiting its turn. Now the episode you play starts right away, and the ones after it come next."
+    }
+  ]
+},
+{
   "id": "2026-11-20-anime-split-seasons",
   "date": "2026-11-20",
   "title": "JoJo: Steel Ball Run downloads",

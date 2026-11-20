@@ -86,3 +86,17 @@ test('a waiting season stops what would run and starts nothing', () => {
   assert.equal(real.healthy, true);
   assert.deepEqual(holdSeason(real).stop.sort(), ['x', 'y']);
 });
+
+// JoJo Steel Ball Run E08 (2026-11-20): pressed Play on E08 while Lilin had it stopped behind E01; it sat at 50 %.
+test('the episode someone plays runs even if Lilin stopped it, and the order goes on from there', () => {
+  const held = new Set(['b', 'c', 'h', 'i']);
+  const stopped = (hash, ep) => single(hash, ep, { state: 'stoppedDL' });
+  const torrents = [single('a', 1), stopped('b', 2), stopped('c', 3), stopped('h', 8), stopped('i', 9)];
+  const plan = planEpisodeOrder({ season: 1, torrents, watching: new Set(['h']) }, held);
+  assert.deepEqual(plan.start, ['h']); assert.equal(plan.watched, 8);
+  assert.deepEqual(plan.running.map((r) => r.episode), [8, 1]);
+  const done8 = torrents.map((t) => (t.hash === 'h' ? { ...t, progress: 1, state: 'stoppedUP' } : t));
+  const next = planEpisodeOrder({ season: 1, torrents: done8, from: 8 }, new Set(['b', 'c', 'i']));
+  assert.deepEqual(next.start, ['i'], 'E09 goes next, before E02');
+  assert.deepEqual(next.stop, ['a']);
+});

@@ -9,6 +9,8 @@
 // counts as stalled, so dead torrents can't take turns starving a healthy one. At the same episode a
 // pack's file goes before a separate torrent. Torrents the person paused and failed ones are left alone,
 // and so are torrents with nothing playable in them (they'd never finish an episode).
+// Someone pressed Play on a later episode (group.watching, Play now): that one runs, even if Lilin had
+// stopped it, and the order goes on from there (group.from): episodes before it wait until those after it are in.
 //
 // Seasons of one show go in order too (activeSeasons): each person's earliest unfinished season runs
 // and their later ones wait, so two people downloading different seasons each get one running.
@@ -22,7 +24,7 @@ const PAUSED = /^(paused|stopped)/;
 const FAILED = /^(error|missingFiles|unknown)$/;
 const MAX_RUNNING = 3;
 
-// group: { season, ctx? (anime context: names placed on TMDB's numbering), torrents: [{ hash, name, state, progress, wasStalled?, files: [{ index, name, progress, priority }] }] }
+// group: { season, watching?: Set of hashes being played, from?: episode the order starts at, ctx? (anime context: names placed on TMDB's numbering), torrents: [{ hash, name, state, progress, wasStalled?, files: [{ index, name, progress, priority }] }] }
 // held: Set of hashes Lilin stopped itself. Returns the changes to make:
 // { priorities: [{ hash, ids, priority }], stop: [hash], start: [hash], running: [{ hash, episode }] }
 export function planEpisodeOrder(group, held = new Set()) {
@@ -47,16 +49,20 @@ export function planEpisodeOrder(group, held = new Set()) {
       units.push({ hash: t.hash, episode: Math.min(...eps), done: t.progress >= 1, stalled, pack: false });
     }
   }
-  units.sort((a, b) => a.episode - b.episode || b.pack - a.pack);
-  const running = [];
+  const from = Number.isInteger(group.from) ? group.from : 0;
+  const behind = (u) => (u.episode < from ? 1 : 0);
+  units.sort((a, b) => behind(a) - behind(b) || a.episode - b.episode || b.pack - a.pack);
+  const watching = group.watching || new Set();
+  const watched = units.filter((u) => !u.done && watching.has(u.hash) && !u.pack);
+  const running = [...watched];
   let stalledCount = 0;
-  for (const u of units.filter((x) => !x.done)) {
+  for (const u of units.filter((x) => !x.done && !watched.includes(x))) {
     if (!u.stalled) { running.push(u); break; }
     if (stalledCount < MAX_RUNNING) { running.push(u); stalledCount++; }
   }
   const runningHashes = new Set(running.map((u) => u.hash));
   const plan = { priorities: [], stop: [], start: [], running: running.map(({ hash, episode }) => ({ hash, episode })),
-    healthy: running.some((u) => !u.stalled) };
+    healthy: running.some((u) => !u.stalled), watched: watched.length ? Math.max(...watched.map((u) => u.episode)) : null };
   for (const [hash] of packs) {
     const byPriority = new Map();
     for (const u of units.filter((x) => x.hash === hash && !x.done)) {

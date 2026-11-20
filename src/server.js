@@ -2281,6 +2281,8 @@ async function episodeOrderRound() {
   if (!QBIT_URL || !episodeOrder.size || orderBusy) return;
   orderBusy = true;
   try {
+    // Someone is watching these with Play now: they run, and their season's order goes on from them.
+    const watching = partialStreams.activeHashes();
     const list = await qbit(`/api/v2/torrents/info?hashes=${[...episodeOrder.keys()].join('|')}`);
     const present = new Set(list.map((t) => t.hash.toLowerCase()));
     let changed = false;
@@ -2302,7 +2304,8 @@ async function episodeOrderRound() {
       if (/^(stalledDL|metaDL|forcedMetaDL)$/.test(t.state || '')) lastStalled.set(hashKey, Date.now());
       const wasStalled = Date.now() - (lastStalled.get(hashKey) || 0) < STALL_MEMORY;
       const group = `${entry.key}|${entry.season}`;
-      if (!groups.has(group)) groups.set(group, { key: entry.key, season: entry.season, ctx: anime.contextForTitle(entry.key), torrents: [] });
+      if (!groups.has(group)) groups.set(group, { key: entry.key, season: entry.season, ctx: anime.contextForTitle(entry.key), torrents: [], watching, from: null });
+      if (Number.isInteger(entry.from) && !(entry.from <= groups.get(group).from)) groups.get(group).from = entry.from;
       groups.get(group).torrents.push({ hash: hashKey, name: t.name, state: t.state, progress: t.progress, wasStalled,
         files: files.map((f, i) => ({ index: f.index ?? i, name: f.name, progress: f.progress, priority: f.priority })) });
     }
@@ -2314,6 +2317,11 @@ async function episodeOrderRound() {
     for (const [id, group] of groups) {
       const plan = planEpisodeOrder(group, held);
       plans.set(id, plan);
+      if (plan.watched != null && plan.watched !== group.from) {
+        for (const t of group.torrents) { const e = episodeOrder.get(t.hash); if (e) e.from = plan.watched; }
+        console.log(`[order] ${group.key} season ${group.season}: someone is watching episode ${plan.watched}, going on from there`);
+        changed = true;
+      }
       const wanters = [...new Set(group.torrents.flatMap((t) => accounts.torrentWanters(t.hash)))];
       byShow.set(group.key, [...(byShow.get(group.key) || []), { id, season: group.season, wanters, plan }]);
     }
@@ -2330,9 +2338,11 @@ async function episodeOrderRound() {
     for (const id of groups.keys()) {
       const plan = plans.get(id);
       // Someone is watching this one with Play now: it keeps its own order until they stop.
-      const watching = partialStreams.activeHashes();
       plan.priorities = plan.priorities.filter(({ hash }) => !watching.has(hash));
       plan.stop = plan.stop.filter((hash) => !watching.has(hash));
+      for (const t of groups.get(id).torrents) {
+        if (watching.has(t.hash) && held.has(t.hash) && /^(paused|stopped)/.test(t.state || '') && !plan.start.includes(t.hash)) plan.start.push(t.hash);
+      }
       for (const { hash, ids, priority } of plan.priorities) {
         await qbitRequest('/api/v2/torrents/filePrio', { method: 'POST', body: new URLSearchParams({ hash, id: ids.join('|'), priority: String(priority) }) });
         torrentFilesCache.delete(hash);

@@ -1,4 +1,13 @@
 {
+  "2026-11-20-play-jumps-queue": {
+    "title": "Hoppa framåt i en serie",
+    "items": {
+      "The episode you press Play on downloads first": {
+        "title": "Avsnittet du trycker Spela på laddas ner först",
+        "text": "Lilin laddar ner en series avsnitt ett i taget, i ordning. Om du tryckte Spela på ett senare avsnitt innan de tidigare var klara kunde det stå på ”Nästan klart” och vänta på sin tur. Nu startar avsnittet du spelar direkt, och de efter det kommer sedan."
+      }
+    }
+  },
   "2026-11-20-anime-split-seasons": {
     "title": "JoJo: Steel Ball Run går att ladda ner",
     "items": {
