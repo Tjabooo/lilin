@@ -4169,6 +4169,9 @@ html.wrapped-on { overflow: hidden; }
 :root[data-scheme="light"][data-daypart="late"] #view-discover {
   background: radial-gradient(100% 60% at 50% 0%, rgb(90 60 170 / .14), transparent 72%) top / 100% min(170vh, 1800px) no-repeat; }
 :root[data-daypart="late"] #view-discover .bb-art { opacity: .84; }
+/* Firefox still repaints the glow on every scroll frame, even as a plain background (p95 50-67 ms vs 33 ms without):
+   no glow there, the dimmed billboard stays. */
+@supports (-moz-appearance: none) { :root[data-daypart] #view-discover { background: none; } }
 .daypart-shelf .shelf-head h3 { display: flex; align-items: center; gap: 10px; }
 .daypart-shelf .shelf-head h3::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .daypart-shelf.is-morning .shelf-head h3::before { background: radial-gradient(circle at 35% 35%, #ffe2a8, #ff9a3c); box-shadow: 0 0 12px 2px rgb(255 160 70 / .55); }
