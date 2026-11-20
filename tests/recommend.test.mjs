@@ -167,3 +167,26 @@ test('Best Quality in a chosen resolution also picks one that keeps up', () => {
     ['The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX', 400, 18 * GB],
   ], { ...flash, quality: '2160p' }), 'The.Flash.2023.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX');
 });
+
+// Oliver 2026-11-20: a seeder floor of 10. Black Swan's first watch took a 5-seed AV1 copy, then an 18-seed one that
+// never sent a byte, while 130 and 282 seeders were in the same list.
+test('nothing under 10 seeders while a release with 10 or more exists; otherwise the most-seeded', () => {
+  const swan = { type: 'movie', title: 'Black Swan', year: 2010, runtime: 108 };
+  const rows = [
+    ['Black.Swan.2010.1080p.BluRay.10bit.AV1.Opus.5.1.RFranklin', 5, 6 * GB],
+    ['Black.Swan.2010.1080p.BluRay.x264.DTS-SARTRE', 9, 4.4 * GB],
+    ['Black Swan 2010 1080p BluRay x264 DD5 1-Pahe in', 18, 4.2 * GB],
+    ['Black Swan (2010) 1080p BRRip 5.1 x264 -YTS', 130, 2 * GB],
+    ['Black Swan 2010 1080p BluRay DDP 5 1 10bit H 265-iVy', 70, 1.5 * GB],
+    ['Black Swan (2010) (1080p BluRay x265 HEVC 10bit AAC 5.1 afm72)', 282, 5.3 * GB],
+  ];
+  for (const profile of ['balanced', 'best', 'save']) {
+    const name = pick(rows, { ...swan, profile });
+    assert.ok(!/RFranklin|SARTRE/.test(name), `${profile}: ${name}`);
+    // A first watch: the lively H.264 copy ("H 265" is HEVC too), not the thin one.
+    assert.equal(pick(rows, { ...swan, profile, cold: true }), 'Black Swan (2010) 1080p BRRip 5.1 x264 -YTS', profile);
+  }
+  assert.equal(pick([
+    ['Rare.Film.2001.1080p.BluRay.x264-A', 3], ['Rare.Film.2001.1080p.BluRay.x264-B', 7], ['Rare.Film.2001.1080p.WEB.x264-C', 4],
+  ], { type: 'movie', title: 'Rare Film', year: 2001 }), 'Rare.Film.2001.1080p.BluRay.x264-B', 'none has 10: the most-seeded');
+});

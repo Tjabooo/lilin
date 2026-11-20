@@ -198,7 +198,24 @@ export const coldStreamable = (r, want = {}, kind = 'movie') => {
   return !rate || (rate <= COLD_RATE && swarmSpeed(r.seeders) >= rate * COLD_MARGIN);
 };
 const isHigh = (q) => ['1080p', '1440p', '2160p'].includes(q);
-const HEVC_NAME = /\b(x265|hevc|h\.?265)\b/i;
+// Not H.264: HEVC and AV1 (AV1 + Opus in MKV also needs a live transcode on Safari, iPhones and TVs).
+const NOT_H264_NAME = /\b(x265|hevc|h[ .]?265|av1)\b/i;   // "H 265" too (iVy)
+
+// ---- Seeder floor (Oliver 2026-11-20) ----
+// Never a release under MIN_SEEDERS when one with that many exists; when none has, the most-seeded one(s).
+// (Black Swan: a 5-seed AV1 copy and an 18-seed one that never sent a byte, with 282 seeders next to them.)
+// Films still never drop to 720p while a 1080p or better exists: the floor applies among 1080p and up first.
+export const MIN_SEEDERS = 10;
+const floorOf = (list) => {
+  const ok = list.filter((r) => (r.seeders || 0) >= MIN_SEEDERS);
+  if (ok.length || !list.length) return ok;
+  const most = Math.max(...list.map((r) => r.seeders || 0));
+  return list.filter((r) => (r.seeders || 0) === most);
+};
+export function seederFloor(list) {
+  const high = list.filter((r) => isHigh(r.quality));
+  return high.length ? [...floorOf(high), ...floorOf(list.filter((r) => !isHigh(r.quality)))] : floorOf(list);
+}
 
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
@@ -210,6 +227,9 @@ function score(r, want, kind) {
   if (profile === 'best' && r.size && r.seeders > 0) {
     s -= 0.25 * Math.max(0, Math.min(2, Math.log2(r.size / GB / r.seeders / 2)));
   }
+  // A first-time watch: someone is waiting, and seeder counts from the sites are often stale, so a lively swarm counts
+  // for much more (18 reported seeders gave 0 bytes/s while 130 and 282 were right there).
+  if (want.cold) s += 2 * Math.log10(Math.min(r.seeders || 0, 1000) + 1);
   if (r.trusted) s += profile === 'best' ? 0.1 : 0.3;
   if (profile !== 'best' && r.tags?.includes('Remux')) s -= 2;
   if (/\b(hc|hardsub|korsub|hcsubs?)\b/i.test(r.name)) s -= 2;
@@ -321,9 +341,11 @@ export function choose(found, want, kind, minAlive = ALIVE) {
   const none = kind === 'pack' ? 'No complete season pack clearly matches.' : 'No release clearly matches this title.';
   const limited = limits(found, want, kind);
   let fits = limited.fits;
+  // The seeder floor among the quality asked for (Advanced), else among everything that fits.
+  if (!(want.quality && want.quality !== 'all')) fits = seederFloor(fits);
   if (want.quality && want.quality !== 'all') {
     const any = fits.length;
-    fits = fits.filter((r) => r.quality === want.quality);
+    fits = seederFloor(fits.filter((r) => r.quality === want.quality));
     if (!fits.length) return { pick: null, why: limited.why || (found.length || any ? `No matching ${qualityName(want.quality)} release has enough seeders.` : none) };
     const healthy = fits.filter((r) => r.seeders >= HEALTHY);
     let pool = healthy.length ? healthy : fits;
@@ -363,7 +385,7 @@ export function choose(found, want, kind, minAlive = ALIVE) {
   const anyHigh = fits.some((r) => isHigh(r.quality));
   const quick = want.cold ? fits.filter((r) => coldStreamable(r, want, kind)) : [];
   const quick1080 = quick.filter((r) => r.quality === '1080p');
-  const passes = want.cold ? [quick1080.filter((r) => !HEVC_NAME.test(r.name)), quick1080, quick, fits] : [fits];
+  const passes = want.cold ? [quick1080.filter((r) => !NOT_H264_NAME.test(r.name)), quick1080, quick, fits] : [fits];
   const last = passes.length - 1;
   for (const [i, base] of passes.entries()) {
     if (i < last && !base.length) continue;
