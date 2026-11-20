@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { esc, page, baseUrl } from './clips.js';
+import { esc, page, baseUrl, brandCard } from './clips.js';
 import { passwordProblem, passwordPeek, brandMark } from './auth.js';
 import { translateHtml, translate, tr } from './i18n.js';
 
@@ -144,7 +144,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   const base = baseUrl(req);
   const view = (title, inner, extra) => send(200, page({
     title, desc: 'You’ve been invited to Lilin, your own cinema: films and shows on your phone, your TV, anywhere.',
-    url: `${base}${url.pathname}`, image: `${base}/c/lilin.jpg`, body: `<div class="card">${inner}</div>`,
+    url: `${base}${url.pathname}`, image: brandCard(base), body: `<div class="card">${inner}</div>`,
   }), extra);
 
   const inv = Object.hasOwn(invites, m[1]) ? invites[m[1]] : null;

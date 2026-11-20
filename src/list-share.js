@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { translateHtml } from './i18n.js';
-import { page, baseUrl, esc } from './clips.js';
+import { page, baseUrl, esc, brandCard } from './clips.js';
 import { PREVIEW_BOT } from './note-share.js';
 import * as lists from './lists.js';
 
@@ -94,11 +94,11 @@ export async function handlePublic(req, res, url, { cacheDir, nameOf }) {
   const base = baseUrl(req);
   const link = `${base}/c/l/${m[1]}`;
   if (!list) {
-    return send(200, 'text/html; charset=utf-8', page({ title: 'A list on Lilin', desc: 'Open it in Lilin.', url: link, image: `${base}/c/lilin.jpg`,
+    return send(200, 'text/html; charset=utf-8', page({ title: 'A list on Lilin', desc: 'Open it in Lilin.', url: link, image: brandCard(base),
       body: '<div class="card"><h1>A list on Lilin</h1><p><a class="brand" href="/">Open Lilin</a></p></div>' }));
   }
   const ready = list.posters.length ? await Promise.race([card(list, cacheDir), new Promise((r) => setTimeout(() => r(null), 6000))]) : null;
-  const image = ready ? `${link}/card.jpg?v=${path.basename(ready, '.jpg').split('-')[1]}` : `${base}/c/lilin.jpg`;
+  const image = ready ? `${link}/card.jpg?v=${path.basename(ready, '.jpg').split('-')[1]}` : brandCard(base);
   const maker = nameOf(list.userId);
   const what = `${list.count} ${list.count === 1 ? 'title' : 'titles'}${maker ? ` · a list by ${maker}` : ''}`;
   const desc = list.about ? `${what}\n${clip(list.about, 300)}` : what;

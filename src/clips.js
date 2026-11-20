@@ -14,6 +14,11 @@ import { translateHtml } from './i18n.js';
 import fs from 'node:fs';
 import { trackChild } from './load.js';
 import { background } from './priority.js';
+
+// The link card's URL carries a hash of the picture, so chat apps (Discord caches by URL) fetch a new card when it changes.
+let cardVersion = '';
+try { cardVersion = crypto.createHash('sha1').update(fs.readFileSync(new URL('../public/og-lilin.jpg', import.meta.url))).digest('hex').slice(0, 10); } catch { /* no card */ }
+export const brandCard = (base) => `${base}/c/lilin.jpg${cardVersion ? `?v=${cardVersion}` : ''}`;
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -929,7 +934,7 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
     return send(200, 'text/html; charset=utf-8', page({
       title: 'Lilin',
       desc: 'Your own cinema: films and shows on your phone, your TV, anywhere.',
-      url: `${base}/c/`, image: `${base}/c/lilin.jpg`,
+      url: `${base}/c/`, image: brandCard(base),
       body: `<h1>Lilin</h1><p>Opening…</p><script>location.replace('/')</script>`,
     }));
   }
