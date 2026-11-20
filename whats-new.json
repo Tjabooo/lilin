@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-next-episode-watched",
+    "date": "2026-11-20",
+    "title": "Next episode counts as watched",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Next episode marks the episode watched",
+        "text": "Pressing Next episode during the credits now marks the episode you were on as watched, instead of saving your spot at the credits. It no longer hangs around in Continue watching with an almost full bar."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-white-play-labels",
     "date": "2026-11-20",
     "title": "White Play buttons",

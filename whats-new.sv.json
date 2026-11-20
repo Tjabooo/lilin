@@ -1,4 +1,13 @@
 {
+  "2026-11-20-next-episode-watched": {
+    "title": "Nästa avsnitt räknas som sett",
+    "items": {
+      "Next episode marks the episode watched": {
+        "title": "Nästa avsnitt markerar avsnittet som sett",
+        "text": "När du trycker på Nästa avsnitt under eftertexterna markeras avsnittet du tittade på som sett, i stället för att din plats vid eftertexterna sparas. Det blir inte längre kvar under Fortsätt titta med en nästan full stapel."
+      }
+    }
+  },
   "2026-11-20-white-play-labels": {
     "title": "Vita Spela-knappar",
     "items": {

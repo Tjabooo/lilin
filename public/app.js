@@ -5699,7 +5699,8 @@ function saveProgress(force = false) {
   const now = Date.now();
   if (!force && now - lastSave < 5000) return;
   lastSave = now;
-  const done = video.duration - video.currentTime < 90; // treat as finished
+  // Treat as finished near the end, or once Next episode was pressed (even with long credits left).
+  const done = current.nextPressed || video.duration - video.currentTime < 90;
   try {
     if (done) localStorage.removeItem(resumeKey(current));
     else localStorage.setItem(resumeKey(current), JSON.stringify({ time: video.currentTime, duration: video.duration }));
@@ -8418,6 +8419,7 @@ async function playNextEpisode() {
   session.upNextBusy = true; // synchronous, including a second click before the first await
   session.upNextError = '';
   updateUpNext();
+  session.nextPressed = true; // this one is watched now, not resumed at the credits (sticks through the pause save)
   video.pause();
   saveProgress(true);
   session.nextAbort = new AbortController();
