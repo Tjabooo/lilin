@@ -1,4 +1,13 @@
 {
+  "2026-11-20-late-night-scroll": {
+    "title": "Upptäck scrollar mjukt sent på natten",
+    "items": {
+      "Smooth scrolling after midnight": {
+        "title": "Mjuk scrollning efter midnatt",
+        "text": "Mellan midnatt och klockan 5 hackade scrollningen i Upptäck i Firefox. Nattlooken är densamma, den gör bara inte sidan seg längre."
+      }
+    }
+  },
   "2026-11-20-tv-apps-identity": {
     "title": "Båda TV-apparna i den nya stilen, och nu samma app",
     "items": {

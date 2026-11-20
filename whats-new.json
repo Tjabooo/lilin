@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-late-night-scroll",
+    "date": "2026-11-20",
+    "title": "Discover scrolls smoothly late at night",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Smooth scrolling after midnight",
+        "text": "Between midnight and 5 am, Discover scrolled in jerks in Firefox. The late-night look is the same, it just no longer slows the page down."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-tv-apps-identity",
     "date": "2026-11-20",
     "title": "Both TV apps in the new look, and now the same app",
