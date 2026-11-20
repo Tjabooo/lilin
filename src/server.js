@@ -666,7 +666,16 @@ const LISTS = {
   'cinemas': ['/movie/now_playing', 'movie'],
   'on-air': ['/tv/on_the_air', 'tv'],
   'airing-today': ['/tv/airing_today', 'tv'],
+  // Discover → Anime: Japanese animation (TMDB genre 16 + original language ja), films and series.
+  'anime-popular-tv': ['/discover/tv', 'tv', () => ({ ...ANIME, sort_by: 'popularity.desc' })],
+  'anime-season': ['/discover/tv', 'tv', () => ({ ...ANIME, sort_by: 'popularity.desc', 'first_air_date.gte': daysFromNow(-120), 'first_air_date.lte': daysFromNow(0) })],
+  'anime-airing': ['/discover/tv', 'tv', () => ({ ...ANIME, sort_by: 'popularity.desc', 'air_date.gte': daysFromNow(-7), 'air_date.lte': daysFromNow(0) })],
+  'anime-popular-movie': ['/discover/movie', 'movie', () => ({ ...ANIME, sort_by: 'popularity.desc', 'primary_release_date.lte': daysFromNow(0) })],
+  'anime-top-tv': ['/discover/tv', 'tv', () => ({ ...ANIME, sort_by: 'vote_average.desc', 'vote_count.gte': '300' })],
+  'anime-top-movie': ['/discover/movie', 'movie', () => ({ ...ANIME, sort_by: 'vote_average.desc', 'vote_count.gte': '300' })],
 };
+const ANIME = { with_genres: '16', with_original_language: 'ja', include_adult: 'false' };
+const daysFromNow = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const HOME_ROWS = {
   all: [['trending-all', 'Trending this week'], ['popular-movie', 'Popular films'], ['popular-tv', 'Popular shows'],
     ['cinemas', 'In cinemas now'], ['on-air', 'New episodes this week'], ['coming-soon', 'Coming soon'], ['top-movie', 'Top rated films'], ['top-tv', 'Top rated shows']],
@@ -674,6 +683,8 @@ const HOME_ROWS = {
     ['coming-soon-movie', 'Coming soon'], ['top-movie', 'Top rated']],
   tv: [['trending-tv', 'Trending shows'], ['popular-tv', 'Popular'], ['airing-today', 'Airing today'],
     ['on-air', 'New episodes this week'], ['coming-soon-tv', 'Coming soon'], ['top-tv', 'Top rated']],
+  anime: [['anime-season', 'New this season'], ['anime-popular-tv', 'Popular anime'], ['anime-airing', 'New episodes this week'],
+    ['anime-popular-movie', 'Anime films'], ['anime-top-tv', 'Top rated series'], ['anime-top-movie', 'Top rated films']],
 };
 // comingsoon: films and shows about to come out, ranked by closeness and buzz (src/coming-soon.js)
 const TMDB_REGION = (process.env.TMDB_REGION || TMDB_LANG.split('-')[1] || 'US').trim().toUpperCase();
@@ -763,9 +774,9 @@ export const seasonEpisodes = (d) => (d.episodes || []).map((e) => ({
 
 async function discoverList(key, page = 1) {
   if (comingSoon.handles(key)) return comingSoon.list(key, page); // comingsoon
-  const [endpoint, type] = LISTS[key] || [];
+  const [endpoint, type, params] = LISTS[key] || [];
   if (!endpoint) throw new HttpError(400, 'Unknown list.');
-  const data = await cachedTmdb(endpoint, { page: String(page) });
+  const data = await cachedTmdb(endpoint, { ...params?.(), page: String(page) });
   const results = (data.results || []).filter((x) => type || onlyScreen(x)).map((x) => mapTitle(x, type));
   return { results, page: data.page || page, totalPages: Math.min(data.total_pages || 1, 500) };
 }
@@ -851,10 +862,13 @@ const SORTS = {
 // Genre browsing. With type 'all', films and shows are fetched side by side and merged.
 async function discoverGenre({ type, movieGenre, tvGenre, sort, page }) {
   const order = SORTS[sort] || SORTS.popular;
+  const anime = type === 'anime';
+  if (anime) type = 'all';
   const today = new Date().toISOString().slice(0, 10);
   const fetchType = async (t, genre) => {
     if (!genre) return { results: [], totalPages: 0 };
     const params = { ...order[t], with_genres: String(genre), page: String(page), include_adult: 'false' };
+    if (anime) Object.assign(params, { with_genres: genre === 16 ? '16' : `16,${genre}`, with_original_language: 'ja' });
     if (t === 'movie') params['primary_release_date.lte'] = today;
     else params['first_air_date.lte'] = today;
     const data = await cachedTmdb(`/discover/${t}`, params);
@@ -4871,7 +4885,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { genres: await genres() });
   }
   if (p === '/api/discover/genre') {
-    const type = ['movie', 'tv'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
+    const type = ['movie', 'tv', 'anime'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
     const id = (k) => (/^\d+$/.test(url.searchParams.get(k) || '') ? Number(url.searchParams.get(k)) : null);
     const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page')) || 1));
     return sendJson(res, 200, withoutDisliked(user, await discoverGenre({

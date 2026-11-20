@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-discover-anime",
+    "date": "2026-11-20",
+    "title": "Anime in Discover",
+    "items": [
+      {
+        "kind": "new",
+        "title": "An Anime tab in Discover",
+        "text": "Discover has an Anime tab next to Films, Shows and Documentaries: popular anime, this season's new shows, new episodes this week, anime films and the top rated. Genres works there too."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-page-ratings",
     "date": "2026-11-20",
     "title": "Ratings on every title page",

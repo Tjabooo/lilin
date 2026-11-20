@@ -805,7 +805,9 @@ function openTravelList(opener) {
 // ---------- Discover ----------
 let searchCtrl;
 const disc = { type: 'all', genre: null, sort: 'popular', list: null, genres: null, cache: new Map() };
-const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['docs', T('Documentaries')]];
+const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['anime', T('Anime')], ['docs', T('Documentaries')]];
+// Types the Instant page has no filter of its own for (it shows everything instead).
+const allOnInstant = (type) => (type === 'docs' || type === 'anime' ? 'all' : type);
 const SORT_LABELS = [['popular', T('Popular')], ['rating', T('Top rated')], ['newest', T('Newest')]];
 
 async function cachedApi(url, signal) {
@@ -951,7 +953,8 @@ const titleGrid = (items) => h('ul', { class: 'grid' }, items.map(titleCard));
 const genreNames = (t) => (disc.genres || [])
   .filter((g) => t.genres?.includes(t.type === 'tv' ? g.tv : g.movie))
   .map((g) => g.name).slice(0, 2);
-const genreFits = (g) => (disc.type === 'movie' ? g.movie : disc.type === 'tv' ? g.tv : disc.type === 'docs' ? false : g.movie || g.tv);
+const genreFits = (g) => (disc.type === 'movie' ? g.movie : disc.type === 'tv' ? g.tv : disc.type === 'docs' ? false
+  : disc.type === 'anime' ? Boolean(g.movie || g.tv) && g.movie !== 16 : g.movie || g.tv); // anime: all of it is Animation already
 
 function segmented(options, value, onPick, label) {
   return h('div', { class: 'segmented', role: 'group', 'aria-label': label },
@@ -1026,7 +1029,7 @@ function pickDiscover(changes) {
   window.scrollTo({ top: 0 });
   renderDiscover();
 }
-// The one control row, on every width: All · Films · Shows · Documentaries, then Genres, which opens the genre chips
+// The one control row, on every width: All · Films · Shows · Anime · Documentaries, then Genres, which opens the genre chips
 // under the row. A picked genre turns the chip into "Comedy ✕". In the page flow under the billboard and Right now;
 // everything above it is yours and unfiltered, everything below follows it.
 function discoverControls() {
@@ -1046,7 +1049,7 @@ function discoverControls() {
   const instant = disc.type !== 'docs' && h('button', { type: 'button', class: 'chip instant-toggle', 'aria-pressed': String(instantPage()),
     onclick: () => setView(instantPage() ? 'discover' : 'discover/instant') }, icon('bolt'), h('span', {}, T('Instant')));
   return h('div', { class: 'discover-controls' },
-    h('div', { class: 'dc-line' }, instantPage() ? segmented(TYPE_LABELS.slice(0, 3), disc.type === 'docs' ? 'all' : disc.type, (type) => pick({ type }), T('Show'))
+    h('div', { class: 'dc-line' }, instantPage() ? segmented(TYPE_LABELS.slice(0, 3), allOnInstant(disc.type), (type) => pick({ type }), T('Show'))
       : segmented(TYPE_LABELS, disc.type, (type) => pick({ type }), T('Show')), disc.type !== 'docs' && !instantPage() && toggle, instant),
     disc.type !== 'docs' && !disc.genre && !instantPage() && chips);
 }
@@ -1163,7 +1166,9 @@ new MutationObserver(() => document.body.classList.toggle('has-billboard', state
   .observe($('#discover-body'), { childList: true, subtree: true });
 
 // ---------- Discover: rows of your own ----------
-const homeType = (f) => (disc.type === 'all' ? true : disc.type === 'tv' ? f.season != null || Boolean(f.show) : f.season == null && !f.show);
+// Anime: episodes of library shows TMDB calls anime (films carry no such flag, so they stay out).
+const animeShow = (id) => state.libraryShows.some((s) => s.id === id && s.anime);
+const homeType = (f) => (disc.type === 'all' ? true : disc.type === 'anime' ? Boolean(f.show) && animeShow(f.show) : disc.type === 'tv' ? f.season != null || Boolean(f.show) : f.season == null && !f.show);
 // Continue watching, on Discover too: landscape cards that resume where you stopped.
 // ---- where to pick a show up ----
 // The server keeps the last episode you finished of each show (state.finished, "tv:ID" → { season, episode, at });
@@ -1264,7 +1269,7 @@ function newEpisodeItems() {
   const mine = new Set(state.library.map((f) => f.show).filter(Boolean));
   const out = [];
   for (const s of state.libraryShows) {
-    if (s.tmdbId == null || continuing.has(s.id)) continue;
+    if (s.tmdbId == null || continuing.has(s.id) || (disc.type === 'anime' && !s.anime)) continue;
     if (!mine.has(s.id) && !followed.has(Number(s.tmdbId))) continue;
     const fin = state.finished?.[`tv:${s.tmdbId}`];
     const eps = [...state.library, ...state.server].filter((f) => f.show === s.id && f.season != null && f.episode != null);
@@ -1304,7 +1309,7 @@ function savedRow() {
 // Instant (#discover/instant): everything on the server, newest first or A–Z, a page at a time.
 const INSTANT_SORTS = [['newest', T('Newest')], ['title', 'A–Z']];
 function instantView(content) {
-  const type = disc.type === 'docs' ? 'all' : disc.type;
+  const type = allOnInstant(disc.type);
   let list = instantTitles().filter((x) => type === 'all' || x.t.type === type);
   if (disc.instantSort === 'title') list = list.toSorted((a, b) => String(a.t.title).localeCompare(String(b.t.title), locale));
   const grid = h('ul', { class: 'grid' });
@@ -1504,24 +1509,25 @@ async function renderDiscover() {
     const data = await cachedApi(`/api/discover/home?type=${disc.type}`, signal);
     // Popular on Lilin arrives separately (it's quick, but shouldn't hold up TMDB's rows).
     const popularSlot = h('div', { class: 'popular-slot' });
-    const seeds = watchedSeeds();
+    const anime = disc.type === 'anime'; // Anime: no Moods, daypart, For you or Popular on Lilin (they can't tell what's anime)
+    const seeds = anime ? [] : watchedSeeds();
     const rows = (disc.type === 'all' ? mergeHomeRows(data.rows) : data.rows).map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards
     const [trending, ...rest] = rows;
-    const moods = pickUi.tile(signal).catch(() => null) // pick: the first Moods tile
+    const moods = anime ? Promise.resolve(null) : pickUi.tile(signal).catch(() => null) // pick: the first Moods tile
       .then((pick) => vibesUi.row(disc.type, signal, { lead: pick })); // vibes: the Moods row
     content.replaceChildren(...[
-      ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: T('Trending this week') }) : null),
+      ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: anime ? T('New this season') : T('Trending this week') }) : null),
       continueRow(),
       newEpisodesRow(),
-      rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
+      !anime && rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
       savedRow(),
-      rowSlot(moods, signal),
+      !anime && rowSlot(moods, signal),
       trending,
       seeds.length > 0 && rowSlot(forYouRow(seeds, signal), signal),
-      popularSlot,
+      !anime && popularSlot,
       ...rest,
     ].filter(Boolean));
-    social.popularShelf(disc.type, { carousel, titleCard, signal }).then((shelf) => { if (shelf && !signal.aborted) popularSlot.replaceWith(shelf); });
+    if (!anime) social.popularShelf(disc.type, { carousel, titleCard, signal }).then((shelf) => { if (shelf && !signal.aborted) popularSlot.replaceWith(shelf); });
   } catch (err) {
     if (err.name !== 'AbortError') content.replaceChildren(notice(T('Couldn’t load Discover'), err.message, renderDiscover));
   }

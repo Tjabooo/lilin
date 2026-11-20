@@ -2170,6 +2170,7 @@ export default {
   "No messages yet. Everyone tuned in to this channel sees what you write here.": "Inga meddelanden än. Alla som tittar på kanalen ser det du skriver här.",
   "Add channel": "Lägg till kanal",
   "Anime": "Anime",
+  "New this season": "Nytt den här säsongen",
   "Sitcoms": "Sitcoms",
   "Channel name": "Kanalens namn",
   "Channel saved. It’s on the air.": "Kanalen är sparad. Den sänder nu.",
