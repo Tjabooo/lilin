@@ -117,12 +117,16 @@ function subLanguage(stream) {
 // Sidecar files to write for a source file; existing ones (e.g. downloaded earlier) are kept.
 function plannedSidecars(file, subs) {
   const stem = path.join(path.dirname(file), path.basename(file, path.extname(file)));
-  const isForced = (s) => s.disposition?.forced || /forced/i.test(s.tags?.title || '');
+  // Fansub "Signs" / "Signs & Songs" tracks only carry on-screen text, like forced tracks, even when untagged.
+  const isForced = (s) => s.disposition?.forced || /forced|\bsigns?\b/i.test(s.tags?.title || '');
   const isSdh = (s) => s.disposition?.hearing_impaired || /\bsdh\b|hearing|\bcc\b/i.test(s.tags?.title || '');
+  // Dub-matched captions ("Dubtitles") follow the English dub's script, not the original audio.
+  const isDubtitle = (s) => /dubtitle/i.test(s.tags?.title || '');
+  const rank = (s) => (isSdh(s) ? 2 : 0) + (isDubtitle(s) ? 1 : 0);
   const used = new Set();
   const out = [];
-  // Regular tracks first so they get the plain "<lang>.srt" name; forced-only tracks are skipped.
-  const ordered = subs.filter((s) => !isForced(s)).sort((a, b) => isSdh(a) - isSdh(b));
+  // Regular tracks first so they get the plain "<lang>.srt" name; forced-only and signs tracks are skipped.
+  const ordered = subs.filter((s) => !isForced(s)).sort((a, b) => rank(a) - rank(b));
   for (const s of ordered) {
     const lang = subLanguage(s);
     if (!lang) continue;

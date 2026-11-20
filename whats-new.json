@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-20-anime-full-subs",
+  "date": "2026-11-20",
+  "title": "Full subtitles on anime",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "English subtitles show every line again",
+      "text": "Some anime (Dandadan, Overlord, Frieren, Mushoku Tensei and a few more) only showed the odd sign on screen when you turned on English subtitles, because Lilin picked the signs-only track. They now use the full subtitles, and new downloads skip signs-only tracks."
+    }
+  ]
+},
+{
   "id": "2026-11-20-connection-fit",
   "date": "2026-11-20",
   "title": "Plays smoothly on slow connections",

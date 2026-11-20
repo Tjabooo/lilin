@@ -1,4 +1,14 @@
 {
+  "2026-11-20-anime-full-subs": {
+    "title": "Hela undertexter på anime",
+    "items": {
+      "English subtitles show every line again": {
+        "title": "Engelska undertexter visar alla repliker igen",
+        "text": "Vissa anime (Dandadan, Overlord, Frieren, Mushoku Tensei och några till) visade bara enstaka skyltar när du slog på engelska undertexter, eftersom Lilin valde spåret med bara skyltar. Nu används de hela undertexterna, och nya nedladdningar hoppar över spår med bara skyltar."
+      }
+    }
+  },
+
   "2026-11-20-connection-fit": {
     "title": "Spelar jämnt på långsamma anslutningar",
     "items": {
