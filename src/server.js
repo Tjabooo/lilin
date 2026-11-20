@@ -3394,6 +3394,22 @@ export function adaptiveMaster(rungUrl) {
   }
   return lines.join('\n') + '\n';
 }
+const SPEEDTEST_BLOCK = crypto.randomBytes(256 * 1024);
+function sendSpeedtest(req, res, kb) {
+  const total = Math.min(8192, Math.max(64, Number(kb) || 4096)) * 1024;
+  res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': total, 'Cache-Control': 'no-store, no-transform' });
+  let sent = 0;
+  const pump = () => {
+    while (sent < total) {
+      const n = Math.min(SPEEDTEST_BLOCK.length, total - sent);
+      sent += n;
+      if (!res.write(n === SPEEDTEST_BLOCK.length ? SPEEDTEST_BLOCK : SPEEDTEST_BLOCK.subarray(0, n))) { res.once('drain', pump); return; }
+    }
+    res.end();
+  };
+  res.on('close', () => { sent = total; }); // gone early: stop writing
+  pump();
+}
 function adaptiveLink(kind, id) {
   const exp = Math.floor(Date.now() / 1000) + PLAY_LINK_HOURS * 3600;
   return { url: `/play/${kind}/${id}/abr/${exp}/${signPlay(kind, id, 'abr', exp)}/master.m3u8`, ext: 'm3u8', adaptive: true };
@@ -5232,6 +5248,21 @@ async function handleApi(req, res, url) {
     // Named from the library/download file: browsers often stream a cached copy named by a hash.
     if (link.url && q.get('audio') === null) activity.record(req, 'play', titleOf(await sourceFile(q.get('kind'), q.get('id'))), { quietMs: 3 * 3600 * 1000 });
     return sendJson(res, link.ready === false ? 202 : 200, link);
+  }
+  // The player's connection test (public/connection.js): up to 8 MB of random bytes (random, so nothing on the way
+  // can compress them), timed in the browser. Its result picks the version and stream that will play smoothly.
+  if (p === '/api/speedtest' && req.method === 'GET') return sendSpeedtest(req, res, url.searchParams.get('kb'));
+  // Bitrates of library files (kbps, picture height), for that choice. Probes are cached per file.
+  if (p === '/api/bitrates' && req.method === 'GET') {
+    const ids = String(url.searchParams.get('ids') || '').split(',').filter((id) => /^[A-Za-z0-9_-]{1,600}$/.test(id)).slice(0, 8);
+    const out = {};
+    await Promise.all(ids.map(async (id) => {
+      try {
+        const info = await Promise.race([probePhone(librarySource(id)), new Promise((_, no) => setTimeout(() => no(new Error('slow')), 5000))]);
+        out[id] = { kbps: Math.round((info.bitrate || 0) / 1000) || null, height: info.height || null };
+      } catch { out[id] = null; }
+    }));
+    return sendJson(res, 200, { bitrates: out });
   }
   if (p === '/api/network') {
     return sendJson(res, 200, { ...(await describeRequest(req)), castAllowed: await castAllowed(req), castWhenAwaySetting: CAST_WHEN_AWAY });

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-20-connection-fit",
+  "date": "2026-11-20",
+  "title": "Plays smoothly on slow connections",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Lilin checks your connection first",
+      "text": "Before a video starts, Lilin quickly tests how fast your connection to the server is. If the 4K copy is too big for it, you get a lighter version of the film instead, or a lighter stream made live from it, so it plays without stopping. On a fast connection nothing changes. You can still pick a version yourself under Quality."
+    }
+  ]
+},
+{
   "id": "2026-11-20-retry-other-copy",
   "date": "2026-11-20",
   "title": "Better second tries",

@@ -1,4 +1,13 @@
 {
+  "2026-11-20-connection-fit": {
+    "title": "Spelar jämnt på långsamma anslutningar",
+    "items": {
+      "Lilin checks your connection first": {
+        "title": "Lilin testar din anslutning först",
+        "text": "Innan en video startar testar Lilin snabbt hur snabb din anslutning till servern är. Om 4K-kopian är för stor för den får du en lättare version av filmen i stället, eller en lättare ström som görs direkt från den, så att den spelar utan att stanna. På en snabb anslutning ändras ingenting. Du kan fortfarande välja version själv under Kvalitet."
+      }
+    }
+  },
 
   "2026-11-20-retry-other-copy": {
     "title": "Bättre andra försök",

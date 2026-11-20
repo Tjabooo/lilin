@@ -7,6 +7,7 @@ import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
 import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
+import { measureSpeed, speedWithin, slowForUhd, versionForSpeed, streamFor } from './connection.js';
 import * as pushDevice from './notifications.js';
 import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
@@ -245,6 +246,8 @@ const prefs = () => state.me?.settings || {};
 // `versions`, best first. Which one plays here: the one you picked for the title, else the one you
 // picked for its season (matched by quality and source, so one choice covers a season pack), else
 // the best one, or on a phone the lightest 720p/1080p one. Picks are kept per device.
+// The connection test runs a few seconds after the app opens, so pressing Play rarely waits for it (connection.js).
+setTimeout(() => { measureSpeed().catch(() => {}); }, 5000);
 const VERSION_PICKS = 'lilin:versions';
 let versionPicks = {};
 try { versionPicks = JSON.parse(localStorage.getItem(VERSION_PICKS)) || {}; } catch { /* blocked */ }
@@ -3441,7 +3444,8 @@ const screenPixels = () => {
 // Phones count as 1080p (Oliver 2026-11-18): at phone size 4K looks no sharper, and a 4K file plays on a phone through
 // the live 1080p stream anyway (HDR tone-mapped, phone-stream.js), so fetching it would only cost disk and time.
 const phoneSized = () => matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600;
-const sharpScreen = () => { const [long, short] = screenPixels(); return !phoneSized() && (long > 2400 || short > 1300); };
+// A connection too slow for 4K (connection.js, measured before playback) counts the same: 4K would only stall.
+const sharpScreen = () => { const [long, short] = screenPixels(); return !phoneSized() && (long > 2400 || short > 1300) && !slowForUhd(); };
 const screenClass = () => (sharpScreen() ? 'uhd' : 'hd');
 const canGet = () => Boolean(state.status.torrents && canDownload());
 
@@ -5900,6 +5904,31 @@ async function attachBridge(session, url, onMetadata) {
   session.bridge = { url, hls: null, track: null };
   return true;
 }
+// The live stream picked for a slow connection (fitToConnection) on a browser without its own HLS: through hls.js.
+// No hls.js: the file as it is, as before.
+async function attachStream(session, url, onMetadata, f) {
+  const Hls = await loadHls().catch(() => null);
+  if (current !== session) return;
+  if (!Hls?.isSupported()) {
+    try {
+      const link = await api(`/api/play-link?kind=${f.kind}&id=${encodeURIComponent(mediaId(f))}&variant=${baseVariant()}&quality=original`, { signal: session.abort.signal });
+      session.quality = 'original';
+      setPlayerSource(link.url, session, onMetadata);
+    } catch (error) { if (current === session && error.name !== 'AbortError') showPlayerError(error.message, { title: T('Couldn’t start this video') }); }
+    return;
+  }
+  const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 60 });
+  session.hlsPlayer = hls;
+  session.abort.signal.addEventListener('abort', () => { try { hls.destroy(); } catch { /* gone */ } }, { once: true });
+  let recoveries = 0;
+  hls.on(Hls.Events.ERROR, (_, data) => {
+    if (!data.fatal || session.hlsPlayer !== hls) return;
+    if (recoveries++ < 3 && data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+    else if (recoveries < 4 && data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+    else video.dispatchEvent(new Event('error'));
+  });
+  setHlsSource(hls, url, session, onMetadata);
+}
 // Back to what played before a failed audio switch: the plain file, or the bridge it was on.
 function restoreAudioSource(session, snapshot, bridge) {
   session.sourceSnapshot = snapshot;
@@ -6987,7 +7016,10 @@ const playsHls = () => Boolean(video.canPlayType('application/vnd.apple.mpegurl'
 const touchScreen = () => matchMedia('(pointer: coarse)').matches;
 const phoneScreen = () => touchScreen() && Math.min(screen.width, screen.height) <= 600;
 // What to ask the server for when playback starts: "auto" only means something on a phone.
-function wantedQuality() {
+function wantedQuality(f = current) {
+  // A connection too slow for this file (connection.js): the live stream that fits, on any browser that plays HLS
+  // itself or through hls.js. "Original" picked by hand still wins.
+  if (f?.speedStream && qualityPref !== 'original' && (playsHls() || 'MediaSource' in window || 'ManagedMediaSource' in window)) return f.speedStream;
   if (!playsHls()) return 'original';
   if (qualityPref === 'auto') return phoneScreen() ? 'auto' : 'original';
   return qualityPref;
@@ -8005,7 +8037,7 @@ function resetPlayerMedia() {
 }
 
 async function preparePlayerSource(f, watchSession, signal) {
-  const ask = `variant=${baseVariant()}&quality=${wantedQuality()}`;
+  const ask = `variant=${baseVariant()}&quality=${wantedQuality(f)}`;
   const link = await api(watchSession ? `${watchSession.base}/play-link?clientId=${encodeURIComponent(watchClient)}&${ask}`
     : `/api/play-link?kind=${f.kind}&id=${encodeURIComponent(mediaId(f))}&${ask}`, { signal });
   const response = await fetch(link.url, { headers: { Range: 'bytes=0-0' }, signal });
@@ -8034,7 +8066,38 @@ function setPlayerTitle(f) {
   $('#player-title').title = $('#player-title').textContent;
 }
 
+// Before a library video starts: a quick connection test (connection.js) and the bitrates of its versions. The best
+// version that fits the connection plays (a version picked by hand stays), and when even the lightest is too heavy,
+// the live 1080p/720p stream of it. Waits at most ~3 s; unknown speed or bitrates = as before.
+let fitToken = 0;
+async function fitToConnection(f) {
+  const vers = f.versions?.length > 1 ? f.versions : [f];
+  const [mbps, rates] = await Promise.all([
+    speedWithin(3000),
+    api(`/api/bitrates?ids=${vers.map((v) => encodeURIComponent(v.id)).join(',')}`).then((r) => r.bitrates || {}).catch(() => ({})),
+  ]);
+  if (!mbps) return f;
+  const rated = vers.map((v) => ({ ...v, kbps: rates[v.id]?.kbps || 0, height: rates[v.id]?.height || 0 }));
+  const key = f.versionKey;
+  const handPicked = key && versionPicks[key];
+  const pick = (vers.length > 1 && !handPicked && versionForSpeed(rated, mbps)) || rated.find((v) => v.id === f.id) || rated[0];
+  const chosen = pick.id === f.id ? f : libraryFile({ ...vers.find((v) => v.id === pick.id), versions: f.versions });
+  const stream = streamFor(pick.kbps, mbps, pick.height);
+  if (pick.id !== f.id || stream) console.info(`[connection] ${mbps} Mbps: ${pick.versionLabel || pick.name || pick.id} (${pick.kbps} kbps)${stream ? `, live ${stream}p stream` : ''}`);
+  const note = stream ? T('Your connection is slow for this video: playing a lighter {0}p stream.', stream)
+    : pick.id !== f.id ? T('Playing the {0} version: it suits your connection.', (pick.versionLabel || '').split(' · ')[0] || T('lighter')) : '';
+  return { ...chosen, speedStream: stream, speedNote: note };
+}
+
 async function loadPlayerMedia(f, opts = {}) {
+  if (f.kind === 'lib' && !opts.fitted && !(opts.startAt > 0) && !opts.watchRoom && !party && !opts.prepared) {
+    const token = ++fitToken;
+    setSpinner(true);
+    const fitted = await fitToConnection(f).catch(() => f);
+    if (token !== fitToken) return;
+    return loadPlayerMedia(fitted, { ...opts, fitted: true });
+  }
+  fitToken++;
   resetPlayerMedia();
   const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
@@ -8163,14 +8226,17 @@ async function loadPlayerMedia(f, opts = {}) {
   session.quality = link.quality || 'original';
   session.sourceHeight = link.sourceHeight || null;
   renderQualityMenu();
-  setPlayerSource(link.url, session, () => {
+  const onMeta = () => {
     if (party) { party.sync(); return; }
     if (opts.startAt > 0) { video.currentTime = Math.min(opts.startAt, Math.max(0, video.duration - 1)); return; } // a version switch
     const saved = savedProgress(session);
     if (saved && saved.time > 30 && saved.time < video.duration - 90) {
       video.currentTime = saved.time;
     }
-  });
+  };
+  if (link.ext === 'm3u8' && !playsHls()) attachStream(session, link.url, onMeta, f);
+  else setPlayerSource(link.url, session, onMeta);
+  if (f.speedNote) osd(f.speedNote);
   if (!party) watchCastTargets();
   if (opts.castHint && canCastFromBrowser) {
     const note = $('#player-note');
