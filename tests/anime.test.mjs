@@ -403,3 +403,20 @@ test('a batch whose files can\'t be read is kept whole, never deleted', async ()
   assert.equal(job.added[0].episodes.length, 47);
   assert.equal(job.outcome, 'started');
 });
+
+// Steel Ball Run (TMDB JoJo S06) is two AniList entries ("1st STAGE" 1 ep + "2nd & 3rd STAGE"), but fansubs number it
+// as one run ("Steel Ball Run - 07") and AniList's "(TV)" name hides "JoJos Bizarre Adventure S06E07" (2026-11-20).
+test('anime: split AniList seasons named as one (JoJo Steel Ball Run, Stone Ocean Part 2)', () => {
+  const jojo = ctxOf({ title: 'JoJo\'s Bizarre Adventure', keys: ['JoJo no Kimyou na Bouken (TV)', 'JoJo\'s Bizarre Adventure', 'JoJo no Kimyou na Bouken: Steel Ball Run'],
+    seasons: [26, 48, 39, 39, 38, 12], entries: [[['JoJo no Kimyou na Bouken (TV)'], 26], [['JoJo no Kimyou na Bouken: Stardust Crusaders'], 24],
+      [['JoJo no Kimyou na Bouken: Stardust Crusaders - Egypt-hen'], 24], [['JoJo no Kimyou na Bouken: Diamond wa Kudakenai'], 39],
+      [['JoJo no Kimyou na Bouken: Ougon no Kaze'], 39], [['JoJo no Kimyou na Bouken: Stone Ocean'], 12], [['JoJo no Kimyou na Bouken: Stone Ocean Part 2'], 26],
+      [['JoJo no Kimyou na Bouken: Steel Ball Run - 1st STAGE'], 1], [['JoJo no Kimyou na Bouken: Steel Ball Run - 2nd & 3rd STAGE'], null]] });
+  assert.deepEqual(episodesInSeason('[Erai-raws] JoJo no Kimyou na Bouken: Steel Ball Run - 07 [1080p NF WEB-DL AVC AAC][MultiSub][6803E7AC]', 6, jojo, { file: false }), [7]);
+  assert.deepEqual(episodesInSeason('[ToonsHub] JoJos Bizarre Adventure S06E07 1080p NF WEB-DL DUAL AAC2.0 H.264 (JoJo no Kimyou na Bouken: Steel Ball Run, Dual-Audio, Multi-Subs)', 6, jojo, { file: false }), [7]);
+  assert.deepEqual(episodesInSeason('[Erai-raws] JoJo no Kimyou na Bouken: Stone Ocean - 13 [1080p]', 5, jojo, { file: false }), [13]);
+  assert.deepEqual(episodesInSeason('[Erai-raws] JoJo no Kimyou na Bouken: Ougon no Kaze - 05 [1080p]', 4, jojo, { file: false }), [5]);
+  const qs = episodeQueriesAnime(jojo, 6, 7).slice(0, 5);
+  assert.ok(qs.includes('JoJo no Kimyou na Bouken: Steel Ball Run 07'), qs.join(' | '));
+  assert.ok(qs.includes('JoJo\'s Bizarre Adventure S06E07'), qs.join(' | '));
+});

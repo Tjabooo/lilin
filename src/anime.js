@@ -367,13 +367,40 @@ export async function buildContext(type, id, tmdb, { details = null } = {}) {
 function whichPart(parsed, ctx) {
   const keys = [parsed.title, parsed.alt].filter((t) => t != null).flatMap((t) => [showKey(t), showKey(t.replace(/\s*×\s*/g, ' x '))]);
   if (!keys.length || !keys[0]) return {};
+  const groups = entryGroups(ctx);
   for (const k of keys) {
     if (!k) continue;
+    const group = groups.find((g) => g.key === k);
+    if (group) return { entry: group.from, group };
     if (ctx.keys.includes(k)) return {};
     const entry = ctx.entries.findIndex((e, i) => i > 0 && e.keys.includes(k));
     if (entry > 0) return { entry };
   }
   return null;
+}
+
+// AniList seasons that fansubs name and count as one: Steel Ball Run's "1st STAGE" + "2nd & 3rd STAGE" are
+// "JoJo no Kimyou na Bouken: Steel Ball Run - 07", Stone Ocean Part 2 is "Stone Ocean - 13". A group is a run of
+// entries (after the first) whose first titles start with the same words, longer than any of the show's own names.
+const commonTitle = (a, b) => {
+  const wa = a.split(/\s+/), wb = b.split(/\s+/);
+  let n = 0;
+  while (n < wa.length && n < wb.length && wa[n] === wb[n]) n++;
+  return wa.slice(0, n).join(' ').replace(/[\s:\-–—&,]+$/, '');
+};
+export function entryGroups(ctx) {
+  const own = [...(ctx.entries[0]?.keys || []), showKey(ctx.title || '')].filter(Boolean);
+  const out = [];
+  for (let i = 1; i < ctx.entries.length - 1; i++) {
+    const a = ctx.entries[i].titles?.[0], b = ctx.entries[i + 1].titles?.[0];
+    if (!a || !b || !ctx.entries[i].from) continue;
+    const title = commonTitle(a, b), key = showKey(title);
+    if (!key || own.some((k) => k.startsWith(key))) continue;
+    const last = out.at(-1);
+    if (last && last.key === key && last.to === i) last.to = i + 1;
+    else out.push({ title, key, from: i, to: i + 1 });
+  }
+  return out;
 }
 
 // Absolute episode -> { season, episode } on TMDB. Past the last known episode: the last season.
@@ -426,6 +453,7 @@ export function resolve(parsed, ctx) {
         else add(e); // numbered from the first episode after all
       }
     } else if (parsed.seasons) return null;
+    else if (part.group) parsed.episodes.forEach((x) => add(ctx.entries[part.group.from].from + x - 1));
     else if (part.entry) {
       const e = ctx.entries[part.entry];
       for (const x of parsed.episodes) add(x <= (e.episodes ?? Infinity) ? e.from + x - 1 : x);
@@ -437,7 +465,7 @@ export function resolve(parsed, ctx) {
       const count = Math.min(named.count, ctx.seasons.reduce((a, s) => a + s.count, 0) - named.start + 1);
       for (let i = 0; i < count; i++) add(named.start + i);
     }
-  } else if (part.entry) {
+  } else if (part.entry && !part.group) {
     const e = ctx.entries[part.entry];
     const next = ctx.entries[part.entry + 1]?.from;
     const count = e.episodes ?? (next ? next - e.from : 0);
@@ -477,8 +505,10 @@ export function packQueries(ctx, season) {
   const own = range ? ctx.entries.filter((e, i) => i > 0 && e.from >= range.start && e.from < range.start + range.count) : [];
   const titles = [...ctx.queryTitles, ...own.flatMap((e) => e.titles.slice(0, 1))];
   const qs = [];
-  for (const t of titles) qs.push(`${t} batch`, t);
+  const groups = entryGroups(ctx).filter((g) => own.some((e) => ctx.entries.indexOf(e) >= g.from && ctx.entries.indexOf(e) <= g.to));
+  for (const t of [...titles, ...groups.map((g) => g.title)]) qs.push(`${t} batch`, t);
   if (range) qs.push(`${ctx.queryTitles[0] || ctx.title} S${pad(season)}`);
+  if (range && ctx.title) qs.push(`${ctx.title} S${pad(season)}`);
   return [...new Set(qs)];
 }
 export function episodeQueriesAnime(ctx, season, episode) {
@@ -489,6 +519,10 @@ export function episodeQueriesAnime(ctx, season, episode) {
   const rel = entry ? abs - entry.from + 1 : episode;
   const main = ctx.queryTitles[0] || ctx.title;
   const qs = [`${main} ${pad(abs)}`];
+  const group = idx > 0 && entryGroups(ctx).find((g) => idx >= g.from && idx <= g.to);
+  if (group) qs.push(`${group.title} ${pad(abs - ctx.entries[group.from].from + 1)}`);
+  // TMDB's own numbering, under TMDB's name ("(TV)" in AniList's names hides releases like "JoJos Bizarre Adventure S06E07").
+  if (range && idx > 0) qs.push(`${ctx.title} S${pad(season)}E${pad(episode)}`);
   if (rel !== abs) qs.push(`${main} ${pad(rel)}`);
   if (idx > 0) { qs.push(`${main} S${idx + 1} ${pad(rel)}`); if (entry.titles[0]) qs.push(`${entry.titles[0]} ${pad(rel)}`); }
   for (const t of ctx.queryTitles.slice(1)) qs.push(`${t} ${pad(abs)}`);

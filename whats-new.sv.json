@@ -1,4 +1,13 @@
 {
+  "2026-11-20-anime-split-seasons": {
+    "title": "JoJo: Steel Ball Run går att ladda ner",
+    "items": {
+      "Newer anime seasons are found again": {
+        "title": "Nyare anime-säsonger hittas igen",
+        "text": "JoJo’s Bizarre Adventure: Steel Ball Run sa att det inte fanns någon bra kopia, fast det finns gott om dem. Nu söker Lilin efter namnen som uppladdningarna faktiskt har, och samma fix hjälper andra anime vars senaste säsong är uppdelad i delar."
+      }
+    }
+  },
   "2026-11-20-anime-full-subs": {
     "title": "Hela undertexter på anime",
     "items": {
@@ -8,7 +17,6 @@
       }
     }
   },
-
   "2026-11-20-connection-fit": {
     "title": "Spelar jämnt på långsamma anslutningar",
     "items": {
@@ -18,7 +26,6 @@
       }
     }
   },
-
   "2026-11-20-retry-other-copy": {
     "title": "Bättre andra försök",
     "items": {

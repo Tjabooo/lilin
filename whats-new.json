@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-20-anime-split-seasons",
+  "date": "2026-11-20",
+  "title": "JoJo: Steel Ball Run downloads",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Newer anime seasons are found again",
+      "text": "JoJo’s Bizarre Adventure: Steel Ball Run said it couldn’t find a good copy, even though plenty are out. Lilin now searches for it under the names the uploads actually use, and the same fix helps other anime whose newest season is split into parts."
+    }
+  ]
+},
+{
   "id": "2026-11-20-anime-full-subs",
   "date": "2026-11-20",
   "title": "Full subtitles on anime",
