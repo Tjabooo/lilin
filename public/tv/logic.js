@@ -305,7 +305,9 @@
   // A person's theme is saved on the server ({ preset } or { preset: 'custom', colors }), so the TV
   // paints itself the way they picked on their phone or computer.
   var THEMES = {
-    lilin: { bg: '#1F1019', surface: '#2B1724', raised: '#3A2031', line: '#4B2C3F', text: '#F6EADF', muted: '#BA9DAD', accent: '#F4C152', alert: '#FF9B85' },
+    lilin: { bg: '#140A14', surface: '#1D121C', raised: '#2A1C28', line: '#3A2A36', text: '#EFE8E1', muted: '#B8AAB2', accent: '#FB2C16', alert: '#FF9B85' },
+    dusk: { bg: '#17111F', surface: '#211A2C', raised: '#2D2440', line: '#3C3152', text: '#EFE8E1', muted: '#B3A8C4', accent: '#A58BC9', alert: '#FF9B85' },
+    bone: { bg: '#EFE8E1', surface: '#F8F4EF', raised: '#E4DBD2', line: '#D3C7BC', text: '#140A14', muted: '#6B5A66', accent: '#D42A14', alert: '#B42318' },
     midnight: { bg: '#0E1320', surface: '#161D2E', raised: '#1F2840', line: '#2A3552', text: '#E8EEF8', muted: '#96A3BD', accent: '#5CC8FF', alert: '#FF8A8A' },
     forest: { bg: '#0F1A14', surface: '#16241C', raised: '#1E3127', line: '#2A4134', text: '#E9F2EA', muted: '#9DB5A4', accent: '#9BE07A', alert: '#FF9B85' },
     ember: { bg: '#161312', surface: '#221D1B', raised: '#2E2724', line: '#3D3430', text: '#F5EDE8', muted: '#B3A49C', accent: '#FF7A3D', alert: '#FF8A8A' },

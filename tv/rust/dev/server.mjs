@@ -13,6 +13,10 @@ const port = Number(process.argv[2] || 8099);
 const pairing = process.env.TV_DEV_PAIR === '1';
 // TV_DEV_CREDITS=SECONDS: every video's closing credits start there (to try the credits card on any title).
 const fakeCredits = Number(process.env.TV_DEV_CREDITS) || 0;
+// TV_DEV_THEME=PRESET: /api/status says the person picked that theme (bone, dusk, paper… to try light themes).
+const fakeTheme = process.env.TV_DEV_THEME || '';
+// TV_DEV_SEEN="tv:84773=1:1,1:2": /api/me/progress lists those episodes as finished (the episode row's ticks).
+const fakeSeen = Object.fromEntries(String(process.env.TV_DEV_SEEN || '').split(';').filter(Boolean).map((x) => { const [k, v] = x.split('='); return [k, v.split(',')]; }));
 if (!upstream) { console.error('Set LILIN_URL'); process.exit(2); }
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
   '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -24,7 +28,10 @@ http.createServer(async (req, res) => {
     let html = fs.readFileSync(path.join(root, 'tv/tizen/index.html'), 'utf8')
       .replace('<script src="$WEBAPIS/webapis/webapis.js"></script>', '')
       .replace('<script src="config.js"></script>', `<script>window.LILIN_SERVER=location.origin;${pairing ? "try{localStorage.removeItem('lilin:tv-session')}catch(e){}" : "try{localStorage.setItem('lilin:tv-session', localStorage.getItem('lilin:tv-session')||'home')}catch(e){}"}</script>`)
-      .replace('<script src="shell.js"></script>', (url.searchParams.has('mock') ? '<script src="/dev-avplay.js"></script>' : '') + '<script src="/shell.js"></script>');
+      .replace('<script src="shell.js"></script>', (url.searchParams.has('mock') ? '<script src="/dev-avplay.js"></script>' : '')
+        // ?android: start the app the way the Android TV shell does (English, android: true, the H.264 variant).
+        + (url.searchParams.has('android') ? `<script>(function(){var h;Object.defineProperty(window,'LilinTvHost',{configurable:true,get:function(){return h},set:function(v){h={start:function(o){o.lang='en';o.android=true;o.play='browser&quality=auto';return v.start(o)}}}})})()</script>` : '')
+        + '<script src="/shell.js"></script>');
     res.writeHead(200, { 'Content-Type': 'text/html' });
     return res.end(html);
   }
@@ -55,6 +62,18 @@ http.createServer(async (req, res) => {
       let body;
       if (allowed) { headers['content-type'] = 'application/json'; body = await new Promise((ok) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => ok(b)); }); }
       const r = await fetch(upstream + url.pathname + url.search, { method: req.method, headers, body });
+      if (Object.keys(fakeSeen).length && url.pathname === '/api/me/progress' && r.ok) {
+        const j = await r.json();
+        j.seen = { ...(j.seen || {}), ...fakeSeen };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(j));
+      }
+      if (fakeTheme && url.pathname === '/api/status' && r.ok) {
+        const j = await r.json();
+        if (j.me) j.me.settings = { ...(j.me.settings || {}), theme: { preset: fakeTheme } };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(j));
+      }
       res.writeHead(r.status, { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream' });
       return res.end(Buffer.from(await r.arrayBuffer()));
     } catch (e) { res.writeHead(502); return res.end(String(e)); }

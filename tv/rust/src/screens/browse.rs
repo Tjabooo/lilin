@@ -89,10 +89,12 @@ pub struct Card {
     pub hero: Option<Value>,
     /// vibes: a mood tile's own two colours (else the genre colours).
     pub tint: Option<(u32, u32)>,
+    /// An episode you've finished (any device): a tick on the picture, which steps back a little.
+    pub watched: bool,
 }
 impl Card {
     pub fn new(key: String, kind: Kind, title: String, act: Act) -> Card {
-        Card { key, kind, title, sub: String::new(), img: String::new(), frame: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None, tint: None }
+        Card { key, kind, title, sub: String::new(), img: String::new(), frame: String::new(), back: String::new(), badge: false, svt: false, see_all: false, bar: None, pct: String::new(), act, hero: None, tint: None, watched: false }
     }
     pub fn hash(&self) -> u64 {
         ui::hash(&self.key)
@@ -334,28 +336,28 @@ pub fn draw_card(cx: &mut Cx, c: &Card, x: f32, y: f32, lit: f32) {
     if let Kind::Genre(n) = c.kind {
         match c.tint {
             Some((a, b)) => cx.g.round_diag(r, radius, crate::gfx::hex(a), crate::gfx::hex(b)),
-            None => cx.g.round_diag(r, radius, crate::gfx::hex(GENRE_FROM[n as usize % 6]), ui::CURTAIN),
+            None => cx.g.round_diag(r, radius, crate::gfx::hex(GENRE_FROM[n as usize % 6]), ui::curtain()),
         }
         let f = display(36.0 * (1.0 + 0.06 * lit), 800);
         let lines = cx.tx.wrap(f, &c.title, r.w - 52.0, 2);
         let lh = f.size * 1.05;
         let mut ly = r.b() - 22.0 - lines.len() as f32 * lh - (f.line() - lh) / 2.0;
         for l in &lines {
-            cx.tx.draw(&mut cx.g, f, l, r.x + 26.0, ly, ui::PAPER);
+            cx.tx.draw(&mut cx.g, f, l, r.x + 26.0, ly, ui::paper());
             ly += lh;
         }
-        cx.g.ring(r, radius, 1.0, hexa(0xF6EADF, 0.08));
+        cx.g.ring(r, radius, 1.0, ui::paper().alpha(0.08));
         return;
     }
     if c.see_all {
-        cx.g.round(r, radius, hexa(0x2B1724, 0.9));
-        cx.g.ring(r, radius, 2.0, ui::HAIR.alpha(1.0 - lit));
+        cx.g.round(r, radius, ui::curtain().alpha(0.9));
+        cx.g.ring(r, radius, 2.0, ui::hair().alpha(1.0 - lit));
         let f = body(28.0, 700);
         let lh = f.line();
-        cx.tx.draw_center(&mut cx.g, f, &c.title, r.x + r.w / 2.0, r.y + (r.h - lh) / 2.0, ui::DUST.mix(ui::PAPER, lit));
+        cx.tx.draw_center(&mut cx.g, f, &c.title, r.x + r.w / 2.0, r.y + (r.h - lh) / 2.0, ui::dust().mix(ui::paper(), lit));
         return;
     }
-    let mut shown = ui::picture(cx, &c.img, r, radius, Some(ui::SEAT), 1.0);
+    let mut shown = ui::picture(cx, &c.img, r, radius, Some(ui::seat()), 1.0);
     if !c.frame.is_empty() {
         shown |= ui::picture(cx, &c.frame, r, radius, None, 1.0);
     }
@@ -365,9 +367,13 @@ pub fn draw_card(cx: &mut Cx, c: &Card, x: f32, y: f32, lit: f32) {
         let lines = cx.tx.wrap(f, &c.title, r.w - 36.0, 3);
         let mut ly = r.y + r.h / 2.0 - lines.len() as f32 * 17.0;
         for l in &lines {
-            cx.tx.draw_center(&mut cx.g, f, l, r.x + r.w / 2.0, ly, ui::DUST.alpha(0.55));
+            cx.tx.draw_center(&mut cx.g, f, l, r.x + r.w / 2.0, ly, ui::dust().alpha(0.55));
             ly += 34.0;
         }
+    }
+    if c.watched {
+        cx.g.round(r, radius, ui::velvet().alpha(0.38));
+        ui::tick_badge(cx, r.r() - 14.0 - 44.0, r.y + 14.0, 44.0);
     }
     if c.svt {
         let f = body(18.0, 700);
@@ -381,28 +387,28 @@ pub fn draw_card(cx: &mut Cx, c: &Card, x: f32, y: f32, lit: f32) {
         let label = t!("In library");
         let tw = cx.tx.width(f, label);
         let b = rect(r.x + 12.0, r.b() - 12.0 - 34.0, tw + 20.0, 34.0);
-        cx.g.round(b, 8.0, hexa(0x1F1019, 0.92));
-        cx.tx.draw(&mut cx.g, f, label, b.x + 10.0, b.y + (34.0 - f.line()) / 2.0, ui::BULB);
+        cx.g.round(b, 8.0, ui::velvet().alpha(0.92));
+        cx.tx.draw(&mut cx.g, f, label, b.x + 10.0, b.y + (34.0 - f.line()) / 2.0, ui::bulb());
     }
     if !c.pct.is_empty() {
         let f = body(24.0, 700);
         let tw = cx.tx.width(f, &c.pct);
         let b = rect(r.r() - 10.0 - tw - 20.0, r.b() - 18.0 - 36.0, tw + 20.0, 36.0);
         cx.g.round(b, 8.0, hexa(0x000000, 0.65));
-        cx.tx.draw(&mut cx.g, f, &c.pct, b.x + 10.0, b.y + (36.0 - f.line()) / 2.0, ui::PAPER);
+        cx.tx.draw(&mut cx.g, f, &c.pct, b.x + 10.0, b.y + (36.0 - f.line()) / 2.0, ui::paper());
     }
     if let Some(p) = c.bar {
         // A soft dark floor under the bar so it reads on bright pictures.
         cx.g.vgrad(rect(r.x, r.b() - 60.0, r.w, 60.0), &[(0.0, hexa(0x000000, 0.0)), (1.0, hexa(0x000000, 0.45))]);
         ui::bar(cx, rect(r.x + 12.0, r.b() - 17.0, r.w - 24.0, 7.0), p, hexa(0xFFFFFF, 0.28));
     }
-    cx.g.ring(r, radius, 1.0, hexa(0xF6EADF, 0.08));
+    cx.g.ring(r, radius, 1.0, ui::paper().alpha(0.08));
     let (nf, sf, gap) = c.kind.fonts();
     let ty = base.b() + gap + 6.0 * lit;
-    let name_c = ui::PAPER.mix(ui::WHITE, lit);
+    let name_c = if crate::theme::is_light() { ui::paper() } else { ui::paper().mix(ui::WHITE, lit) };
     cx.tx.draw_fit(&mut cx.g, nf, &c.title, x, ty, w, name_c);
     if !c.sub.is_empty() {
-        cx.tx.draw_fit(&mut cx.g, sf, &c.sub, x, ty + nf.line(), w, ui::DUST);
+        cx.tx.draw_fit(&mut cx.g, sf, &c.sub, x, ty + nf.line(), w, ui::dust());
     }
 }
 
@@ -706,7 +712,7 @@ impl Rows {
             if ry > view.b() + 40.0 || ry + rh < view.y - 40.0 {
                 continue;
             }
-            cx.tx.draw(&mut cx.g, self.h2, &row.title, ui::EDGE, ry, ui::PAPER);
+            cx.tx.draw(&mut cx.g, self.h2, &row.title, ui::EDGE, ry, ui::paper());
             let art_y = ry + self.h2.line() + 14.0 + 18.0;
             if row.cards.is_empty() {
                 if row.busy || row.lazy {

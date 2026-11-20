@@ -88,16 +88,16 @@ impl Screen for ShowScreen {
             }
         } else {
             let f = display(84.0, 800);
-            cx.tx.draw_fit(&mut cx.g, f, &name, x - 3.0, y, 1300.0, ui::PAPER);
+            cx.tx.draw_fit(&mut cx.g, f, &name, x - 3.0, y, 1300.0, ui::paper());
             y += 100.0;
         }
         let ov = String::from(s(&self.show, "overview"));
         if !ov.is_empty() {
-            y += cx.tx.para(&mut cx.g, body(26.0, 400), &ov, x, y, 1150.0, 2, 34.0, ui::DUST);
+            y += cx.tx.para(&mut cx.g, body(26.0, 400), &ov, x, y, 1150.0, 2, 34.0, ui::dust());
         }
         if !self.cast.is_empty() {
             let c = self.cast.clone();
-            cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &c, x, y + 6.0, 1150.0, ui::DUST);
+            cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &c, x, y + 6.0, 1150.0, ui::dust());
             y += 40.0;
         }
         if let Some(p) = self.on_way.clone() {
@@ -140,14 +140,14 @@ impl Screen for ShowScreen {
             let busy = crate::util::b(e, "converting");
             cx.g.push_alpha(if busy { 0.5 } else { 1.0 });
             if lit > 0.0 {
-                cx.g.glow(r, 20.0, 40.0, ui::BULB.alpha(0.25 * lit));
-                cx.g.round(r, 20.0, hexa(0x3A2031, 0.92 * lit));
-                cx.g.ring(r, 20.0, 3.0, ui::BULB.alpha(lit));
+                cx.g.glow(r, 20.0, 40.0, ui::bulb().alpha(0.25 * lit));
+                cx.g.round(r, 20.0, ui::seat().alpha(0.92 * lit));
+                cx.g.ring(r, 20.0, 3.0, ui::bulb().alpha(lit));
             }
             let art = rect(r.x + 14.0, r.y + 14.0, 320.0, 180.0);
             let still = String::from(s(e, "still"));
             let pic = if still.is_empty() { back.clone() } else { still };
-            ui::picture(cx, &pic, art, 12.0, Some(ui::SEAT), 1.0);
+            ui::picture(cx, &pic, art, 12.0, Some(ui::seat()), 1.0);
             let p = progress.get(logic::progress_ref(e));
             let ok = logic::resumable(p);
             if ok {
@@ -168,9 +168,9 @@ impl Screen for ShowScreen {
                 }
             }
             let tx0 = art.r() + 32.0;
-            cx.tx.draw(&mut cx.g, body(24.0, 400), &label, tx0, r.y + 62.0, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(24.0, 400), &label, tx0, r.y + 62.0, ui::dust());
             let en = if s(e, "episodeName").is_empty() { logic::episode_label(e) } else { String::from(s(e, "episodeName")) };
-            cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &en, tx0, r.y + 96.0, 900.0, ui::PAPER.mix(ui::WHITE, lit));
+            cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &en, tx0, r.y + 96.0, 900.0, ui::paper().mix(ui::WHITE, lit));
             cx.g.pop_alpha();
         }
         cx.g.pop_clip();

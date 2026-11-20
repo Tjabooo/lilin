@@ -131,10 +131,26 @@ test('TV: a video being prepared shows how far that has come', () => {
 test('themeVars: the person\'s saved theme, the server default, or Lilin', () => {
   assert.equal(L.themeVars({ preset: 'forest' }).vars['--bulb'], '#9BE07A');
   assert.equal(L.themeVars(null, 'midnight').vars['--velvet'], '#0E1320');
-  assert.equal(L.themeVars({ preset: 'nope' }).vars['--velvet'], '#1F1019');
+  assert.equal(L.themeVars({ preset: 'nope' }).vars['--velvet'], '#140A14');
   assert.equal(L.themeVars({ preset: 'daylight' }).scheme, 'light');
   const custom = L.themeVars({ preset: 'custom', colors: { bg: '#101010', surface: '#202020', text: '#eeeeee', accent: '#ff0000' } });
   assert.equal(custom.vars['--bulb-rgb'], '255, 0, 0');
   assert.equal(custom.scheme, 'dark');
-  assert.equal(L.themeVars({ preset: 'custom', colors: { bg: 'red' } }).vars['--velvet'], '#1F1019');
+  assert.equal(L.themeVars({ preset: 'custom', colors: { bg: 'red' } }).vars['--velvet'], '#140A14');
+  assert.equal(L.themeVars({ preset: 'bone' }).scheme, 'light');
+});
+
+test('the TV apps know every web theme, in the same colours (JavaScript and Rust tables)', () => {
+  const web = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const block = web.slice(web.indexOf('const THEMES = {'), web.indexOf('};', web.indexOf('const THEMES = {')));
+  const themes = [...block.matchAll(/^\s+(\w+): \{ name: [^,]+, bg: '(#\w+)', surface: '(#\w+)', raised: '(#\w+)', line: '(#\w+)', text: '(#\w+)', muted: '(#\w+)', accent: '(#\w+)', alert: '(#\w+)'/gm)];
+  assert.ok(themes.length >= 11);
+  const rust = fs.readFileSync(new URL('../tv/rust/src/theme.rs', import.meta.url), 'utf8');
+  for (const [, key, bg, surface, raised, line, text, muted, accent, alert] of themes) {
+    const v = L.themeVars({ preset: key }).vars;
+    assert.deepEqual([v['--velvet'], v['--curtain'], v['--seat'], v['--line'], v['--paper'], v['--dust'], v['--bulb'], v['--alert']].map((c) => c.toUpperCase()),
+      [bg, surface, raised, line, text, muted, accent, alert].map((c) => c.toUpperCase()), key);
+    const hex = [bg, surface, raised, line, text, muted, accent, alert].map((c) => '0x' + c.slice(1).toUpperCase()).join(', ');
+    assert.ok(rust.includes(`("${key}", [${hex}])`), `theme.rs: ${key}`);
+  }
 });

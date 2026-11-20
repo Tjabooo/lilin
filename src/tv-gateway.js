@@ -12,20 +12,21 @@ export const TV_GATEWAY = '/c/tv';
 
 const OPEN = [
   /^\/tv\/[\w.-]+\.(js|css)$/,
+  /^\/tv-rs\/[\w.-]+\.(js|wasm|png)$/, // the Rust TV app (host.js, lilin_tv.wasm, wordmark.png)
   /^\/fonts\/[\w.-]+\.woff2$/,
   /^\/api\/(health|status)$/,
   /^\/api\/tv\/pair\/(start|poll)$/,
   /^\/android(\/|\.apk|\.json)?$/,
   /^\/play\//,
 ];
-// What public/tv/tv.js asks for (tests/tv-gateway.test.mjs checks every call in it is here).
+// What the TV apps ask for: public/tv/tv.js and the Rust one, tv/rust/src (tests/tv-gateway.test.mjs checks every call).
 const SIGNED_IN = [
   /^\/api\/library$/,
   /^\/api\/me\/progress$/,
   /^\/api\/downloads$/,
   /^\/api\/downloads\/smart(\/[\w-]+)?$/,
-  /^\/api\/discover\/(genres|home|list)$/,
-  /^\/api\/docs\/home$/,
+  /^\/api\/discover\/(genres|genre|home|list)$/,
+  /^\/api\/docs\/(home|category)$/,
   /^\/api\/svt\/(add|title)$/,
   /^\/api\/search$/,
   /^\/api\/title\/(movie|tv)\/\d+\/(page|cast|song)$/, // song: the credits card

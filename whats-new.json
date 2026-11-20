@@ -1,5 +1,32 @@
 [
   {
+    "id": "2026-11-20-tv-apps-identity",
+    "date": "2026-11-20",
+    "title": "Both TV apps in the new look, and now the same app",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "TV apps in Lilin's new look",
+        "text": "The Samsung and Android TV apps have Lilin's new colours, logo and app icon. They also follow the theme you picked in Settings → Appearance, light themes included."
+      },
+      {
+        "kind": "new",
+        "title": "Android TV runs the Samsung app",
+        "text": "The Android TV app now runs the same app as Samsung TVs, so the two look and work the same: the redesigned title pages with cast and More like this, smoother scrolling and the same player. The app updates itself to version 2.3.0; open Lilin once to get it."
+      },
+      {
+        "kind": "new",
+        "title": "Watched episodes on the TV",
+        "text": "A show's episode row on the TV ticks off the episodes you've finished, on any device."
+      },
+      {
+        "kind": "improved",
+        "title": "Credits card on the TV",
+        "text": "When the credits roll on the TV, the show's picture fills the screen around the small video, with its logo and what the next episode is about."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-themed-tab-icon",
     "date": "2026-11-20",
     "title": "The tab icon wears your theme",

@@ -1,6 +1,6 @@
 //! See all, a genre, a documentary category: a grid that pages in as you move down, with type and sort chips.
 use super::browse::{self, Grid, Kind, GRID_MAX};
-use crate::gfx::{hexa, rect};
+use crate::gfx::{rect};
 use crate::text::{body, display};
 use crate::ui::{self, Lit};
 use crate::util::{arr, enc, i, s};
@@ -121,11 +121,11 @@ impl Screen for GridScreen {
             if self.grid.cards.is_empty() && self.busy {
                 ui::loading(cx, 960.0, top + 160.0, &self.note.clone());
             } else {
-                cx.tx.draw(&mut cx.g, body(28.0, 400), &self.note.clone(), ui::EDGE, top + 20.0, ui::DUST);
+                cx.tx.draw(&mut cx.g, body(28.0, 400), &self.note.clone(), ui::EDGE, top + 20.0, ui::dust());
             }
         }
-        cx.g.vgrad(rect(0.0, 0.0, 1920.0, top), &[(0.0, ui::VELVET), (0.8, ui::VELVET), (1.0, hexa(0x1F1019, 0.0))]);
-        cx.tx.draw_fit(&mut cx.g, display(68.0, 800), &self.title, ui::EDGE - 3.0, 52.0, 1700.0, ui::PAPER);
+        cx.g.vgrad(rect(0.0, 0.0, 1920.0, top), &[(0.0, ui::velvet()), (0.8, ui::velvet()), (1.0, ui::velvet().alpha(0.0))]);
+        cx.tx.draw_fit(&mut cx.g, display(68.0, 800), &self.title, ui::EDGE - 3.0, 52.0, 1700.0, ui::paper());
         if !self.chips.is_empty() {
             let f = body(26.0, 700);
             match (self.at_top, self.chips.get(self.ci)) {

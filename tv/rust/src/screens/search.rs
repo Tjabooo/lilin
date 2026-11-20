@@ -1,8 +1,8 @@
 //! Search: an on-screen keyboard for the remote (a USB/Bluetooth keyboard and the remote's digits type too).
 //! Your library answers at once; TMDB (through the server) once you stop typing.
 use super::browse::{self, Card, Grid, Kind};
-use crate::gfx::{hexa, rect};
-use crate::text::{body, display};
+use crate::gfx::{rect};
+use crate::text::body;
 use crate::ui::{self, Lit};
 use crate::util::{arr, enc, has, s, search_key};
 use crate::{key, t, Cx, Key, Res, Screen};
@@ -148,17 +148,17 @@ impl Screen for Search {
     }
     fn draw(&mut self, cx: &mut Cx) {
         ui::room(cx);
-        cx.tx.draw(&mut cx.g, display(46.0, 800).glow(), t!("Search"), ui::EDGE, 64.0, ui::BULB);
-        cx.tx.draw_right(&mut cx.g, body(24.0, 400), t!("OK: type · Right: results · Back: close"), 1920.0 - ui::EDGE, 76.0, ui::DUST);
+        ui::brand(cx, t!("Search"), 64.0);
+        cx.tx.draw_right(&mut cx.g, body(24.0, 400), t!("OK: type · Right: results · Back: close"), 1920.0 - ui::EDGE, 76.0, ui::dust());
 
         // The field.
         let field = rect(ui::EDGE, 170.0, 520.0, 78.0);
-        cx.g.pill(field, hexa(0x2B1724, 0.9));
-        cx.g.ring(field, 39.0, 2.0, hexa(0xF4C152, 0.45));
+        cx.g.pill(field, ui::curtain().alpha(0.9));
+        cx.g.ring(field, 39.0, 2.0, ui::bulb().alpha(0.45));
         let f = body(34.0, 700);
         let ty = field.y + (78.0 - f.line()) / 2.0;
         if self.q.is_empty() {
-            cx.tx.draw(&mut cx.g, body(34.0, 400), t!("Films and shows"), field.x + 28.0, ty, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(34.0, 400), t!("Films and shows"), field.x + 28.0, ty, ui::dust());
         } else {
             let q = self.q.clone();
             // The end of what you typed stays in view.
@@ -166,10 +166,10 @@ impl Screen for Search {
             while cx.tx.width(f, &shown) > 440.0 && !shown.is_empty() {
                 shown.remove(0);
             }
-            let w = cx.tx.draw(&mut cx.g, f, &shown, field.x + 28.0, ty, ui::PAPER);
+            let w = cx.tx.draw(&mut cx.g, f, &shown, field.x + 28.0, ty, ui::paper());
             let blink = ((cx.now / 530.0) as i64) % 2 == 0;
             if blink {
-                cx.g.fill(rect(field.x + 30.0 + w, field.y + 20.0, 3.0, 38.0), ui::BULB);
+                cx.g.fill(rect(field.x + 30.0 + w, field.y + 20.0, 3.0, 38.0), ui::bulb());
             }
             cx.ambient = true;
         }
@@ -194,12 +194,12 @@ impl Screen for Search {
             let lit = self.lit.get(100 + n as u64 + 1);
             key_cap(cx, r, l, wf, lit);
             if n == 1 {
-                erase_icon(cx, r.scale(1.0 + 0.06 * lit), ui::PAPER.mix(ui::ON_BULB, lit));
+                erase_icon(cx, r.scale(1.0 + 0.06 * lit), ui::paper().mix(ui::on_bulb(), lit));
             }
         }
         // Results.
         let lf = body(32.0, 700);
-        cx.tx.draw_fit(&mut cx.g, lf, &self.label.clone(), 686.0, 160.0, 1100.0, ui::PAPER);
+        cx.tx.draw_fit(&mut cx.g, lf, &self.label.clone(), 686.0, 160.0, 1100.0, ui::paper());
         let view = rect(686.0, 220.0, 1920.0 - 686.0 - 40.0, 860.0);
         self.grid.draw(cx, view, !self.keys_zone);
     }
@@ -313,7 +313,7 @@ fn erase_icon(cx: &mut Cx, r: crate::gfx::Rect, c: crate::gfx::Rgba) {
     }
     cx.g.round(rect(x, y, w - 12.0, h), 4.0, c);
     let f = body(26.0, 700);
-    let bg = crate::gfx::hexa(0x2B1724, 1.0).mix(ui::BULB, if c == ui::PAPER { 0.0 } else { 1.0 });
+    let bg = ui::curtain().alpha(1.0).mix(ui::bulb(), if c == ui::paper() { 0.0 } else { 1.0 });
     cx.tx.draw_center(&mut cx.g, f, "×", x + (w - 12.0) / 2.0, y + (h - f.line()) / 2.0, bg);
 }
 
@@ -324,9 +324,9 @@ fn upper(c: char) -> String {
 fn key_cap(cx: &mut Cx, r: crate::gfx::Rect, label: &str, f: crate::text::Font, lit: f32) {
     let r = r.scale(1.0 + 0.06 * lit);
     if lit > 0.0 {
-        cx.g.glow(r, 14.0, 36.0, ui::BULB.alpha(0.4 * lit));
+        cx.g.glow(r, 14.0, 36.0, ui::bulb().alpha(0.4 * lit));
     }
-    cx.g.round(r, 14.0, hexa(0x2B1724, 0.9).mix(ui::BULB, lit));
-    let c = ui::PAPER.mix(ui::ON_BULB, lit);
+    cx.g.round(r, 14.0, ui::curtain().alpha(0.9).mix(ui::bulb(), lit));
+    let c = ui::paper().mix(ui::on_bulb(), lit);
     cx.tx.draw_center(&mut cx.g, f, label, r.x + r.w / 2.0, r.y + (r.h - f.line()) / 2.0, c);
 }

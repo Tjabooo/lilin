@@ -14,6 +14,9 @@
   function start(opts) {
     var server = String(opts.server || '').replace(/\/+$/, '');
     var fail = opts.onFail || function () {};
+    // Which TV: the Samsung shell passes nothing (Swedish, HEVC, AVPlay); the Android TV shell passes its
+    // language, the play-link variant its decoder can take, and android: true (ExoPlayer behind the AVPlay shape).
+    var platform = { lang: opts.lang || 'sv', play: opts.play || 'browser-hevc', android: Boolean(opts.android) };
     var failed = false;
     function giveUp(why) {
       if (failed) return;
@@ -328,7 +331,7 @@
       },
       // The page under the canvas: velvet normally, see-through while a video plays (AVPlay draws below the page).
       video_mode: function (on) {
-        var bg = on ? 'transparent' : '#1F1019';
+        var bg = on ? 'transparent' : '';
         document.documentElement.style.background = bg;
         document.body.style.background = bg;
       },
@@ -389,6 +392,7 @@
       },
       av_select_audio: function (i) { try { av.setSelectTrack('AUDIO', i); return 1; } catch (e) { return 0; } },
       av_rect: function (x, y, w, h) { try { av.setDisplayRect(x, y, w, h); } catch (e) { /* not open */ } },
+      platform: function () { return answer(JSON.stringify(platform)); },
     };
     var wrapped = {};
     Object.keys(env).forEach(function (k) { wrapped[k] = env[k]; });
@@ -398,6 +402,7 @@
       timers = {};
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('visibilitychange', onVis);
+      if (root.__mq && root.__mq.handlers) delete root.__mq.handlers.net;
       if (avObject) env.av_close();
       if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
       document.documentElement.style.background = '';
@@ -444,6 +449,13 @@
       try { KEYS.forEach(function (k) { try { tizen.tvinputdevice.registerKey(k); } catch (e) { /* not on this model */ } }); } catch (e) { /* not a TV */ }
       document.addEventListener('keydown', onKey, true);
       document.addEventListener('visibilitychange', onVis);
+      // The Android app's 2 s network report ({ bw, buf, br }): the player moves to the adaptive stream on a slow line.
+      if (platform.android && root.__mq && root.__mq.handlers) {
+        root.__mq.handlers.net = guard(function (e) {
+          var b = utf8(JSON.stringify({ bw: e.bw || 0, buf: e.buf || 0, br: e.br || 0 }));
+          ex.av_event(10, 0, give(b), b.length);
+        });
+      }
       var app = document.getElementById('app');
       var b = utf8(server);
       ex.start(give(b), b.length);

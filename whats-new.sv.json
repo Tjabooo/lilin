@@ -1,4 +1,25 @@
 {
+  "2026-11-20-tv-apps-identity": {
+    "title": "Båda TV-apparna i den nya stilen, och nu samma app",
+    "items": {
+      "TV apps in Lilin's new look": {
+        "title": "TV-apparna i Lilins nya stil",
+        "text": "Samsung- och Android TV-apparna har fått Lilins nya färger, logga och appikon. De följer också temat du valt under Inställningar → Utseende, ljusa teman också."
+      },
+      "Android TV runs the Samsung app": {
+        "title": "Android TV kör Samsung-appen",
+        "text": "Android TV-appen kör nu samma app som Samsung-TV:n, så de ser ut och fungerar likadant: de omgjorda titelsidorna med medverkande och Mer som det här, mjukare scrollning och samma spelare. Appen uppdaterar sig själv till version 2.3.0; öppna Lilin en gång för att få den."
+      },
+      "Watched episodes on the TV": {
+        "title": "Sedda avsnitt på TV:n",
+        "text": "En series avsnittsrad på TV:n bockar av avsnitten du har sett klart, på vilken enhet som helst."
+      },
+      "Credits card on the TV": {
+        "title": "Eftertextkortet på TV:n",
+        "text": "När eftertexterna rullar på TV:n fyller seriens bild skärmen runt den lilla videon, med loggan och vad nästa avsnitt handlar om."
+      }
+    }
+  },
   "2026-11-20-themed-tab-icon": {
     "title": "Flikikonen följer ditt tema",
     "items": {

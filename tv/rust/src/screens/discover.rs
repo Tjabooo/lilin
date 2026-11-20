@@ -2,7 +2,7 @@
 //! rows that keep loading as you move along them scroll underneath.
 use super::browse::{self, Act, Card, Fetch, Kind, Row, Rows};
 use super::grid::{GridScreen, Source};
-use crate::gfx::{hexa, rect};
+use crate::gfx::{rect};
 use crate::text::{body, display};
 use crate::ui::{self, Ambient, Ease, Lit};
 use crate::util::{arr, s};
@@ -80,18 +80,18 @@ impl Hero {
     fn draw(&mut self, cx: &mut Cx) {
         let art = rect(0.0, 0.0, 1920.0, 900.0);
         self.amb.draw(cx, art, 0.85);
-        cx.g.hgrad(art, &[(0.0, ui::VELVET), (0.30, hexa(0x1F1019, 0.78)), (0.64, hexa(0x1F1019, 0.1)), (1.0, hexa(0x1F1019, 0.0))]);
-        cx.g.vgrad(art, &[(0.0, hexa(0x1F1019, 0.0)), (0.34, hexa(0x1F1019, 0.0)), (0.74, ui::VELVET), (1.0, ui::VELVET)]);
-        cx.g.fill(rect(0.0, 900.0, 1920.0, 180.0), ui::VELVET);
+        cx.g.hgrad(art, &[(0.0, ui::velvet()), (0.30, ui::velvet().alpha(0.78)), (0.64, ui::velvet().alpha(0.1)), (1.0, ui::velvet().alpha(0.0))]);
+        cx.g.vgrad(art, &[(0.0, ui::velvet().alpha(0.0)), (0.34, ui::velvet().alpha(0.0)), (0.74, ui::velvet()), (1.0, ui::velvet())]);
+        cx.g.fill(rect(0.0, 900.0, 1920.0, 180.0), ui::velvet());
         let a = self.text_in.v;
         cx.g.push_alpha(a);
         let h1 = display(76.0, 800);
-        cx.tx.draw_fit(&mut cx.g, h1, &self.title, ui::EDGE - 3.0, 168.0, 1300.0, ui::PAPER);
+        cx.tx.draw_fit(&mut cx.g, h1, &self.title, ui::EDGE - 3.0, 168.0, 1300.0, ui::paper());
         if !self.meta.is_empty() {
             ui::meta_dot(cx, ui::EDGE + 1.0, 275.0);
-            cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &self.meta, ui::EDGE + 25.0, 263.0, 1100.0, hexa(0xF6EADF, 0.86));
+            cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &self.meta, ui::EDGE + 25.0, 263.0, 1100.0, ui::paper().alpha(0.86));
         }
-        cx.tx.para(&mut cx.g, body(27.0, 400), &self.text, ui::EDGE, 314.0, 980.0, 3, 35.0, hexa(0xF6EADF, 0.82));
+        cx.tx.para(&mut cx.g, body(27.0, 400), &self.text, ui::EDGE, 314.0, 980.0, 3, 35.0, ui::paper().alpha(0.82));
         cx.g.pop_alpha();
     }
 }
@@ -107,9 +107,8 @@ enum Tab {
 }
 
 fn tabs_bar(cx: &mut Cx, name: &str, tabs: &[&str], active: Option<usize>, lit: &mut Lit, focus: Option<usize>) {
-    cx.g.vgrad(rect(0.0, 0.0, 1920.0, 170.0), &[(0.0, hexa(0x1F1019, 0.7)), (1.0, hexa(0x1F1019, 0.0))]);
-    let f = display(46.0, 800).glow();
-    cx.tx.draw(&mut cx.g, f, name, ui::EDGE, 64.0, ui::BULB);
+    cx.g.vgrad(rect(0.0, 0.0, 1920.0, 170.0), &[(0.0, ui::velvet().alpha(0.7)), (1.0, ui::velvet().alpha(0.0))]);
+    ui::brand(cx, name, 64.0);
     let pf = body(26.0, 700);
     let ws: Vec<f32> = tabs.iter().map(|l| ui::pill_w(cx, l, pf, 28.0, 0.0)).collect();
     let total: f32 = ws.iter().sum::<f32>() + 16.0 * (tabs.len() as f32 - 1.0) + if tabs.len() > 1 { 12.0 } else { 0.0 };
@@ -382,8 +381,8 @@ impl Screen for Discover {
             ui::loading(cx, 960.0, 640.0, t!("Loading Discover…"));
         }
         if let Some((h, p)) = self.empty.clone() {
-            cx.tx.draw(&mut cx.g, display(64.0, 800), &h, ui::EDGE, 560.0, ui::PAPER);
-            cx.tx.para(&mut cx.g, body(34.0, 400), &p, ui::EDGE, 660.0, 1100.0, 3, 44.0, ui::DUST);
+            cx.tx.draw(&mut cx.g, display(64.0, 800), &h, ui::EDGE, 560.0, ui::paper());
+            cx.tx.para(&mut cx.g, body(34.0, 400), &p, ui::EDGE, 660.0, 1100.0, 3, 44.0, ui::dust());
         }
         let tabs = self.tabs(cx);
         let refs: Vec<&str> = tabs.iter().map(|x| x.as_str()).collect();
@@ -557,8 +556,8 @@ impl Screen for Docs {
             ui::loading(cx, 960.0, 640.0, t!("Loading documentaries…"));
         }
         if let Some((h, p)) = self.empty.clone() {
-            cx.tx.draw(&mut cx.g, display(64.0, 800), &h, ui::EDGE, 560.0, ui::PAPER);
-            cx.tx.para(&mut cx.g, body(34.0, 400), &p, ui::EDGE, 660.0, 1100.0, 3, 44.0, ui::DUST);
+            cx.tx.draw(&mut cx.g, display(64.0, 800), &h, ui::EDGE, 560.0, ui::paper());
+            cx.tx.para(&mut cx.g, body(34.0, 400), &p, ui::EDGE, 660.0, 1100.0, 3, 44.0, ui::dust());
         }
         tabs_bar(cx, t!("Documentaries"), &[t!("Search")], None, &mut self.lit, if self.at_top { Some(0) } else { None });
     }

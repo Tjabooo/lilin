@@ -34,7 +34,7 @@
     jsStarted = true;
     var v = Date.now();
     var app = document.getElementById('app');
-    if (app && !app.firstChild) app.innerHTML = '<div class="shell"><b>Lilin</b><p id="shell-note"></p></div>';
+    if (app && !app.firstChild) app.innerHTML = '<div class="shell"><p id="shell-note"></p></div>';
     var css = document.createElement('link');
     css.rel = 'stylesheet';
     css.href = server + '/tv/tv.css?v=' + v;

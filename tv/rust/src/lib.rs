@@ -10,8 +10,10 @@ pub mod host;
 pub mod i18n;
 pub mod img;
 pub mod logic;
+pub mod platform;
 pub mod screens;
 pub mod text;
+pub mod theme;
 pub mod ui;
 pub mod util;
 
@@ -153,6 +155,8 @@ pub struct State {
     pub progress: Value,
     /// Titles taken out of Continue watching (title key -> when), from /api/me/progress.
     pub continue_hidden: Value,
+    /// Episodes finished at some point, per show ("tv:1399" -> ["1:2", …]), from /api/me/progress.
+    pub seen: Value,
     pub genres: Vec<Value>,
     pub pending: Vec<logic::Pending>,
     pub focus_pending: bool,
@@ -209,6 +213,12 @@ impl State {
     }
     pub fn setting(&self, k: &str) -> &str {
         self.me.get("settings").map(|s| util::s(s, k)).unwrap_or("")
+    }
+    /// Finished this episode of the show (TMDB id) at some point, on any device?
+    pub fn seen_episode(&self, tmdb: i64, season: i64, episode: i64) -> bool {
+        let key = alloc::format!("tv:{}", tmdb);
+        let want = alloc::format!("{}:{}", season, episode);
+        self.seen.get(&key).and_then(|v| v.as_array()).is_some_and(|l| l.iter().any(|x| x.as_str() == Some(want.as_str())))
     }
     pub fn genre_names(&self, tv: bool, ids: &[Value]) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
@@ -285,7 +295,7 @@ impl Cx {
         self.next_req += 1;
         let id = self.next_req;
         self.reqs.insert(id, route);
-        let mut headers = String::from("X-Lilin-TV: 1\nX-Lilin-Lang: sv\n");
+        let mut headers = alloc::format!("X-Lilin-TV: 1\nX-Lilin-Lang: {}\n", if platform::swedish() { "sv" } else { "en" });
         if let Some(t) = self.token() {
             if t != "home" && !t.is_empty() {
                 headers.push_str("X-Lilin-Session: ");
@@ -479,12 +489,26 @@ impl App {
             cx.g.begin();
             let n = self.stack.len();
             if n >= 2 && self.stack[n - 1].overlay() {
+                let video = self.stack[n - 2].video();
+                if video {
+                    theme::dark();
+                }
                 self.stack[n - 2].draw(&mut self.cx);
+                if video {
+                    theme::undark();
+                }
+            }
+            let video = self.stack.last().map(|s| s.video()).unwrap_or(false);
+            if video {
+                theme::dark();
             }
             if let Some(s) = self.stack.last_mut() {
                 s.draw(&mut self.cx);
             }
             ui::toast(&mut self.cx);
+            if video {
+                theme::undark();
+            }
             if !self.cx.tx.redo {
                 break;
             }
@@ -521,6 +545,7 @@ impl App {
                     if r.ok() {
                         cx.state.progress = r.json.get("progress").cloned().unwrap_or(Value::Object(Default::default()));
                         cx.state.continue_hidden = r.json.get("hidden").cloned().unwrap_or(Value::Object(Default::default()));
+                        cx.state.seen = r.json.get("seen").cloned().unwrap_or(Value::Object(Default::default()));
                     }
                 }
                 cx.joined(j);
@@ -583,6 +608,8 @@ fn take(p: *mut u8, n: usize) -> String {
 #[no_mangle]
 pub extern "C" fn start(p: *mut u8, n: usize) {
     let server = take(p, n);
+    platform::read();
+    theme::restore();
     let cx = Cx {
         server,
         g: Gfx::new(),
@@ -596,6 +623,7 @@ pub extern "C" fn start(p: *mut u8, n: usize) {
             shows: Vec::new(),
             progress: Value::Object(Default::default()),
             continue_hidden: Value::Object(Default::default()),
+            seen: Value::Object(Default::default()),
             genres: Vec::new(),
             pending: Vec::new(),
             focus_pending: false,

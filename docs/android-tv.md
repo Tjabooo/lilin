@@ -2,9 +2,10 @@
 
 Lilin's Android TV app (`tv/android`, package `app.lilin.tv`) runs on Android TV and Google TV: TVs with
 Google TV built in, Chromecast with Google TV, Nvidia Shield and other Android TV boxes (Android 7 or newer).
-It is the Samsung app's twin: the same screens (`public/tv`, loaded from the server at every start, so a
-Lilin update reaches the TV without a new app), the same sign-in, Skip intro and Up next. The app is in Swedish
-(`public/tv/sv.js`), like the Samsung app.
+It runs the Samsung app itself: the same Rust app (`public/tv-rs`, WebAssembly drawing with WebGL, see
+`tv/rust/README.md`), loaded from the server at every start, so both TVs look and behave the same and a Lilin
+update reaches them without a new app. It speaks the TV's language (Swedish or English) and follows each person's
+theme from Settings → Appearance. A box without WebGL or WebAssembly gets the older JavaScript app (`public/tv`).
 
 ## Installing it on a TV
 
@@ -61,7 +62,8 @@ No restart is needed: the server reads `dist` on each request. The first build m
 with another key won't install over the app (the TV would have to uninstall it first, losing its sign-in).
 
 To ship a new version of the app itself, raise `code` (and `name`) in `tv/android/version.properties`, build and
-publish; installed apps update themselves (Android 12+) or offer it on their next start. Changes to `public/tv` need no new app at all.
+publish; installed apps update themselves (Android 12+) or offer it on their next start. Changes to `public/tv-rs`
+and `public/tv` need no new app at all. The launcher icon, splash and banner come from `tv/android/art/render.py`.
 
 `--install` with `TV=<address>` installs over adb instead (Developer options → USB/network debugging on the TV);
 `--debug` builds a debuggable app whose page shows up in `chrome://inspect`.
@@ -69,10 +71,12 @@ publish; installed apps update themselves (Android 12+) or offer it on their nex
 ## How it works
 
 - **A thin shell.** `MainActivity` shows `assets/shell.html` in a WebView whose address is the Lilin server, so the
-  TV screens' requests are same-origin. The shell loads `tv.css`, `sv.js`, `logic.js` and `tv.js` side by side and
-  runs them in order. The page is laid out at 1920×1080 and fitted to the screen; the TV's font-size setting
+  TV screens' requests are same-origin. The shell starts `/tv-rs/host.js` with the TV's language, the video
+  variant its decoder takes and `android: true`; if WebGL or WebAssembly is missing (or the Rust app stops) it
+  loads the JavaScript app (`tv.css`, `sv.js`, `logic.js`, `tv.js`) instead. `localStorage['lilin:tv-engine'] = 'js'`
+  forces the JavaScript one. The page is laid out at 1920×1080 and fitted to the screen; the TV's font-size setting
   doesn't reflow it. Lilin's font ships inside the app, so the first screen draws in it at once.
-- **The player.** `tv.js` was written for Samsung's AVPlay. The shell gives it an object with the same methods
+- **The player.** The TV app was written for Samsung's AVPlay. The shell gives it an object with the same methods
   (`webapis.avplay`), backed by Android's ExoPlayer (`VideoPlayer.java`) drawing into a surface *under* the page;
   while a video is open the page turns see-through, so the OSD, Skip intro, Up next and subtitles sit on top of the
   picture. Positions come twice a second and the clock runs on in between, so reading the time costs nothing.
@@ -80,7 +84,8 @@ publish; installed apps update themselves (Android 12+) or offer it on their nex
   receiver, audio track choice.
 - **Which video.** On TVs with a hardware decoder for 10-bit HEVC at 4K, the app asks for the same file as the
   Samsung app. Others ask for `variant=browser&quality=auto`: an H.264 copy, or a live 1080p stream when the file is
-  too heavy (`Codecs.java`).
+  too heavy (`Codecs.java`). ExoPlayer rebuffers by itself, so on a slow line the app moves once to the adaptive
+  stream (1080p/720p) instead of reopening the file.
 - **The remote.** Arrows and OK reach the page as they are (no round trip). Back and the media keys
   (play/pause, play, pause, stop, rewind, fast-forward) arrive with Samsung's key codes. The Home button closes the
   player and keeps the resume point, as on Samsung.

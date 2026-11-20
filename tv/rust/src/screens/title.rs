@@ -306,9 +306,9 @@ impl TitleScreen {
 /// A long bar with its words above (a download on its way).
 pub fn strip(cx: &mut Cx, p: &Pending, x: f32, y: f32, w: f32) -> f32 {
     let f = body(28.0, 700);
-    cx.tx.draw_fit(&mut cx.g, f, &browse::pending_text(p), x, y, w, ui::PAPER);
+    cx.tx.draw_fit(&mut cx.g, f, &browse::pending_text(p), x, y, w, ui::paper());
     let r = rect(x, y + f.line() + 10.0, w, 12.0);
-    cx.g.glow(r, 6.0, 14.0, ui::BULB.alpha(0.18));
+    cx.g.glow(r, 6.0, 14.0, ui::bulb().alpha(0.18));
     ui::bar(cx, r, p.progress.map(|v| v as f32), hexa(0xFFFFFF, 0.14));
     f.line() + 22.0
 }
@@ -321,8 +321,8 @@ pub fn page_backdrop(cx: &mut Cx, url: &str, alpha: f32) {
     if !ui::backdrop(cx, &big, full, alpha) && big != url {
         ui::backdrop(cx, url, full, alpha);
     }
-    cx.g.hgrad(full, &[(0.0, ui::VELVET), (0.32, hexa(0x1F1019, 0.9)), (0.66, hexa(0x1F1019, 0.25)), (1.0, hexa(0x1F1019, 0.1))]);
-    cx.g.vgrad(full, &[(0.0, hexa(0x1F1019, 0.0)), (0.45, hexa(0x1F1019, 0.0)), (0.94, ui::VELVET), (1.0, ui::VELVET)]);
+    cx.g.hgrad(full, &[(0.0, ui::velvet()), (0.32, ui::velvet().alpha(0.9)), (0.66, ui::velvet().alpha(0.25)), (1.0, ui::velvet().alpha(0.1))]);
+    cx.g.vgrad(full, &[(0.0, ui::velvet().alpha(0.0)), (0.45, ui::velvet().alpha(0.0)), (0.94, ui::velvet()), (1.0, ui::velvet())]);
 }
 
 /// A title as its logo art when TMDB has one, else in big letters. Returns the height used.
@@ -339,7 +339,7 @@ pub fn heading(cx: &mut Cx, logo: &str, name: &str, x: f32, y: f32, size: f32, m
     let lines = cx.tx.wrap(f, name, max_w, 2);
     let lh = size * 1.02;
     for (n, l) in lines.iter().enumerate() {
-        cx.tx.draw(&mut cx.g, f, l, x - 3.0, y + n as f32 * lh, ui::PAPER);
+        cx.tx.draw(&mut cx.g, f, l, x - 3.0, y + n as f32 * lh, ui::paper());
     }
     lines.len() as f32 * lh + 16.0
 }
@@ -357,11 +357,11 @@ impl TitleScreen {
     fn draw_episodes(&mut self, cx: &mut Cx, x: f32, y: f32) -> f32 {
         self.ep_top = y + self.scroll.v;
         let Some(list) = self.episodes().cloned() else {
-            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("Loading episodes…"), x, y, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("Loading episodes…"), x, y, ui::dust());
             return y + 60.0;
         };
         if list.is_empty() {
-            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("No episodes listed yet."), x, y, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("No episodes listed yet."), x, y, ui::dust());
             return y + 60.0;
         }
         let n = self.season_no().unwrap_or(0);
@@ -372,6 +372,7 @@ impl TitleScreen {
         let sx = self.ep_x.step(cx, 13.0);
         let back = String::from(if !s(&self.t, "backdrop").is_empty() { s(&self.t, "backdrop") } else { s(&self.t, "poster") });
         let progress = cx.state.progress.clone();
+        let show_id = f(&self.t, "id").unwrap_or(0.0) as i64;
         for (i, e) in list.iter().enumerate() {
             let px = x + i as f32 * EP_STEP - sx;
             if px > 1920.0 || px + EP_STEP < 0.0 {
@@ -398,6 +399,11 @@ impl TitleScreen {
                     c.bar = Some(Some((f(p, "time").unwrap_or(0.0) / f(p, "duration").unwrap_or(1.0)) as f32));
                 }
             }
+            // Finished before (any device): a tick, unless a rewatch is partway (its bar says more).
+            if c.bar.is_none() && cx.state.seen_episode(show_id, n, en) {
+                c.watched = true;
+                c.sub = if c.sub.is_empty() { String::from(t!("Watched")) } else { alloc::format!("{} · {}", t!("Watched"), c.sub) };
+            }
             let lit = self.lit.get(4000 + i as u64);
             cx.g.push_alpha(if out { 1.0 } else { 0.5 });
             browse::draw_card(cx, &c, px, y, lit);
@@ -417,7 +423,7 @@ impl Screen for TitleScreen {
         let sy = self.scroll.step(cx, 12.0);
         if sy > 0.5 {
             // Further down the page the picture steps back behind the rows.
-            cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), ui::VELVET.alpha((sy / 520.0).min(1.0) * 0.72));
+            cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), ui::velvet().alpha((sy / 520.0).min(1.0) * 0.72));
         }
         let x = PAGE_X;
         let mut y = 112.0 - sy;
@@ -441,11 +447,11 @@ impl Screen for TitleScreen {
             parts.push(g);
         }
         ui::meta_dot(cx, x + 1.0, y + 14.0);
-        cx.tx.draw_fit(&mut cx.g, body(27.0, 700), &parts.join("  ·  "), x + 26.0, y, 1300.0, hexa(0xF6EADF, 0.88));
+        cx.tx.draw_fit(&mut cx.g, body(27.0, 700), &parts.join("  ·  "), x + 26.0, y, 1300.0, ui::paper().alpha(0.88));
         y += 58.0;
         if !self.tagline.is_empty() {
             let tl = self.tagline.clone();
-            cx.tx.draw_fit(&mut cx.g, body(28.0, 700), &tl, x, y, 1100.0, ui::BULB.mix(ui::PAPER, 0.35));
+            cx.tx.draw_fit(&mut cx.g, body(28.0, 700), &tl, x, y, 1100.0, ui::bulb().mix(ui::paper(), 0.35));
             y += 50.0;
         }
         let on_eps = self.zone == Zone::Episodes;
@@ -458,7 +464,7 @@ impl Screen for TitleScreen {
             String::from(s(&self.t, "overview"))
         };
         // On the episode row the text keeps three lines' room, so the page doesn't jump between episodes.
-        let h = cx.tx.para(&mut cx.g, body(28.0, 400), &overview, x, y, 1060.0, if on_eps { 3 } else { 5 }, 40.0, ui::PAPER.mix(ui::DUST, 0.35));
+        let h = cx.tx.para(&mut cx.g, body(28.0, 400), &overview, x, y, 1060.0, if on_eps { 3 } else { 5 }, 40.0, ui::paper().mix(ui::dust(), 0.35));
         y += if on_eps { h.max(120.0) } else { h } + 34.0;
         let focus = match self.zone {
             Zone::Hero if self.at_seasons => 1000 + self.si as u64,
@@ -473,10 +479,10 @@ impl Screen for TitleScreen {
         if self.tv {
             if self.seasons.is_empty() {
                 let note = self.seasons_note.clone();
-                cx.tx.draw(&mut cx.g, body(25.0, 400), &note, x, y, if self.seasons_err { ui::ALERT } else { ui::DUST });
+                cx.tx.draw(&mut cx.g, body(25.0, 400), &note, x, y, if self.seasons_err { ui::alert() } else { ui::dust() });
                 y += 60.0;
             } else {
-                cx.tx.draw(&mut cx.g, body(22.0, 700), &crate::util::lower(t!("Season")).to_uppercase(), x, y, ui::DUST);
+                cx.tx.draw(&mut cx.g, body(22.0, 700), &crate::util::lower(t!("Season")).to_uppercase(), x, y, ui::dust());
                 y += 40.0;
                 self.chip_scroll.set(self.si.saturating_sub(5) as f32 * 86.0);
                 let sx = self.chip_scroll.step(cx, 14.0);
@@ -520,7 +526,7 @@ impl Screen for TitleScreen {
             _ => "",
         };
         if !note.is_empty() {
-            cx.tx.draw_fit(&mut cx.g, body(26.0, 400), note, x, y - 8.0, 1100.0, ui::ALERT);
+            cx.tx.draw_fit(&mut cx.g, body(26.0, 400), note, x, y - 8.0, 1100.0, ui::alert());
             y += 44.0;
         }
         if let Some(p) = self.on_way.clone() {
@@ -528,7 +534,7 @@ impl Screen for TitleScreen {
         }
         if !self.status.is_empty() {
             let st = self.status.clone();
-            y += cx.tx.para(&mut cx.g, body(24.0, 400), &st, x, y, 1100.0, 2, 32.0, if self.status_err { ui::ALERT } else { ui::DUST }) + 10.0;
+            y += cx.tx.para(&mut cx.g, body(24.0, 400), &st, x, y, 1100.0, 2, 32.0, if self.status_err { ui::alert() } else { ui::dust() }) + 10.0;
         }
         // The rows under the hero; the first one peeks in from the bottom.
         y = y.max(700.0 - sy) + 12.0;
@@ -536,7 +542,7 @@ impl Screen for TitleScreen {
         let row_w = 1920.0 - 2.0 * x;
         if !self.cast.is_empty() {
             self.cast_top = y + sy;
-            cx.tx.draw(&mut cx.g, h2, t!("Cast"), x, y, ui::PAPER);
+            cx.tx.draw(&mut cx.g, h2, t!("Cast"), x, y, ui::paper());
             y += h2.line() + 22.0;
             let n = self.cast.len();
             let max_x = (n as f32 * FACE_STEP - 56.0 - row_w).max(0.0);
@@ -555,7 +561,7 @@ impl Screen for TitleScreen {
                 ui::focus_ring(cx, r, r.w / 2.0, lit);
                 let photo = self.cast[i].photo.clone();
                 // Portrait photos: keep the top of the picture so faces stay inside the circle.
-                cx.g.round(r, r.w / 2.0, ui::SEAT);
+                cx.g.round(r, r.w / 2.0, ui::seat());
                 let got = if photo.is_empty() || !cx.g.visible(&r) { None } else { cx.picture(&photo) };
                 let shown = match got {
                     Some(p) => {
@@ -566,28 +572,28 @@ impl Screen for TitleScreen {
                     None => false,
                 };
                 if !shown {
-                    cx.g.round(r, r.w / 2.0, ui::SEAT);
+                    cx.g.round(r, r.w / 2.0, ui::seat());
                     let init: String = self.cast[i].name.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
                     let f0 = display(56.0, 800);
-                    cx.tx.draw_center(&mut cx.g, f0, &init, r.x + r.w / 2.0, r.y + (r.h - f0.line()) / 2.0, ui::DUST.alpha(0.6));
+                    cx.tx.draw_center(&mut cx.g, f0, &init, r.x + r.w / 2.0, r.y + (r.h - f0.line()) / 2.0, ui::dust().alpha(0.6));
                 }
-                cx.g.ring(r, r.w / 2.0, 1.0, hexa(0xF6EADF, 0.1));
+                cx.g.ring(r, r.w / 2.0, 1.0, ui::paper().alpha(0.1));
                 let mid = px + (FACE_STEP - 56.0) / 2.0;
                 let ty = y + FACE + 18.0 + 6.0 * lit;
                 let nm = self.cast[i].name.clone();
                 let nm = cx.tx.fit(nf, &nm, FACE_STEP - 16.0);
-                cx.tx.draw_center(&mut cx.g, nf, &nm, mid, ty, ui::PAPER.mix(ui::WHITE, lit));
+                cx.tx.draw_center(&mut cx.g, nf, &nm, mid, ty, ui::paper().mix(ui::WHITE, lit));
                 let part = self.cast[i].part.clone();
                 if !part.is_empty() {
                     let pt = cx.tx.fit(pf2, &part, FACE_STEP - 16.0);
-                    cx.tx.draw_center(&mut cx.g, pf2, &pt, mid, ty + nf.line(), ui::DUST);
+                    cx.tx.draw_center(&mut cx.g, pf2, &pt, mid, ty + nf.line(), ui::dust());
                 }
             }
             y += FACE + 18.0 + nf.line() + pf2.line() + 56.0;
         }
         if !self.similar.is_empty() {
             self.sim_top = y + sy;
-            cx.tx.draw(&mut cx.g, h2, t!("More like this"), x, y, ui::PAPER);
+            cx.tx.draw(&mut cx.g, h2, t!("More like this"), x, y, ui::paper());
             y += h2.line() + 26.0;
             let kind = browse::Kind::Poster;
             let step = kind.size().0 + browse::CARD_GAP;

@@ -83,15 +83,15 @@ impl Screen for CamAsk {
     fn draw(&mut self, cx: &mut Cx) {
         self.shown.set(1.0);
         let a = self.shown.step01(cx, 12.0);
-        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), hexa(0x160B12, 0.9 * a));
+        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), ui::deep().alpha(0.9 * a));
         cx.g.push_alpha(a);
         let r = rect(460.0, 270.0 + 20.0 * (1.0 - a), 1000.0, 540.0);
         ui::shadow(cx, r, 30.0, 100.0, 0.6);
-        cx.g.round_v(r, 30.0, ui::SEAT, ui::CURTAIN);
-        cx.g.ring(r, 30.0, 2.0, ui::HAIR);
-        cx.tx.draw_fit(&mut cx.g, display(44.0, 800), t!("Only a cinema recording so far"), r.x + 56.0, r.y + 50.0, r.w - 112.0, ui::PAPER);
+        cx.g.round_v(r, 30.0, ui::seat(), ui::curtain());
+        cx.g.ring(r, 30.0, 2.0, ui::hair());
+        cx.tx.draw_fit(&mut cx.g, display(44.0, 800), t!("Only a cinema recording so far"), r.x + 56.0, r.y + 50.0, r.w - 112.0, ui::paper());
         cx.tx.para(&mut cx.g, body(28.0, 400), t!("Someone filmed this in a cinema, so the picture and sound are poor. A proper copy usually turns up once it’s out to stream or buy."),
-            r.x + 56.0, r.y + 124.0, r.w - 112.0, 3, 38.0, ui::DUST);
+            r.x + 56.0, r.y + 124.0, r.w - 112.0, 3, 38.0, ui::dust());
         self.lit.focus(self.choice as u64 + 1);
         self.lit.step(cx);
         let labels = [t!("Play the cinema recording"), t!("Back")];
@@ -100,10 +100,10 @@ impl Screen for CamAsk {
             let b = rect(r.x + 56.0, r.y + 270.0 + n as f32 * 108.0, r.w - 112.0, 92.0);
             let lit = self.lit.get(n as u64 + 1);
             if lit > 0.0 {
-                cx.g.glow(b, 46.0, 40.0, ui::BULB.alpha(0.35 * lit));
+                cx.g.glow(b, 46.0, 40.0, ui::bulb().alpha(0.35 * lit));
             }
-            cx.g.pill(b, hexa(0xF6EADF, 0.08).mix(ui::BULB, lit));
-            cx.tx.draw(&mut cx.g, f, l, b.x + 34.0, b.y + (92.0 - f.line()) / 2.0, ui::PAPER.mix(ui::ON_BULB, lit));
+            cx.g.pill(b, ui::paper().alpha(0.08).mix(ui::bulb(), lit));
+            cx.tx.draw(&mut cx.g, f, l, b.x + 34.0, b.y + (92.0 - f.line()) / 2.0, ui::paper().mix(ui::on_bulb(), lit));
         }
         cx.g.pop_alpha();
     }
@@ -173,7 +173,7 @@ fn logo_fill(cx: &mut Cx, url: &str, r: Rect, p: f32, failed: bool) -> Option<Re
     let k = (r.w / pic.w).min(r.h / pic.h);
     let b = rect(r.x, r.y, pic.w * k, pic.h * k);
     let a = pic.fade;
-    cx.g.image_slice(pic.id, b, 0.0, 1.0, &|_| 0.16, hexa(0xF6EADF, a), true);
+    cx.g.image_slice(pic.id, b, 0.0, 1.0, &|_| 0.16, ui::paper().alpha(a), true);
     if failed {
         return Some(b);
     }
@@ -235,7 +235,7 @@ impl Ready {
         if let Some(p) = r.get("play").cloned() {
             let file = if s(&p, "kind") == "part" {
                 // Play now: a stream of a video that's still downloading (the player's `part`).
-                let mut f = serde_json::json!({ "id": s(&p, "id"), "part": true, "url": s(&p, "url"), "title": if s(&p, "title").is_empty() { self.x.title.as_str() } else { s(&p, "title") },
+                let mut f = serde_json::json!({ "id": s(&p, "id"), "part": true, "url": s(&p, "url"), "adaptiveUrl": s(&p, "adaptiveUrl"), "title": if s(&p, "title").is_empty() { self.x.title.as_str() } else { s(&p, "title") },
                     "filmTitle": self.x.title, "still": self.x.art });
                 for k in ["mediaKey", "show", "season", "episode"] {
                     if let Some(v) = p.get(k) {
@@ -304,21 +304,21 @@ impl Screen for Ready {
         };
         if !self.x.sub.is_empty() {
             let sub = self.x.sub.clone();
-            cx.tx.draw(&mut cx.g, body(32.0, 400), &sub, x, y, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(32.0, 400), &sub, x, y, ui::dust());
             y += 50.0;
         }
         y += 24.0;
         if filled.is_none() {
             // No logo art: a thin bar says how far along it is (with one, the logo is the bar).
             let r = rect(x, y, 760.0, 8.0);
-            cx.g.glow(r, 4.0, 14.0, ui::BULB.alpha(0.2));
-            ui::bar(cx, r, Some(progress), hexa(0xF6EADF, 0.14));
+            cx.g.glow(r, 4.0, 14.0, ui::bulb().alpha(0.2));
+            ui::bar(cx, r, Some(progress), ui::paper().alpha(0.14));
         }
         y += 34.0;
-        cx.tx.para(&mut cx.g, display(38.0, 700), &line, x, y, 1100.0, 2, 46.0, if failed { ui::ALERT } else { ui::PAPER });
+        cx.tx.para(&mut cx.g, display(38.0, 700), &line, x, y, 1100.0, 2, 46.0, if failed { ui::alert() } else { ui::paper() });
         y += 58.0;
         if !hint.is_empty() {
-            cx.tx.draw_fit(&mut cx.g, body(28.0, 400), &hint, x, y, 1100.0, ui::DUST);
+            cx.tx.draw_fit(&mut cx.g, body(28.0, 400), &hint, x, y, 1100.0, ui::dust());
         }
         y += 72.0;
         let pf = body(30.0, 700);

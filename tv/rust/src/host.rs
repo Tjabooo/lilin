@@ -37,6 +37,7 @@ extern "C" {
     fn av_audio() -> i32;
     fn av_select_audio(i: i32) -> i32;
     fn av_rect(x: f64, y: f64, w: f64, h: f64);
+    fn platform() -> i32;
 }
 
 /// Where host.js writes answers that don't fit a return value.
@@ -127,6 +128,13 @@ pub fn draw(verts: &[u32], quads: u32, batches: &[i32]) {
 }
 pub fn see_through(on: bool) {
     unsafe { video_mode(on as u32) }
+}
+/// What host.js knows about the TV: JSON { lang, play, android } (platform.rs).
+pub fn platform_info() -> String {
+    if unsafe { platform() } == 0 {
+        return String::new();
+    }
+    take_answer()
 }
 pub fn quit() {
     unsafe { exit_app() }

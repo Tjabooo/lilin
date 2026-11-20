@@ -171,12 +171,12 @@ impl Screen for Home {
         self.rows.draw(cx, view);
         if self.empty {
             let h = display(64.0, 800);
-            cx.tx.draw(&mut cx.g, h, t!("Your library is empty"), ui::EDGE, 300.0, ui::PAPER);
-            cx.tx.para(&mut cx.g, body(34.0, 400), t!("Open Discover or Search above to find something to download."), ui::EDGE, 400.0, 1100.0, 3, 44.0, ui::DUST);
+            cx.tx.draw(&mut cx.g, h, t!("Your library is empty"), ui::EDGE, 300.0, ui::paper());
+            cx.tx.para(&mut cx.g, body(34.0, 400), t!("Open Discover or Search above to find something to download."), ui::EDGE, 400.0, 1100.0, 3, 44.0, ui::dust());
         }
 
         // The bar: the rows slide away under it.
-        cx.g.vgrad(rect(0.0, 0.0, 1920.0, 176.0), &[(0.0, ui::VELVET), (0.85, ui::VELVET.alpha(0.96)), (1.0, ui::VELVET.alpha(0.0))]);
+        cx.g.vgrad(rect(0.0, 0.0, 1920.0, 176.0), &[(0.0, ui::velvet()), (0.85, ui::velvet().alpha(0.96)), (1.0, ui::velvet().alpha(0.0))]);
         ui::wordmark(cx, ui::EDGE, 66.0, 46.0);
         let f = body(26.0, 700);
         let labels = tops(cx);
@@ -217,9 +217,9 @@ impl Screen for Home {
                 cx.g.round(d, 4.0, crate::gfx::hexa(0xFF5A4E, 1.0));
             }
         }
-        cx.tx.draw(&mut cx.g, who, &name, name_x, y + (58.0 - who.line()) / 2.0, ui::DUST);
+        cx.tx.draw(&mut cx.g, who, &name, name_x, y + (58.0 - who.line()) / 2.0, ui::dust());
         if !shared.is_empty() {
-            cx.tx.draw(&mut cx.g, who, &shared, name_x + name_w + 28.0, y + (58.0 - who.line()) / 2.0, ui::DUST.alpha(0.8));
+            cx.tx.draw(&mut cx.g, who, &shared, name_x + name_w + 28.0, y + (58.0 - who.line()) / 2.0, ui::dust().alpha(0.8));
         }
         let lit = self.tops_lit.get(ui::hash(&labels[4]));
         ui::pill(cx, rect(switch_x, y, ws[4], 58.0), &labels[4], body(25.0, 700), ui::Pill::Quiet, lit);

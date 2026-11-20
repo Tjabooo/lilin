@@ -30,6 +30,28 @@ test('every API call in the TV app passes the gateway', () => {
   assert.ok(gatewayAllows('/api/media/lib/x/intro') && gatewayAllows('/api/media/lib/x/credits')); // api(base + '/intro')
 });
 
+test('every API call in the Rust TV app (Samsung and Android TV) passes the gateway', () => {
+  const dir = new URL('../tv/rust/src/', import.meta.url);
+  const files = fs.readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith('.rs'));
+  const calls = new Set();
+  for (const f of files) {
+    const src = fs.readFileSync(new URL(String(f), dir), 'utf8');
+    for (const m of src.matchAll(/"(\/api\/[^"?]*)/g)) calls.add(m[1]);
+  }
+  assert.ok(calls.size > 25);
+  // {} placeholders get a stand-in like the app's (a 24-letter room id for Watch Together).
+  const fill = (c) => c.replace(/^\/api\/watch\/\{\}/, '/api/watch/LGs0lD489GIYoymFyM2cv5zD').replace(/^\/api\/title\/\{\}/, '/api/title/tv')
+    .replace(/^\/api\/vibes\/\{\}/, '/api/vibes/rainy-day').replace(/\{\}/g, '1');
+  for (const c of calls) {
+    const p = fill(c);
+    // A base the app adds to ('/api/media/lib/{}' + '/intro'): its endings must pass.
+    const paths = p === '/api/media/lib/1' ? ['intro', 'credits', 'still'].map((e) => `${p}/${e}`) : [p];
+    for (const x of paths) assert.ok(gatewayAllows(x), `${c} → ${x}`);
+  }
+  for (const f of ['/tv-rs/host.js', '/tv-rs/lilin_tv.wasm', '/tv-rs/wordmark.png']) assert.ok(gatewayAllows(f), f);
+  assert.ok(!gatewayAllows('/tv-rs/../app.js'));
+});
+
 test('sign-in codes from outside are limited per address', () => {
   let t = 0;
   const allow = createPairLimit({ max: 3, windowMs: 1000, now: () => t });

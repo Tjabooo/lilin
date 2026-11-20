@@ -198,8 +198,8 @@ impl Screen for Guide {
         live_dot(cx, ui::EDGE, 82.0);
         let name = cx.state.live_name.clone();
         let name = if name.is_empty() { String::from("Lilin TV") } else { name };
-        cx.tx.draw(&mut cx.g, display(46.0, 800).glow(), &name, ui::EDGE + 36.0, 60.0, ui::BULB);
-        cx.tx.draw_right(&mut cx.g, display(40.0, 700), &clock(now), 1920.0 - ui::EDGE, 64.0, ui::PAPER);
+        cx.tx.draw(&mut cx.g, display(46.0, 800), &name, ui::EDGE + 36.0, 60.0, ui::paper());
+        cx.tx.draw_right(&mut cx.g, display(40.0, 700), &clock(now), 1920.0 - ui::EDGE, 64.0, ui::paper());
 
         let channels = cx.state.live.channels.clone();
         let lane_x = ui::EDGE + CHAN_W;
@@ -211,8 +211,8 @@ impl Screen for Guide {
             cx.g.push_clip(rect(lane_x, 150.0, lane_w, 900.0));
             while t0 < self.to {
                 let tx = lane_x + self.x(t0, lane_w);
-                cx.g.fill(rect(tx, 192.0, 2.0, 18.0), ui::LINE);
-                cx.tx.draw(&mut cx.g, rf, &clock(t0), tx + 8.0, 172.0, ui::DUST);
+                cx.g.fill(rect(tx, 192.0, 2.0, 18.0), ui::line());
+                cx.tx.draw(&mut cx.g, rf, &clock(t0), tx + 8.0, 172.0, ui::dust());
                 t0 += 30.0 * MIN;
             }
             cx.g.pop_clip();
@@ -229,18 +229,18 @@ impl Screen for Guide {
                 }
                 let focused = n == self.focus;
                 let cell = rect(ui::EDGE, y, CHAN_W - 16.0, ROW_H);
-                cx.g.round(cell, 14.0, if focused { ui::SEAT } else { hexa(0x2B1724, 0.75) });
+                cx.g.round(cell, 14.0, if focused { ui::seat() } else { ui::curtain().alpha(0.75) });
                 if focused {
                     ui::focus_ring(cx, cell, 14.0, 1.0);
                 }
                 let num = i(c, "number").map(|x| x.to_string()).unwrap_or_default();
                 let nf = display(36.0, 800);
-                let nw = cx.tx.draw(&mut cx.g, nf, &num, cell.x + 20.0, y + (ROW_H - nf.line()) / 2.0 - 12.0, ui::BULB);
+                let nw = cx.tx.draw(&mut cx.g, nf, &num, cell.x + 20.0, y + (ROW_H - nf.line()) / 2.0 - 12.0, ui::bulb());
                 let cname = channel_name(c, &me);
-                cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &cname, cell.x + 32.0 + nw, y + 18.0, cell.w - nw - 48.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &cname, cell.x + 32.0 + nw, y + 18.0, cell.w - nw - 48.0, ui::paper());
                 let others = arr(c, "faces").iter().filter(|x| s(x, "name") != s(&cx.state.me, "name")).count();
                 if others > 0 {
-                    cx.tx.draw_fit(&mut cx.g, body(21.0, 400), &t!("{0} watching", others.to_string()), cell.x + 32.0 + nw, y + 56.0, cell.w - nw - 48.0, ui::BULB);
+                    cx.tx.draw_fit(&mut cx.g, body(21.0, 400), &t!("{0} watching", others.to_string()), cell.x + 32.0 + nw, y + 56.0, cell.w - nw - 48.0, ui::bulb());
                 }
                 for p in arr(c, "programmes") {
                     let (ps, pe) = (f(p, "s").unwrap_or(0.0), f(p, "e").unwrap_or(0.0));
@@ -251,17 +251,17 @@ impl Screen for Guide {
                     }
                     let r = rect(lane_x + left, y, right - left - 6.0, ROW_H);
                     let airing = ps <= now && now < pe;
-                    let bg = if airing { hexa(0x3A2031, 0.95) } else { hexa(0x2B1724, 0.6) };
+                    let bg = if airing { ui::seat().alpha(0.95) } else { ui::curtain().alpha(0.6) };
                     cx.g.round(r, 12.0, bg);
                     if airing && focused {
-                        cx.g.ring(r, 12.0, 2.0, ui::BULB.alpha(0.7));
+                        cx.g.ring(r, 12.0, 2.0, ui::bulb().alpha(0.7));
                     }
                     if r.w > 60.0 {
                         cx.g.push_clip(r);
-                        cx.tx.draw_fit(&mut cx.g, body(25.0, 700), s(p, "title"), r.x + 16.0, y + 18.0, r.w - 28.0, ui::PAPER);
+                        cx.tx.draw_fit(&mut cx.g, body(25.0, 700), s(p, "title"), r.x + 16.0, y + 18.0, r.w - 28.0, ui::paper());
                         let line = programme_line(p);
                         let line = if line.is_empty() { alloc::format!("{}–{}", clock(ps), clock(pe)) } else { line };
-                        cx.tx.draw_fit(&mut cx.g, body(21.0, 400), &line, r.x + 16.0, y + 56.0, r.w - 28.0, ui::DUST);
+                        cx.tx.draw_fit(&mut cx.g, body(21.0, 400), &line, r.x + 16.0, y + 56.0, r.w - 28.0, ui::dust());
                         cx.g.pop_clip();
                     }
                 }
@@ -270,13 +270,13 @@ impl Screen for Guide {
             // Now.
             let nx = lane_x + self.x(now, lane_w);
             if nx >= lane_x && nx <= 1920.0 - ui::EDGE {
-                cx.g.glow(rect(nx - 1.0, 196.0, 3.0, 790.0), 1.0, 10.0, ui::BULB.alpha(0.5));
-                cx.g.fill(rect(nx - 1.0, 196.0, 3.0, 790.0), ui::BULB);
+                cx.g.glow(rect(nx - 1.0, 196.0, 3.0, 790.0), 1.0, 10.0, ui::bulb().alpha(0.5));
+                cx.g.fill(rect(nx - 1.0, 196.0, 3.0, 790.0), ui::bulb());
             }
         }
-        cx.g.vgrad(rect(0.0, 1000.0, 1920.0, 80.0), &[(0.0, ui::DEEP.alpha(0.0)), (0.4, ui::DEEP)]);
+        cx.g.vgrad(rect(0.0, 1000.0, 1920.0, 80.0), &[(0.0, ui::deep().alpha(0.0)), (0.4, ui::deep())]);
         let note = if !self.digits.is_empty() { t!("Channel {0}…", self.digits.clone()) } else { self.note.clone() };
-        cx.tx.draw(&mut cx.g, body(24.0, 400), &note, ui::EDGE, 1022.0, ui::DUST);
+        cx.tx.draw(&mut cx.g, body(24.0, 400), &note, ui::EDGE, 1022.0, ui::dust());
     }
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
         cx.redraw();
@@ -562,7 +562,7 @@ impl LivePlayer {
         }
         self.spinner = Some(String::from(t!("Tuning in…")));
         self.opening = true;
-        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant=browser-hevc", crate::util::enc(&self.media_id)), self.sid, LINK | (self.gen << 8));
+        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(&self.media_id), crate::platform::play_variant()), self.sid, LINK | (self.gen << 8));
     }
     /// Back into step when the picture is too far off.
     fn correct(&mut self) {
@@ -620,13 +620,13 @@ impl LivePlayer {
             y -= h;
             let r = rect(1920.0 - ui::EDGE - w, y, w, h);
             cx.g.push_alpha(a);
-            cx.g.round(r, 20.0, hexa(0x1F1019, 0.82));
-            let nw = cx.tx.draw(&mut cx.g, bold, name, r.x + 22.0, r.y + 14.0, ui::BULB);
+            cx.g.round(r, 20.0, ui::velvet().alpha(0.82));
+            let nw = cx.tx.draw(&mut cx.g, bold, name, r.x + 22.0, r.y + 14.0, ui::bulb());
             for (n, l) in lines.iter().enumerate() {
                 // The name is drawn in gold over the first line's start; the rest of that line follows it.
                 let l = if n == 0 { l.get(name.len()..).unwrap_or("").trim_start() } else { l.as_str() };
                 let x = if n == 0 { r.x + 22.0 + nw + 8.0 } else { r.x + 22.0 };
-                cx.tx.draw(&mut cx.g, fnt, l, x, r.y + 14.0 + n as f32 * 34.0, ui::PAPER);
+                cx.tx.draw(&mut cx.g, fnt, l, x, r.y + 14.0 + n as f32 * 34.0, ui::paper());
             }
             cx.g.pop_alpha();
             y -= 12.0;
@@ -710,42 +710,42 @@ impl LivePlayer {
         cx.tx.draw_center(&mut cx.g, pf, &t!("Live").to_uppercase(), pr.x + pw / 2.0, pr.y + (40.0 - pf.line()) / 2.0, ui::WHITE);
         let num = i(&chan, "number").map(|n| alloc::format!("{}  ", n)).unwrap_or_default();
         let cf = display(36.0, 800);
-        let cw = cx.tx.draw(&mut cx.g, cf, &alloc::format!("{}{}", num, channel_name(&chan, &me)), pr.r() + 20.0, y, ui::PAPER);
+        let cw = cx.tx.draw(&mut cx.g, cf, &alloc::format!("{}{}", num, channel_name(&chan, &me)), pr.r() + 20.0, y, ui::paper());
         let others = arr(&self.room, "members").iter().filter(|m| s(m, "id") != self.client).count();
         if others > 0 {
-            cx.tx.draw(&mut cx.g, body(24.0, 400), &t!("{0} watching", (others + 1).to_string()), pr.r() + 44.0 + cw, y + 10.0, ui::BULB);
+            cx.tx.draw(&mut cx.g, body(24.0, 400), &t!("{0} watching", (others + 1).to_string()), pr.r() + 44.0 + cw, y + 10.0, ui::bulb());
         }
-        cx.tx.draw_right(&mut cx.g, display(36.0, 700), &clock(host::epoch_ms()), 1920.0 - ui::EDGE, y, ui::PAPER);
+        cx.tx.draw_right(&mut cx.g, display(36.0, 700), &clock(host::epoch_ms()), 1920.0 - ui::EDGE, y, ui::paper());
         let ty = y + 70.0;
         let now = info.get("now").filter(|n| !n.is_null());
         let next = info.get("next").filter(|n| !n.is_null());
         match now {
             Some(now) => {
                 let tf = display(44.0, 700);
-                let w = cx.tx.draw_fit(&mut cx.g, tf, s(now, "title"), ui::EDGE, ty, 1100.0, ui::PAPER);
+                let w = cx.tx.draw_fit(&mut cx.g, tf, s(now, "title"), ui::EDGE, ty, 1100.0, ui::paper());
                 let line = programme_line(now);
                 if !line.is_empty() {
-                    cx.tx.draw_fit(&mut cx.g, tf, &alloc::format!("  · {}", line), ui::EDGE + w, ty, 1728.0 - w - 10.0, ui::DUST);
+                    cx.tx.draw_fit(&mut cx.g, tf, &alloc::format!("  · {}", line), ui::EDGE + w, ty, 1728.0 - w - 10.0, ui::dust());
                 }
                 let (ns, ne) = (f(now, "s").unwrap_or(0.0), f(now, "e").unwrap_or(1.0));
                 let p = ((self.server_now() - ns) / (ne - ns).max(1.0)) as f32;
                 let by = ty + tf.line() + 22.0;
-                ui::bar(cx, rect(ui::EDGE, by, 1920.0 - 2.0 * ui::EDGE, 10.0), Some(p), hexa(0xF6EADF, 0.22));
+                ui::bar(cx, rect(ui::EDGE, by, 1920.0 - 2.0 * ui::EDGE, 10.0), Some(p), ui::paper().alpha(0.22));
                 let mut times = alloc::format!("{}–{}", clock(ns), clock(ne));
                 if let Some(nx) = next {
                     times.push_str("   ");
                     times.push_str(&t!("Next: {0} at {1}", String::from(s(nx, "title")), clock(f(nx, "s").unwrap_or(0.0))));
                 }
                 let hf = body(26.0, 400);
-                cx.tx.draw_fit(&mut cx.g, hf, &times, ui::EDGE, by + 28.0, 1300.0, ui::DUST);
-                cx.tx.draw_right(&mut cx.g, body(22.0, 400), t!("Right: subtitles"), 1920.0 - ui::EDGE, by + 32.0, ui::DUST.alpha(0.8));
+                cx.tx.draw_fit(&mut cx.g, hf, &times, ui::EDGE, by + 28.0, 1300.0, ui::dust());
+                cx.tx.draw_right(&mut cx.g, body(22.0, 400), t!("Right: subtitles"), 1920.0 - ui::EDGE, by + 32.0, ui::dust().alpha(0.8));
             }
             None => {
                 let line = match next {
                     Some(nx) => t!("Off air. {0} starts at {1}.", String::from(s(nx, "title")), clock(f(nx, "s").unwrap_or(0.0))),
                     None => String::from(t!("Off air for a moment.")),
                 };
-                cx.tx.draw_fit(&mut cx.g, display(44.0, 700), &line, ui::EDGE, ty, 1728.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, display(44.0, 700), &line, ui::EDGE, ty, 1728.0, ui::paper());
             }
         }
         cx.g.pop_alpha();
@@ -786,7 +786,7 @@ impl Screen for LivePlayer {
         // A channel number being typed.
         if !self.digits.is_empty() {
             let df = display(96.0, 800).glow();
-            cx.tx.draw_right(&mut cx.g, df, &self.digits.clone(), 1920.0 - ui::EDGE, 70.0, ui::BULB);
+            cx.tx.draw_right(&mut cx.g, df, &self.digits.clone(), 1920.0 - ui::EDGE, 70.0, ui::bulb());
         }
         // Subtitles menu
         if let Some(items) = &self.menu {
@@ -803,21 +803,21 @@ impl Screen for LivePlayer {
             }
             for (k, (head, label, on)) in labels.iter().enumerate() {
                 if *head {
-                    cx.tx.draw(&mut cx.g, body(22.0, 700), &label.to_uppercase(), r.x + 32.0, y + 14.0, ui::DUST);
+                    cx.tx.draw(&mut cx.g, body(22.0, 700), &label.to_uppercase(), r.x + 32.0, y + 14.0, ui::dust());
                     y += 52.0;
                     continue;
                 }
                 let ir = rect(r.x + 24.0, y, r.w - 48.0, 58.0);
                 if k == sel {
-                    cx.g.round(ir, 12.0, ui::SEAT);
-                    cx.g.ring(ir, 12.0, 3.0, ui::BULB);
+                    cx.g.round(ir, 12.0, ui::seat());
+                    cx.g.ring(ir, 12.0, 3.0, ui::bulb());
                 }
                 let lf = body(30.0, 400);
-                cx.tx.draw_fit(&mut cx.g, lf, label, ir.x + 20.0, ir.y + (58.0 - lf.line()) / 2.0, ir.w - 70.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, lf, label, ir.x + 20.0, ir.y + (58.0 - lf.line()) / 2.0, ir.w - 70.0, ui::paper());
                 if *on {
                     let dot = rect(ir.r() - 34.0, ir.y + 22.0, 14.0, 14.0);
-                    cx.g.glow(dot, 7.0, 12.0, ui::BULB.alpha(0.8));
-                    cx.g.round(dot, 7.0, ui::BULB);
+                    cx.g.glow(dot, 7.0, 12.0, ui::bulb().alpha(0.8));
+                    cx.g.round(dot, 7.0, ui::bulb());
                 }
                 y += 62.0;
             }
@@ -832,14 +832,14 @@ impl Screen for LivePlayer {
             let r = rect(960.0 - w / 2.0, 540.0 - h / 2.0, w, h);
             cx.g.round(r, 14.0, hexa(0x140A10, 0.85));
             for (n, l) in lines.iter().enumerate() {
-                cx.tx.draw_center(&mut cx.g, fnt, l, 960.0, r.y + 20.0 + n as f32 * 42.0, if self.failed { ui::ALERT } else { ui::PAPER });
+                cx.tx.draw_center(&mut cx.g, fnt, l, 960.0, r.y + 20.0 + n as f32 * 42.0, if self.failed { ui::alert() } else { ui::paper() });
             }
             if !self.failed {
                 for k in 0..3 {
                     let ph = ((cx.now / 420.0) as f32 - k as f32 * 0.6) % 3.0;
                     let lit = if ph < 1.0 { 0.35 + 0.65 * libm::sinf(ph * core::f32::consts::PI) } else { 0.35 };
                     let d = rect(960.0 - 40.0 + k as f32 * 34.0 - 6.0, r.b() - 34.0, 12.0, 12.0);
-                    cx.g.round(d, 6.0, ui::BULB.alpha(lit));
+                    cx.g.round(d, 6.0, ui::bulb().alpha(lit));
                 }
                 cx.ambient = true;
             }

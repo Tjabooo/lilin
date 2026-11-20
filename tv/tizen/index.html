@@ -8,18 +8,19 @@
 <script src="$WEBAPIS/webapis/webapis.js"></script>
 <script src="config.js"></script>
 <style>
-  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #1F1019; color: #F6EADF; font-family: "SamsungOne", "Tizen Sans", sans-serif; }
-  .shell { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-  /* The splash while the TV app loads from the server: the lit wordmark under a row of lilin bulbs */
-  html, body { background: radial-gradient(ellipse 1500px 700px at 50% -160px, #3D2234 0%, rgba(61, 34, 52, 0) 100%), linear-gradient(#1F1019, #160B12); }
-  .shell::before { content: ''; width: 330px; height: 16px; margin-bottom: 30px;
-    background: radial-gradient(circle, #F4C152 5px, rgba(244, 193, 82, .35) 6.5px, rgba(244, 193, 82, 0) 9px) 0 50% / 33px 16px repeat-x; }
-  .shell b { font-family: "Bricolage Grotesque", "SamsungOne", sans-serif; font-size: 120px; font-weight: 800; letter-spacing: -0.03em; color: #F4C152; text-shadow: 0 0 26px rgba(244, 193, 82, .45); }
-  .shell p { max-width: 1100px; margin-top: 28px; font-size: 32px; color: #BA9DAD; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; color: #EFE8E1; font-family: "SamsungOne", "Tizen Sans", sans-serif;
+    background: radial-gradient(ellipse 1500px 700px at 50% -160px, #33202B 0%, rgba(51, 32, 43, 0) 100%), linear-gradient(#140A14, #0E070E); }
+  /* The splash while the TV app loads from the server, drawn where the app draws its own: the LiLiN wordmark in
+     bone over the screen's red line. */
+  .shell { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+  .shell .wm { position: absolute; left: 833px; top: 416px; width: 254px; height: 123px; fill: #EFE8E1; }
+  .shell i { position: absolute; left: 793px; top: 558px; width: 334px; height: 3px; border-radius: 2px; background: #FB2C16;
+    box-shadow: 0 0 22px rgba(251, 44, 22, .45); }
+  .shell p { position: absolute; left: 410px; width: 1100px; top: 640px; margin: 0; text-align: center; font-size: 32px; color: #B8AAB2; }
 </style>
 </head>
 <body>
-<div id="app"><div class="shell"><b>Lilin</b><p id="shell-note"></p></div></div>
+<div id="app"><div class="shell"><svg class="wm" viewBox="0 0 2098 1016" aria-label="Lilin"><path d="M0.0 0.0H242.0V22.0H0.0Z M46.0 0.0H196.0V1000.0H46.0Z M0.0 978.0H196.0V1000.0H0.0Z M196.0 970.0 L338.0 970.0 L420.0 850.0 L424.0 854.0 L424.0 1000.0 L196.0 1000.0Z M528.0 0.0H678.0V150.0H528.0Z M528.0 186.0H678.0V1000.0H528.0Z M482.0 978.0H724.0V1000.0H482.0Z M798.0 0.0H1040.0V22.0H798.0Z M844.0 0.0H994.0V1000.0H844.0Z M798.0 978.0H994.0V1000.0H798.0Z M994.0 970.0 L1136.0 970.0 L1218.0 850.0 L1222.0 854.0 L1222.0 1000.0 L994.0 1000.0Z M1326.0 0.0H1476.0V150.0H1326.0Z M1326.0 186.0H1476.0V1000.0H1326.0Z M1280.0 978.0H1522.0V1000.0H1280.0Z M1642.0 0.0H1678.0V1000.0H1642.0Z M1596.0 978.0H1724.0V1000.0H1596.0Z M1596.0 0.0H1732.0V22.0H1596.0Z M1642.0 0.0 L1792.0 0.0 L2052.0 1016.0 L1902.0 1016.0Z M2016.0 0.0H2052.0V1016.0H2016.0Z M1970.0 0.0H2098.0V22.0H1970.0Z"/></svg><i></i><p id="shell-note"></p></div></div>
 <script src="shell.js"></script>
 </body>
 </html>

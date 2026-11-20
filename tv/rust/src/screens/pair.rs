@@ -31,14 +31,14 @@ impl Boot {
 fn splash(cx: &mut Cx, note: &str, a: f32) {
     ui::room(cx);
     cx.g.push_alpha(a);
-    ui::bulbs(cx, 960.0, 420.0, 11, 1.0);
-    let f = display(120.0, 800).glow();
-    let w = cx.tx.width(f, "Lilin");
-    cx.tx.draw(&mut cx.g, f, "Lilin", 960.0 - w / 2.0, 450.0, ui::BULB);
+    let size = 150.0;
+    let w = size * 0.82 * 2098.0 / 1016.0;
+    ui::wordmark(cx, 960.0 - w / 2.0, 380.0, size);
+    ui::signal_line(cx, 960.0, 560.0, w + 80.0, 1.0);
     if !note.is_empty() {
         let lines = cx.tx.wrap(body(32.0, 400), note, 1100.0, 3);
         for (n, l) in lines.iter().enumerate() {
-            cx.tx.draw_center(&mut cx.g, body(32.0, 400), l, 960.0, 640.0 + n as f32 * 42.0, ui::DUST);
+            cx.tx.draw_center(&mut cx.g, body(32.0, 400), l, 960.0, 640.0 + n as f32 * 42.0, ui::dust());
         }
     }
     cx.g.pop_alpha();
@@ -69,6 +69,9 @@ impl Screen for Boot {
                     cx.timer(5000.0, self.sid, RETRY);
                     cx.redraw();
                     return;
+                }
+                if crate::theme::apply(&res.json) {
+                    cx.redraw();
                 }
                 let me = res.json.get("me").cloned().unwrap_or(Value::Null);
                 cx.state.live_name = String::from(s(&res.json, "liveName"));
@@ -156,9 +159,9 @@ impl Pair {
         let size = 440.0;
         let card = rect(1920.0 - ui::EDGE - size, 300.0, size, size);
         ui::shadow(cx, card, 32.0, 50.0, 0.45);
-        cx.g.glow(card, 32.0, 46.0, hexa(0xF4C152, 0.28));
+        cx.g.glow(card, 32.0, 46.0, ui::bulb().alpha(0.28));
         cx.g.round(card, 32.0, hexa(0xFFFFFF, 1.0));
-        cx.g.ring(card, 32.0, 2.0, hexa(0xF4C152, 0.4));
+        cx.g.ring(card, 32.0, 2.0, ui::bulb().alpha(0.4));
         let n = self.qr.len();
         if n == 0 {
             return;
@@ -183,7 +186,7 @@ impl Pair {
             }
         }
         let cap = body(28.0, 700);
-        cx.tx.draw_center(&mut cx.g, cap, t!("Scan with your phone"), card.x + size / 2.0, card.b() + 30.0, ui::PAPER);
+        cx.tx.draw_center(&mut cx.g, cap, t!("Scan with your phone"), card.x + size / 2.0, card.b() + 30.0, ui::paper());
     }
     fn new_code(&mut self, cx: &mut Cx) {
         if self.alive {
@@ -223,15 +226,15 @@ impl Screen for Pair {
         let a = self.shown.step01(cx, 7.0);
         cx.g.push_alpha(a);
         // A warm pool of light behind the code.
-        cx.g.light(rect(-300.0, 380.0, 1700.0, 700.0), hexa(0x4A2A3C, 0.55));
+        cx.g.light(rect(-300.0, 380.0, 1700.0, 700.0), ui::seat().alpha(0.55));
         ui::wordmark(cx, ui::EDGE, 112.0, 46.0);
         let h1 = display(84.0, 800);
-        cx.tx.draw(&mut cx.g, h1, t!("Sign in this TV"), ui::EDGE - 4.0, 196.0, ui::PAPER);
+        cx.tx.draw(&mut cx.g, h1, t!("Sign in this TV"), ui::EDGE - 4.0, 196.0, ui::paper());
         let step = body(38.0, 400);
         let bold = body(38.0, 700);
         let num = display(38.0, 800);
-        rich(cx, ui::EDGE, 330.0, &[("1  ", num, ui::BULB), (t!("Scan the QR code with your phone’s camera,"), step, ui::DUST)]);
-        rich(cx, ui::EDGE, 388.0, &[("2  ", num, ui::BULB), (t!("or enter this code in Lilin under "), step, ui::DUST), (t!("You › Devices"), bold, ui::PAPER), (":", step, ui::DUST)]);
+        rich(cx, ui::EDGE, 330.0, &[("1  ", num, ui::bulb()), (t!("Scan the QR code with your phone’s camera,"), step, ui::dust())]);
+        rich(cx, ui::EDGE, 388.0, &[("2  ", num, ui::bulb()), (t!("or enter this code in Lilin under "), step, ui::dust()), (t!("You › Devices"), bold, ui::paper()), (":", step, ui::dust())]);
         self.draw_qr(cx);
         // The code: lit letters in little lilin boxes.
         let mut x = ui::EDGE;
@@ -244,29 +247,29 @@ impl Screen for Pair {
             }
             let r = rect(x, y, 128.0, 170.0);
             ui::shadow(cx, r, 20.0, 40.0, 0.35);
-            cx.g.round_v(r, 20.0, ui::SEAT, ui::CURTAIN);
-            cx.g.ring(r, 20.0, 2.0, hexa(0xF4C152, 0.28));
+            cx.g.round_v(r, 20.0, ui::seat(), ui::curtain());
+            cx.g.ring(r, 20.0, 2.0, ui::bulb().alpha(0.28));
             cx.g.ring(rect(r.x + 2.0, r.y + 2.0, r.w - 4.0, 2.0), 0.0, 1.0, hexa(0xFFFFFF, 0.06));
             if let Some(c) = chars.get(i) {
                 let f = display(104.0, 800).glow();
                 let mut b = [0u8; 4];
                 let s = c.encode_utf8(&mut b);
-                cx.tx.draw_center(&mut cx.g, f, s, r.x + 64.0, r.y + (170.0 - f.line()) / 2.0, ui::BULB);
+                cx.tx.draw_center(&mut cx.g, f, s, r.x + 64.0, r.y + (170.0 - f.line()) / 2.0, ui::bulb());
             } else {
                 let ph = ((cx.now / 300.0) as usize + i) % n;
                 let lit = if ph == 0 { 1.0 } else { 0.3 };
-                cx.g.round(rect(r.x + 58.0, r.y + 79.0, 12.0, 12.0), 6.0, ui::BULB.alpha(lit));
+                cx.g.round(rect(r.x + 58.0, r.y + 79.0, 12.0, 12.0), 6.0, ui::bulb().alpha(lit));
                 cx.ambient = true;
             }
             x += 128.0 + 16.0;
         }
         let note = body(30.0, 400);
-        cx.tx.draw_fit(&mut cx.g, note, &self.note, ui::EDGE, 690.0, 1180.0, ui::DUST);
+        cx.tx.draw_fit(&mut cx.g, note, &self.note, ui::EDGE, 690.0, 1180.0, ui::dust());
         if self.home {
             self.lit.set(if self.home_on { 1.0 } else { 0.0 });
             let lit = self.lit.step01(cx, 16.0);
             let hint = body(26.0, 400);
-            cx.tx.draw(&mut cx.g, hint, t!("No account? Press Down for"), ui::EDGE, 790.0, ui::DUST);
+            cx.tx.draw(&mut cx.g, hint, t!("No account? Press Down for"), ui::EDGE, 790.0, ui::dust());
             let f = body(30.0, 700);
             let label = t!("Use the shared Home network account");
             let w = ui::pill_w(cx, label, f, 34.0, 200.0);

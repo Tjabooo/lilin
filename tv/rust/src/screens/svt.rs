@@ -216,7 +216,7 @@ impl Screen for SvtScreen {
             Some(d) if !s(d, "title").is_empty() => s(d, "title"),
             _ => s(&self.t, "title"),
         });
-        cx.tx.draw_fit(&mut cx.g, display(64.0, 800), &title, x - 3.0, y, 1500.0, ui::PAPER);
+        cx.tx.draw_fit(&mut cx.g, display(64.0, 800), &title, x - 3.0, y, 1500.0, ui::paper());
         y += 84.0;
         let meta = match &self.data {
             Some(d) => {
@@ -227,7 +227,7 @@ impl Screen for SvtScreen {
             None => String::from(t!("Free on SVT Play")),
         };
         ui::meta_dot(cx, x + 1.0, y + 13.0);
-        cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &meta, x + 25.0, y, 1200.0, hexa(0xF6EADF, 0.86));
+        cx.tx.draw_fit(&mut cx.g, body(26.0, 700), &meta, x + 25.0, y, 1200.0, ui::paper().alpha(0.86));
         y += 50.0;
         let ov = match &self.data {
             Some(d) if !s(d, "overview").is_empty() => String::from(s(d, "overview")),
@@ -235,7 +235,7 @@ impl Screen for SvtScreen {
             Some(_) => String::from(t!("No description available.")),
             None => String::new(),
         };
-        y += cx.tx.para(&mut cx.g, body(27.0, 400), &ov, x, y, 1100.0, 2, 35.0, ui::DUST) + 16.0;
+        y += cx.tx.para(&mut cx.g, body(27.0, 400), &ov, x, y, 1100.0, 2, 35.0, ui::dust()) + 16.0;
         let focus = match self.zone {
             Zone::Seasons => 1000 + self.si as u64,
             Zone::Actions => 1,
@@ -245,7 +245,7 @@ impl Screen for SvtScreen {
         self.lit.step(cx);
         let seasons = self.seasons().to_vec();
         if seasons.len() > 1 {
-            cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("Season").to_uppercase(), x, y, ui::DUST);
+            cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("Season").to_uppercase(), x, y, ui::dust());
             y += 38.0;
             let cf = body(26.0, 700);
             let mut xs = Vec::new();
@@ -280,7 +280,7 @@ impl Screen for SvtScreen {
         }
         if !self.status.is_empty() {
             let st = self.status.clone();
-            cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &st, x, y, 1500.0, if self.status_err { ui::ALERT } else { ui::DUST });
+            cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &st, x, y, 1500.0, if self.status_err { ui::alert() } else { ui::dust() });
         }
         // Episodes.
         let top = 590.0f32.max(y + 44.0);
@@ -296,20 +296,20 @@ impl Screen for SvtScreen {
             let r = rect(x, top + n as f32 * item_h - ly, 1500.0, 155.0);
             let lit = self.lit.get(2000 + n as u64);
             if lit > 0.0 {
-                cx.g.glow(r, 20.0, 40.0, ui::BULB.alpha(0.25 * lit));
-                cx.g.round(r, 20.0, hexa(0x3A2031, 0.92 * lit));
-                cx.g.ring(r, 20.0, 3.0, ui::BULB.alpha(lit));
+                cx.g.glow(r, 20.0, 40.0, ui::bulb().alpha(0.25 * lit));
+                cx.g.round(r, 20.0, ui::seat().alpha(0.92 * lit));
+                cx.g.ring(r, 20.0, 3.0, ui::bulb().alpha(lit));
             }
             let art = rect(r.x + 14.0, r.y + 10.0, 240.0, 135.0);
             let still = String::from(s(e, "still"));
-            ui::picture(cx, &still, art, 12.0, Some(ui::SEAT), 1.0);
+            ui::picture(cx, &still, art, 12.0, Some(ui::seat()), 1.0);
             if s(e, "status") == "queued" {
                 let p = f(e, "progress").unwrap_or(0.0) as f32;
                 ui::bar(cx, rect(art.x + 12.0, art.b() - 17.0, art.w - 24.0, 7.0), Some(p), hexa(0xFFFFFF, 0.28));
             }
             let tx0 = art.r() + 26.0;
-            cx.tx.draw_fit(&mut cx.g, body(23.0, 400), &Self::label_for(e), tx0, r.y + 38.0, 1150.0, ui::DUST);
-            cx.tx.draw_fit(&mut cx.g, body(30.0, 700), s(e, "name"), tx0, r.y + 70.0, 1150.0, ui::PAPER.mix(ui::WHITE, lit));
+            cx.tx.draw_fit(&mut cx.g, body(23.0, 400), &Self::label_for(e), tx0, r.y + 38.0, 1150.0, ui::dust());
+            cx.tx.draw_fit(&mut cx.g, body(30.0, 700), s(e, "name"), tx0, r.y + 70.0, 1150.0, ui::paper().mix(ui::WHITE, lit));
         }
         cx.g.pop_clip();
     }

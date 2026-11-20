@@ -21,6 +21,7 @@ const SEASONS_NEXT: u32 = 8;
 const PAGE: u32 = 9;
 const SONG: u32 = 10;
 const UPGRADE_LINK: u32 = 11;
+const ADAPT_LINK: u32 = 12;
 const LANGS_MENU: u32 = 5;
 const SUB_FETCH: u32 = 6;
 const SUB_FILE: u32 = 7;
@@ -119,14 +120,14 @@ impl Screen for Resume {
     fn draw(&mut self, cx: &mut Cx) {
         self.shown.set(1.0);
         let a = self.shown.step01(cx, 12.0);
-        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), hexa(0x160B12, 0.9 * a));
+        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), ui::deep().alpha(0.9 * a));
         cx.g.push_alpha(a);
         let r = rect(500.0, 330.0 + 20.0 * (1.0 - a), 920.0, 420.0);
         ui::shadow(cx, r, 30.0, 100.0, 0.6);
-        cx.g.round_v(r, 30.0, ui::SEAT, ui::CURTAIN);
-        cx.g.ring(r, 30.0, 2.0, ui::HAIR);
+        cx.g.round_v(r, 30.0, ui::seat(), ui::curtain());
+        cx.g.ring(r, 30.0, 2.0, ui::hair());
         let title = if crate::util::has(&self.f, "season") { episode_line(&self.f) } else { file_title(cx, &self.f) };
-        cx.tx.draw_fit(&mut cx.g, display(46.0, 800), &title, r.x + 56.0, r.y + 52.0, r.w - 112.0, ui::PAPER);
+        cx.tx.draw_fit(&mut cx.g, display(46.0, 800), &title, r.x + 56.0, r.y + 52.0, r.w - 112.0, ui::paper());
         self.lit.focus(self.choice as u64 + 1);
         self.lit.step(cx);
         let labels = [t!("Resume from {0}", logic::fmt_time(self.at)), String::from(t!("Start over"))];
@@ -134,12 +135,12 @@ impl Screen for Resume {
         for (n, l) in labels.iter().enumerate() {
             let b = rect(r.x + 56.0, r.y + 150.0 + n as f32 * 108.0, r.w - 112.0, 92.0);
             let lit = self.lit.get(n as u64 + 1);
-            cx.g.pill(b, hexa(0xF6EADF, 0.08).mix(ui::BULB, lit));
+            cx.g.pill(b, ui::paper().alpha(0.08).mix(ui::bulb(), lit));
             if lit > 0.0 {
-                cx.g.glow(b, 46.0, 40.0, ui::BULB.alpha(0.35 * lit));
-                cx.g.pill(b, hexa(0xF6EADF, 0.08).mix(ui::BULB, lit));
+                cx.g.glow(b, 46.0, 40.0, ui::bulb().alpha(0.35 * lit));
+                cx.g.pill(b, ui::paper().alpha(0.08).mix(ui::bulb(), lit));
             }
-            cx.tx.draw(&mut cx.g, f, l, b.x + 34.0, b.y + (92.0 - f.line()) / 2.0, ui::PAPER.mix(ui::ON_BULB, lit));
+            cx.tx.draw(&mut cx.g, f, l, b.x + 34.0, b.y + (92.0 - f.line()) / 2.0, ui::paper().mix(ui::on_bulb(), lit));
         }
         cx.g.pop_alpha();
     }
@@ -236,14 +237,27 @@ pub struct Player {
     /// The pause screen: when the video was paused (or a key pressed while paused); it shows 3 s later.
     rest_since: f64,
     logo: String,
+    /// The title's big textless backdrop (title page), behind the credits card.
+    backdrop: String,
     asked_page: bool,
+    // Android (ExoPlayer) rebuffers and retries by itself, so reopening only throws its buffer away. There the
+    // original file plays until the line proves too slow for it (a slow first load, a long or repeated stall, or
+    // the player's bandwidth estimate under the video's bitrate); then it moves once to the adaptive stream
+    // (1080p/720p, which ExoPlayer switches between itself). Only 90 s with nothing moving reopens it.
+    exo: bool,
+    adaptive: bool,
+    framed: bool,
+    opened: f64,
+    stall_times: Vec<f64>,
+    /// The last `net` report from the Android app: (bandwidth, buffered ms, bitrate, when).
+    net: Option<(f64, f64, f64, f64)>,
 }
 
 impl Player {
     fn new(cx: &mut Cx, f: Value, at: f64) -> Player {
         let sid = cx.sid();
         let fid = String::from(s(&f, "id"));
-        let variant = "browser-hevc";
+        let variant = crate::platform::play_variant();
         // Play now (ready.rs): a stream of a video that's still downloading, already signed; subtitles (kept where
         // the finished file lands) but no intro marks until it's whole.
         let part = crate::util::b(&f, "part");
@@ -324,7 +338,14 @@ impl Player {
             held: false,
             rest_since: 0.0,
             logo: String::new(),
+            backdrop: String::new(),
             asked_page: false,
+            exo: crate::platform::android(),
+            adaptive: false,
+            framed: false,
+            opened: 0.0,
+            stall_times: Vec::new(),
+            net: None,
         };
         p.timers[0] = cx.timer(500.0, sid, TICK_T);
         p
@@ -445,13 +466,18 @@ impl Player {
         }
         self.rest_since = host::time();
         cx.timer(3050.0, self.sid, REST_T);
-        if !self.asked_page {
-            self.asked_page = true;
-            let tv = crate::util::has(&self.f, "season");
-            let id = if tv { show_tmdb(cx, &self.f) } else { crate::util::id(&self.f, "tmdbId").parse::<i64>().unwrap_or(0) };
-            if id > 0 {
-                cx.get(&alloc::format!("/api/title/{}/{}/page", if tv { "tv" } else { "movie" }, id), self.sid, PAGE);
-            }
+        self.ask_page(cx);
+    }
+    /// The title page (logo, big textless backdrop): for the pause screen and the credits card, asked once.
+    fn ask_page(&mut self, cx: &mut Cx) {
+        if self.asked_page {
+            return;
+        }
+        self.asked_page = true;
+        let tv = crate::util::has(&self.f, "season");
+        let id = if tv { show_tmdb(cx, &self.f) } else { crate::util::id(&self.f, "tmdbId").parse::<i64>().unwrap_or(0) };
+        if id > 0 {
+            cx.get(&alloc::format!("/api/title/{}/{}/page", if tv { "tv" } else { "movie" }, id), self.sid, PAGE);
         }
     }
     fn resting(&self) -> bool {
@@ -483,6 +509,7 @@ impl Player {
         if on {
             av::rect(CREDITS_RECT.0, CREDITS_RECT.1, CREDITS_RECT.2, CREDITS_RECT.3);
             self.osd_on = false;
+            self.ask_page(cx);
             if self.song_tries < 0 {
                 self.song_tries = 3;
                 self.ask_song(cx);
@@ -512,7 +539,8 @@ impl Player {
     }
     fn try_upgrade(&mut self, cx: &mut Cx) {
         let key = self.upgrade_key();
-        if key.is_empty() || crate::util::has(&self.f, "season") || !self.playing || self.ended || self.upgrading.is_some() || cx.upgraded.contains(&key) {
+        let uhd = crate::platform::play_variant().split('&').next() == Some("browser-hevc");
+        if key.is_empty() || !uhd || self.adaptive || crate::util::has(&self.f, "season") || !self.playing || self.ended || self.upgrading.is_some() || cx.upgraded.contains(&key) {
             return;
         }
         let Some(item) = cx.state.library.iter().find(|x| s(x, "versionKey") == key).cloned() else {
@@ -537,7 +565,7 @@ impl Player {
         });
         let Some(v) = pick else { return };
         cx.upgraded.push(key);
-        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant=browser-hevc", crate::util::enc(s(&v, "id"))), self.sid, UPGRADE_LINK);
+        cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(s(&v, "id")), crate::platform::play_variant()), self.sid, UPGRADE_LINK);
         self.upgrading = Some(v);
     }
     /// Starts or stops the Up next countdown to match what's on screen; auto-skips intros when asked to.
@@ -603,6 +631,8 @@ impl Player {
     }
     fn open_stream(&mut self, cx: &mut Cx, at: f64) {
         self.moved_at = host::time();
+        self.opened = self.moved_at;
+        self.framed = false;
         self.buffering_since = 0.0;
         self.open_at = at;
         if !av::open(&self.stream) {
@@ -619,13 +649,7 @@ impl Player {
             self.fail(cx, "");
         }
     }
-    /// AVPlay on older Tizen can sit in "Loading…" forever after a dropped connection: reopen where it stopped.
-    fn reopen(&mut self, cx: &mut Cx) -> bool {
-        if self.closed || self.reopening || self.stream.is_empty() || self.retries >= 5 {
-            return false;
-        }
-        self.retries += 1;
-        self.reopening = true;
+    fn playing_at(&self) -> f64 {
         let mut at = self.time;
         let ms = av::time_ms();
         if ms >= 0.0 {
@@ -634,6 +658,47 @@ impl Player {
                 at = live;
             }
         }
+        at
+    }
+    /// Android: once, from the file to the adaptive stream at the same spot.
+    fn go_adaptive(&mut self, cx: &mut Cx) -> bool {
+        let part = crate::util::b(&self.f, "part");
+        if self.adaptive || self.reopening || self.closed || (part && s(&self.f, "adaptiveUrl").is_empty()) {
+            return false;
+        }
+        self.adaptive = true;
+        self.reopening = true;
+        let at = self.playing_at();
+        self.time = at;
+        self.save(cx, true);
+        self.spinner = Some(String::from(t!("Slow connection: switching to a stream that adapts to it…")));
+        av::close();
+        self.open_at = at;
+        self.stall_times.clear();
+        self.net = None;
+        if part {
+            self.stream = alloc::format!("{}{}", cx.server, s(&self.f, "adaptiveUrl"));
+            self.retries = 0;
+            self.timers[4] = cx.timer(1.0, self.sid, REOPEN_T);
+        } else {
+            let base = crate::platform::play_variant().split('&').next().unwrap_or("browser");
+            let url = alloc::format!("/api/play-link?kind=lib&id={}&variant={}&quality=abr", crate::util::enc(s(&self.f, "id")), base);
+            cx.get(&url, self.sid, ADAPT_LINK);
+        }
+        cx.redraw();
+        true
+    }
+    /// AVPlay on older Tizen can sit in "Loading…" forever after a dropped connection: reopen where it stopped.
+    fn reopen(&mut self, cx: &mut Cx) -> bool {
+        if self.closed || self.reopening || self.stream.is_empty() || self.retries >= 5 {
+            return false;
+        }
+        if self.exo && !self.adaptive && self.retries >= 1 && self.go_adaptive(cx) {
+            return true; // the file failed twice: the adaptive stream instead
+        }
+        self.retries += 1;
+        self.reopening = true;
+        let at = self.playing_at();
         self.time = at;
         self.save(cx, true);
         self.spinner = Some(String::from(t!("Reconnecting…")));
@@ -648,6 +713,21 @@ impl Player {
             return;
         }
         let t = host::time();
+        if self.exo {
+            if !self.adaptive {
+                let slow_start = !self.framed && t - self.opened > 25000.0;
+                let long_stall = self.framed && self.buffering_since > 0.0 && t - self.buffering_since > 6000.0;
+                let slow_net = self.framed
+                    && self.net.is_some_and(|(bw, buf, br, at)| t - at < 5000.0 && bw > 0.0 && br > 0.0 && bw < br * 1.2 && buf < 15000.0);
+                if (slow_start || long_stall || self.stall_times.len() >= 2 || slow_net) && self.go_adaptive(cx) {
+                    return;
+                }
+            }
+            if (self.buffering_since > 0.0 && t - self.buffering_since > 90000.0) || (self.playing && t - self.moved_at > 90000.0) {
+                self.reopen(cx);
+            }
+            return;
+        }
         if (self.buffering_since > 0.0 && t - self.buffering_since > 12000.0) || (self.playing && t - self.moved_at > 12000.0) {
             self.reopen(cx);
         }
@@ -749,18 +829,18 @@ impl Screen for Player {
             cx.g.hgrad(full, &[(0.0, hexa(0x0A0508, 0.78)), (0.6, hexa(0x0A0508, 0.35)), (1.0, hexa(0x0A0508, 0.2))]);
             let x = ui::EDGE;
             let mut y = 1080.0 - 120.0 - 380.0;
-            cx.tx.draw(&mut cx.g, body(24.0, 700), &crate::util::lower(t!("Paused")).to_uppercase(), x, y, ui::BULB);
+            cx.tx.draw(&mut cx.g, body(24.0, 700), &crate::util::lower(t!("Paused")).to_uppercase(), x, y, ui::bulb());
             y += 48.0;
             let name = file_title(cx, &self.f);
             let logo = self.logo.clone();
             y += super::title::heading(cx, &logo, &name, x, y, 76.0, 1000.0);
             if crate::util::has(&self.f, "season") {
-                cx.tx.draw_fit(&mut cx.g, body(32.0, 700), &episode_line(&self.f), x, y, 1000.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, body(32.0, 700), &episode_line(&self.f), x, y, 1000.0, ui::paper());
                 y += 50.0;
             }
             if self.duration > 0.0 {
                 let left = logic::minutes_left(&serde_json::json!({ "time": self.time, "duration": self.duration }));
-                cx.tx.draw(&mut cx.g, body(30.0, 400), &left, x, y, ui::DUST);
+                cx.tx.draw(&mut cx.g, body(30.0, 400), &left, x, y, ui::dust());
             }
             return;
         }
@@ -775,44 +855,44 @@ impl Screen for Player {
             let y = 1080.0 - 64.0 - 22.0 * 1.3 - 18.0 - 28.0 * 1.3 - 14.0 - 10.0 - 24.0 - 44.0 * 1.3;
             let tf = display(44.0, 700);
             let title = file_title(cx, &self.f);
-            let w = cx.tx.draw_fit(&mut cx.g, tf, &title, ui::EDGE, y, 1100.0, ui::PAPER);
+            let w = cx.tx.draw_fit(&mut cx.g, tf, &title, ui::EDGE, y, 1100.0, ui::paper());
             if crate::util::has(&self.f, "season") {
                 let ep = alloc::format!("  {}", episode_line(&self.f));
-                cx.tx.draw_fit(&mut cx.g, tf, &ep, ui::EDGE + w, y, 1728.0 - w - 10.0, ui::DUST);
+                cx.tx.draw_fit(&mut cx.g, tf, &ep, ui::EDGE + w, y, 1728.0 - w - 10.0, ui::dust());
             }
             let by = y + tf.line() + 24.0;
             let bar = rect(ui::EDGE, by, 1920.0 - 2.0 * ui::EDGE, 10.0);
-            cx.g.round(bar, 5.0, hexa(0xF6EADF, 0.22));
+            cx.g.round(bar, 5.0, ui::paper().alpha(0.22));
             if self.duration > 0.0 {
                 let fw = (bar.w * (shown_t / self.duration) as f32).clamp(0.0, bar.w);
                 if fw > 0.0 {
                     let fill = rect(bar.x, bar.y, fw.max(10.0), 10.0);
-                    cx.g.glow(fill, 5.0, 16.0, ui::BULB.alpha(0.5));
-                    cx.g.round(fill, 5.0, ui::BULB);
+                    cx.g.glow(fill, 5.0, 16.0, ui::bulb().alpha(0.5));
+                    cx.g.round(fill, 5.0, ui::bulb());
                 }
                 if self.seek_target.is_some() {
                     let knob = rect(bar.x + fw - 12.0, by - 7.0, 24.0, 24.0);
-                    cx.g.glow(knob, 12.0, 20.0, ui::BULB.alpha(0.6));
-                    cx.g.round(knob, 12.0, ui::PAPER);
+                    cx.g.glow(knob, 12.0, 20.0, ui::bulb().alpha(0.6));
+                    cx.g.round(knob, 12.0, ui::paper());
                 }
             }
             let ty = by + 10.0 + 14.0;
             let nf = body(28.0, 400);
-            cx.tx.draw(&mut cx.g, nf, &logic::fmt_time(shown_t), ui::EDGE, ty, ui::DUST);
+            cx.tx.draw(&mut cx.g, nf, &logic::fmt_time(shown_t), ui::EDGE, ty, ui::dust());
             if self.duration > 0.0 {
-                cx.tx.draw_right(&mut cx.g, nf, &logic::fmt_time(self.duration), 1920.0 - ui::EDGE, ty, ui::DUST);
+                cx.tx.draw_right(&mut cx.g, nf, &logic::fmt_time(self.duration), 1920.0 - ui::EDGE, ty, ui::dust());
             }
             if !self.playing && !self.ended {
-                cx.tx.draw_center(&mut cx.g, body(28.0, 700), t!("Paused"), 960.0, ty, ui::BULB);
+                cx.tx.draw_center(&mut cx.g, body(28.0, 700), t!("Paused"), 960.0, ty, ui::bulb());
             }
             let hy = ty + nf.line() + 18.0;
             let hf = body(22.0, 400);
             let mut hx = ui::EDGE;
             for h in [t!("Left / Right: 10 s"), t!("OK: pause"), t!("Down: subtitles and audio")] {
-                hx += cx.tx.draw(&mut cx.g, hf, h, hx, hy, ui::DUST.alpha(0.8)) + 40.0;
+                hx += cx.tx.draw(&mut cx.g, hf, h, hx, hy, ui::dust().alpha(0.8)) + 40.0;
             }
             if !self.sub_name.is_empty() {
-                cx.tx.draw_right(&mut cx.g, hf, &self.sub_name.clone(), 1920.0 - ui::EDGE, hy, ui::DUST.alpha(0.8));
+                cx.tx.draw_right(&mut cx.g, hf, &self.sub_name.clone(), 1920.0 - ui::EDGE, hy, ui::dust().alpha(0.8));
             }
             cx.g.pop_alpha();
         }
@@ -844,11 +924,11 @@ impl Screen for Player {
             let lit = self.lit.get(1);
             ui::shadow(cx, r, 44.0, 40.0, 0.5);
             if lit > 0.0 {
-                cx.g.glow(r, 44.0, 44.0, ui::BULB.alpha(0.4 * lit));
+                cx.g.glow(r, 44.0, 44.0, ui::bulb().alpha(0.4 * lit));
             }
-            cx.g.pill(r, hexa(0x140A10, 0.88).mix(ui::BULB, lit));
-            cx.g.ring(r, 44.0, 2.0, hexa(0xF6EADF, 0.4).mix(ui::BULB, lit));
-            let c = ui::PAPER.mix(ui::ON_BULB, lit);
+            cx.g.pill(r, hexa(0x140A10, 0.88).mix(ui::bulb(), lit));
+            cx.g.ring(r, 44.0, 2.0, ui::paper().alpha(0.4).mix(ui::bulb(), lit));
+            let c = ui::paper().mix(ui::on_bulb(), lit);
             cx.tx.draw(&mut cx.g, f, label, r.x + 38.0, r.y + (88.0 - f.line()) / 2.0, c);
             let gx = r.r() - 38.0 - 30.0;
             play_glyph(&mut cx.g, gx, r.y + 29.0, 15.0, 30.0, c);
@@ -856,23 +936,63 @@ impl Screen for Player {
         }
         // The credits card: the picture is on the right (av::rect), the title, the song and Up next on the left.
         if self.credits_on {
+            // The show's big backdrop fills the screen around the cornered picture (never over it: the video is
+            // under this page), dimmed, with the left side darkened for the text.
+            let hole = rect(CREDITS_RECT.0, CREDITS_RECT.1, CREDITS_RECT.2, CREDITS_RECT.3);
+            let back = if !self.backdrop.is_empty() {
+                self.backdrop.clone()
+            } else {
+                String::from(cx.state.show(s(&self.f, "show")).map(|x| s(x, "backdrop")).unwrap_or(""))
+            };
+            let mut has_back = false;
+            if !back.is_empty() {
+                if let Some(p) = cx.picture(&back) {
+                    has_back = true;
+                    let uv = crate::img::cover(p.w, p.h, 1920.0, 1080.0);
+                    let tint = crate::gfx::Rgba(0.42 * p.fade, 0.42 * p.fade, 0.42 * p.fade, p.fade);
+                    let sub = |r: crate::gfx::Rect| -> [f32; 4] {
+                        let u = |x: f32| uv[0] + (uv[2] - uv[0]) * x / 1920.0;
+                        let v = |y: f32| uv[1] + (uv[3] - uv[1]) * y / 1080.0;
+                        [u(r.x), v(r.y), u(r.r()), v(r.b())]
+                    };
+                    for r in [
+                        rect(0.0, 0.0, 1920.0, hole.y),
+                        rect(0.0, hole.b(), 1920.0, 1080.0 - hole.b()),
+                        rect(0.0, hole.y, hole.x, hole.h),
+                        rect(hole.r(), hole.y, 1920.0 - hole.r(), hole.h),
+                    ] {
+                        cx.g.image(p.id, r, sub(r), 0.0, tint);
+                    }
+                    cx.g.ring(hole.grow(1.0), 0.0, 2.0, ui::WHITE.alpha(0.14 * p.fade));
+                }
+            }
             let full = rect(0.0, 0.0, 1000.0, 1080.0);
-            cx.g.hgrad(full, &[(0.0, hexa(0x120A10, 0.94)), (0.7, hexa(0x120A10, 0.92)), (1.0, hexa(0x120A10, 0.0))]);
+            if has_back {
+                cx.g.hgrad(full, &[(0.0, hexa(0x0A0508, 0.82)), (0.75, hexa(0x0A0508, 0.55)), (1.0, hexa(0x0A0508, 0.0))]);
+            } else {
+                cx.g.hgrad(full, &[(0.0, hexa(0x120A10, 0.94)), (0.7, hexa(0x120A10, 0.92)), (1.0, hexa(0x120A10, 0.0))]);
+            }
             let x = ui::EDGE;
             let mut y = 150.0;
-            cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("End credits").to_uppercase(), x, y, ui::BULB);
+            cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("End credits").to_uppercase(), x, y, ui::bulb());
             y += 40.0;
             let name = file_title(cx, &self.f);
-            cx.tx.draw_fit(&mut cx.g, display(52.0, 700), &name, x, y, 760.0, ui::PAPER);
-            y += display(52.0, 700).line() + 26.0;
+            let logo = self.logo.clone();
+            match (!logo.is_empty()).then(|| ui::contain(cx, &logo, rect(x, y, 640.0, 150.0), 1.0)).flatten() {
+                Some(b) => y += b.h + 26.0,
+                None => {
+                    cx.tx.draw_fit(&mut cx.g, display(52.0, 700), &name, x, y, 760.0, ui::paper());
+                    y += display(52.0, 700).line() + 26.0;
+                }
+            }
             if let Some((why, title, by)) = self.song.clone() {
-                cx.g.round(rect(x, y, 4.0, 118.0), 2.0, ui::BULB);
-                cx.tx.draw(&mut cx.g, body(22.0, 400), &why, x + 26.0, y, ui::DUST);
-                cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &title, x + 26.0, y + 32.0, 734.0, ui::PAPER);
-                cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &by, x + 26.0, y + 82.0, 734.0, ui::DUST);
+                cx.g.round(rect(x, y, 4.0, 118.0), 2.0, ui::bulb());
+                cx.tx.draw(&mut cx.g, body(22.0, 400), &why, x + 26.0, y, ui::dust());
+                cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &title, x + 26.0, y + 32.0, 734.0, ui::paper());
+                cx.tx.draw_fit(&mut cx.g, body(24.0, 400), &by, x + 26.0, y + 82.0, 734.0, ui::dust());
                 y += 118.0 + 26.0;
             }
-            cx.tx.draw(&mut cx.g, body(22.0, 400), t!("Up: the picture full size"), x, y, ui::DUST.alpha(0.8));
+            cx.tx.draw(&mut cx.g, body(22.0, 400), t!("Up: the picture full size"), x, y, ui::dust().alpha(0.8));
         }
         // Up next
         if self.up_next_on() {
@@ -886,9 +1006,17 @@ impl Screen for Player {
                 let art = rect(r.x + 30.0, r.y + 30.0, 600.0, art_h);
                 let still = String::from(s(&next, "still"));
                 let pic = if !still.is_empty() { ui::tmdb_size(&still, "w780") } else { String::from(cx.state.show(s(&next, "show")).map(|x| s(x, "backdrop")).unwrap_or("")) };
-                ui::picture(cx, &pic, art, 12.0, Some(ui::SEAT), 1.0);
-                cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("Up next").to_uppercase(), r.x + 30.0, art.b() + 20.0, ui::DUST);
-                cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &episode_line(&next), r.x + 30.0, art.b() + 52.0, 600.0, ui::PAPER);
+                ui::picture(cx, &pic, art, 12.0, Some(ui::seat()), 1.0);
+                cx.tx.draw(&mut cx.g, body(22.0, 700), &t!("Up next").to_uppercase(), r.x + 30.0, art.b() + 20.0, ui::dust());
+                cx.tx.draw_fit(&mut cx.g, body(34.0, 700), &episode_line(&next), r.x + 30.0, art.b() + 52.0, 600.0, ui::paper());
+                // In the credits card: the next episode's synopsis (when TMDB had one), above the buttons.
+                let overview = String::from(s(&next, "overview"));
+                if self.credits_on && !overview.is_empty() {
+                    let of = body(22.0, 400);
+                    for (n, l) in cx.tx.wrap(of, &overview, 600.0, 2).iter().enumerate() {
+                        cx.tx.draw(&mut cx.g, of, l, r.x + 30.0, art.b() + 100.0 + n as f32 * 29.0, ui::dust());
+                    }
+                }
                 let by = r.b() - 30.0 - 72.0;
                 let left = self.auto_left.map(|l| libm::ceil(l).max(1.0) as i64);
                 let label = if self.busy {
@@ -904,26 +1032,26 @@ impl Screen for Player {
                 let l1 = self.lit.get(10);
                 let l2 = self.lit.get(11);
                 if l1 > 0.0 {
-                    cx.g.ring(b1.grow(4.0), 40.0, 4.0, ui::BULB.alpha(l1));
+                    cx.g.ring(b1.grow(4.0), 40.0, 4.0, ui::bulb().alpha(l1));
                 }
                 match self.auto_left {
                     Some(al) => {
                         let p = (1.0 - al / logic::AUTOPLAY_SECONDS).clamp(0.0, 1.0) as f32;
-                        cx.g.pill(b1, ui::BULB_DIM);
+                        cx.g.pill(b1, ui::bulb_dim());
                         cx.g.push_clip(rect(b1.x, b1.y, b1.w * p, b1.h));
-                        cx.g.pill(b1, ui::BULB);
+                        cx.g.pill(b1, ui::bulb());
                         cx.g.pop_clip();
                         cx.moving = true;
                     }
-                    None => cx.g.pill(b1, ui::BULB),
+                    None => cx.g.pill(b1, ui::bulb()),
                 }
-                cx.tx.draw_center(&mut cx.g, f, &label, b1.x + b1.w / 2.0, b1.y + (72.0 - f.line()) / 2.0, ui::ON_BULB);
-                cx.g.pill(b2, hexa(0xF6EADF, 0.1));
+                cx.tx.draw_center(&mut cx.g, f, &label, b1.x + b1.w / 2.0, b1.y + (72.0 - f.line()) / 2.0, ui::on_bulb());
+                cx.g.pill(b2, ui::paper().alpha(0.1));
                 if l2 > 0.0 {
-                    cx.g.ring(b2.grow(4.0), 40.0, 4.0, ui::BULB.alpha(l2));
+                    cx.g.ring(b2.grow(4.0), 40.0, 4.0, ui::bulb().alpha(l2));
                 }
                 let keep = if self.ended { t!("Back") } else { t!("Keep watching") };
-                cx.tx.draw_center(&mut cx.g, f, keep, b2.x + b2.w / 2.0, b2.y + (72.0 - f.line()) / 2.0, ui::PAPER);
+                cx.tx.draw_center(&mut cx.g, f, keep, b2.x + b2.w / 2.0, b2.y + (72.0 - f.line()) / 2.0, ui::paper());
             }
         }
         // Menu
@@ -949,20 +1077,20 @@ impl Screen for Player {
             }
             for (k, (head, label, on)) in labels.iter().enumerate() {
                 if *head {
-                    cx.tx.draw(&mut cx.g, body(22.0, 700), &label.to_uppercase(), r.x + 32.0, y + 14.0, ui::DUST);
+                    cx.tx.draw(&mut cx.g, body(22.0, 700), &label.to_uppercase(), r.x + 32.0, y + 14.0, ui::dust());
                     y += 52.0;
                     continue;
                 }
                 let ir = rect(r.x + 24.0, y, r.w - 48.0, 58.0);
                 if k == sel {
-                    cx.g.round(ir, 12.0, ui::SEAT);
-                    cx.g.ring(ir, 12.0, 3.0, ui::BULB);
+                    cx.g.round(ir, 12.0, ui::seat());
+                    cx.g.ring(ir, 12.0, 3.0, ui::bulb());
                 }
-                cx.tx.draw_fit(&mut cx.g, body(30.0, 400), label, ir.x + 20.0, ir.y + (58.0 - body(30.0, 400).line()) / 2.0, ir.w - 70.0, ui::PAPER);
+                cx.tx.draw_fit(&mut cx.g, body(30.0, 400), label, ir.x + 20.0, ir.y + (58.0 - body(30.0, 400).line()) / 2.0, ir.w - 70.0, ui::paper());
                 if *on {
                     let dot = rect(ir.r() - 34.0, ir.y + 22.0, 14.0, 14.0);
-                    cx.g.glow(dot, 7.0, 12.0, ui::BULB.alpha(0.8));
-                    cx.g.round(dot, 7.0, ui::BULB);
+                    cx.g.glow(dot, 7.0, 12.0, ui::bulb().alpha(0.8));
+                    cx.g.round(dot, 7.0, ui::bulb());
                 }
                 y += 62.0;
             }
@@ -978,14 +1106,14 @@ impl Screen for Player {
             let r = rect(960.0 - w / 2.0, 540.0 - h / 2.0, w, h);
             cx.g.round(r, 14.0, hexa(0x140A10, 0.85));
             for (n, l) in lines.iter().enumerate() {
-                cx.tx.draw_center(&mut cx.g, f, l, 960.0, r.y + 20.0 + n as f32 * 42.0, if self.failed { ui::ALERT } else { ui::PAPER });
+                cx.tx.draw_center(&mut cx.g, f, l, 960.0, r.y + 20.0 + n as f32 * 42.0, if self.failed { ui::alert() } else { ui::paper() });
             }
             if !self.failed {
                 for k in 0..3 {
                     let ph = ((cx.now / 420.0) as f32 - k as f32 * 0.6) % 3.0;
                     let lit = if ph < 1.0 { 0.35 + 0.65 * libm::sinf(ph * core::f32::consts::PI) } else { 0.35 };
                     let d = rect(960.0 - 40.0 + k as f32 * 34.0 - 6.0, r.b() - 34.0, 12.0, 12.0);
-                    cx.g.round(d, 6.0, ui::BULB.alpha(lit));
+                    cx.g.round(d, 6.0, ui::bulb().alpha(lit));
                 }
                 cx.ambient = true;
             }
@@ -1098,6 +1226,16 @@ impl Screen for Player {
             return;
         }
         match tag {
+            ADAPT_LINK => {
+                // No adaptive stream: back to the file it was playing.
+                if res.ok() && !s(&res.json, "url").is_empty() {
+                    self.stream = alloc::format!("{}{}", cx.server, s(&res.json, "url"));
+                }
+                self.reopening = false;
+                self.retries = 0;
+                let at = self.open_at;
+                self.open_stream(cx, at);
+            }
             LINK => {
                 if !res.ok() {
                     let e = res.error();
@@ -1155,6 +1293,7 @@ impl Screen for Player {
                 if let Some(c) = f(&res.json, "creditsAt") {
                     if c > 0.0 {
                         self.credits_at = Some(c);
+                        self.ask_page(cx); // the credits card's backdrop and logo, ready before they roll
                     }
                 }
             }
@@ -1192,6 +1331,9 @@ impl Screen for Player {
             PAGE => {
                 if let Some(u) = res.json.get("page").and_then(|p| p.get("logo")).map(|l| s(l, "url")) {
                     self.logo = String::from(u);
+                }
+                if let Some(b) = res.json.get("page").map(|p| s(p, "backdrop")).filter(|b| !b.is_empty()) {
+                    self.backdrop = ui::tmdb_size(b, "w1280");
                 }
             }
             t if t & 0xff == SUB_FILE => {
@@ -1285,6 +1427,10 @@ impl Screen for Player {
             1 => {
                 self.spinner = Some(String::from(t!("Loading…")));
                 self.buffering_since = now;
+                if self.framed && self.seek_target.is_none() {
+                    self.stall_times.retain(|t| now - *t < 180_000.0);
+                    self.stall_times.push(now);
+                }
             }
             2 => {
                 if !self.failed && !self.reopening {
@@ -1299,6 +1445,9 @@ impl Screen for Player {
                 if value != self.last_ms {
                     self.last_ms = value;
                     self.moved_at = now;
+                    if self.buffering_since == 0.0 {
+                        self.framed = true;
+                    }
                     if value > 1000.0 {
                         self.retries = 0;
                     }
@@ -1352,6 +1501,12 @@ impl Screen for Player {
                     self.pending_go = false;
                     self.go(cx);
                 }
+            }
+            10 => {
+                // Android's 2 s report: {"bw","buf","br"} (bandwidth estimate, buffered ms, video bitrate).
+                let v: Value = serde_json::from_str(text).unwrap_or(Value::Null);
+                self.net = Some((f(&v, "bw").unwrap_or(0.0), f(&v, "buf").unwrap_or(0.0), f(&v, "br").unwrap_or(0.0), now));
+                return;
             }
             9 => {
                 if self.pending_go {

@@ -9,7 +9,7 @@ wordmark, its bulb lit, in front of the velvet curtain. The marks live in tools/
   public/badge-96.png                         white silhouette for Android's notification bar
   public/favicon.svg                          flat vector monogram for browser tabs
   public/wordmark.svg                         the wordmark, paper and gold, for the share and sign-in pages
-  tv/android/.../splash.png, ic_launcher.png  the Android TV app's splash icon and launcher icons
+  (the Android TV app's icons: tv/android/art/render.py)
 
 tools/og-banner.py draws the link-preview card and the Android TV banner with the same marks.
 """
@@ -78,7 +78,6 @@ def write(img, path, size, opaque=False):
 
 def main():
     pub = os.path.join(ROOT, "public")
-    res = os.path.join(ROOT, "tv", "android", "app", "src", "main", "res")
     rounded = icon(True, 0.585)
     full = icon(False, 0.55)  # maskable: the monogram's corners stay inside the 80 % circle
     for size in (192, 512):
@@ -86,9 +85,7 @@ def main():
         write(full, os.path.join(pub, f"maskable-{size}.png"), size, opaque=True)
     write(full, os.path.join(pub, "apple-touch-icon.png"), 180, opaque=True)
     write(badge(), os.path.join(pub, "badge-96.png"), 96)
-    write(splash(), os.path.join(res, "drawable-xhdpi", "splash.png"), 480, opaque=True)
-    write(rounded, os.path.join(res, "mipmap-xhdpi", "ic_launcher.png"), 96)
-    write(rounded, os.path.join(res, "mipmap-xxxhdpi", "ic_launcher.png"), 192)
+    # The Android TV app's icons follow the new identity now: tv/android/art/render.py draws them.
     with open(os.path.join(pub, "favicon.svg"), "w") as f:
         f.write(favicon())
     with open(os.path.join(pub, "wordmark.svg"), "w") as f:

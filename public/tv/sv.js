@@ -5,6 +5,7 @@ window.LilinTvStrings = {
   'No episodes listed yet.': 'Inga avsnitt listade än.',
   'Couldn’t load the episodes.': 'Kunde inte hämta avsnitten.',
   'This episode isn’t out yet.': 'Avsnittet har inte kommit ut än.',
+  'Watched': 'Sedd',
   'Cast': 'Medverkande',
   '{0} h {1} min': '{0} h {1} min',
   'More like this': 'Mer som det här',

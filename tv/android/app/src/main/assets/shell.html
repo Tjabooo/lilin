@@ -6,54 +6,62 @@
 <title>Lilin</title>
 <!--
   Lilin's Android TV shell (tv/android). The app shows this page with the Lilin server as its address,
-  then loads the TV screens (public/tv) from the server, the same files the Samsung app runs. Before that,
+  then loads the TV app from the server: the same one the Samsung app runs (public/tv-rs: Rust drawing with
+  WebGL), or the JavaScript one (public/tv) on a box without WebGL/WebAssembly. Before that,
   it gives them what the Samsung TV has and Android doesn't: an AVPlay-shaped player (the app's native one),
   tizen.application.exit and Samsung's key codes. It also asks for the server's address when the app was
   built without one, and offers the app's own updates.
 -->
 <style>
-  /* The boot screen is tv.css's, so the hand-over to tv.js doesn't move a pixel. The font comes with the app. */
+  /* The splash is drawn exactly where the TV app (Rust, public/tv-rs) draws its own, so the hand-over doesn't move
+     a pixel: Lilin's ink room, the LiLiN wordmark in bone and the screen's red line under it. Font comes with the app. */
   @font-face { font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800;
     src: url("/fonts/bricolage-grotesque-latin.woff2") format("woff2"); }
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; color: #F6EADF;
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; color: #EFE8E1;
     font-family: system-ui, sans-serif; font-size: 30px; line-height: 1.3;
-    background: radial-gradient(ellipse 1500px 700px at 50% -160px, #3D2234 0%, rgba(61, 34, 52, 0) 100%), linear-gradient(#1F1019, #160B12); }
+    background: radial-gradient(ellipse 1500px 700px at 50% -160px, #33202B 0%, rgba(51, 32, 43, 0) 100%), linear-gradient(#140A14, #0E070E); }
   /* A video is open: the page is see-through, so the picture under it shows (Samsung cuts a hole instead). */
   html.lil-video, html.lil-video body { background: transparent !important; }
   #app { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; }
-  .shell { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-  .shell::before { content: ''; width: 330px; height: 16px; margin-bottom: 30px;
-    background: radial-gradient(circle, #F4C152 5px, rgba(244, 193, 82, .35) 6.5px, rgba(244, 193, 82, 0) 9px) 0 50% / 33px 16px repeat-x; }
-  .shell b { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 120px; letter-spacing: -0.03em; color: #F4C152;
-    text-shadow: 0 0 26px rgba(244, 193, 82, .45); line-height: 1.3; }
-  .shell p { margin: 24px 0 0; color: #BA9DAD; max-width: 1100px; }
+  .shell { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+  .shell .wm { position: absolute; left: 833px; top: 416px; width: 254px; height: 123px; fill: #EFE8E1; }
+  .shell i { position: absolute; left: 793px; top: 558px; width: 334px; height: 3px; border-radius: 2px; background: #FB2C16;
+    box-shadow: 0 0 22px rgba(251, 44, 22, .45); }
+  .shell p { position: absolute; left: 410px; width: 1100px; top: 640px; margin: 0; text-align: center; color: #B8AAB2; font-size: 32px; }
   .shell p:empty { display: none; }
-  .shell p kbd { font: inherit; font-weight: 700; color: #F6EADF; }
+  .shell p kbd { font: inherit; font-weight: 700; color: #EFE8E1; }
 
   /* Where is Lilin? (first start of an app built without an address) */
   .setup { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 0 40px 240px; }
-  .setup .mark { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 46px; letter-spacing: -0.03em; color: #F4C152; text-shadow: 0 0 26px rgba(244, 193, 82, .45); }
+  .setup .wm { width: 95px; height: 46px; fill: #EFE8E1; }
   .setup h1 { margin: 40px 0 0; font-family: "Bricolage Grotesque", sans-serif; font-size: 84px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
-  .setup .lead { margin: 26px 0 0; max-width: 1180px; color: #BA9DAD; font-size: 34px; }
-  .setup .lead b { color: #F6EADF; }
+  .setup .lead { margin: 26px 0 0; max-width: 1180px; color: #B8AAB2; font-size: 34px; }
+  .setup .lead b { color: #EFE8E1; }
   .setup form { display: flex; align-items: center; margin-top: 56px; }
-  .setup input { width: 900px; height: 104px; padding: 0 44px; border-radius: 999px; border: 2px solid rgba(246, 234, 223, .1); outline: none;
-    background: rgba(43, 23, 36, .9); color: #F6EADF; font: 700 40px/1 system-ui, sans-serif; caret-color: #F4C152;
+  .setup input { width: 900px; height: 104px; padding: 0 44px; border-radius: 999px; border: 2px solid rgba(239, 232, 225, .1); outline: none;
+    background: rgba(29, 18, 28, .9); color: #EFE8E1; font: 700 40px/1 system-ui, sans-serif; caret-color: #FB2C16;
     transition: transform .15s ease-out, box-shadow .15s ease-out; }
-  .setup input::placeholder { color: rgba(186, 157, 173, .55); }
-  .setup button { margin-left: 28px; height: 104px; padding: 0 60px; border-radius: 999px; border: 0; background: rgba(246, 234, 223, .08);
-    color: #F6EADF; font: 700 36px/1 system-ui, sans-serif; transition: transform .15s ease-out, background-color .15s ease-out; }
-  .setup .focus { transform: scale(1.04); box-shadow: 0 0 0 5px #F4C152, 0 0 44px rgba(244, 193, 82, .42); }
-  .setup button.focus { background: #F4C152; color: #1F1019; box-shadow: 0 0 44px rgba(244, 193, 82, .42); }
+  .setup input::placeholder { color: rgba(184, 170, 178, .55); }
+  .setup button { margin-left: 28px; height: 104px; padding: 0 60px; border-radius: 999px; border: 0; background: rgba(239, 232, 225, .08);
+    color: #EFE8E1; font: 700 36px/1 system-ui, sans-serif; transition: transform .15s ease-out, background-color .15s ease-out; }
+  .setup .focus { transform: scale(1.04); box-shadow: 0 0 0 5px #FB2C16, 0 0 44px rgba(251, 44, 22, .42); }
+  .setup button.focus { background: #FB2C16; color: #140A14; box-shadow: 0 0 44px rgba(251, 44, 22, .42); }
   .setup .note { margin: 34px 0 0; min-height: 40px; font-size: 32px; color: #FF9B85; }
-  .setup .note.busy { color: #BA9DAD; }
+  .setup .note.busy { color: #B8AAB2; }
 
-  /* The update offer: tv.css's own dialog (.screen.dialog, .dialog-box, .choice) over whatever is showing. */
-  .lil-update { z-index: 50; }
-  .lil-update p { margin: -12px 0 30px; color: #BA9DAD; font-size: 32px; }
-  .lil-update .bar { height: 12px; margin-top: 10px; border-radius: 6px; background: rgba(246, 234, 223, .1); overflow: hidden; }
-  .lil-update .bar i { display: block; height: 100%; width: 0; background: #F4C152; transition: width .3s linear; }
+  /* The update offer, over whatever is showing (the TV app is a canvas underneath). */
+  .lil-update { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: rgba(14, 7, 14, .94); }
+  .lil-update .dialog-box { width: 920px; padding: 56px; border-radius: 30px; background: linear-gradient(#2A1C28, #1D121C);
+    border: 2px solid rgba(239, 232, 225, .1); box-shadow: 0 40px 100px rgba(0, 0, 0, .6); }
+  .lil-update h2 { margin: 0 0 36px; font-family: "Bricolage Grotesque", sans-serif; font-size: 46px; letter-spacing: -.02em; }
+  .lil-update p { margin: -12px 0 30px; color: #B8AAB2; font-size: 32px; }
+  .lil-update .choice { display: block; width: 100%; text-align: left; padding: 24px 34px; margin-top: 16px; border: 0; border-radius: 999px;
+    background: rgba(239, 232, 225, .08); color: #EFE8E1; font: 700 32px/1.3 system-ui, sans-serif; }
+  .lil-update .choice.focus { background: #FB2C16; color: #140A14; }
+  .lil-update .bar { height: 12px; margin-top: 10px; border-radius: 6px; background: rgba(239, 232, 225, .1); overflow: hidden; }
+  .lil-update .bar i { display: block; height: 100%; width: 0; background: #FB2C16; transition: width .3s linear; }
 </style>
 <script>
   window.LILIN_SERVER = "__LILIN_SERVER__";
@@ -64,7 +72,7 @@
 </script>
 </head>
 <body>
-<div id="app"><div class="shell"><b>Lilin</b><p id="shell-note"></p></div></div>
+<div id="app"><div class="shell"><svg class="wm" viewBox="0 0 2098 1016" aria-label="Lilin"><path d="M0.0 0.0H242.0V22.0H0.0Z M46.0 0.0H196.0V1000.0H46.0Z M0.0 978.0H196.0V1000.0H0.0Z M196.0 970.0 L338.0 970.0 L420.0 850.0 L424.0 854.0 L424.0 1000.0 L196.0 1000.0Z M528.0 0.0H678.0V150.0H528.0Z M528.0 186.0H678.0V1000.0H528.0Z M482.0 978.0H724.0V1000.0H482.0Z M798.0 0.0H1040.0V22.0H798.0Z M844.0 0.0H994.0V1000.0H844.0Z M798.0 978.0H994.0V1000.0H798.0Z M994.0 970.0 L1136.0 970.0 L1218.0 850.0 L1222.0 854.0 L1222.0 1000.0 L994.0 1000.0Z M1326.0 0.0H1476.0V150.0H1326.0Z M1326.0 186.0H1476.0V1000.0H1326.0Z M1280.0 978.0H1522.0V1000.0H1280.0Z M1642.0 0.0H1678.0V1000.0H1642.0Z M1596.0 978.0H1724.0V1000.0H1596.0Z M1596.0 0.0H1732.0V22.0H1596.0Z M1642.0 0.0 L1792.0 0.0 L2052.0 1016.0 L1902.0 1016.0Z M2016.0 0.0H2052.0V1016.0H2016.0Z M1970.0 0.0H2098.0V22.0H1970.0Z"/></svg><i></i><p id="shell-note"></p></div></div>
 <script>
 (function () {
   'use strict';
@@ -172,19 +180,50 @@
       'Kan inte nå Lilin på ' + esc(server) + '. Är servern på? Försöker igen…<br>Tryck <kbd>OK</kbd> för att byta adress.'));
     retryTimer = setTimeout(function () { waiting = false; load(); }, 5000);
   }
-  function load() {
+  var WORDMARK = document.querySelector('.shell .wm').outerHTML;
+  var ENGINE_KEY = 'lilin:tv-engine'; // "js" forces the JavaScript app (a way back if the Rust one misbehaves)
+  var jsStarted = false, started = false;
+  function engine() { try { return localStorage.getItem(ENGINE_KEY) || ''; } catch (e) { return ''; } }
+  function script(src, done) {
+    var s = document.createElement('script');
+    s.async = false; // downloaded together, run in this order
+    s.src = src;
+    s.onload = function () { done(null); };
+    s.onerror = function () { done(new Error('failed')); };
+    add(s);
+  }
+  function started1() { if (!started) { started = true; setTimeout(checkForUpdate, 4000); } }
+  // The JavaScript app: /tv/tv.css, (/tv/sv.js), /tv/logic.js, /tv/tv.js.
+  function loadJs() {
+    if (jsStarted) return;
+    jsStarted = true;
     var v = Date.now();
+    var app = document.getElementById('app');
+    if (app && !app.firstChild) app.innerHTML = '<div class="shell">' + WORDMARK + '<i></i><p id="shell-note"></p></div>';
     var css = document.createElement('link');
     css.rel = 'stylesheet';
     css.href = server + '/tv/tv.css?v=' + v;
     add(css);
     (window.LILIN_SWEDISH ? ['sv.js', 'logic.js', 'tv.js'] : ['logic.js', 'tv.js']).forEach(function (name, i, all) {
-      var s = document.createElement('script');
-      s.async = false; // downloaded together, run in this order
-      s.src = server + '/tv/' + name + '?v=' + v;
-      s.onerror = retry;
-      if (i === all.length - 1) s.onload = function () { setTimeout(checkForUpdate, 4000); };
-      add(s);
+      script(server + '/tv/' + name + '?v=' + v, function (err) {
+        if (err) { jsStarted = false; return retry(); }
+        if (i === all.length - 1) started1();
+      });
+    });
+  }
+  // The Rust app (what the Samsung app runs): /tv-rs/host.js starts /tv-rs/lilin_tv.wasm. Swedish TVs also get
+  // /tv/sv.js, for this page's own lines (the update offer).
+  function load() {
+    if (engine() === 'js') return loadJs();
+    var v = Date.now();
+    if (window.LILIN_SWEDISH) script(server + '/tv/sv.js?v=' + v, function () { /* English if it fails */ });
+    script(server + '/tv-rs/host.js?v=' + v, function (err) {
+      if (err || !window.LilinTvHost) return retry();
+      window.LilinTvHost.start({
+        server: server, lang: window.LILIN_SWEDISH ? 'sv' : 'en', play: window.LILIN_TV_PLAY, android: true,
+        onFail: function () { loadJs(); },
+      });
+      started1();
     });
   }
   // While the server can't be reached: OK changes the address, Back leaves.
@@ -197,7 +236,7 @@
   // ---------- where is Lilin? ----------
   function setup(current) {
     var app = document.getElementById('app');
-    app.innerHTML = '<div class="setup"><div class="mark">Lilin</div>' +
+    app.innerHTML = '<div class="setup">' + WORDMARK +
       '<h1>' + say('Where is Lilin?', 'Var finns Lilin?') + '</h1>' +
       '<p class="lead">' + say('Type the address of your Lilin server, for example <b>192.168.1.10:8080</b>. ' +
       'You’ll find it in Lilin on your phone under <b>Settings → Android TV</b>.',
@@ -261,9 +300,14 @@
       .catch(function () { /* no update info: nothing to offer */ });
   }
   function offerUpdate(info) {
-    var T = window.LilinTvLogic && window.LilinTvLogic.T ? window.LilinTvLogic.T : function (s) { return s; };
+    // The TV app's Swedish lines (/tv/sv.js) on a Swedish TV, else English.
+    var T = function (en) {
+      var sv = window.LILIN_SWEDISH && window.LilinTvStrings && window.LilinTvStrings[en];
+      var args = arguments, line = sv || en;
+      return line.replace(/\{(\d)\}/g, function (m, i) { var a = args[+i + 1]; return a == null ? m : String(a); });
+    };
     var el = document.createElement('div');
-    el.className = 'screen dialog lil-update';
+    el.className = 'lil-update';
     el.innerHTML = '<div class="dialog-box"><h2></h2><p></p><div class="acts"></div></div>';
     var title = el.querySelector('h2'), text = el.querySelector('p'), acts = el.querySelector('.acts');
     var buttons = [], on = 0, closeOnly = false;

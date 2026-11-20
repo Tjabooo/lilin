@@ -1,9 +1,13 @@
-//! Swedish lines from public/tv/sv.js (built in by build.rs), keyed by the English line; English when missing.
+//! Swedish lines from public/tv/sv.js (built in by build.rs), keyed by the English line; English when missing
+//! or when the TV isn't set to Swedish (platform.rs; Samsung: always Swedish).
 use alloc::string::String;
 
 include!(concat!(env!("OUT_DIR"), "/sv.rs"));
 
 pub fn tr(en: &'static str) -> &'static str {
+    if !crate::platform::swedish() {
+        return en;
+    }
     match SV.binary_search_by(|(k, _)| (*k).cmp(en)) {
         Ok(i) => SV[i].1,
         Err(_) => en,

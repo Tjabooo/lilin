@@ -1,6 +1,7 @@
 # Lilin TV app (Rust)
 
-The Samsung TV app's whole UI, in Rust. It runs as WebAssembly 1.0 inside the Tizen shell (`tv/tizen`) and draws
+The TV apps' whole UI, in Rust: Samsung (inside the Tizen shell, `tv/tizen`) and Android TV (inside its WebView
+shell, `tv/android`, which hands over its language, video variant and an AVPlay-shaped ExoPlayer). It runs as WebAssembly 1.0 and draws
 every frame with WebGL, so the TV's slow CPU never does page layout, styling or DOM work. Samsung only lets
 non-partner apps run as web apps, so Rust reaches the TV as WebAssembly.
 

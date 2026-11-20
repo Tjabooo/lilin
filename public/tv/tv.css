@@ -7,10 +7,10 @@
   src: url("../fonts/bricolage-grotesque-latin.woff2") format("woff2");
 }
 :root {
-  --velvet: #1F1019; --curtain: #2B1724; --seat: #3A2031; --line: #4B2C3F;
-  --paper: #F6EADF; --dust: #BA9DAD; --bulb: #F4C152; --on-bulb: #1F1019; --alert: #FF9B85;
-  --deep: #160B12; --velvet-rgb: 31, 16, 25; --curtain-rgb: 43, 23, 36; --seat-rgb: 58, 32, 49; --paper-rgb: 246, 234, 223;
-  --bulb-rgb: 244, 193, 82; --deep-rgb: 22, 11, 18; /* tv.js swaps all of these for the person's theme */
+  --velvet: #140A14; --curtain: #1D121C; --seat: #2A1C28; --line: #3A2A36;
+  --paper: #EFE8E1; --dust: #B8AAB2; --bulb: #FB2C16; --on-bulb: #140A14; --alert: #FF9B85;
+  --deep: #0E070E; --velvet-rgb: 20, 10, 20; --curtain-rgb: 29, 18, 28; --seat-rgb: 42, 28, 40; --paper-rgb: 239, 232, 225;
+  --bulb-rgb: 251, 44, 22; --deep-rgb: 14, 7, 14; /* tv.js swaps all of these for the person's theme */
   --edge: 96px; /* TV-safe margin (tv.js counts on it) */
   --display: "Bricolage Grotesque", "SamsungOne", "Tizen Sans", sans-serif;
   --glow: 0 0 0 5px var(--bulb), 0 0 44px rgba(var(--bulb-rgb), .42);
@@ -141,9 +141,9 @@ html[data-scheme="light"] .card.focus .name { color: var(--paper); }
 #av { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 .player { background: transparent; }
 /* Over a video a light theme would put dark text on a dark picture: the player keeps dark panels (the theme's accent stays). */
-html[data-scheme="light"] .player { --velvet: #1F1019; --curtain: #2B1724; --seat: #3A2031; --line: #4B2C3F; --paper: #F6EADF; --dust: #BA9DAD;
-  --alert: #FF9B85; --deep: #160B12; --velvet-rgb: 31, 16, 25; --curtain-rgb: 43, 23, 36; --seat-rgb: 58, 32, 49; --paper-rgb: 246, 234, 223;
-  --deep-rgb: 22, 11, 18; --hair: rgba(246, 234, 223, .1); }
+html[data-scheme="light"] .player { --velvet: #140A14; --curtain: #1D121C; --seat: #2A1C28; --line: #3A2A36; --paper: #EFE8E1; --dust: #B8AAB2;
+  --alert: #FF9B85; --deep: #0E070E; --velvet-rgb: 20, 10, 20; --curtain-rgb: 29, 18, 28; --seat-rgb: 42, 28, 40; --paper-rgb: 239, 232, 225;
+  --deep-rgb: 14, 7, 14; --hair: rgba(239, 232, 225, .1); }
 .subs { position: absolute; left: 160px; right: 160px; bottom: 90px; text-align: center; white-space: pre-line;
   font-size: 52px; font-weight: 700; line-height: 1.25; color: #fff; text-shadow: 0 0 6px #000, 0 2px 4px #000, 0 0 2px #000; }
 .osd.show ~ .subs { bottom: 300px; }
