@@ -1,4 +1,13 @@
 {
+  "2026-11-20-themed-tab-icon": {
+    "title": "Flikikonen följer ditt tema",
+    "items": {
+      "Tab icon in your colours": {
+        "title": "Flikikonen i dina färger",
+        "text": "Den lilla Lilin-ikonen på webbläsarfliken har nu färgerna från temat du valt under Utseende."
+      }
+    }
+  },
   "2026-11-20-new-episodes-removed": {
     "title": "Nya avsnitt följer ditt bibliotek",
     "items": {

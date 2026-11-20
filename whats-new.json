@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-themed-tab-icon",
+    "date": "2026-11-20",
+    "title": "The tab icon wears your theme",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Tab icon in your colours",
+        "text": "The little Lilin icon on your browser tab now takes the colours of the theme you picked in Appearance."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-new-episodes-removed",
     "date": "2026-11-20",
     "title": "New episodes listens to your library",

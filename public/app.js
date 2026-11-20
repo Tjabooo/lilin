@@ -404,6 +404,10 @@ function themeColors(theme) {
   };
 }
 
+// The tab icon in the theme's colours: the LN monogram (public/favicon.svg) in the accent, letters in the on-accent ink.
+const ICON_PATH = 'M168.0 176.0H292.0V788.0H168.0Z M128.0 176.0H332.0V206.0H128.0Z M291.0 758.0 L418.0 758.0 L488.0 648.0 L488.0 788.0 L291.0 788.0Z M488.0 176.0H518.0V788.0H488.0Z M488.0 176.0 L632.0 176.0 L848.0 852.0 L704.0 852.0Z M818.0 176.0H848.0V852.0H818.0Z M788.0 176.0H878.0V206.0H788.0Z M458.0 176.0H498.0V206.0H458.0Z M0.0 778.0H1024.0V788.0H0.0Z';
+const themeIcon = (accent, ink) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="${accent}"/><path fill="${ink}" d="${ICON_PATH}"/></svg>`)}`;
+
 function applyTheme(theme) {
   const c = themeColors(theme);
   const light = luminance(c.bg) > 0.5;
@@ -422,7 +426,10 @@ function applyTheme(theme) {
   root.dataset.scheme = light ? 'light' : 'dark';
   pageThemeColor = c.bg;
   if (!current) setTheme(c.bg);
-  try { localStorage.setItem('lilin:theme', JSON.stringify({ vars, scheme: light ? 'light' : 'dark' })); } catch { /* blocked */ }
+  const favicon = themeIcon(c.accent, onAccent);
+  const link = document.getElementById('favicon');
+  if (link && link.getAttribute('href') !== favicon) link.setAttribute('href', favicon);
+  try { localStorage.setItem('lilin:theme', JSON.stringify({ vars, scheme: light ? 'light' : 'dark', icon: favicon })); } catch { /* blocked */ }
 }
 
 // ---------- shared UI bits ----------

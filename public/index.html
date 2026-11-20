@@ -14,6 +14,7 @@
   <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
   <link rel="apple-touch-icon" href="/c/icons/apple-touch-icon.png">
   <title>Lilin</title>
+  <link rel="icon" id="favicon" href="/favicon.svg" type="image/svg+xml">
   <!-- The colours picked in Settings, applied before anything is drawn (app.js keeps this copy up to date) -->
   <script>
     // Firefox stutters on frosted glass (backdrop-filter) even on fast PCs: it gets plain tinted panels (style.css .no-glass)
@@ -26,6 +27,7 @@
         root.style.colorScheme = t.scheme;
         root.dataset.scheme = t.scheme;
         document.querySelector('meta[name="theme-color"]').content = t.vars['--velvet'];
+        if (t.icon) document.getElementById('favicon').href = t.icon; // the tab icon in the theme's colours
       }
     } catch { /* first visit, or storage blocked: default colours */ }
     // The page below is written in English: keep it hidden until i18n.js has put it in Swedish (never for long).
@@ -38,7 +40,6 @@
     } catch { /* storage blocked: English until the app has started */ }
   </script>
   <style>html.i18n-wait body { visibility: hidden; }</style>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/notes.css">
