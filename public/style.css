@@ -590,6 +590,8 @@ main {
 .shelf-items:is(.fade-start, .fade-end) {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); }
+/* Firefox repaints every masked row of posters on each scroll frame: hard edges there */
+html.no-glass .shelf-items:is(.fade-start, .fade-end) { -webkit-mask-image: none; mask-image: none; }
 .shelf-items > li { scroll-snap-align: start; min-width: 0; }
 .shelf-items:focus-visible { outline: none; }
 .discover-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: var(--s5); }

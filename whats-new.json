@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-firefox-scroll",
+    "date": "2026-11-20",
+    "title": "Smoother scrolling in Firefox",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Firefox scrolls smoothly again",
+        "text": "In Firefox the big banner on Discover no longer drifts as you scroll, and rows end with a clean edge instead of a fade. Both made scrolling stutter there."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-themed-tab-icon",
     "date": "2026-11-20",
     "title": "The tab icon wears your theme",
