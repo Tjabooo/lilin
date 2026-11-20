@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-new-episodes-removed",
+    "date": "2026-11-20",
+    "title": "New episodes listens to your library",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Removed shows leave New episodes",
+        "text": "A show you removed from your library no longer shows up under New episodes on Discover. Shows you follow still do."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-new-look",
     "date": "2026-11-20",
     "title": "Lilin's new colours and logo",

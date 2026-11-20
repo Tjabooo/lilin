@@ -1247,15 +1247,18 @@ function continueRow() {
   const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
-// New episodes: shows you follow or watch with episodes from the last two weeks you haven't seen, here (yours or
-// anyone's) and past where you are. Shows already in Continue watching stay there.
+// New episodes: shows you follow, or watch and still have in your library, with episodes from the last two weeks
+// you haven't seen, here (yours or anyone's) and past where you are. Shows already in Continue watching stay there.
+// A show you removed from your library (only someone else's copy left) stays out unless you follow it.
 function newEpisodeItems() {
   const since = Date.now() - 14 * 86400000;
   const followed = new Set(watch.items.filter((i) => i.type === 'tv' && i.follow).map((i) => Number(i.id)));
   const continuing = new Set(continueItems(state.library).map((x) => x.f.show).filter(Boolean));
+  const mine = new Set(state.library.map((f) => f.show).filter(Boolean));
   const out = [];
   for (const s of state.libraryShows) {
     if (s.tmdbId == null || continuing.has(s.id)) continue;
+    if (!mine.has(s.id) && !followed.has(Number(s.tmdbId))) continue;
     const fin = state.finished?.[`tv:${s.tmdbId}`];
     const eps = [...state.library, ...state.server].filter((f) => f.show === s.id && f.season != null && f.episode != null);
     const watched = Boolean(fin) || eps.some((f) => savedProgress(libraryFile(f)));

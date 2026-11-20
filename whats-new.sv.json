@@ -1,4 +1,13 @@
 {
+  "2026-11-20-new-episodes-removed": {
+    "title": "Nya avsnitt följer ditt bibliotek",
+    "items": {
+      "Removed shows leave New episodes": {
+        "title": "Borttagna serier försvinner från Nya avsnitt",
+        "text": "En serie du har tagit bort från ditt bibliotek dyker inte längre upp under Nya avsnitt på Upptäck. Serier du följer gör det fortfarande."
+      }
+    }
+  },
   "2026-11-20-new-look": {
     "title": "Lilins nya färger och logga",
     "items": {
