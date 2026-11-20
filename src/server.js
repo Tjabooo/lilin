@@ -654,7 +654,31 @@ function cachedTmdb(endpoint, params = {}, ttl = 30 * 60 * 1000) {
   return promise;
 }
 
-// Curated lists: [TMDB endpoint, media type]. Also the whitelist for "See all".
+// Discover → Anime: Japanese animation (TMDB genre 16 + original language ja).
+const ANIME = { with_genres: '16', with_original_language: 'ja', include_adult: 'false' };
+// TMDB keyword IDs (looked up 2026-11-20). Demographics first, then themes.
+const ANIME_KEYWORDS = {
+  shounen: '207826',
+  seinen: '195668',
+  shoujo: '206437',
+  josei: '229074',
+  isekai: '237451',
+  'dark-fantasy': '177895',
+  'slice-of-life': '9914',
+  romance: '9840',
+  sports: '6075',
+  mecha: '10046',
+  psychological: '272553|12565',
+  supernatural: '6152',
+  iyashikei: '291483',
+  'magical-girl': '292887',
+  idols: '287664|251523',
+  cyberpunk: '12190',
+  'martial-arts': '779',
+  'time-travel': '4379',
+  school: '190116|317537',
+};
+// Curated lists: [TMDB endpoint, media type, params()?]. Also the whitelist for "See all".
 const LISTS = {
   'trending-all': ['/trending/all/week', null],
   'trending-movie': ['/trending/movie/week', 'movie'],
@@ -673,8 +697,10 @@ const LISTS = {
   'anime-popular-movie': ['/discover/movie', 'movie', () => ({ ...ANIME, sort_by: 'popularity.desc', 'primary_release_date.lte': daysFromNow(0) })],
   'anime-top-tv': ['/discover/tv', 'tv', () => ({ ...ANIME, sort_by: 'vote_average.desc', 'vote_count.gte': '300' })],
   'anime-top-movie': ['/discover/movie', 'movie', () => ({ ...ANIME, sort_by: 'vote_average.desc', 'vote_count.gte': '300' })],
+  // Anime categories: series with that TMDB keyword (| = any of them), the most watched first (popularity puts
+  // long-running kids' shows like Detective Conan on top of everything).
+  ...Object.fromEntries(Object.entries(ANIME_KEYWORDS).map(([k, kw]) => [`anime-${k}`, ['/discover/tv', 'tv', () => ({ ...ANIME, with_keywords: kw, sort_by: 'vote_count.desc' })]])),
 };
-const ANIME = { with_genres: '16', with_original_language: 'ja', include_adult: 'false' };
 const daysFromNow = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const HOME_ROWS = {
   all: [['trending-all', 'Trending this week'], ['popular-movie', 'Popular films'], ['popular-tv', 'Popular shows'],
@@ -684,7 +710,10 @@ const HOME_ROWS = {
   tv: [['trending-tv', 'Trending shows'], ['popular-tv', 'Popular'], ['airing-today', 'Airing today'],
     ['on-air', 'New episodes this week'], ['coming-soon-tv', 'Coming soon'], ['top-tv', 'Top rated']],
   anime: [['anime-season', 'New this season'], ['anime-popular-tv', 'Popular anime'], ['anime-airing', 'New episodes this week'],
-    ['anime-popular-movie', 'Anime films'], ['anime-top-tv', 'Top rated series'], ['anime-top-movie', 'Top rated films']],
+    ['anime-shounen', 'Shōnen'], ['anime-seinen', 'Seinen'], ['anime-shoujo', 'Shōjo'], ['anime-josei', 'Josei'], ['anime-isekai', 'Isekai'],
+    ['anime-popular-movie', 'Anime films'], ['anime-dark-fantasy', 'Dark fantasy'], ['anime-slice-of-life', 'Slice of life'], ['anime-romance', 'Romance'], ['anime-sports', 'Sports'],
+    ['anime-mecha', 'Mecha'], ['anime-psychological', 'Psychological'], ['anime-supernatural', 'Supernatural'], ['anime-iyashikei', 'Iyashikei: cosy and calm'], ['anime-magical-girl', 'Magical girls'], ['anime-idols', 'Idols'],
+    ['anime-cyberpunk', 'Cyberpunk'], ['anime-martial-arts', 'Martial arts'], ['anime-time-travel', 'Time travel'], ['anime-school', 'School life'], ['anime-top-tv', 'Top rated series'], ['anime-top-movie', 'Top rated films']],
 };
 // comingsoon: films and shows about to come out, ranked by closeness and buzz (src/coming-soon.js)
 const TMDB_REGION = (process.env.TMDB_REGION || TMDB_LANG.split('-')[1] || 'US').trim().toUpperCase();
@@ -6150,7 +6179,8 @@ async function deleteDownloadNow(t, withFiles, user = null) {
   if (withFiles) {
     const files = await torrentFileMetadata(t, { fresh: true });
     videos = files.filter((f) => isVideo(f.name)).map((f) => torrentFilePath(t, f));
-    if (user && (accounts.torrentClaimants(t.hash).some((id) => !accounts.sameLibrary(id, user.id))
+    // The server's owner may delete anyone's download with its files (Oliver 2026-11-20); others only their library's.
+    if (user && !user.isOwner && (accounts.torrentClaimants(t.hash).some((id) => !accounts.sameLibrary(id, user.id))
       || videos.some((v) => accounts.heldOutside(accounts.mediaKey(v), user.id)))) {
       throw new HttpError(409, 'Someone else has a video from this download in their library. Remove the download with files kept instead.');
     }
