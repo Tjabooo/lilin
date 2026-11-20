@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-shared-clips-lite",
+    "date": "2026-11-20",
+    "title": "Shared clips on slower connections",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Shared clips play on slower connections",
+        "text": "Shared clips now also come in a lighter 1080p version. It plays on screens that are 1080p or smaller, and the clip switches to it by itself if the full-quality version keeps stopping to load."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-letterboxd-match",
     "date": "2026-11-20",
     "title": "Letterboxd films land on the right title",

@@ -1,4 +1,13 @@
 {
+  "2026-11-20-shared-clips-lite": {
+    "title": "Delade klipp på långsammare anslutningar",
+    "items": {
+      "Shared clips play on slower connections": {
+        "title": "Delade klipp spelas på långsammare anslutningar",
+        "text": "Delade klipp finns nu också i en lättare 1080p-version. Den spelas på skärmar som är 1080p eller mindre, och klippet byter till den av sig självt om fullkvalitetsversionen hela tiden stannar för att ladda."
+      }
+    }
+  },
   "2026-11-20-letterboxd-match": {
     "title": "Letterboxd-filmer hamnar på rätt titel",
     "items": {

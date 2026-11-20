@@ -31,6 +31,29 @@ const store = {
 const player = $('#player');
 const stage = $('#player-stage');
 const video = $('#video');
+// The server's lighter 1080p copy (data-lite), when it has one: start on it when the screen can't show more than
+// 1080p, and switch to it, at the same moment, when the full copy keeps buffering (slow connection or slow decoder).
+const lite = video.dataset.lite;
+let onLite = false;
+function useLite() {
+  if (!lite || onLite) return;
+  onLite = true;
+  const t = video.currentTime, playing = !video.paused;
+  video.src = lite;
+  video.addEventListener('loadedmetadata', () => { if (t) video.currentTime = t; if (playing) video.play().catch(() => {}); }, { once: true });
+}
+if (lite && Math.min(screen.width, screen.height) * (window.devicePixelRatio || 1) <= 1100) useLite();
+if (lite) {
+  let stalls = [], since = 0;
+  video.addEventListener('waiting', () => {
+    if (onLite || video.seeking || video.currentTime < 0.5) return;
+    since = performance.now();
+    const now = Date.now();
+    stalls = stalls.filter((x) => now - x < 30000).concat(now);
+    if (stalls.length >= 2) useLite();
+  });
+  video.addEventListener('playing', () => { if (since && performance.now() - since > 2500) useLite(); since = 0; });
+}
 const controls = $('#player-controls');
 const seekEl = $('#seek');
 const seekTip = $('#seek-tip');

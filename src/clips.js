@@ -265,6 +265,29 @@ export async function thumbnail(id) {
 // i5-14600KF, so a 90 s clip's copy needs ~6 minutes; the upload (~350 Mbit/s) streams it easily.
 const SHARE_X264 = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '10', '-pix_fmt', 'yuv420p', '-profile:v', 'high'];
 const sharePath = (id) => path.join(cacheDir, 'share', `${id}.mp4`);
+// A lighter 1080p copy next to the full one, for viewers whose screen is 1080p or smaller and for connections that
+// can't keep up with ~50-130 Mbps (the clip page starts on it or switches to it after repeated buffering; the full
+// copy stays the default everywhere else). Made from the full copy, only when that is taller than 1080p.
+const LITE_X264 = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-maxrate', '12M', '-bufsize', '24M', '-pix_fmt', 'yuv420p', '-profile:v', 'high'];
+const litePath = (id) => path.join(cacheDir, 'share', `${id}.1080.mp4`);
+const liteJobs = new Map();
+const noLite = new Set(); // full copies that are 1080p or smaller (checked once per run)
+function makeLiteCopy(id) {
+  if (liteJobs.has(id) || noLite.has(id) || fs.existsSync(litePath(id)) || !fs.existsSync(sharePath(id))) return;
+  const job = (async () => {
+    const { v } = await probe(sharePath(id));
+    if (!v || (v.height || 0) <= 1080) { noLite.add(id); return; }
+    const tmp = `${litePath(id)}.lilin-tmp.mp4`;
+    try {
+      await run(FFMPEG, ['-hide_banner', '-nostdin', '-y', '-i', sharePath(id), '-map', '0:v:0', '-map', '0:a:0?',
+        '-vf', 'scale=-2:1080', ...LITE_X264, '-c:a', 'copy', '-movflags', '+faststart', tmp]);
+      await fs.promises.rename(tmp, litePath(id));
+    } finally {
+      await fs.promises.rm(tmp, { force: true });
+    }
+  })().catch(() => {}).finally(() => liteJobs.delete(id));
+  liteJobs.set(id, job);
+}
 function makeShareCopy(c) {
   if (jobs.has(c.id)) return jobs.get(c.id);
   failed.delete(c.id);
@@ -288,6 +311,7 @@ function makeShareCopy(c) {
     try {
       await run(FFMPEG, [...args, ...tail]);
       await fs.promises.rename(tmp, sharePath(c.id));
+      makeLiteCopy(c.id);
     } finally {
       await fs.promises.rm(tmp, { force: true });
     }
@@ -957,7 +981,7 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
     try { return send(200, 'image/jpeg', await fs.promises.readFile(file)); } catch { return send(404, 'text/plain', 'Not found.'); }
   }
 
-  const m = p.match(/^\/c\/([A-Za-z0-9_-]{16})(?:\/(video\.mp4|thumb\.jpg|preview\.json|preview\/(\d{1,4})\.jpg))?\/?$/);
+  const m = p.match(/^\/c\/([A-Za-z0-9_-]{16})(?:\/(video\.mp4|video-1080\.mp4|thumb\.jpg|preview\.json|preview\/(\d{1,4})\.jpg))?\/?$/);
   if (!m) return false;
   const clip = sharedClip(m[1]);
   if (!clip) return send(404, 'text/html; charset=utf-8', page({ title: 'Clip not found', desc: 'This link doesn’t work any more.', url: '', body: '<div class="card"><h1>This clip isn’t shared any more</h1><p>Ask whoever sent it for a new link.</p><p><a class="brand" href="/">Open Lilin</a></p></div>' }), { 'Cache-Control': 'no-store' });
@@ -975,6 +999,11 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
     if (!jpg) return send(404, 'text/plain', 'Not ready yet.', { 'Cache-Control': 'no-store' });
     return send(200, 'image/jpeg', await fs.promises.readFile(jpg), { 'Cache-Control': 'public, max-age=604800' });
   }
+  if (m[2] === 'video-1080.mp4') {
+    if (!fs.existsSync(litePath(clip.id))) return send(404, 'text/plain', 'Not found.', { 'Cache-Control': 'no-store' });
+    await sendVideo(req, res, litePath(clip.id));
+    return true;
+  }
   if (m[2] === 'video.mp4') {
     if (!ready) return send(503, 'text/plain', 'Still being prepared.', { 'Retry-After': '30', 'Cache-Control': 'no-store' });
     await sendVideo(req, res, copy);
@@ -990,13 +1019,15 @@ export async function handlePublic(req, res, url, { sendVideo, previews }) {
       body: `<h1>${esc(clip.title)}</h1><p>${esc(clip.game)}</p><div class="wait"><p>This clip is still being prepared. Reload in a minute.</p></div><script>setTimeout(()=>location.reload(),15000)</script>`,
     }), { 'Cache-Control': 'no-store' });
   }
-  return send(200, 'text/html; charset=utf-8', playerPage({ title: clip.title, game: clip.game, link }), { 'Cache-Control': 'no-store' });
+  makeLiteCopy(clip.id); // older share copies get theirs on first view
+  const lite = fs.existsSync(litePath(clip.id));
+  return send(200, 'text/html; charset=utf-8', playerPage({ title: clip.title, game: clip.game, link, lite }), { 'Cache-Control': 'no-store' });
 }
 
 // Discord shows the thumbnail as a large card; clicking it opens this page. The video is the
 // full-quality copy, played in Lilin's player, and the page has no way into the rest of Lilin.
 // friends: moments.js (/c/m/<token>) uses it too, with a description, a note under the title and subtitles.
-export function playerPage({ title, game, link, desc = `${game} · watch the clip`, note = '', track = null }) {
+export function playerPage({ title, game, link, desc = `${game} · watch the clip`, note = '', track = null, lite = false }) {
   const local = new URL(link).pathname; // same host the viewer used
   const og = [['og:site_name', 'Lilin'], ['og:title', title], ['og:description', desc], ['og:url', link],
     ['og:type', 'website'], ['og:image', `${link}/thumb.jpg`], ['twitter:card', 'summary_large_image'], ['twitter:image', `${link}/thumb.jpg`]]
@@ -1020,7 +1051,7 @@ export function playerPage({ title, game, link, desc = `${game} · watch the cli
 <body class="in-player">
   <div class="player ui-visible is-paused" id="player" role="region" aria-label="${esc(title)}">
     <div class="player-stage" id="player-stage">
-      <video id="video" src="${esc(`${local}/video.mp4`)}" poster="${esc(`${local}/thumb.jpg`)}" playsinline preload="auto">${track ? `<track kind="subtitles" src="${esc(track)}" default>` : ''}</video>
+      <video id="video" src="${esc(`${local}/video.mp4`)}"${lite ? ` data-lite="${esc(`${local}/video-1080.mp4`)}"` : ''} poster="${esc(`${local}/thumb.jpg`)}" playsinline preload="auto">${track ? `<track kind="subtitles" src="${esc(track)}" default>` : ''}</video>
       <div class="player-spinner" id="player-spinner" hidden></div>
       <div class="player-osd" id="player-osd" aria-hidden="true"></div>
     </div>
