@@ -1,7 +1,9 @@
 // Playback order comes from the signed-in person's completed library, never torrent progress.
+// An episode whose browser copy is still being made counts too: the player streams it live meanwhile
+// (bridgeVideo), so Up next doesn't vanish just because the next episode is still converting.
 const positiveInteger = (n) => Number.isSafeInteger(n) && n > 0;
 const usableEpisode = (f) => Boolean(f?.id && f.show && positiveInteger(f.season) && positiveInteger(f.episode)
-  && !f.converting && f.done !== false);
+  && f.done !== false);
 
 export function nextLibraryEpisode(playing, library, shows) {
   if (playing?.kind !== 'lib') return null;
@@ -10,7 +12,8 @@ export function nextLibraryEpisode(playing, library, shows) {
   if (!usableEpisode(current)) return null;
   const episodes = library.filter((f) => usableEpisode(f) && f.show === current.show);
   const choose = (season, episode) => episodes.filter((f) => f.season === season && f.episode === episode)
-    .sort((a, b) => String(a.file || '').localeCompare(String(b.file || '')) || String(a.id).localeCompare(String(b.id)))[0] || null;
+    .sort((a, b) => Number(Boolean(a.converting)) - Number(Boolean(b.converting))
+      || String(a.file || '').localeCompare(String(b.file || '')) || String(a.id).localeCompare(String(b.id)))[0] || null;
   const next = choose(current.season, current.episode + 1);
   if (next) return next;
   const total = shows.find((s) => s.id === current.show)?.seasons?.find((s) => s.number === current.season)?.total;

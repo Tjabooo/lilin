@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-up-next-while-preparing",
+    "date": "2026-11-20",
+    "title": "Up next while the next episode is getting ready",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Up next shows up even if the next episode is still getting ready",
+        "text": "When the next episode was still being made ready for your browser, the Up next prompt didn't appear at the end of an episode. Now it does, and the next episode starts right away in 1080p until the full-quality version is ready."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-next-episode-watched",
     "date": "2026-11-20",
     "title": "Next episode counts as watched",

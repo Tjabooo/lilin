@@ -1,4 +1,13 @@
 {
+  "2026-11-20-up-next-while-preparing": {
+    "title": "Nästa avsnitt medan det förbereds",
+    "items": {
+      "Up next shows up even if the next episode is still getting ready": {
+        "title": "Nästa avsnitt visas även om det fortfarande förbereds",
+        "text": "När nästa avsnitt fortfarande gjordes redo för din webbläsare dök rutan Nästa avsnitt inte upp i slutet av ett avsnitt. Nu gör den det, och nästa avsnitt startar direkt i 1080p tills versionen i full kvalitet är klar."
+      }
+    }
+  },
   "2026-11-20-next-episode-watched": {
     "title": "Nästa avsnitt räknas som sett",
     "items": {

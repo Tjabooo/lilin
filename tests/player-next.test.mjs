@@ -33,7 +33,10 @@ test('specials, malformed numbers and unready files are excluded, and duplicates
   const b = episode('two-b', 2, { file: 'b.mp4' });
   assert.equal(nextLibraryEpisode(playing, [one, b, a], []).id, 'two-a');
   assert.equal(nextLibraryEpisode(playing, [one, a, b], []).id, 'two-a');
-  assert.equal(nextLibraryEpisode(playing, [one, { ...a, converting: true }, { ...b, done: false }], []), null);
+  assert.equal(nextLibraryEpisode(playing, [one, { ...a, done: false }, { ...b, done: false }], []), null);
+  // Still converting: offered (it streams live meanwhile), but a ready duplicate wins.
+  assert.equal(nextLibraryEpisode(playing, [one, { ...a, converting: true }], []).id, 'two-a');
+  assert.equal(nextLibraryEpisode(playing, [one, { ...a, converting: true }, b], []).id, 'two-b');
   for (const bad of [{ season: 0 }, { episode: 0 }, { season: -1 }, { episode: 1.5 }, { season: '1' }, { show: null }]) {
     assert.equal(nextLibraryEpisode(playing, [{ ...one, ...bad }, a], []), null);
   }
@@ -73,7 +76,7 @@ function playbackHarness({ prepare, autoplayRejected = false, clock = null } = {
   const video = new Element();
   const context = vm.createContext({ T: englishT, $, video, URL, h: (tag, props, ...kids) => ({ tag, props, text: kids.join('') }), titleKeyOf: () => null, AbortController, setTimeout: clock?.setTimeout || setTimeout, clearTimeout: clock?.clearTimeout || clearTimeout,
     Date: clock?.Date || Date, location: { href: 'https://example.test/' },
-    nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, autoplayNextOn: () => true,
+    nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, autoplayNextOn: () => true, noteFinished() {}, rightNow: { played() {} },
     createCreditsCard: () => ({ sync() {}, leave() {} }), stage: new Element(), seekRow: new Element(), syncSettingsBtn() {}, invalidateLibraryProgress() {}, state: { library: [episode('one', 1), episode('two', 2, { still: 'https://image.test/two.jpg' })], libraryShows: [{ id: 'tv-123', title: 'Example Show', backdrop: 'https://image.test/show.jpg' }], progress: {}, view: 'library' },
     current: { ...playing, ready: true, sourceUrl: 'https://example.test/one.mp4', abort: new AbortController(), creditsAt: 800, upNextDismissed: false },
     party: null, nativeSubs: false, onTvVersion: false, seeking: null, hasRemotePlayback: false,
