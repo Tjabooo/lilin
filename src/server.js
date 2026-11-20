@@ -12,7 +12,7 @@ import * as cast from './cast.js';
 import * as converter from './convert.js';
 import * as torrents from './torrents.js';
 import * as subtitles from './subtitles.js';
-import { initSubfix, wordFiles, ordinaryWord } from './subfix.js';
+import { initSubfix, wordFiles, ordinaryWord, looksOcr, titleKeyOf } from './subfix.js';
 import { initProofread, setProofreadGuards } from './subllm.js';
 import * as subsync from './subsync.js';
 import * as activity from './activity.js';
@@ -422,7 +422,11 @@ initProofread({
   characters: castOf,
   title: (video) => parseFile(video).title,
 });
-setProofreadGuards({ known: wordFiles, ordinary: ordinaryWord, reference: (srt) => subtitles.cachedReference(srt) });
+setProofreadGuards({
+  known: wordFiles, ordinary: ordinaryWord, reference: (srt) => subtitles.cachedReference(srt),
+  // Only OCR-made subtitles are worth the model (subfix.looksOcr).
+  ocr: (srt, text, characters) => looksOcr(text, { characters, title: titleKeyOf(srt) }),
+});
 // Broken English subtitles are guided by a human-made one of the same episode (subtitles.js).
 subtitles.setReferenceSource({
   dir: path.join(CACHE_DIR, 'subtitle-references'),

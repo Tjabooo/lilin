@@ -78,13 +78,16 @@ function videoOf(srt) {
   } catch { return null; }
 }
 
-function done(srt) {
+function saved(srt) {
   try {
-    const saved = JSON.parse(fs.readFileSync(cacheFile(srt), 'utf8'));
+    const s = JSON.parse(fs.readFileSync(cacheFile(srt), 'utf8'));
     const st = fs.statSync(srt);
-    return saved.version === VERSION && saved.mtimeMs === st.mtimeMs && saved.size === st.size;
-  } catch { return false; }
+    return s.version === VERSION && s.mtimeMs === st.mtimeMs && s.size === st.size ? s : null;
+  } catch { return null; }
 }
+// Done: proofread, or checked and found clean (ocr: false). Results from before the OCR check
+// (no "ocr" field) get checked once more, without the model.
+const done = (srt) => typeof saved(srt)?.ocr === 'boolean';
 
 // front: someone is about to watch it.
 export function enqueue(srt, front = true) {
@@ -104,8 +107,14 @@ function kick() {
   running = true;
   (async () => {
     while (queue.length) {
+      const srt = queue[0];
+      if (done(srt)) { queue.shift(); queued.delete(srt); continue; }
+      // Clean subtitles are settled without the model, so it isn't even started for them.
+      let needed = true;
+      try { needed = await needsModel(srt); } catch (e) { console.warn(`[proofread] ${path.basename(srt)}: ${e.message}`); }
+      if (!needed) { queue.shift(); queued.delete(srt); continue; }
       if (!(await healthy())) { await new Promise((r) => setTimeout(r, 10 * 60 * 1000)); continue; }
-      const srt = queue.shift();
+      queue.shift();
       queued.delete(srt);
       if (done(srt)) continue;
       try { await proofreadFile(srt); } catch (e) { console.warn(`[proofread] ${path.basename(srt)}: ${e.message}`); }
@@ -225,7 +234,7 @@ function fixesFor(srt) {
   if (hit && hit.mtimeMs === st.mtimeMs) return hit.fixes;
   try {
     const saved = JSON.parse(fs.readFileSync(cacheFile(srt), 'utf8'));
-    if (saved.version !== VERSION || saved.mtimeMs !== st.mtimeMs) return null;
+    if (saved.version !== VERSION || saved.mtimeMs !== st.mtimeMs || saved.ocr === false) return null;
     const fixes = new Map(saved.fixes.map(([i, raw, fixed]) => [i, [raw, fixed]]));
     if (fileFixes.size > 100) fileFixes.delete(fileFixes.keys().next().value);
     fileFixes.set(srt, { mtimeMs: st.mtimeMs, fixes });
@@ -355,7 +364,9 @@ function systemPrompt(title, names) {
 // Filled by the server: the word list (subfix.js) and a cached reference subtitle (subtitles.js).
 let wordGuards = { protect: () => false, ordinary: () => false };
 let referenceOf = () => null;
-export function setProofreadGuards({ known, ordinary, reference } = {}) {
+let ocrCheck = () => true;
+export function setProofreadGuards({ known, ordinary, reference, ocr } = {}) {
+  if (ocr) ocrCheck = ocr;
   if (known) wordGuards.protect = (w) => known(w) >= 3;
   if (ordinary) wordGuards.ordinary = ordinary;
   if (reference) referenceOf = reference;
@@ -366,19 +377,40 @@ function guardsFor(srt) {
   return { protect: (w) => wordGuards.protect(w) || Boolean(refWords?.has(w)), ordinary: wordGuards.ordinary };
 }
 
+async function castFor(video) {
+  return video ? await charactersOf(video).catch(() => []) : [];
+}
+async function keep(srt, st, entry) {
+  await fs.promises.mkdir(dir, { recursive: true });
+  await fs.promises.writeFile(cacheFile(srt), JSON.stringify({ version: VERSION, file: srt, mtimeMs: st.mtimeMs, size: st.size, at: Date.now(), ...entry }));
+  fileFixes.delete(srt);
+}
+
+// Does this subtitle need the model? Only OCR'd ones do (ocrCheck, subfix.looksOcr). A clean one is
+// recorded as done with no fixes; an older result for an OCR'd one is kept as it is.
+async function needsModel(srt) {
+  const st = fs.statSync(srt);
+  const text = fs.readFileSync(srt, 'utf8');
+  const ocr = Boolean(ocrCheck(srt, text, await castFor(videoOf(srt))));
+  const old = saved(srt);
+  if (ocr && !old) return true;
+  if (ocr) { await keep(srt, st, { ocr: true, fixes: old.fixes || [], checked: true }); return false; }
+  await keep(srt, st, { ocr: false, fixes: [] });
+  if (old?.fixes?.length) console.log(`[proofread] ${path.basename(srt)}: not OCR'd, dropped ${old.fixes.length} earlier fixes`);
+  return false;
+}
+
 async function proofreadFile(srt) {
   const st = fs.statSync(srt);
   const text = fs.readFileSync(srt, 'utf8');
   const cues = parse(text);
   const video = videoOf(srt);
-  const cast = video ? await charactersOf(video).catch(() => []) : [];
+  const cast = await castFor(video);
   const names = [...new Set(cast.filter((c) => c.main !== false).map((c) => String(c.name || c)).flatMap((n) => n.split(/\s+/))
     .map((t) => t.replace(/^['"(]+|['".,)]+$/g, '')).filter((t) => /^[A-Z][a-z]{2,}/.test(t)))].slice(0, 60);
   const started = Date.now();
   const fixes = await proofreadCues(cues, { title: video ? titleOf(video) : '', names, guards: guardsFor(srt) });
-  await fs.promises.mkdir(dir, { recursive: true });
-  await fs.promises.writeFile(cacheFile(srt), JSON.stringify({ version: VERSION, file: srt, mtimeMs: st.mtimeMs, size: st.size, at: Date.now(), fixes }));
-  fileFixes.delete(srt);
+  await keep(srt, st, { ocr: true, fixes });
   console.log(`[proofread] ${path.basename(srt)}: ${fixes.length} lines fixed in ${Math.round((Date.now() - started) / 1000)} s (${queue.length} left)`);
 }
 

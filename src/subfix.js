@@ -495,6 +495,44 @@ export function wantsReference(srt, { characters = [], title = '' } = {}) {
   return casingBroken(cues, nameTable(characters, title));
 }
 
+// Does this English subtitle look made by OCR (read off a disc's picture subtitles)? Only those go to
+// the language model (subllm.js): proofreading a clean subtitle costs the GPU and only adds noise.
+// Signs: casing that's broken (names in lowercase), l/I mix-ups ("l'm", "lt's", a lone "l", "wiIl"),
+// digits inside words, split contractions ("don t", "he' s") and words glued together ("Ofcourse",
+// "areyou"). Measured on the library: clean subtitles stay under the limits, OCR'd ones far above.
+const OCR_SIGNS = [
+  /(?<![\p{L}'’-])l(?![\p{L}'’-])/gu, /\bl['’](?:m|ll|d|ve)\b/g, /\bl[stfn]\b/g, /\p{Ll}I\p{Ll}/gu,
+  /\b[A-Za-z]+[0-9][a-z]+\b/g,
+  /\b(?:don|can|won|didn|isn|wasn|doesn|couldn|wouldn|aren|haven) t\b|\b\w+['’] (?:s|t|re|ll|ve|m|d)\b/g,
+];
+const GLUE = new Set(['you', 'your', 'the', 'of', 'to', 'and', 'are', 'is', 'it', 'in', 'on', 'that', 'this', 'with', 'for', 'my', 'me', 'we', 'he', 'she', 'they', 'was', 'be', 'have', 'not', 'but', 'a']);
+function gluedWords(text) {
+  let n = 0;
+  for (const w of text.match(/\b[a-z]{5,}\b/g) || []) {
+    if (ordinaryWord(w)) continue;
+    for (let i = 2; i <= w.length - 2; i++) {
+      const a = w.slice(0, i);
+      const b = w.slice(i);
+      if ((GLUE.has(a) || GLUE.has(b)) && ordinaryWord(a) && ordinaryWord(b)) { n++; break; }
+    }
+  }
+  return n;
+}
+export function looksOcr(srt, { characters = [], title = '' } = {}) {
+  const cues = parseCues(srt);
+  // Text lines only: no karaoke/sign drawings ("m 0 0 l 120 0") or number rows.
+  const text = cues.flatMap((c) => c.lines.map(stripMarkup))
+    .filter((l) => !/^[\s\d.,mlbnspc-]*$/.test(l) && (l.match(/\d/g) || []).length < l.length / 3).join('\n');
+  if (!looksEnglish(text)) return false;
+  if (casingBroken(cues, nameTable(characters, title))) return true;
+  const words = (text.match(/[A-Za-z']+/g) || []).length;
+  let signs = 0;
+  for (const re of OCR_SIGNS) signs += (text.match(re) || []).length;
+  if (signs >= 6 && signs * 1e4 >= 10 * words) return true;
+  const glued = gluedWords(text);
+  return glued >= 10 && glued * 1e4 >= 60 * words;
+}
+
 // "We Just Arrived. The Kids Okay On Your End?": a subtitle written in Title Case capitalises
 // every word, so it can't say which words are names. Counts small words inside a line.
 const SMALL_WORDS = new Set(['the', 'of', 'to', 'and', 'for', 'with', 'that', 'your', 'you', 'me', 'my', 'in', 'on', 'at', 'is', 'it', 'this', 'just', 'but', 'not', 'have', 'was', 'are', 'from', 'be']);
