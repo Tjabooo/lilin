@@ -539,7 +539,6 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         paint(ctx);
         ctx.page.dataset.handle = ctx.data.person.handle;
         history.replaceState(history.state, '', `${location.pathname}${location.search}#@${ctx.data.person.handle}`);
-        toast(T('Profile saved'));
         picker.close();
       } catch (err) { toast(err.message); btn.disabled = false; }
     }

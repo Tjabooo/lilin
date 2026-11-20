@@ -1948,24 +1948,33 @@ body.has-nowbar .toast { bottom: calc(var(--tabs-h) + var(--safe-bottom) + 84px)
 .toast {
   position: fixed; left: 50%; z-index: 70;
   bottom: calc(var(--tabs-h) + var(--safe-bottom) + 14px);
-  max-width: min(calc(100% - 32px), 560px);
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px 12px 16px;
-  font-size: 14px; font-weight: 600; line-height: 1.35;
-  color: var(--velvet); background: var(--paper);
-  border-radius: 999px;
-  box-shadow: 0 16px 40px -12px rgb(0 0 0 / .6);
-  transform: translate(-50%, 20px) scale(.96); opacity: 0; pointer-events: none;
+  width: max-content; max-width: min(calc(100% - 32px), 520px);
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 16px 11px 14px;
+  font-size: 13.5px; font-weight: 600; line-height: 1.4; letter-spacing: .005em;
+  color: var(--text, var(--paper));
+  background: var(--surface-solid-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid color-mix(in srgb, var(--bulb) 28%, var(--line));
+  border-radius: 14px;
+  box-shadow: 0 18px 44px -14px rgb(0 0 0 / .7), inset 0 1px 0 rgb(255 255 255 / .04), 0 0 0 1px rgb(0 0 0 / .25);
+  transform: translate(-50%, 14px) scale(.97); opacity: 0; pointer-events: none;
   transition: opacity var(--d-2) var(--ease-out), transform var(--d-3) var(--ease-pop);
 }
-.toast::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--bulb); box-shadow: 0 0 10px var(--bulb); }
+.toast::before {
+  content: ""; flex: none; align-self: center; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bulb); box-shadow: 0 0 0 3px var(--bulb-dim), 0 0 12px var(--bulb);
+}
 .toast:empty { display: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
-.toast.has-action { pointer-events: auto; padding-right: 8px; }
+.toast.has-action { pointer-events: auto; padding-right: 7px; }
 .toast-action {
-  flex: none; margin-left: 4px; padding: 7px 14px; border: 0; border-radius: 999px;
-  font: inherit; font-weight: 800; color: var(--paper); background: var(--velvet); cursor: pointer;
+  flex: none; margin-left: 2px; padding: 7px 14px; border: 0; border-radius: 9px;
+  font: inherit; font-weight: 800; color: var(--bulb);
+  background: var(--bulb-dim); cursor: pointer;
+  transition: background var(--d-2) var(--ease-out);
 }
+.toast-action:hover { background: color-mix(in srgb, var(--bulb) 32%, transparent); }
 .toast-action:active { transform: scale(.95); }
 
 /* ---------- the preview of a redesign (/preview): a small way back to the live app ---------- */

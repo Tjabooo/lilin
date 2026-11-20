@@ -165,14 +165,12 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
         afterChange(key, res);
         hooks.repaint?.(res.rating);
         done();
-        toast(text.value.trim() ? T('Review saved') : T('Saved'));
       } catch (err) { status.textContent = err.message; save.disabled = false; }
     };
     if (remove) remove.onclick = confirmTwice(remove, T('Delete review'), T('Tap again to delete'), async () => {
       try {
         afterChange(key, await api('/api/reviews/delete', jsonPost({ key })));
         done();
-        toast(T('Review deleted'));
       } catch (err) { status.textContent = err.message; }
     });
     sync();
@@ -229,7 +227,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
         const label = r.mine ? T('Delete') : T('Remove');
         const b = h('button', { type: 'button', class: 'review-link' }, label);
         b.onclick = confirmTwice(b, label, T('Tap again to confirm'), async () => {
-          try { afterChange(key, await api('/api/reviews/delete', jsonPost({ key, userId: r.userId, all: true }))); toast(r.mine ? T('Review deleted') : T('Review removed')); }
+          try { afterChange(key, await api('/api/reviews/delete', jsonPost({ key, userId: r.userId, all: true }))); }
           catch (err) { toast(err.message); }
         });
         return b;

@@ -1,5 +1,22 @@
 [
   {
+    "id": "2026-11-20-quieter-toasts",
+    "date": "2026-11-20",
+    "title": "Quieter, nicer messages",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "Fewer popup messages",
+        "text": "Lilin no longer pops up a message for things you can already see, like the quality it's playing, where it resumed, or that something was saved. Errors, Undo and real tips still show."
+      },
+      {
+        "kind": "improved",
+        "title": "Messages match your theme",
+        "text": "The messages that are left are dark glass in your theme's colours instead of a bright white bubble."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-no-toasts",
     "date": "2026-11-20",
     "title": "Fewer popups",

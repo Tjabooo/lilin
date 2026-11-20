@@ -180,13 +180,13 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
         const body = { id: editing?.id, name: name.value, shows: value(shows), libraries: value(libraries).map(Number), audience: value(audience).map(Number),
           genres: value(genres).flatMap((g) => g.split(',').map(Number)), types: types.querySelector('select').value, order: order.querySelector('select').value };
         save.disabled = true;
-        try { data = await api('/api/live/channels', jsonPost(body)); editing = null; paint(); changed(); toast(T('Channel saved. It’s on the air.')); }
+        try { data = await api('/api/live/channels', jsonPost(body)); editing = null; paint(); changed(); }
         catch (e) { status.textContent = e.message; }
         finally { save.disabled = false; }
       } }, editing ? T('Save channel') : T('Add channel'));
       const liveName = h('input', { type: 'text', maxlength: '30', value: data.nameSetting, placeholder: data.name, 'aria-label': T('Name of Live TV') });
       const rename = h('button', { type: 'button', class: 'chip', onclick: async () => {
-        try { await api('/api/admin/settings', jsonPost({ liveName: liveName.value })); state.at = 0; toast(T('Saved')); changed(); }
+        try { await api('/api/admin/settings', jsonPost({ liveName: liveName.value })); state.at = 0; changed(); }
         catch (e) { toast(e.message); }
       } }, T('Save name'));
       // Trending films and shows the server fetches for the channels by itself (LIVE_TV_PICKS_GB).

@@ -1,4 +1,17 @@
 {
+  "2026-11-20-quieter-toasts": {
+    "title": "Tystare och snyggare meddelanden",
+    "items": {
+      "Fewer popup messages": {
+        "title": "Färre popup-meddelanden",
+        "text": "Lilin visar inte längre ett meddelande för sådant du redan ser, som vilken kvalitet som spelas, var den fortsatte eller att något sparades. Fel, Ångra och riktiga tips visas fortfarande."
+      },
+      "Messages match your theme": {
+        "title": "Meddelandena följer ditt tema",
+        "text": "Meddelandena som finns kvar är mörkt glas i ditt temas färger i stället för en ljusvit bubbla."
+      }
+    }
+  },
   "2026-11-20-no-toasts": {
     "title": "Färre popup-rutor",
     "items": {

@@ -262,7 +262,7 @@ export function createMoments({ h, api, jsonPost, toast, icon, people, me, frien
   function link(m) { return `${location.origin}${m.url}`; }
   async function removeMoment(m, mine) {
     if (mine && !confirm(T('Delete this moment? Its link stops working for everyone.'))) return;
-    try { await api(`/api/moments/${m.id}/delete`, jsonPost({})); toast(mine ? T('Moment deleted') : T('Removed')); } catch (err) { toast(err.message); }
+    try { await api(`/api/moments/${m.id}/delete`, jsonPost({})); } catch (err) { toast(err.message); }
     invalidate(); await load(); rerender();
   }
   function play(m) {

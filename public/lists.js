@@ -134,7 +134,6 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
         await api(`/api/lists/${d.id}/add`, jsonPost({ key }));
         draft.removed.delete(key);
         draft.items.push({ key, type: c.type, id: c.id, title: c.title, year: c.year, poster: c.poster });
-        toast(T('Added {0}', c.title));
         draw();
       } catch (err) { toast(err.message); }
     } });
@@ -175,7 +174,6 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
         saved = true;
         paint(ctx);
         changed();
-        toast(T('List saved'));
         picker.close();
       } catch (err) { toast(err.message); btn.disabled = false; }
     }
@@ -197,7 +195,6 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
     try {
       await api(`/api/lists/${ctx.id}/delete`, jsonPost({}));
       changed();
-      toast(T('List deleted'));
       picker.close();
       setTimeout(() => overlay.close(), 340);
     } catch (err) { toast(err.message); btn.disabled = false; }
@@ -215,7 +212,6 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
       try {
         const { list } = await api('/api/lists', jsonPost({ name: name.value, about: about.value, key }));
         changed();
-        toast(key ? T('Added {0} to {1}', title, list.name) : T('List made'));
         picker.close();
         done ? done(list) : setTimeout(() => open(list.id, null), 340);
       } catch (err) { toast(err.message); go.disabled = false; }
@@ -249,7 +245,6 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
           const r = await api(`/api/lists/${l.id}/${l.has ? 'remove' : 'add'}`, jsonPost({ key }));
           l.has = !l.has; l.count = r.list.count;
           btn.replaceWith(row(l));
-          toast(l.has ? T('Added to {0}', l.name) : T('Taken off {0}', l.name));
           changed();
         } catch (err) { toast(err.message); btn.disabled = false; }
       };

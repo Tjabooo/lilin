@@ -466,9 +466,15 @@ function placeToast(t) {
   const below = note && !note.hidden ? note.getBoundingClientRect().bottom : 0;
   t.style.top = below > 0 ? `${Math.round(below + 10)}px` : '';
 }
-// Plain toasts are switched off (Oliver, 2026-11-20: mostly noise). Only toasts with a button
-// (Undo) still show, through actionToast below.
-function toast(_msg) {}
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  placeToast(t);
+  t.classList.remove('has-action');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
 
 // A toast with one button (Undo). It stays a little longer than a plain one.
 function actionToast(msg, label, action, ms = 6000) {
@@ -504,7 +510,7 @@ function undoableDelete({ ids, message, commit, after }) {
     if (job.done) return;
     job.done = true; clearTimeout(job.timer); pendingDeletes.delete(job);
     librarySignature = null; // the next load puts them back even if nothing changed on the server
-    refresh().then(() => toast(T('Kept')));
+    refresh();
   }, UNDO_MS);
 }
 const flushDeletes = () => { for (const j of [...pendingDeletes]) j.run(true); };
@@ -633,7 +639,6 @@ async function extendItems(files) {
       if (e) Object.assign(f, { expiresAt: e.expiresAt, extensions: e.extensions });
       for (const v of f.versions || []) { const ve = byKey.get(v.mediaKey); if (ve) Object.assign(v, { expiresAt: ve.expiresAt, extensions: ve.extensions }); }
     }
-    toast(files.length === 1 ? T('Kept {0} more days', extendDays()) : T('Kept {0} {1} more days', plural(files.length, 'video'), extendDays()));
     if (state.view === 'library') renderLibrary();
     return files.map((f) => state.library.find((x) => x.mediaKey === f.mediaKey)).filter(Boolean);
   } catch (err) {
@@ -1943,7 +1948,6 @@ function openContinueMenu(f, progress, name, opener) {
     try { localStorage.removeItem(resumeKey(file)); } catch { /* blocked */ }
     noteFinished(f);
     api('/api/me/progress', jsonPost({ ref, time: null, duration: progress?.duration || 0, watched: 0, about: watchAbout(file) })).catch(() => toast(T('Couldn’t save that. Try again.')));
-    toast(T('Marked as watched'));
   });
   const hide = choose(() => {
     // Hidden at once here; the server's own time replaces the placeholder (progress times are server times too).
@@ -1954,7 +1958,6 @@ function openContinueMenu(f, progress, name, opener) {
       invalidateLibraryProgress(); libraryRenderPending = true;
       toast(T('Couldn’t save that. Try again.'));
     });
-    toast(T('Removed from Continue watching'));
   });
   $('#picker-body').replaceChildren(
     h('h2', { id: 'picker-title' }, label),
@@ -2685,7 +2688,6 @@ function openFilmIdentity(f, opener) {
         if (!closed) closeTopOverlay();
         await loadLibrary();
         if (state.view === 'library') renderLibrary();
-        toast(T('Film identified'));
       } catch (err) { status.textContent = err.message; btn.disabled = false; }
     } },
     t.poster && h('img', { src: t.poster, alt: '', loading: 'lazy' }),
@@ -2813,7 +2815,6 @@ function openDeleteDownload(d, opener) {
       await api(`/api/downloads/${d.hash}/delete`, jsonPost({ files }));
       invalidateDownloadsRead();
       if (!restoreManager) closeTopOverlay();
-      toast(files ? T('Download and files deleted') : T('Removed from downloads; files kept'));
       state.downloads = state.downloads.filter((x) => x.hash !== d.hash);
       restoreManager?.();
       if (state.view === 'library') renderLibrary();
@@ -4426,7 +4427,6 @@ async function magnetOf(t) {
 async function sendToQbit(link, extra = {}) {
   await api('/api/downloads/add', jsonPost({ link, ...extra }));
   loadDownloads().then(patchUnifiedLibrary);
-  toast(T('Added to Library'));
 }
 
 // The release list: search 1337x, The Pirate Bay and Nyaa and pick one yourself. It sits inside a title's
@@ -5156,7 +5156,6 @@ function followRoom(session) {
     const room = session.state, joined = !session.blocked;
     leaveWatchRoom(false);
     loadPlayerMedia({ ...media, key: media.id, done: true }, { watchRoom: room, roomJoined: joined });
-    toast(T('Switching to full quality'));
     return;
   }
   renderParty();
@@ -5377,7 +5376,6 @@ async function hostWatchRoom() {
     await session.start();
     showPlayerUi();
     setWatchPanel(true); // straight to inviting people
-    toast(T('Room ready. Invite people from here.'));
   } catch (err) { leaveWatchRoom(); toast(err.message); }
   finally { btn.disabled = false; }
 }
@@ -5650,7 +5648,7 @@ async function loadParties() {
     cancel: async (p, btn) => {
       if (!confirm(T('Cancel the watch party for {0}? The invite stops working.', partyTitle(p.media)))) return;
       btn.disabled = true;
-      try { await api(`/api/watch/${p.token}/cancel`, jsonPost({})); toast(T('Watch party cancelled')); loadParties(); }
+      try { await api(`/api/watch/${p.token}/cancel`, jsonPost({})); loadParties(); }
       catch (err) { btn.disabled = false; toast(err.message); }
     },
   });
@@ -5661,7 +5659,7 @@ async function loadParties() {
 }
 $('#watch-btn').addEventListener('click', () => { if (party) setWatchPanel(!watchPanelOpen); else hostWatchRoom(); });
 $('#watch-hide').addEventListener('click', () => { setWatchPanel(false); $('#watch-btn').focus(); });
-$('#watch-leave').addEventListener('click', () => { leaveWatchRoom(); video.pause(); toast(T('You left the room')); });
+$('#watch-leave').addEventListener('click', () => { leaveWatchRoom(); video.pause(); });
 // Ask people (invite.js, Room): people with Watch Together invites on get a notification that opens the room; the
 // link (/c/w/ shows a preview in Discord and other chats, then forwards to /?watch=) works for anyone signed in.
 // Drawn once per room, when its panel first opens.
@@ -6175,7 +6173,7 @@ async function subSyncAction(f, session, l, act) {
     const result = await api('/api/subs/sync', jsonPost({ kind: f.kind, id: mediaId(f), lang: l.code, action: act }));
     if (current !== session || generation !== subtitleGeneration || ccActive !== l.code) return;
     ccSync = result;
-    if (act === 'undo') { reloadSubTrack(l); toast(T('Back to the original subtitle timing')); }
+    if (act === 'undo') { reloadSubTrack(l); }
     renderCcMenu(f, session);
     if (subSyncBusy(ccSync)) watchSubSync(f, session, l, true);
   } catch (err) { if (current === session && generation === subtitleGeneration && ccActive === l.code) toast(err.message); }
@@ -6192,7 +6190,6 @@ async function watchSubSync(f, session, l, wasBusy = false) {
     ccSyncTimer = setTimeout(() => watchSubSync(f, session, l, true), 3000);
   } else if (wasBusy && ['synced', 'ok'].includes(s.state)) {
     reloadSubTrack(l);
-    toast(s.state === 'ok' ? T('Subtitle timing checked') : T('Subtitle timing fixed ({0})', fmtSubShift(s.offset)));
   } else if (wasBusy && s.state === 'failed') {
     toast(T('Couldn’t check the subtitle timing'));
   }
@@ -6249,7 +6246,6 @@ async function pickPlayerSub(f, session, l, { quiet = false } = {}) {
   dropFirstSub();
   const generation = subtitleGeneration;
   if (!l.code) { dropSecondSub(); renderCcMenu(f, session); return; } // Off means no text at all
-  if (!quiet) toast(T('Getting {0} subtitles…', l.name));
   try {
     const { url } = await api('/api/subs/fetch', jsonPost({ kind: f.kind, id: mediaId(f), lang: l.code }));
     if (current !== session || generation !== subtitleGeneration) return;
@@ -6260,7 +6256,6 @@ async function pickPlayerSub(f, session, l, { quiet = false } = {}) {
     track.addEventListener('load', applySubModes);
     l.saved = true;
     renderCcMenu(f, session);
-    if (!quiet) toast(T('{0} subtitles on', l.name));
     watchSubSync(f, session, l);
   } catch (err) {
     if (current !== session || generation !== subtitleGeneration) return;
@@ -6279,7 +6274,6 @@ async function pickSecondSub(f, session, l, { quiet = false } = {}) {
   dropSecondSub();
   const generation = secondGeneration;
   if (!l.code || l.code === ccActive) { renderCcMenu(f, session); return; }
-  if (!quiet) toast(T('Getting {0} subtitles…', l.name));
   try {
     const { url } = await api('/api/subs/fetch', jsonPost({ kind: f.kind, id: mediaId(f), lang: l.code }));
     if (current !== session || generation !== secondGeneration || l.code === ccActive) return;
@@ -6290,7 +6284,6 @@ async function pickSecondSub(f, session, l, { quiet = false } = {}) {
     track.addEventListener('load', applySubModes);
     l.saved = true;
     renderCcMenu(f, session);
-    if (!quiet) toast(T('{0} added as a second language', l.name));
   } catch (err) {
     if (current !== session || generation !== secondGeneration) return;
     renderCcMenu(f, session, err.message);
@@ -6755,7 +6748,6 @@ async function watchAudio(f, session) {
         // Watching already: no card over the picture, one toast.
         if (!session.videoBridge.told) {
           session.videoBridge.told = true;
-          toast(T('Playing a live 1080p version. Full quality takes over by itself when it’s ready.'));
         }
         note.hidden = true;
         changed = session.compatibilityPending = true;
@@ -6819,7 +6811,7 @@ async function bridgeVideo(session) {
   video.addEventListener('playing', () => { if (session.videoBridge === bridge) { bridge.playing = true; clearTimeout(giveUp); } }, { once: true });
   const ok = await attachBridge(session, link.url, () => {
     if (session.videoBridge !== bridge) return;
-    if (start > 0 && start < video.duration - 90) { video.currentTime = start; if (start > 30) toast(T('Resuming at {0}', fmtTime(start))); }
+    if (start > 0 && start < video.duration - 90) { video.currentTime = start; }
     video.play().catch(() => {});
   });
   if (!ok && session.videoBridge === bridge) { clearTimeout(giveUp); session.videoBridge = null; }
@@ -7103,7 +7095,7 @@ setInterval(() => {
   const v = upgradeVersion();
   if (!v) return;
   autoUpgraded.add(current.versionKey || `film:${current.tmdbId}`);
-  switchVersion(v).then(() => toast(T('Switched to the {0} version: it finished downloading.', v.versionLabel.replace(/ · [\d.]+ [GM]B$/, '')))).catch(() => {});
+  switchVersion(v).catch(() => {});
 }, 20_000);
 
 // Saves the choice for next time and switches the playing video over at the same spot.
@@ -8111,7 +8103,7 @@ async function loadPlayerMedia(f, opts = {}) {
         const saved = savedProgress(s);
         const reach = (s.part?.inOrder || 0) * video.duration - 20;
         const at = saved && saved.time < video.duration - 90 ? Math.min(saved.time, reach) : 0;
-        if (at > 30) { video.currentTime = at; toast(T('Resuming at {0}', fmtTime(at))); }
+        if (at > 30) { video.currentTime = at; }
       },
       setSpinner,
       showNote: (text) => { if (gettingReady.active()) return; const note = $('#player-note'); note.textContent = text; note.hidden = false; },
@@ -8177,7 +8169,6 @@ async function loadPlayerMedia(f, opts = {}) {
     const saved = savedProgress(session);
     if (saved && saved.time > 30 && saved.time < video.duration - 90) {
       video.currentTime = saved.time;
-      toast(T('Resuming at {0}', fmtTime(saved.time)));
     }
   });
   if (!party) watchCastTargets();
@@ -8589,7 +8580,6 @@ async function removePicture({ person }) {
   try {
     if (mine) state.me = (await people.saveMine(null)).me;
     else { await people.saveFor(person.id, null); await loadPeople(); }
-    toast(T('Picture removed'));
     if (mine) renderMeButton();
     if (settingsOpen()) renderSettings();
   } catch (err) { toast(err.message); }
@@ -9155,7 +9145,7 @@ function devicesSection() {
     // browsers go all together (Sign out everywhere else ends Cloudflare's sign-ins too).
     h('div', { class: 'set-control' }, d.kind === 'tv' && !d.current && h('button', { type: 'button', class: 'chip', 'aria-label': T('Sign out {0}', deviceName(d)), onclick: async (e) => {
       e.currentTarget.disabled = true;
-      try { signInsView.list = (await api('/api/auth/devices/sign-out', jsonPost({ id: d.id }))).devices; toast(T('{0} is signed out', deviceName(d))); }
+      try { signInsView.list = (await api('/api/auth/devices/sign-out', jsonPost({ id: d.id }))).devices; }
       catch (err) { toast(err.message); }
       redrawYouPage();
     } }, T('Sign out')))));
@@ -9298,7 +9288,7 @@ function jellyfinRow() {
     h('span', { class: 'set-hint jf-link-seen' }, T('Last synced {0}', fmtAgo(l.lastSeen) || T('just now'))),
     h('button', { type: 'button', class: 'chip', 'aria-label': T('Disconnect {0}', l.name), onclick: async (e) => {
       e.currentTarget.disabled = true;
-      try { jellyfinView.links = (await api(`/api/jellyfin/${l.id}/remove`, jsonPost({}))).links; toast(T('{0} is disconnected', l.name)); }
+      try { jellyfinView.links = (await api(`/api/jellyfin/${l.id}/remove`, jsonPost({}))).links; }
       catch (err) { toast(err.message); }
       renderSettings();
     } }, T('Disconnect'))));
@@ -9408,7 +9398,6 @@ async function takeBackIdea(idea) {
   try {
     const r = await api(`/api/ideas/${idea.id}/delete`, jsonPost({}));
     ideasView.mine = r.mine || ideasView.mine.filter((i) => i.id !== idea.id);
-    toast(T('Idea taken back'));
   } catch (err) { toast(err.message); }
   renderSettings();
 }
@@ -9514,13 +9503,11 @@ function notificationSettings() {
           const sub = await pushDevice.subscribe(pushView.publicKey);
           const r = await api('/api/push/subscribe', jsonPost({ subscription: sub.toJSON(), label: pushDevice.deviceLabel(navigator.userAgent) }));
           pushView.deviceId = r.id; pushView.devices = r.devices;
-          toast(T('Notifications are on for this device'));
         } else {
           const sub = await pushDevice.currentSubscription();
           const r = await api('/api/push/unsubscribe', jsonPost({ endpoint: sub?.endpoint || '', id: pushView.deviceId || '' }));
           await sub?.unsubscribe().catch(() => {});
           pushView.deviceId = null; pushView.devices = r.devices;
-          toast(T('Notifications are off for this device'));
         }
       } catch (err) { toast(err.message); }
       pushView.busy = false;
@@ -9769,7 +9756,6 @@ function libraryShareSelect(u) {
 async function personUpdate(u, patch) {
   try {
     await api(`/api/admin/users/${u.id}`, jsonPost(patch));
-    toast(T('Saved'));
   } catch (err) { toast(err.message); }
   await loadPeople();
   if (u.id === state.me.id) { state.me = (await api('/api/me')).me; await loadLibrary(); }
@@ -11254,13 +11240,12 @@ async function followRender(job) {
 async function deleteClip(c) {
   try {
     await api(`/api/clips/${c.id}/delete`, { method: 'POST' });
-    toast(T('Deleted {0}', c.title));
   } catch (err) { toast(err.message); }
   await loadClips();
   renderClips();
 }
 async function unshareClip(c) {
-  try { await api(`/api/clips/${c.id}/unshare`, { method: 'POST' }); toast(T('Link removed')); } catch (err) { toast(err.message); }
+  try { await api(`/api/clips/${c.id}/unshare`, { method: 'POST' }); } catch (err) { toast(err.message); }
   await loadClips();
   renderClips();
 }

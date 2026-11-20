@@ -331,6 +331,5 @@ export async function playPartial(session, ctx) {
     ctx.showError(T('This browser can’t play a video that’s still on its way. Try again in a while, or in another browser.'));
     return;
   }
-  ctx.toast(T('Playing at up to 1080p while the rest arrives.'));
   if (!room()) video.play().catch(() => { /* autoplay blocked: the controls are there */ });
 }

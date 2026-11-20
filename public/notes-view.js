@@ -39,7 +39,7 @@ export function createNotesView({ h, icon, api, jsonPost, toast, query, clearQue
       try {
         const { note } = await api(`/api/admin/notes/${id}`);
         await api(`/api/admin/notes/${id}/restore`, jsonPost({ version: note.version }));
-        await load(); toast(T('Note restored'));
+        await load();
       } catch (e) { showError(e.message); }
     }));
     undo.hidden = false;
@@ -64,7 +64,7 @@ export function createNotesView({ h, icon, api, jsonPost, toast, query, clearQue
     try {
       const r = await api(`/api/admin/notes/${note.id}/${stop ? 'unshare' : 'share'}`, jsonPost({}));
       Object.assign(note, r.note);
-      if (stop) toast(T('Link removed'));
+      if (stop) { /* the link is gone: the button shows it */ }
       else if (preparing(note)) { toast(T('Preparing the media for Discord… Copy link appears when it’s ready.')); watchMedia(note.id); }
       else toast(await copyText(r.url) ? T('Link copied · Discord shows a preview') : r.url);
       render();
@@ -111,7 +111,7 @@ export function createNotesView({ h, icon, api, jsonPost, toast, query, clearQue
         e.preventDefault(); save.disabled = true; showError('');
         try {
           await api(`/api/admin/notes/${note.id}`, jsonPost({ version: note.version, text: text.value, reminderAt: at.value ? new Date(at.value).getTime() : null }));
-          state.edit = null; await load(); toast(T('Note updated'));
+          state.edit = null; await load();
         } catch (err) { showError(err.message); } finally { save.disabled = false; }
       } }, text, h('label', { class: 'note-reminder' }, T('Remind me'), at), h('div', { class: 'note-actions' }, save,
         button(T('Cancel'), () => { state.edit = null; render(); })));

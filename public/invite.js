@@ -193,7 +193,7 @@ export function createInvite({ h, api, jsonPost, toast, icon, people, me, admin,
           ...linkButtons({ link: `${location.origin}/c/i/${i.token}`, copied: T('Invite link copied'), title: T('Invite someone to Lilin'), compact: true }),
           h('button', { type: 'button', class: 'chip', onclick: async (e) => {
             e.currentTarget.disabled = true;
-            try { await api(paths.revoke(i), jsonPost({})); toast(T('Invite cancelled')); } catch (err) { toast(err.message); }
+            try { await api(paths.revoke(i), jsonPost({})); } catch (err) { toast(err.message); }
             load();
           } }, T('Cancel')));
         slot.replaceChildren(h('div', { class: 'invite-make' }, note, make),
