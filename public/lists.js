@@ -139,21 +139,22 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
       } catch (err) { toast(err.message); }
     } });
     const draw = () => {
-      const name = h('input', { type: 'text', class: 'invite-note', value: draft.name, maxlength: String(MAX_NAME), 'aria-label': T('Name') });
+      const name = h('input', { type: 'text', class: 'pf-ed-input', value: draft.name, maxlength: String(MAX_NAME), 'aria-label': T('Name') });
       name.addEventListener('input', () => { draft.name = name.value; });
-      const about = h('textarea', { class: 'invite-note pf-bio-input', rows: '3', maxlength: String(MAX_ABOUT), placeholder: T('What ties them together (optional)'), 'aria-label': T('Description') }, draft.about);
+      const about = h('textarea', { class: 'pf-ed-input pf-ed-bio-input', rows: '3', maxlength: String(MAX_ABOUT), placeholder: T('What ties them together (optional)'), 'aria-label': T('Description') });
+      about.value = draft.about || '';
       about.addEventListener('input', () => { draft.about = about.value; });
       const sw = (label, key, hint) => h('div', { class: 'ls-switch-row' },
         h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(draft[key]), 'aria-label': label, onclick: () => { draft[key] = !draft[key]; draw(); } }, h('span', {})),
         h('span', {}, h('strong', {}, label), h('small', { class: 'set-hint' }, hint)));
       body.replaceChildren(
-        h('h2', { id: 'picker-title' }, T('Edit list')),
-        h('section', { class: 'pf-part' },
-          h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, T('Name')), name),
-          h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, T('Description')), about),
-          sw(T('Ranked'), 'ranked', T('Numbers the titles in your order.')),
-          sw(T('Only me'), 'private', T('Hidden from your profile and from links.'))),
-        h('section', { class: 'pf-part' }, h('h3', {}, T('Titles')),
+        h('h2', { id: 'picker-title', class: 'pf-ed-heading' }, T('Edit list')),
+        h('section', { class: 'ls-ed-section' },
+          h('div', { class: 'pf-ed-group' }, fieldRow(T('Name'), name, MAX_NAME), fieldRow(T('Description'), about, MAX_ABOUT)),
+          h('div', { class: 'pf-ed-group ls-switches' },
+            sw(T('Ranked'), 'ranked', T('Numbers the titles in your order.')),
+            sw(T('Only me'), 'private', T('Hidden from your profile and from links.')))),
+        h('section', { class: 'ls-ed-section' }, h('h3', { class: 'pf-ed-title' }, T('Titles')),
           search.node,
           draft.items.length ? h('ol', { class: 'pf-order ls-order' }, draft.items.map((it, i) => h('li', {},
             it.poster ? h('img', { class: 'ls-order-poster', src: small(it.poster, 'w92'), alt: '', loading: 'lazy' }) : h('span', { class: 'ls-order-poster' }),
@@ -162,7 +163,7 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', it.title), disabled: i === draft.items.length - 1, onclick: () => { move(draft.items, i, 1); draw(); } }, icon('down')),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Take {0} off the list', it.title), onclick: () => { draft.removed.add(it.key); draft.items.splice(i, 1); draw(); } }, icon('close')))))
             : h('p', { class: 'set-hint' }, T('Search above, or tap List beside the thumbs on any title page.'))),
-        h('section', { class: 'pf-part' },
+        h('section', { class: 'ls-ed-section' },
           h('button', { type: 'button', class: 'chip ls-delete', onclick: (e) => removeList(ctx, e.currentTarget) }, icon('trash'), T('Delete list'))),
         h('div', { class: 'pf-save-bar' }, h('button', { type: 'button', class: 'play-btn', onclick: (e) => save(e.currentTarget) }, T('Save'))));
     };
@@ -182,6 +183,12 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
     picker.open([body], opener, () => { if (!saved && draft.items.length !== d.items.length) load(ctx); }, over());
     if (toSearch) requestAnimationFrame(() => search.focus());
   }
+  // One row of the grouped fields (the profile editor's look): label over a borderless input, with a live count.
+  const fieldRow = (label, input, max) => {
+    const count = h('span', { class: 'pf-count' }, `${input.value.length}/${max}`);
+    input.addEventListener('input', () => { count.textContent = `${input.value.length}/${max}`; });
+    return h('label', { class: 'pf-ed-row' }, h('span', { class: 'pf-ed-label' }, h('span', {}, label), count), input);
+  };
   const move = (list, i, by) => { const [x] = list.splice(i, 1); list.splice(i + by, 0, x); };
 
   async function removeList(ctx, btn) {
@@ -199,8 +206,8 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
   // ---------- making one ----------
   // key: start it with this title (from Add to list). done(list) after it's made.
   function newList(opener, { key = null, title = '', done } = {}) {
-    const name = h('input', { type: 'text', class: 'invite-note', maxlength: String(MAX_NAME), placeholder: T('e.g. Films that ruined my sleep'), 'aria-label': T('Name'), enterkeyhint: 'done' });
-    const about = h('textarea', { class: 'invite-note pf-bio-input', rows: '3', maxlength: String(MAX_ABOUT), placeholder: T('What ties them together (optional)'), 'aria-label': T('Description') });
+    const name = h('input', { type: 'text', class: 'pf-ed-input', maxlength: String(MAX_NAME), placeholder: T('e.g. Films that ruined my sleep'), 'aria-label': T('Name'), enterkeyhint: 'done' });
+    const about = h('textarea', { class: 'pf-ed-input pf-ed-bio-input', rows: '3', maxlength: String(MAX_ABOUT), placeholder: T('What ties them together (optional)'), 'aria-label': T('Description') });
     const go = h('button', { type: 'button', class: 'play-btn' }, T('Make list'));
     const make = async () => {
       if (!name.value.trim()) { name.focus(); return; }
@@ -215,13 +222,12 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
     };
     go.onclick = make;
     name.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); make(); } });
-    picker.open([h('div', { class: 'sheet-content pf-editor ls-editor' },
-      h('h2', { id: 'picker-title' }, T('New list')),
+    picker.open([h('div', { class: 'sheet-content ls-editor ls-new' },
+      h('h2', { id: 'picker-title', class: 'pf-ed-heading' }, T('New list')),
       key && title && h('p', { class: 'picker-sub muted' }, T('Starts with {0}', title)),
-      h('section', { class: 'pf-part' },
-        h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, T('Name')), name),
-        h('label', { class: 'pf-field' }, h('span', { class: 'pf-field-label' }, T('Description')), about),
-        h('p', { class: 'set-hint' }, T('Shows on your profile, for the people who can see it.'))),
+      h('section', { class: 'ls-ed-section' },
+        h('div', { class: 'pf-ed-group' }, fieldRow(T('Name'), name, MAX_NAME), fieldRow(T('Description'), about, MAX_ABOUT)),
+        h('p', { class: 'pf-ed-note' }, T('Shows on your profile, for the people who can see it.'))),
       h('div', { class: 'pf-save-bar' }, go))], opener, null, over());
     requestAnimationFrame(() => name.focus());
   }
