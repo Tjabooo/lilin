@@ -91,7 +91,7 @@ function playbackHarness({ prepare, autoplayRejected = false, clock = null } = {
     api: async (path, options) => { logs.push({ path, options, id: context.current?.id }); if (path.includes('/play-link')) return prepare ? prepare(options) : { url: 'https://example.test/two.mp4', name: 'two.mp4' }; if (path.endsWith('/credits')) return { creditsAt: null }; return {}; },
     fetch: async () => ({ ok: true, body: { cancel: () => Promise.resolve() } }),
     leaveWatchRoom: () => { context.party = null; }, resetCasting() {}, clearSubTracks() {}, closeCcMenu() {}, closeAudioMenu() {}, resetAudioSelection() {},
-    endSeek: () => { context.seeking = null; }, setSpinner() {}, updatePlayState() {}, updateTime() {}, showPlayerUi() {}, renderParty() {}, seekPreview: { load() {}, show() {} }, momentsUI: { stop() {}, sync() {} }, pauseScreen: { load() {}, wake() {} },
+    endSeek: () => { context.seeking = null; }, setSpinner() {}, updatePlayState() {}, updateTime() {}, showPlayerUi() {}, renderParty() {}, seekPreview: { load() {}, show() {} }, momentsUI: { stop() {}, sync() {} }, ghostsUI: { stop() {}, sync() {}, closeTray() {}, trayOpen: () => false }, pauseScreen: { load() {}, wake() {} },
     setupPlayerSubs() {}, watchAudio() {}, watchCastTargets() {}, canCastFromBrowser: false, browserVariant: () => 'browser',
     baseVariant: () => 'browser', wantedQuality: () => 'original', renderQualityMenu() {}, closeQualityMenu() {}, closeFsGuide() {}, qualityBtn: { hidden: true },
     fsElement: () => false, inPip: () => false, exitPip() {}, setTheme() {}, pageThemeColor: '#000', renderLibrary() {},
@@ -121,7 +121,7 @@ test('manual Next saves the old episode, ignores a double click, preserves overl
   assert.equal(h.$('#up-next-play').disabled, true);
   assert.equal(h.context.current.id, 'one');
   assert.equal(h.video.paused, true);
-  assert.ok(h.logs.some(entry => entry.path === '/api/me/progress' && entry.options.body.ref === 'l:one' && entry.options.body.time === 850));
+  assert.ok(h.logs.some(entry => entry.path === '/api/me/progress' && entry.options.body.ref === 'l:one' && entry.options.body.time === null), 'Next counts the old episode as watched, not resumed at the credits');
   assert.equal(h.logs.filter(entry => entry.path?.includes('/play-link')).length, 1);
   pending.resolve({ url: 'https://example.test/two.mp4', name: 'two.mp4' });
   await Promise.all([first, second]);
