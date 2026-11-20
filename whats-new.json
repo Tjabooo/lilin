@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-update-notice-waits",
+    "date": "2026-11-20",
+    "title": "No update notice mid-video",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "The reload notice waits until you stop watching",
+        "text": "When Lilin gets updated while you're watching, the \"Lilin was updated, reload the page\" notice no longer pops up over the video. It waits until the player is closed."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-discover-anime",
     "date": "2026-11-20",
     "title": "Anime in Discover",

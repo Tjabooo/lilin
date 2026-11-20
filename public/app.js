@@ -8620,7 +8620,7 @@ async function loadPeople() {
 // ---------- what's new ----------
 // After an update, everyone sees its notes once (whats-new.json on the server, via /api/status). The
 // popup waits while a video plays or another sheet is open, and closing it marks the update as seen.
-// A page left open across an update offers a reload, since it still runs the old app.
+// A page left open across an update offers a reload, since it still runs the old app (also not mid-video).
 const whatsNewView = { open: false, retry: null, build: null, staleNoted: false, opener: null, kind: 'all' };
 const updateDate = (d) => new Date(`${d}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: new Date().getFullYear() === Number(d.slice(0, 4)) ? undefined : 'numeric' });
 // The header's What's new button opens the whole history at any time, and lights up while an update
@@ -8648,7 +8648,13 @@ function maybeShowWhatsNew() {
   whatsNewView.build ??= wn.build;
   const stale = Boolean(wn.build && whatsNewView.build !== wn.build);
   if (!wn.unseen?.length) {
-    if (stale && !whatsNewView.staleNoted) { whatsNewView.staleNoted = true; toast(T('Lilin was updated. Reload the page to get the new version.')); }
+    if (stale && !whatsNewView.staleNoted) {
+      // Like the popup, the reload hint waits until nothing is playing (it's annoying mid-film).
+      clearTimeout(whatsNewView.retry);
+      if (!$('#player').hidden || document.hidden) { whatsNewView.retry = setTimeout(maybeShowWhatsNew, 15000); return; }
+      whatsNewView.staleNoted = true;
+      toast(T('Lilin was updated. Reload the page to get the new version.'));
+    }
     return;
   }
   if (whatsNewView.open) return;

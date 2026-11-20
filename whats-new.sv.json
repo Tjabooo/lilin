@@ -1,4 +1,13 @@
 {
+  "2026-11-20-update-notice-waits": {
+    "title": "Ingen uppdateringsnotis mitt i en video",
+    "items": {
+      "The reload notice waits until you stop watching": {
+        "title": "Notisen om att ladda om väntar tills du slutat titta",
+        "text": "När Lilin uppdateras medan du tittar dyker notisen \"Lilin har uppdaterats, ladda om sidan\" inte längre upp över videon. Den väntar tills spelaren är stängd."
+      }
+    }
+  },
   "2026-11-20-discover-anime": {
     "title": "Anime i Upptäck",
     "items": {
