@@ -1,4 +1,13 @@
 {
+  "2026-11-20-no-toasts": {
+    "title": "Färre popup-rutor",
+    "items": {
+      "No more little confirmation popups": {
+        "title": "Inga fler små bekräftelserutor",
+        "text": "De små vita meddelandena som dök upp efter nästan allt du gjorde är borta. Bara den med en Ångra-knapp visas fortfarande, så att du kan ångra en borttagning."
+      }
+    }
+  },
   "2026-11-20-up-next-while-preparing": {
     "title": "Nästa avsnitt medan det förbereds",
     "items": {

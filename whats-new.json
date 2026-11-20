@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-no-toasts",
+    "date": "2026-11-20",
+    "title": "Fewer popups",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "No more little confirmation popups",
+        "text": "The small white messages that popped up after almost everything you did are gone. Only the one with an Undo button still shows, so you can take back a delete."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-up-next-while-preparing",
     "date": "2026-11-20",
     "title": "Up next while the next episode is getting ready",

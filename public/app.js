@@ -466,15 +466,9 @@ function placeToast(t) {
   const below = note && !note.hidden ? note.getBoundingClientRect().bottom : 0;
   t.style.top = below > 0 ? `${Math.round(below + 10)}px` : '';
 }
-function toast(msg) {
-  const t = $('#toast');
-  t.textContent = msg;
-  placeToast(t);
-  t.classList.remove('has-action');
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
-}
+// Plain toasts are switched off (Oliver, 2026-11-20: mostly noise). Only toasts with a button
+// (Undo) still show, through actionToast below.
+function toast(_msg) {}
 
 // A toast with one button (Undo). It stays a little longer than a plain one.
 function actionToast(msg, label, action, ms = 6000) {
