@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-anime-categories",
+    "date": "2026-11-20",
+    "title": "Anime by kind",
+    "items": [
+      {
+        "kind": "improved",
+        "title": "More to browse in Anime",
+        "text": "The Anime tab now has rows for Shōnen, Seinen, Shōjo, Josei and Isekai, plus Dark fantasy, Slice of life, Romance, Sports, Mecha, Psychological, Supernatural, Iyashikei, Magical girls, Idols, Cyberpunk, Martial arts, Time travel and School life. The best-known series come first, and See all opens the whole list."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-update-notice-waits",
     "date": "2026-11-20",
     "title": "No update notice mid-video",

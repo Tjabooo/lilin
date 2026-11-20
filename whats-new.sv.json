@@ -1,4 +1,13 @@
 {
+  "2026-11-20-anime-categories": {
+    "title": "Anime efter sort",
+    "items": {
+      "More to browse in Anime": {
+        "title": "Mer att bläddra i under Anime",
+        "text": "Anime-fliken har nu rader för Shōnen, Seinen, Shōjo, Josei och Isekai, plus Mörk fantasy, Vardagsliv, Romantik, Sport, Mecha, Psykologiskt, Övernaturligt, Iyashikei, Magiska flickor, Idoler, Cyberpunk, Kampsport, Tidsresor och Skolliv. De mest kända serierna kommer först, och Visa alla öppnar hela listan."
+      }
+    }
+  },
   "2026-11-20-update-notice-waits": {
     "title": "Ingen uppdateringsnotis mitt i en video",
     "items": {
