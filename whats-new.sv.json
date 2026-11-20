@@ -1,4 +1,13 @@
 {
+  "2026-11-20-white-play-labels": {
+    "title": "Vita Spela-knappar",
+    "items": {
+      "Play and Next episode are white again": {
+        "title": "Spela och Nästa avsnitt är vita igen",
+        "text": "Texten på Spela-knapparna och på nedräkningen till Nästa avsnitt i spelaren är vit igen mot det nya röda, så den är lättare att läsa."
+      }
+    }
+  },
   "2026-11-20-anime-categories": {
     "title": "Anime efter sort",
     "items": {

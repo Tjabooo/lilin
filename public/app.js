@@ -419,6 +419,8 @@ function applyTheme(theme) {
     '--velvet': c.bg, '--curtain': c.surface, '--seat': c.raised, '--line': c.line,
     '--paper': c.text, '--dust': c.muted, '--bulb': c.accent, '--alert': c.alert,
     '--bulb-dim': `${c.accent}33`, '--on-bulb': onAccent,
+    // Big bold labels (Play, Next episode) stay white unless white really can't be read on the accent.
+    '--on-bulb-bold': contrastRatio('#FFFFFF', c.accent) >= 3 ? '#FFFFFF' : onAccent,
   };
   const root = document.documentElement;
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);

@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-white-play-labels",
+    "date": "2026-11-20",
+    "title": "White Play buttons",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "Play and Next episode are white again",
+        "text": "The text on Play buttons and on the Next episode countdown in the player is white again on the new red, so it's easier to read."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-anime-categories",
     "date": "2026-11-20",
     "title": "Anime by kind",

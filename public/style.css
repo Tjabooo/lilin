@@ -25,6 +25,7 @@
   --bulb: #FB2C16;     /* the lilin's bulbs: the one warm light */
   --bulb-dim: rgba(251, 44, 22, 0.2);
   --on-bulb: #140A14;  /* text on the bulb colour */
+  --on-bulb-bold: #FFFFFF;  /* big labels on the bulb (Play, Next episode): white whenever it still reads */
   --alert: #FF9B85;
   /* status: good / informational (theme-aware: light themes get darker values below) */
   --ok: #6fcf8f;
@@ -149,7 +150,7 @@ h1, h2, h3, h4 { text-wrap: balance; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-width: 48px; height: 48px; padding: 0 22px;
   font-weight: 700; font-size: 16px; line-height: 1; letter-spacing: .005em; white-space: nowrap;
-  color: var(--on-bulb); background: var(--bulb);
+  color: var(--on-bulb-bold); background: var(--bulb);
   border: 0; border-radius: 999px;
   box-shadow: 0 8px 24px -10px var(--glow-color), inset 0 1px 0 rgb(255 255 255 / .28);
   transition: transform var(--d-1) var(--ease-out), box-shadow var(--d-2) var(--ease-out), filter var(--d-2);
@@ -1281,7 +1282,7 @@ html.has-vt .view { animation: none; }
 .up-next h2 { margin: 0; font: 700 16px/1.35 var(--display); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .up-next-actions { display: flex; gap: 8px; margin-top: 14px; }
 .up-next-actions button { flex: 1; min-width: 0; min-height: 46px; padding: 8px 10px; border: 1px solid transparent; border-radius: 999px; font-size: 14px; font-weight: 700; }
-.up-next-play { position: relative; isolation: isolate; overflow: hidden; color: var(--on-bulb); background: var(--bulb); font-variant-numeric: tabular-nums; }
+.up-next-play { position: relative; isolation: isolate; overflow: hidden; color: var(--on-bulb-bold); background: var(--bulb); font-variant-numeric: tabular-nums; }
 /* Countdown to the next episode: the bulb colour fills the button from the left. */
 .up-next-play.counting { background: color-mix(in srgb, var(--bulb) 62%, #000); }
 .up-next-play.counting::before {
