@@ -1,4 +1,13 @@
 {
+  "2026-11-20-letterboxd-match": {
+    "title": "Letterboxd-filmer hamnar på rätt titel",
+    "items": {
+      "No more look-alike films from Letterboxd": {
+        "title": "Inga fler förväxlade filmer från Letterboxd",
+        "text": "När två filmer har samma namn och år kunde en Letterboxd-import välja fel (till exempel en kortfilm i stället för långfilmen) och visa tittningen två gånger. Nu använder Lilin exakt den film Letterboxd pekar på, rättar tidigare förväxlingar av sig själv och visar varje tittning en gång."
+      }
+    }
+  },
   "2026-11-20-late-night-scroll": {
     "title": "Upptäck scrollar mjukt sent på natten",
     "items": {

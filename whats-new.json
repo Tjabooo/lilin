@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-11-20-letterboxd-match",
+    "date": "2026-11-20",
+    "title": "Letterboxd films land on the right title",
+    "items": [
+      {
+        "kind": "fix",
+        "title": "No more look-alike films from Letterboxd",
+        "text": "When two films share a name and year, a Letterboxd import could pick the wrong one (like a short film instead of the feature) and show the watch twice. Lilin now uses the exact film Letterboxd points to, fixes earlier mix-ups by itself and shows each watch once."
+      }
+    ]
+  },
+  {
     "id": "2026-11-20-late-night-scroll",
     "date": "2026-11-20",
     "title": "Discover scrolls smoothly late at night",

@@ -1864,7 +1864,10 @@ async function letterboxdFilm({ title, year }) {
   let list = year ? await search({ year }) : [];
   if (!list.length) list = await search({});
   const yearOf = (r) => Number(String(r.release_date || '').slice(0, 4)) || null;
-  const pick = list.find((r) => norm(r.title) === norm(title) && (!year || yearOf(r) === year))
+  // Several films can share a name and year (a feature and a short): take the one most people have seen.
+  const seen = (r) => (r.vote_count || 0) * 1000 + (r.popularity || 0);
+  const exact = list.filter((r) => norm(r.title) === norm(title) && (!year || yearOf(r) === year)).sort((a, b) => seen(b) - seen(a));
+  const pick = exact[0]
     || list.find((r) => !year || Math.abs((yearOf(r) || 0) - year) <= 1) || null;
   return pick ? `movie:${pick.id}` : null;
 }

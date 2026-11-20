@@ -9,6 +9,7 @@ import * as reviews from '../src/reviews.js';
 import * as profiles from '../src/profiles.js';
 import * as friends from '../src/friends.js';
 import * as lb from '../src/letterboxd.js';
+import * as lists from '../src/lists.js';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-letterboxd-'));
@@ -17,6 +18,7 @@ function setup() {
   friends.initFriends();
   profiles.initProfiles();
   lb.initLetterboxd();
+  lists.initLists();
   const make = (email, name) => accounts.updateMe(accounts.userFor({ headers: { 'cf-access-authenticated-user-email': email } }), { name });
   return { anna: make('anna@example.test', 'Anna') };
 }
@@ -119,4 +121,25 @@ test('letterboxd: the export brings the whole history and the top four', async (
   assert.deepEqual(profiles.diary(anna.id).entries.map((e) => [e.key, e.day]), [['movie:949', '2021-03-03']], 'only dated films in the diary');
   assert.equal(profiles.stats(anna.id).films, 2, 'watched-only films still count');
   assert.throws(() => lb.parseExport(Buffer.from('nope')), /export/);
+});
+
+test('letterboxd: the feed’s TMDB id beats a same-named export match, one watch per day', async () => {
+  const { anna } = setup();
+  lb.setLink(anna.id, 'someone');
+  const buf = zip({
+    'profile.csv': 'Date Joined,Username,Favorite Films\n2020-01-01,someone,\n',
+    'diary.csv': 'Date,Name,Year,Letterboxd URI,Rating,Rewatch,Tags,Watched Date\n2026-11-19,Obsession,2025,https://boxd.it/x1,3.5,,,2026-11-19\n',
+  });
+  // Export first, matched by name to the short film; then the feed brings the real id.
+  await lb.importExport(anna.id, buf, { findFilm: async () => 'movie:2' });
+  assert.equal(reviews.reviewOf(anna.id, 'movie:2').stars, 3.5);
+  await lb.sync(anna.id, { fetchFeed: async () => feed(item({ n: 9, title: 'Obsession', year: 2025, tmdb: 1, day: '2026-11-19', rating: '3.5' })) });
+  assert.equal(reviews.reviewOf(anna.id, 'movie:2'), null, 'the wrong match is taken back');
+  assert.equal(reviews.reviewOf(anna.id, 'movie:1').stars, 3.5);
+  assert.deepEqual(profiles.diary(anna.id).entries.map((e) => [e.key, e.day]), [['movie:1', '2026-11-19']]);
+  // A later export uses the feed's id straight away.
+  let asked = 0;
+  await lb.importExport(anna.id, buf, { findFilm: async () => { asked++; return 'movie:2'; } });
+  assert.equal(asked, 0);
+  assert.equal(reviews.reviewOf(anna.id, 'movie:2'), null);
 });

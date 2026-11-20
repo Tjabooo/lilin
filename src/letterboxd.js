@@ -306,8 +306,28 @@ export function store(userId, entries, now = Date.now()) {
         e.rewatch ? 1 : 0, e.liked ? 1 : 0, e.review || '', e.spoiler ? 1 : 0);
     }
   });
+  trustFeed(userId);
   applyReviews(userId, now);
   return added;
+}
+
+// Export rows (diary:/review:/watched:) were matched to TMDB by name and year, which can pick a same-named
+// twin (a short film called Obsession). The feed carries the real TMDB id, so wherever the feed has the same
+// title and year, the export rows take the feed's id.
+const FROM_EXPORT = "(id LIKE 'diary:%' OR id LIKE 'review:%' OR id LIKE 'watched:%')";
+function trustFeed(userId) {
+  db().prepare(`UPDATE letterboxd_log AS e SET title_key = (
+      SELECT f.title_key FROM letterboxd_log f WHERE f.user_id = e.user_id AND f.title_key IS NOT NULL AND NOT ${FROM_EXPORT.replaceAll('id', 'f.id')}
+        AND lower(f.title) = lower(e.title) AND f.year IS e.year ORDER BY f.at DESC LIMIT 1)
+    WHERE e.user_id = ? AND ${FROM_EXPORT.replaceAll('id', 'e.id')} AND EXISTS (
+      SELECT 1 FROM letterboxd_log f WHERE f.user_id = e.user_id AND f.title_key IS NOT NULL AND NOT ${FROM_EXPORT.replaceAll('id', 'f.id')}
+        AND lower(f.title) = lower(e.title) AND f.year IS e.year)`).run(userId);
+}
+
+// The feed's TMDB id for a film it has already brought in, else null.
+function feedKeyFor(userId, { title, year }) {
+  return db().prepare(`SELECT title_key FROM letterboxd_log WHERE user_id = ? AND title_key IS NOT NULL AND NOT ${FROM_EXPORT}
+    AND lower(title) = lower(?) AND year IS ? ORDER BY at DESC LIMIT 1`).get(userId, title, year ?? null)?.title_key || null;
 }
 
 // Letterboxd's stars as they are (Lilin has half stars too), just kept in range.
@@ -329,6 +349,14 @@ function applyReviews(userId, now) {
   }
   const wrote = new Map(db().prepare('SELECT * FROM letterboxd_wrote WHERE user_id = ?').all(userId).map((w) => [w.title_key, w]));
   tx(() => {
+    // Titles Letterboxd no longer points at (a wrong match that got corrected): take back what we wrote there,
+    // unless the person has changed it since.
+    for (const [key, w] of wrote) {
+      if (per.has(key)) continue;
+      db().prepare('DELETE FROM reviews WHERE user_id = ? AND title_key = ? AND stars IS ? AND text = ?').run(userId, key, w.stars, w.text);
+      if (w.thumb) db().prepare('DELETE FROM ratings WHERE user_id = ? AND title_key = ? AND value = ?').run(userId, key, w.thumb);
+      db().prepare('DELETE FROM letterboxd_wrote WHERE user_id = ? AND title_key = ?').run(userId, key);
+    }
     for (const [key, p] of per) {
       const stars = starsFor(p.rating);
       const text = p.review;
@@ -408,7 +436,7 @@ export async function importExport(userId, buf, { findFilm, progress = () => {},
   const worker = async () => {
     while (next < list.length) {
       const [id, f] = list[next++];
-      try { keys.set(id, await findFilm(f)); } catch { keys.set(id, null); }
+      try { keys.set(id, feedKeyFor(userId, f) || await findFilm(f)); } catch { keys.set(id, null); }
       progress(++done, list.length);
     }
   };
@@ -424,7 +452,11 @@ export async function importExport(userId, buf, { findFilm, progress = () => {},
 // Diary-worthy watches from Letterboxd: { key, type, title, day, at, rewatch, lbStars }. Films without a day
 // (only marked watched) come back with day null.
 export function watchesOf(userId) {
-  return db().prepare('SELECT title_key, title, day, at, rating, rewatch FROM letterboxd_log WHERE user_id = ? AND title_key IS NOT NULL').all(userId)
+  // The same watch can come from both the feed and the export: keep one per title and day (the feed's).
+  const seen = new Set();
+  return db().prepare(`SELECT id, title_key, title, day, at, rating, rewatch FROM letterboxd_log WHERE user_id = ? AND title_key IS NOT NULL
+      ORDER BY ${FROM_EXPORT} ASC`).all(userId)
+    .filter((r) => { if (!r.day) return true; const k = `${r.title_key}|${r.day}`; if (seen.has(k)) return false; seen.add(k); return true; })
     .map((r) => ({ key: r.title_key, type: r.title_key.split(':')[0], title: r.title, day: r.day, at: r.at || (r.day ? Date.parse(`${r.day}T20:00:00Z`) : 0), rewatch: Boolean(r.rewatch), lbStars: r.rating }));
 }
 
