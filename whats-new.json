@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-forget-recent-search",
+  "date": "2026-11-21",
+  "title": "Clear a recent search",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Remove searches you don\u2019t want to see again",
+      "text": "Each recent search in Search now has a small \u00d7. Tap it to remove that search from the list."
+    }
+  ]
+},
+{
   "id": "2026-11-21-magic-search",
   "date": "2026-11-21",
   "title": "MAGIc search",

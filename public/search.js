@@ -21,6 +21,9 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     if (q.length < 2) return;
     try { localStorage.setItem(RECENT_KEY, JSON.stringify([q, ...recent().filter((r) => r.toLowerCase() !== q.toLowerCase())].slice(0, 5))); } catch { /* private mode */ }
   }
+  function forget(text) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent().filter((r) => r !== text))); } catch { /* private mode */ }
+  }
   const isOpen = () => !layer.hidden;
   function open() {
     if (isOpen()) return;
@@ -50,9 +53,16 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
       ctrl?.abort();
       const recents = recent();
       layer.replaceChildren(h('div', { class: 'sr-body' },
-        recents.length > 0 && group(T('Recent searches'), chips(recents.map((r) => h('button', { type: 'button', class: 'chip', onclick: () => {
-          input.value = r; input.dispatchEvent(new Event('input')); input.focus();
-        } }, r)))),
+        recents.length > 0 && group(T('Recent searches'), chips(recents.map((r, i) => h('span', { class: 'chip sr-recent' },
+          h('button', { type: 'button', class: 'sr-recent-pick', onclick: () => {
+            input.value = r; input.dispatchEvent(new Event('input')); input.focus();
+          } }, r),
+          h('button', { type: 'button', class: 'sr-recent-x', title: T('Remove'), 'aria-label': T('Remove “{0}” from recent searches', r), onclick: () => {
+            forget(r); render();
+            // keep focus in the sheet: the next × along, else the box
+            const xs = layer.querySelectorAll('.sr-recent-x');
+            (xs[Math.min(i, xs.length - 1)] || input).focus({ preventScroll: true });
+          } }, icon('close')))))),
         group(T('Go to'), chips(defaultPlaces(me(), status()).map((p) => h('button', { type: 'button', class: 'chip', onclick: () => go(p) }, T(placeLabel(p))))))));
       return;
     }

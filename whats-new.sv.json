@@ -1,4 +1,13 @@
 {
+  "2026-11-21-forget-recent-search": {
+    "title": "Rensa en tidigare sökning",
+    "items": {
+      "Remove searches you don’t want to see again": {
+        "title": "Ta bort sökningar du inte vill se igen",
+        "text": "Varje tidigare sökning i Sök har nu ett litet ×. Tryck på det för att ta bort sökningen från listan."
+      }
+    }
+  },
   "2026-11-21-magic-search": {
     "title": "MAGIsk sökning",
     "items": {

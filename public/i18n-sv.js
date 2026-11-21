@@ -2546,6 +2546,7 @@ export default {
   "Search Lilin": "Sök i Lilin",
   "Search results": "Sökresultat",
   "Recent searches": "Senaste sökningar",
+  "Remove “{0}” from recent searches": "Ta bort ”{0}” från senaste sökningar",
   "Go to": "Gå till",
   "Now: {0}": "Nu: {0}",
   "On Lilin": "På Lilin",
