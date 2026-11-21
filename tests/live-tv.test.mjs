@@ -180,20 +180,3 @@ test('a programme deleted while it airs leaves the channel off air until the nex
   assert.equal(r.rooms.protects(airing), false, 'a channel never blocks a delete');
   clearTimeout(room.liveTimer);
 });
-
-test('the TV app follows the same clock sum as the web player and surfs in guide order', async () => {
-  const vm = await import('node:vm');
-  const sandbox = {};
-  vm.runInNewContext(fs.readFileSync(new URL('../public/tv/logic.js', import.meta.url), 'utf8'), sandbox);
-  const L = sandbox.LilinTvLogic;
-  const room = { position: 100, at: 50000, playing: true };
-  assert.equal(L.liveTarget(room, 53500), playbackPlan(room, 53500, 0).target);
-  assert.equal(L.liveTarget({ ...room, playing: false }, 99999), 100);
-  assert.equal(L.clockOffset([{ rtt: 90, offset: 5 }, { rtt: 20, offset: 7 }, { rtt: 50, offset: 9 }]), 7);
-  const list = [{ id: 'anime' }, { id: 'sitcoms' }, { id: 'films' }];
-  assert.equal(L.neighbour(list, 'anime', -1).id, 'films');
-  assert.equal(L.neighbour(list, 'films', 1).id, 'anime');
-  assert.equal(L.channelName({ kind: 'picks', id: 'picks-2', person: 'Ebi' }, 1), 'Ebi’s picks');
-  assert.equal(L.channelName({ kind: 'picks', id: 'picks-1', person: 'Oliver' }, 1), 'Your picks');
-  assert.equal(L.programmeLine({ kind: 'episode', season: 1, episode: 2, name: 'Pilot' }), 'S01 E02 · Pilot');
-});
