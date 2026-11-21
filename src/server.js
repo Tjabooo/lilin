@@ -446,7 +446,8 @@ subtitles.setReferenceSource({
 subtitles.setOwnTracks({
   languages: (file, info) => subsync.embeddedLanguages(info?.hashFile || file),
   use: (file, info, lang) => {
-    const growing = Boolean(info?.hashFile && info.hashFile !== file);
+    // growing: torrents that download straight into the library have hashFile === file while still partial.
+    const growing = Boolean(info?.hashFile && (info.growing || info.hashFile !== file));
     return subsync.useOwnTrack(growing ? info.hashFile : file, subtitles.sidecarPath(file, lang), lang, { growing });
   },
   replaceable: (srt) => subsync.replaceable(srt),
@@ -2960,7 +2961,7 @@ async function subsTarget(user, kind, id) {
     const file = entry.finalFile || entry.file;
     // Partial until the whole file has arrived where it's kept (it's moved off the scratch drive when it finishes).
     const partial = !partialStreams.status(entry).done || !fileExists(file);
-    return { file, info: { ...infoFor(file), hashFile: partial ? entry.file : file }, partial };
+    return { file, info: { ...infoFor(file), hashFile: partial ? entry.file : file, growing: partial }, partial };
   }
   const file = converter.preferConverted(await sourceFile(kind, id));
   return { file, info: infoFor(file), partial: false };
