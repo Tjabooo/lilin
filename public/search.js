@@ -4,8 +4,8 @@
 // People (findPeople: by name, opens their profile) and Live (findChannels: a channel by name or what's on now,
 // tunes in) show as groups of their own when something matches.
 // MAGIc search: when the box holds a description rather than a title ("teacher makes meth with his student"),
-// a row offers to find it from that (/api/magic-search, a language model + TMDB, 10-30 s). Only on a tap: it
-// runs on a graphics card that may be busy.
+// a row offers to find it from that (/api/magic-search: Wikipedia's plot write-ups + TMDB, a few seconds). Only on a
+// tap: Wikipedia's API asks to be used gently, and a half-typed description finds nothing anyway.
 import { matchPlaces, defaultPlaces, placeLabel } from './places.js';
 import { ROUTES } from './routes.js';
 
@@ -120,11 +120,11 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     stopMagic();
     const slot = magic.slot;
     const started = Date.now();
-    const clock = h('span', { class: 'set-hint' }, T('Reading your description…'));
+    const clock = h('span', { class: 'set-hint' }, T('Looking through plots…'));
     slot.replaceChildren(h('div', { class: 'set-stack' }, h('div', { class: 'sr-row magic-wait', role: 'status' },
       h('span', { class: 'magic-mark is-busy', 'aria-hidden': 'true' }, icon('magic')),
       h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, T('MAGIc search')), clock))));
-    const steps = [[0, T('Reading your description…')], [7, T('Thinking of titles that fit…')], [14, T('Checking them against what you said…')], [35, T('Still thinking: this one’s a puzzle…')]];
+    const steps = [[0, T('Looking through plots…')], [4, T('Checking them against what you said…')], [12, T('Still looking: this one’s a puzzle…')]];
     magicTick = setInterval(() => { const s = (Date.now() - started) / 1000; clock.textContent = steps.filter(([at]) => s >= at).at(-1)[1]; }, 1000);
     magicCtrl = new AbortController();
     try {
@@ -143,7 +143,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
           h('span', { class: 'lrow-text' },
             h('span', { class: 'magic-name' }, h('span', { class: 'set-label' }, t.title), i === 0 && data.sure && h('span', { class: 'magic-best' }, T('Best match'))),
             h('span', { class: 'set-hint' }, [t.year, kind(t)].filter(Boolean).join(' · ')),
-            t.why && h('span', { class: 'magic-why' }, t.why))))))));
+            t.matched?.length > 0 && h('span', { class: 'magic-why' }, T('Matches: {0}', t.matched.join(', '))))))))));
     } catch (err) {
       stopMagic();
       if (err.name === 'AbortError' || magic?.slot !== slot) return;

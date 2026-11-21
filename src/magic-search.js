@@ -1,106 +1,191 @@
 // MAGIc search: find a film or show from what someone half-remembers ("teacher makes meth with his
-// student" → Breaking Bad). Three steps:
-//   1. a language model names candidates (title, year, film or series) from the description;
-//   2. TMDB looks each one up, so only real titles with posters come back (made-up ones drop out);
-//   3. the model reads the real TMDB descriptions next to what was asked and scores each one, which
-//      fixes step 1's ordering (a small model's first guess is often a near miss with the right
-//      answer third).
-// The model is any OpenAI-compatible server (the subtitle proofreader's by default, subllm.js).
-// Answers are cached per wording and language for a day; one search runs at a time (one GPU).
+// student" → Breaking Bad), without a language model. Wikipedia has a plot write-up for nearly every
+// film and series, new ones within days, so it does the finding:
+//   1. Wikipedia's own search over film/TV articles (all words, any word, an idea like "time loop"
+//      spotted in the wording), the lists merged;
+//   2. each article's opening section is scored against the description: how many of the words
+//      (stemmed, a few synonyms) it has, rare words counting more than ones every candidate has;
+//   3. the best go to TMDB through their Wikidata ID (/find), which also drops what isn't a film or
+//      series; TMDB's description and keywords join the text, popularity breaks ties.
+// No answer is "sure" the way a model's is; the matched words are shown as the reason.
+// Answers are cached per wording and language for a day; one search runs at a time (Wikipedia's
+// API asks clients to go easy on it).
 
-const CANDIDATES = 10;
+const WIKI_LIMIT = 20;
+const TO_TMDB = 12;
 const SHOWN = 8;
 const CACHE_MS = 24 * 3600 * 1000;
 
-const LANGUAGE_NAMES = { sv: 'Swedish', en: 'English' };
+// Film and TV articles: the infobox they carry. `|` is "any of" in CirrusSearch's hastemplate.
+const WIKIS = {
+  en: 'hastemplate:"Infobox film|Infobox television|Infobox animanga/Header"',
+  sv: 'hastemplate:"Infobox film|Infobox TV-program"',
+};
+
+const STOP = new Set(`a an the and or but of to in on at by for with from into onto about over under after before
+  is are was were be been being am do does did has have had it its it's this that these those there their they them he him his
+  she her hers we our you your i me my who whom whose which what when where why how than then so as if just also very really
+  some any all one ones thing things stuff something someone somebody kinda kind sort like remember remembered think thought
+  called named name title know knew where's there's whats what's theres wheres its im dont can could would should might gets get got
+  up down out off goes go went make makes try tries tried keep keeps kept himself herself themselves itself whole becomes become find finds found
+  movie movies film films show shows series season seasons episode episodes watch watched saw seen see
+  en ett och eller men av till i på vid för med från om över under efter innan är var vara blir blev har hade den det de
+  dem han honom hans hon henne hennes vi vår ni er jag mig min mitt mina som vilken vilket vilka vad när var varför hur än så
+  bara också väldigt nån någon något några sak saker typ minns kommer ihåg heter hette film filmer serie serier tv-serie
+  säsong avsnitt där handlar handlade om`.split(/\s+/).filter(Boolean));
+
+// A few ways people say what plots spell out (both sides are stemmed before matching).
+const SYNONYMS = {
+  meth: ['methamphetamine', 'crystal'], guy: ['man'], dude: ['man'], kid: ['child', 'boy', 'girl', 'son', 'daughter'],
+  kids: ['children', 'boys', 'girls'], cop: ['police', 'detective', 'officer'], cops: ['police'], tv: ['television'],
+  spaceship: ['spacecraft', 'starship', 'space'], robot: ['android', 'robotic'], alien: ['extraterrestrial'],
+  doctor: ['physician', 'surgeon'], mom: ['mother'], mum: ['mother'], dad: ['father'], wife: ['widow', 'widower', 'married'],
+  kill: ['murder', 'death', 'die', 'suicide'], kills: ['murder', 'death'], killer: ['murderer', 'serial'], dies: ['death', 'dead'],
+  fake: ['simulated', 'staged', 'artificial', 'constructed', 'reality'], dream: ['dreams', 'subconscious'], school: ['student', 'teacher'],
+  zombie: ['undead'], vampire: ['vampires'], heist: ['robbery', 'theft'], ai: ['artificial', 'intelligence'],
+  lärare: ['lärarinna'], polis: ['kriminalare'], mördare: ['mord'],
+};
+
+const PHRASES = [
+  [/ (same day|over and over|again and again|relive|relives|reliving|repeat|repeating) /, 'time loop', ['loop', 'reliving', 'repeat', 'repeatedly']],
+  [/ (kill|kills|killed|killing) (himself|herself|themselves) /, 'suicide', ['suicide']],
+];
+
+// Rough English stemming: enough to make "kills"/"killed"/"killing" one word.
+export function stem(w) {
+  if (w.length <= 3) return w;
+  if (w.endsWith('ies') && w.length > 4) return `${w.slice(0, -3)}y`;
+  if (w.endsWith('ing') && w.length > 5) return w.slice(0, -3);
+  if (w.endsWith('ed') && w.length > 4) return w.slice(0, -2);
+  if (/(sses|xes|ches|shes)$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) return w.slice(0, -1);
+  return w;
+}
+// British/American spellings and a final e ("lives"/"living", "neighbours"/"neighbors") meet in one form.
+const fold = (w) => { const s = stem(w).replace(/([a-z]{3,})our$/, '$1or'); return s.length > 3 && s.endsWith('e') ? s.slice(0, -1) : s; };
+const words = (text) => String(text || '').toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)?/gu) || [];
+const stems = (text) => new Set(words(text).map((w) => fold(w.replace(/['’].*$/, ''))));
 
 export const normalizeQuery = (q) => String(q || '').replace(/\s+/g, ' ').trim().slice(0, 300);
 
-export function candidatePrompt() {
-  return [
-    'You identify films and TV shows from what someone half-remembers: bits of plot, a scene, an actor, the era, the country, the mood.',
-    'Think about which real titles fit ALL the details they give, then answer with JSON only:',
-    '{"results":[{"title":"...","year":2008,"type":"movie" or "tv"}]}',
-    `Up to ${CANDIDATES} titles, the most likely first. Only real, released titles; their English release title (original title if there is none).`,
-    'Include near misses too (similar plots, remakes, the same story as film and series): a later step checks them.',
-  ].join('\n');
-}
-
-export function judgePrompt(lang = 'en') {
-  const language = LANGUAGE_NAMES[lang] || 'English';
-  return [
-    'Someone describes a film or TV show they are trying to find. Below are candidates with their real descriptions.',
-    'Score each candidate 0-100 for how likely it is THE title they mean: 90+ when the details clearly match, 50 when it fits only partly, under 20 when it does not fit.',
-    'Usually only one title is the answer; score the others low even if they share a theme.',
-    `For each, give "why": one short line in ${language} (max 14 words) linking their words to the title, no spoilers beyond what they said.`,
-    'Answer with JSON only: {"1":{"match":95,"why":"..."},"2":{"match":10,"why":"..."}}',
-  ].join('\n');
-}
-
-// The model's answer → [{ title, year, type }], cleaned and without duplicates.
-export function parseCandidates(answer) {
-  const list = Array.isArray(answer?.results) ? answer.results : Array.isArray(answer) ? answer : [];
+// "show where a guy wakes up in the 90s" → { terms: ['wake', 'guy', ...], type: 'tv', decade: 1990 }
+export function readQuery(q) {
+  const all = words(q);
+  const lower = ` ${all.join(' ')} `;
+  const tv = / (show|shows|series|tv|season|seasons|episode|episodes|sitcom|serie|serier|säsong|avsnitt|tv-serie) /.test(lower);
+  const film = / (movie|movies|film|films|filmen) /.test(lower);
+  const decade = Number(/(?:^|\s)(?:19)?([2-9]0)s(?:\s|$)/.exec(lower)?.[1]) || null;
+  const year = Number(/\b(19[2-9]\d|20[0-4]\d)\b/.exec(lower)?.[1]) || null;
   const seen = new Set();
-  const out = [];
-  for (const c of list) {
-    const title = String(c?.title || c?.name || '').trim().slice(0, 120);
-    if (!title) continue;
-    const year = Number(c.year) >= 1880 && Number(c.year) <= 2100 ? Number(c.year) : null;
-    const type = /^(tv|series|show)/i.test(String(c.type || '')) ? 'tv' : /^(movie|film)/i.test(String(c.type || '')) ? 'movie' : null;
-    const key = `${title.toLowerCase()}|${year || ''}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ title, year, type });
-    if (out.length >= CANDIDATES) break;
+  const terms = [];
+  for (const w of all) {
+    const bare = w.replace(/['’].*$/, '');
+    if (STOP.has(bare) || bare.length < 2 || /^\d+s?$/.test(bare)) continue;
+    const s = fold(bare);
+    if (seen.has(s)) continue;
+    seen.add(s);
+    terms.push({ word: bare, alts: [s, ...(SYNONYMS[bare] || []).map(fold)] });
   }
-  return out;
+  // Ideas plots name differently: "the same day over and over" is a time loop.
+  for (const [re, word, alts] of PHRASES) if (re.test(lower)) terms.unshift({ word, alts: alts.map(fold), extra: true });
+  return {
+    terms: terms.slice(0, 12),
+    type: tv && !film ? 'tv' : film && !tv ? 'movie' : null,
+    decade: decade ? 1900 + decade : null,
+    year,
+  };
 }
 
-// Scores from the judge → the titles, best first. Without scores (the judge failed) the first
-// step's order stays. Titles the judge calls a clear miss are dropped (a sure answer can stand alone).
-export function rank(titles, scores) {
-  const scored = titles.map((t, i) => {
-    const s = scores?.[String(i + 1)];
-    const match = Number.isFinite(Number(s?.match)) ? Math.max(0, Math.min(100, Math.round(Number(s.match)))) : null;
-    return { ...t, match, why: typeof s?.why === 'string' ? s.why.trim().slice(0, 160) : '', order: i };
-  });
-  if (!scored.some((t) => t.match != null)) return scored.slice(0, SHOWN).map(({ order, ...t }) => t);
-  scored.sort((a, b) => (b.match ?? -1) - (a.match ?? -1) || a.order - b.order);
-  const best = scored[0].match ?? 0;
-  const kept = scored.filter((t, i) => i === 0 || (t.match ?? 0) >= Math.min(25, best / 2));
-  return kept.slice(0, SHOWN).map(({ order, ...t }) => t);
+// How well a text covers the description, 0-1, and which words it had. weight(term) favours words
+// few candidates share: "meth" decides more than "student".
+export function coverage(terms, textStems, weight = () => 1) {
+  let total = 0, got = 0;
+  const matched = [];
+  for (const t of terms) {
+    const w = weight(t);
+    total += w;
+    const hit = t.alts.some((a) => textStems.has(a) || (a.length >= 5 && [...textStems].some((s) => s.length > a.length && s.startsWith(a))));
+    if (hit) { got += w; matched.push(t.word); }
+  }
+  return { score: total ? got / total : 0, matched };
 }
 
-// chat(system, user, { maxTokens }) → parsed JSON object (throws when the model can't be reached).
-// find({ title, year, type }) → a Lilin title ({ id, type, title, year, overview, poster, ... }) or null.
-// busy() → true while the model's machine shouldn't be used (a game running).
-export function createMagicSearch({ chat, find, busy = async () => false, log = () => {} }) {
-  const cache = new Map(); // `${lang}|${query}` → { at, promise }
+function idfWeights(terms, docs) {
+  const n = docs.length || 1;
+  const df = new Map(terms.map((t) => [t, docs.filter((d) => t.alts.some((a) => d.has(a))).length]));
+  return (t) => Math.log(1 + n / (1 + df.get(t))) + 0.25;
+}
+
+// wiki(lang, params) → the API's JSON; findTmdb(wikidataId) → a Lilin title or null;
+// extra(title) → { text } (TMDB description + keywords) or null.
+export function createMagicSearch({ wiki, findTmdb, extra = async () => null, log = () => {} }) {
+  const cache = new Map();
   let line = Promise.resolve();
 
+  async function searchWiki(lang, query) {
+    const data = await wiki(lang, {
+      action: 'query', format: 'json', formatversion: '2', generator: 'search', gsrsearch: `${query} ${WIKIS[lang]}`,
+      gsrlimit: String(WIKI_LIMIT), gsrnamespace: '0', prop: 'pageprops|extracts', ppprop: 'wikibase_item',
+      exintro: '1', explaintext: '1', exlimit: 'max',
+    });
+    return (data?.query?.pages || []).filter((p) => p.pageprops?.wikibase_item)
+      .sort((a, b) => a.index - b.index)
+      .map((p) => ({ qid: p.pageprops.wikibase_item, title: p.title, text: p.extract || '' }));
+  }
+
   async function run(query, lang) {
-    if (await busy()) throw Object.assign(new Error('busy'), { code: 'busy' });
     const started = Date.now();
-    const first = parseCandidates(await chat(candidatePrompt(), query, { maxTokens: 900 }));
-    // Look each candidate up (in parallel); the same TMDB title named twice counts once.
-    const found = await Promise.all(first.map((c) => find(c).catch(() => null)));
+    const q = readQuery(query);
+    if (!q.terms.length) return { results: [], sure: false };
+    const plain = q.terms.filter((t) => !t.extra).map((t) => t.word).join(' ');
+    const any = [...new Set(q.terms.flatMap((t) => [...t.word.split(' '), ...(SYNONYMS[t.word] || [])]))].slice(0, 30).join(' OR ');
+    const langs = lang === 'sv' ? ['sv', 'en'] : ['en'];
+    // All words (precise, often nothing for a long description) and any word (wide), per wiki.
+    // An idea spotted in the wording ("time loop") gets a search of its own: plots use those words.
+    const ideas = q.terms.filter((t) => t.extra).map((t) => `"${t.word}"`);
+    const queries = [plain, any, ...(ideas.length ? [ideas.join(' ')] : [])];
+    const lists = await Promise.all(langs.flatMap((l) => queries.map((s) => searchWiki(l, s).catch((e) => { log(`wikipedia ${l}: ${e.message}`); return null; }))));
+    if (lists.every((l) => l === null)) throw Object.assign(new Error('wikipedia'), { code: 'offline' });
+    // Merge by Wikidata item: rank fusion for where Wikipedia put it, the longest text kept.
+    const pool = new Map();
+    lists.forEach((list) => (list || []).forEach((p, i) => {
+      const had = pool.get(p.qid) || { qid: p.qid, title: p.title, text: '', fused: 0 };
+      had.fused += 1 / (8 + i);
+      if (p.text.length > had.text.length) had.text = p.text;
+      pool.set(p.qid, had);
+    }));
+    let cands = [...pool.values()].map((c) => ({ ...c, stems: stems(`${c.title} ${c.text}`) }));
+    const maxFused = Math.max(...cands.map((c) => c.fused), 1e-9);
+    let weight = idfWeights(q.terms, cands.map((c) => c.stems));
+    for (const c of cands) c.first = 0.75 * coverage(q.terms, c.stems, weight).score + 0.25 * (c.fused / maxFused);
+    cands = cands.sort((a, b) => b.first - a.first).slice(0, TO_TMDB);
+
+    // To TMDB: what isn't a film or series there drops out here.
+    const found = await Promise.all(cands.map(async (c) => {
+      const t = await findTmdb(c.qid).catch(() => null);
+      if (!t) return null;
+      const more = await extra(t).catch(() => null);
+      return { c, t, stems: new Set([...c.stems, ...stems(`${t.title} ${t.overview || ''} ${more?.text || ''}`)]) };
+    }));
     const seen = new Set();
-    const titles = [];
-    for (const t of found) {
-      if (!t || seen.has(`${t.type}:${t.id}`)) continue;
-      seen.add(`${t.type}:${t.id}`);
-      titles.push(t);
-    }
-    let scores = null;
-    if (titles.length) {
-      const list = titles.map((t, i) => `${i + 1}. ${t.title}${t.year ? ` (${t.year})` : ''}, ${t.type === 'tv' ? 'TV series' : 'film'}: ${String(t.overview || 'no description').replace(/\s+/g, ' ').slice(0, 420)}`).join('\n');
-      try {
-        scores = await chat(judgePrompt(lang), `What they remember: ${query}\n\nCandidates:\n${list}`, { maxTokens: 1200 });
-      } catch (e) { log(`judge failed: ${e.message}`); }
-    }
-    const results = rank(titles, scores);
-    log(`"${query.slice(0, 60)}": ${first.length} named, ${titles.length} real, top ${results[0] ? `${results[0].title} (${results[0].match ?? '?'})` : 'none'} in ${((Date.now() - started) / 1000).toFixed(1)} s`);
-    return { results, sure: (results[0]?.match ?? 0) >= 70 };
+    const hits = found.filter((f) => f && !seen.has(`${f.t.type}:${f.t.id}`) && seen.add(`${f.t.type}:${f.t.id}`));
+    weight = idfWeights(q.terms, hits.map((f) => f.stems));
+    const scored = hits.map((f) => {
+      const cov = coverage(q.terms, f.stems, weight);
+      const votes = Math.min(1, Math.log10((f.t.votes || 0) + 1) / 4);
+      let score = 0.62 * cov.score + 0.18 * (f.c.fused / maxFused) + 0.2 * votes;
+      if (q.type && f.t.type !== q.type) score -= 0.12;
+      if (q.decade && f.t.year && (f.t.year < q.decade || f.t.year > q.decade + 9)) score -= 0.1;
+      if (q.year && f.t.year && Math.abs(f.t.year - q.year) > 1) score -= 0.1;
+      return { ...f.t, matched: cov.matched, score: Math.round(score * 1000) / 1000 };
+    }).sort((a, b) => b.score - a.score);
+    const best = scored[0]?.score || 0;
+    const results = scored.filter((t, i) => i === 0 || t.score >= best * 0.55).slice(0, SHOWN);
+    // "Sure": clearly ahead and most of the words are there.
+    const sure = Boolean(results[0]) && results[0].matched.length >= Math.ceil(q.terms.length * 0.6)
+      && best - (results[1]?.score || 0) >= 0.08;
+    log(`"${query.slice(0, 60)}": ${pool.size} articles, ${hits.length} on TMDB, top ${results[0] ? `${results[0].title} (${best})` : 'none'} in ${((Date.now() - started) / 1000).toFixed(1)} s`);
+    return { results, sure };
   }
 
   function search(raw, { lang = 'en' } = {}) {
@@ -108,7 +193,6 @@ export function createMagicSearch({ chat, find, busy = async () => false, log = 
     const key = `${lang}|${query.toLowerCase()}`;
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.promise;
-    // One at a time: the model answers one request at once anyway, and a queue keeps them in order.
     const promise = line.then(() => run(query, lang));
     line = promise.catch(() => {});
     cache.set(key, { at: Date.now(), promise });

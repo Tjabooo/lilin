@@ -4,7 +4,7 @@
     "items": {
       "Find a film or show from what you remember": {
         "title": "Hitta en film eller serie utifrån det du minns",
-        "text": "Kommer du inte på namnet? Skriv det du minns i Sök, till exempel “kemilärare kokar meth med sin elev”, och tryck på MAGIsk sökning. Den föreslår titlarna som passar bäst, med en rad om varför var och en stämmer. Det tar några sekunder och kan vara otillgängligt medan MAGI är upptagen."
+        "text": "Kommer du inte på namnet? Skriv det du minns i Sök, till exempel “kemilärare kokar meth med sin elev”, och tryck på MAGIsk sökning. Den letar bland handlingarna i filmer och serier på Wikipedia, även nya, och visar de som passar bäst med orden som stämde."
       }
     }
   },
