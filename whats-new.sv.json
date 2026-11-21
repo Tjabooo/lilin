@@ -1,4 +1,13 @@
 {
+  "2026-11-21-tv-resume-right-episode": {
+    "title": "TV:n väljer rätt avsnitt",
+    "items": {
+      "Shows on the TV continue from your latest episode": {
+        "title": "Serier på TV:n fortsätter från ditt senaste avsnitt",
+        "text": "På TV:n kunde en serie öppnas på ett äldre avsnitt som du en gång slutade nära slutet av, i stället för avsnittet efter det du nyss såg klart. Nu fortsätter den alltid från det du senast tittade på (starta om TV-appen en gång)."
+      }
+    }
+  },
   "2026-11-21-credits-count-as-watched": {
     "title": "Att sluta vid eftertexterna räknas",
     "items": {

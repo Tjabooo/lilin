@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-tv-resume-right-episode",
+  "date": "2026-11-21",
+  "title": "The TV picks the right episode",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Shows on the TV continue from your latest episode",
+      "text": "On the TV, a show could open on an older episode you once stopped near the end, instead of the episode after the one you just finished. It now always picks up from what you watched most recently (restart the TV app once)."
+    }
+  ]
+},
+{
   "id": "2026-11-21-credits-count-as-watched",
   "date": "2026-11-21",
   "title": "Leaving at the credits counts",

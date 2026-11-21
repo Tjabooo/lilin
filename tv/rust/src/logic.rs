@@ -463,21 +463,33 @@ pub fn show_seasons<'a>(library: &'a [Value], show_id: &str) -> Vec<Season<'a>> 
 pub fn start_episode(seasons: &[Season], progress: &Value, watched: &Value) -> (usize, usize) {
     let all: Vec<(usize, usize, &Value)> =
         seasons.iter().enumerate().flat_map(|(si, s)| s.episodes.iter().enumerate().map(move |(ei, e)| (si, ei, *e))).collect();
-    for (si, ei, e) in &all {
-        if resumable(progress.get(progress_ref(e))) {
-            return (*si, *ei);
-        }
-    }
-    let mut last: isize = -1;
-    for (n, (_, _, e)) in all.iter().enumerate() {
-        if watched.get(progress_ref(e)).is_some() {
-            last = n as isize;
-        }
-    }
     if all.is_empty() {
         return (0, 0);
     }
-    let n = ((last + 1) as usize).min(all.len() - 1);
+    // The newest thing done wins: a half-watched episode, or the one after the newest finished. An older resume
+    // point (stopped at the credits before that counted) doesn't pull the show back to that episode.
+    let mut best: Option<(usize, f64, bool)> = None;
+    for (n, (_, _, e)) in all.iter().enumerate() {
+        let r = progress_ref(e);
+        let p = progress.get(r.as_str());
+        if resumable(p) {
+            let a = p.and_then(|p| f(p, "at")).unwrap_or(0.0);
+            if best.map(|b| a >= b.1).unwrap_or(true) {
+                best = Some((n, a, false));
+            }
+        }
+        if let Some(w) = watched.get(r.as_str()) {
+            let a = w.as_f64().unwrap_or(0.0);
+            if best.map(|b| a >= b.1).unwrap_or(true) {
+                best = Some((n, a, true));
+            }
+        }
+    }
+    let n = match best {
+        None => 0,
+        Some((n, _, true)) => (n + 1).min(all.len() - 1),
+        Some((n, _, false)) => n,
+    };
     (all[n].0, all[n].1)
 }
 

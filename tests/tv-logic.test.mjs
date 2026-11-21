@@ -43,6 +43,9 @@ test('TV: home rows, show seasons and where a show starts', () => {
   assert.equal(L.startEpisode(seasons, progress, {}).id, 'a');
   assert.equal(L.startEpisode(seasons, {}, { 'm:k-a': 1 }).id, 'c', 'after the last one finished on this TV');
   assert.equal(L.startEpisode(seasons, {}, {}).id, 'b');
+  // an old resume point loses to an episode finished after it (and to a newer resume point)
+  assert.equal(L.startEpisode(seasons, { 'm:k-b': { time: 1000, duration: 1300, at: 5 } }, { 'm:k-a': 9 }).id, 'c', 'finished later wins');
+  assert.equal(L.startEpisode(seasons, { 'm:k-b': { time: 1000, duration: 1300, at: 5 }, 'm:k-c': { time: 300, duration: 1300, at: 7 } }, {}).id, 'c', 'newest resume point');
 });
 
 test('TV: Continue watching keeps one card per show and moves on to the next episode', () => {

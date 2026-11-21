@@ -234,11 +234,16 @@
   function startEpisode(seasons, progress, watched) {
     var all = [];
     seasons.forEach(function (s) { all = all.concat(s.episodes); });
-    var i;
-    for (i = 0; i < all.length; i++) if (resumable(progress[progressRef(all[i])])) return all[i];
-    var last = -1;
-    for (i = 0; i < all.length; i++) if (watched && watched[progressRef(all[i])]) last = i;
-    return all[Math.min(last + 1, all.length - 1)] || null;
+    // The newest thing done wins: a half-watched episode, or the one after the newest finished. An older resume
+    // point (stopped at the credits before that counted) doesn't pull the show back to that episode.
+    var i, best = -1, bestAt = -Infinity, bestDone = false;
+    for (i = 0; i < all.length; i++) {
+      var ref = progressRef(all[i]), p = progress && progress[ref], w = watched && watched[ref];
+      if (resumable(p) && (+p.at || 0) >= bestAt) { best = i; bestAt = +p.at || 0; bestDone = false; }
+      if (w && (typeof w === 'number' ? w : 0) >= bestAt) { best = i; bestAt = typeof w === 'number' ? w : 0; bestDone = true; }
+    }
+    if (best < 0) return all[0] || null;
+    return bestDone ? all[Math.min(best + 1, all.length - 1)] : all[best];
   }
 
   // WebVTT from /api/subs/file/…vtt: cues with start/end in seconds and plain text (tags dropped).
