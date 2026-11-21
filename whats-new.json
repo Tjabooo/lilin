@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-tv-long-subtitles",
+  "date": "2026-11-21",
+  "title": "All subtitle lines on Samsung TVs",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Long subtitle lines show up on the TV",
+      "text": "On Samsung TVs, longer subtitle lines could stay blank while short ones showed, which hit Swedish subtitles the most. Every line shows now. Restart the TV app once to get the fix."
+    }
+  ]
+},
+{
   "id": "2026-11-21-tv-credits-picture",
   "date": "2026-11-21",
   "title": "Credits picture on Samsung TVs",

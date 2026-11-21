@@ -1,4 +1,13 @@
 {
+  "2026-11-21-tv-long-subtitles": {
+    "title": "Alla undertextrader på Samsung-TV",
+    "items": {
+      "Long subtitle lines show up on the TV": {
+        "title": "Långa undertextrader syns på TV:n",
+        "text": "På Samsung-TV kunde längre undertextrader förbli tomma medan korta syntes, vilket drabbade svenska undertexter mest. Nu syns varje rad. Starta om TV-appen en gång för att få fixen."
+      }
+    }
+  },
   "2026-11-21-tv-credits-picture": {
     "title": "Eftertextbilden på Samsung-TV",
     "items": {

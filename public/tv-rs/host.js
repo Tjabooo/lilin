@@ -273,7 +273,9 @@
         if (f.blur > 0) { tx.shadowBlur = f.blur; tx.shadowColor = f.color; tx.shadowOffsetY = f.dy; }
         tx.fillText(text, pad, pad + f.line / 2 + 1);
         gl.bindTexture(gl.TEXTURE_2D, pages[at.page]);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, at.x, at.y, gl.RGBA, gl.UNSIGNED_BYTE, tc);
+        // Upload the pixels, not the canvas: Chrome 69 (Samsung TVs) moves canvases over 256x256 px of area to the GPU,
+        // and a texSubImage2D straight from such a canvas comes out blank there (long subtitle lines went missing).
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, at.x, at.y, gl.RGBA, gl.UNSIGNED_BYTE, tx.getImageData(0, 0, w, h));
         var sc = scratch();
         sc[0] = at.page; sc[1] = at.x; sc[2] = at.y; sc[3] = w; sc[4] = h; sc[5] = pad; sc[6] = width;
         return 1;
