@@ -4300,3 +4300,19 @@ html.wrapped-on { overflow: hidden; }
   .hs-nudge .fs-guide-steps { grid-template-columns: repeat(3, 1fr); }
   .hs-nudge .fs-guide-steps li { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 6px; font-size: 13px; }
 }
+
+/* ---------- You: settings search (iOS Settings style); app.js ensureYouSearch ---------- */
+.search.you-search { display: flex; }
+.you-search input { background: var(--surface-1); }
+#you-search-results { display: none; }
+#you-list.is-searching > #you-search-results { display: grid; }
+#you-list.is-searching > :is(#you-id, #you-foryou, #you-rows) { display: none !important; }
+.you-hit { min-height: 0; padding: 11px 16px; }
+.you-hit-where { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2); }
+.you-hit-hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.you-hit mark { color: var(--bulb); background: none; font-weight: 750; }
+.you-search-none { margin: 0; padding: var(--s4) 4px; }
+/* the setting a search opened: a soft glow that fades */
+@keyframes set-flash { 0%, 35% { background-color: var(--bulb-dim); box-shadow: inset 3px 0 0 var(--bulb); } 100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; } }
+.set-flash { animation: set-flash 2.2s var(--ease-out, ease-out) both; }
+@media (prefers-reduced-motion: reduce) { .set-flash { animation-duration: .01s; outline: 2px solid var(--bulb); outline-offset: -2px; } }

@@ -1,4 +1,13 @@
 {
+  "2026-11-21-settings-search": {
+    "title": "Sök i dina inställningar",
+    "items": {
+      "Find any setting by typing": {
+        "title": "Hitta en inställning genom att skriva",
+        "text": "Överst i Du finns nu en sökruta. Skriv ett ord som ”undertexter” eller ”aviseringar” så visar Lilin alla sidor och inställningar som matchar, och var de finns. Tryck på en så öppnar Lilin sidan, scrollar till inställningen och lyser upp den en stund."
+      }
+    }
+  },
   "2026-11-20-play-jumps-queue": {
     "title": "Hoppa framåt i en serie",
     "items": {

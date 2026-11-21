@@ -1,5 +1,8 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  // You: settings search
+  "Search settings": "Sök i inställningar",
+  "No settings match “{0}”.": "Inga inställningar matchar ”{0}”.",
   // connection: the player picks what fits the viewer's connection
   "Your connection is slow for this video: playing a lighter {0}p stream.": "Din anslutning är för långsam för den här videon: spelar en lättare ström i {0}p.",
   "Playing the {0} version: it suits your connection.": "Spelar {0}-versionen: den passar din anslutning.",

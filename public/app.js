@@ -8947,6 +8947,7 @@ function renderSettings() {
   if (state.view === 'house') { renderHouse(); return; }
   if (!state.me) { $('#you-rows').replaceChildren(notice(T('Couldn’t load your settings'), T('Reload the page to try again.'))); return; }
   renderMeButton();
+  ensureYouSearch();
   loadYouData();
   renderYouIdentity();
   renderForYou();
@@ -9144,6 +9145,131 @@ function renderYouRows() {
     return rows.length && h('section', { class: 'set-group' }, title && h('h3', { class: 'set-head' }, title), h('div', { class: 'set-stack' }, rows));
   });
   $('#you-rows').replaceChildren(h('div', { class: 'set-stack you-me' }, me), ...groups.filter(Boolean));
+}
+// Search in You, like iOS Settings: finds a page ("Watching") or a setting inside one ("Subtitles"), each hit with
+// where it lives; opening one shows the page, scrolls to the setting and lights it up. Settings are read from the
+// pages themselves (built off-screen once per search), so every settingsRow is searchable with no list to keep.
+const youSearch = { index: null, input: null, results: null };
+const SEARCHED_PAGES = ['account', 'look', 'watching', 'devices', 'download-settings'];
+const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+function youSearchIndex() {
+  if (youSearch.index) return youSearch.index;
+  const out = [], seen = new Set();
+  const add = (hit) => { const k = `${hit.route}|${hit.label}`; if (!seen.has(k)) { seen.add(k); out.push(hit); } };
+  const groups = Object.fromEntries(YOU_GROUPS().map(([k, t]) => [k, t]));
+  for (const id of pagesOf('you', state.me, state.status)) {
+    const r = ROUTES[id];
+    const page = id === 'you/ratings' && state.me.restricted ? T('Ratings') : T(r.label);
+    add({ route: id, label: page, where: groups[r.group] || T('You'), hint: youRowMeta(r.sub) || '', page: true });
+    if (!SEARCHED_PAGES.includes(r.sub) || !YOU_PAGES[r.sub]) continue;
+    let nodes;
+    try { nodes = YOU_PAGES[r.sub]().filter(Boolean); } catch { continue; }
+    let head = '';
+    for (const el of h('div', {}, nodes).querySelectorAll('h3.set-head, .set-row')) {
+      if (el.matches('h3.set-head')) {
+        head = ownText(el);
+        if (head && head !== page) add({ route: id, label: head, where: page, hint: '', head: true });
+        continue;
+      }
+      const label = el.querySelector('.set-label')?.textContent.trim();
+      if (label) add({ route: id, label, where: head && head !== page ? `${page} › ${head}` : page, hint: el.querySelector('.set-hint')?.textContent.trim() || '' });
+    }
+  }
+  youSearch.index = out;
+  return out;
+}
+// Every word has to be somewhere; a hit in the name beats one in the line under it or the page it's on.
+function youSearchScore(hit, words) {
+  const name = hit.label.toLowerCase(), hint = hit.hint.toLowerCase(), where = hit.where.toLowerCase();
+  const starts = (s, w) => s.startsWith(w) || s.includes(` ${w}`) || s.includes(`(${w}`);
+  let score = hit.page ? 5 : 0, own = false; // own: a word hit the setting itself, not only the page it's on
+  for (const w of words) {
+    if (name.startsWith(w)) score += 40;
+    else if (starts(name, w)) score += 30;
+    else if (name.includes(w)) score += 20;
+    else if (starts(hint, w)) score += 8;
+    else if (hint.includes(w)) score += 4;
+    else if (where.includes(w)) { score += 1; continue; }
+    else return 0;
+    own = true;
+  }
+  return own ? score : 0;
+}
+// The text with the searched words in the theme's colour.
+function marked(text, words) {
+  const low = text.toLowerCase();
+  if (low.length !== text.length) return [text];
+  const on = new Array(text.length).fill(false);
+  for (const w of words) for (let i = low.indexOf(w); i >= 0 && w; i = low.indexOf(w, i + 1)) on.fill(true, i, i + w.length);
+  const out = [];
+  let i = 0;
+  while (i < text.length) {
+    let j = i;
+    while (j < text.length && on[j] === on[i]) j++;
+    out.push(on[i] ? h('mark', {}, text.slice(i, j)) : text.slice(i, j));
+    i = j;
+  }
+  return out;
+}
+function renderYouSearch() {
+  const q = youSearch.input.value.trim().toLowerCase();
+  const list = $('#you-list');
+  list.classList.toggle('is-searching', Boolean(q));
+  youSearch.form.querySelector('.search-clear').hidden = !youSearch.input.value;
+  if (!q) { youSearch.index = null; youSearch.results.replaceChildren(); return; }
+  const words = q.split(/\s+/);
+  const hits = youSearchIndex().map((hit) => ({ hit, score: youSearchScore(hit, words) })).filter((x) => x.score)
+    .sort((a, b) => b.score - a.score).slice(0, 40).map((x) => x.hit);
+  youSearch.first = hits[0] || null;
+  if (!hits.length) {
+    youSearch.results.replaceChildren(h('p', { class: 'muted you-search-none' }, T('No settings match “{0}”.', youSearch.input.value.trim())));
+    return;
+  }
+  youSearch.results.replaceChildren(h('div', { class: 'set-stack' }, hits.map((hit) =>
+    h('button', { type: 'button', class: 'lrow you-hit', onclick: () => openYouHit(hit) },
+      h('span', { class: 'lrow-text' },
+        h('span', { class: 'you-hit-where' }, hit.page ? hit.where || T('You') : hit.where),
+        h('span', { class: 'set-label' }, marked(hit.label, words)),
+        hit.hint && h('span', { class: 'set-hint you-hit-hint' }, marked(hit.hint, words))),
+      h('i', { class: 'lrow-chev', 'aria-hidden': 'true' })))));
+}
+// Opens the hit's page; once it's drawn, scrolls the setting to the middle of the screen and lights it up.
+async function openYouHit(hit) {
+  if (state.route !== hit.route) await setView(hit.route);
+  const smooth = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+  if (hit.page) return;
+  for (let tries = 0; tries < 20; tries++) {
+    await new Promise((r) => requestAnimationFrame(r));
+    const page = $('#you-page');
+    const el = hit.head
+      ? [...page.querySelectorAll('h3.set-head')].find((x) => ownText(x) === hit.label)?.closest('.set-group')
+      : [...page.querySelectorAll('.set-row')].find((x) => x.querySelector('.set-label')?.textContent.trim() === hit.label);
+    if (!el) continue;
+    el.scrollIntoView({ block: 'center', behavior: smooth });
+    el.classList.remove('set-flash');
+    void el.offsetWidth; // restart the glow when the same hit is opened twice
+    el.classList.add('set-flash');
+    setTimeout(() => el.classList.remove('set-flash'), 2200);
+    return;
+  }
+}
+// The box at the top of the list, made once; live updates redraw the rows under it, never the box.
+function ensureYouSearch() {
+  if (youSearch.form) return;
+  youSearch.input = h('input', { type: 'search', enterkeyhint: 'search', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false',
+    placeholder: T('Search settings'), 'aria-label': T('Search settings'), 'aria-controls': 'you-search-results' });
+  const clear = h('button', { type: 'button', class: 'search-clear', 'aria-label': T('Clear search'), hidden: true,
+    onclick: () => { youSearch.input.value = ''; renderYouSearch(); youSearch.input.focus(); } });
+  clear.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  const glass = h('span');
+  glass.innerHTML = '<svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>';
+  youSearch.form = h('form', { class: 'search you-search', role: 'search',
+    onsubmit: (e) => { e.preventDefault(); if (youSearch.first) { youSearch.input.blur(); openYouHit(youSearch.first); } } },
+  glass.firstChild, youSearch.input, clear);
+  youSearch.input.addEventListener('input', renderYouSearch);
+  youSearch.input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && youSearch.input.value) { e.preventDefault(); e.stopPropagation(); clear.click(); youSearch.input.blur(); } });
+  youSearch.results = h('div', { id: 'you-search-results', 'aria-live': 'polite' });
+  $('#you-list').prepend(youSearch.form, youSearch.results);
 }
 // The open page: its rows in cards, one per group, as Settings had them. The root's page is Overview (wide screens).
 function renderYouPage() {

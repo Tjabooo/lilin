@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-settings-search",
+  "date": "2026-11-21",
+  "title": "Search your settings",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Find any setting by typing",
+      "text": "There’s a search box at the top of You. Type a word like “subtitles” or “notifications” and Lilin shows every page and setting that matches, with where it lives. Tap one and Lilin opens that page, scrolls to the setting and lights it up for a moment."
+    }
+  ]
+},
+{
   "id": "2026-11-20-play-jumps-queue",
   "date": "2026-11-20",
   "title": "Skipping ahead in a show",
