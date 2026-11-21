@@ -20,7 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { database } from './accounts.js';
 import { probeSource, pickAudio, cuesToVtt } from './moments.js';
 import { videoFilter } from './phone-stream.js';
@@ -29,6 +29,7 @@ import { trackChild } from './load.js';
 import { background } from './priority.js';
 
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
+const FFPROBE = process.env.FFPROBE || 'ffprobe';
 const DAY = 86400000;
 const SEEN_DAYS = 21;
 const KINDS = new Set(['view', 'skip', 'done', 'watch', 'save', 'nope']);
@@ -74,9 +75,20 @@ export function initLikLok({ cacheDir, encoder, library, subtitleFor, timesFor }
     CREATE INDEX IF NOT EXISTS liklok_events_user ON liklok_events(user_id, at);
     CREATE INDEX IF NOT EXISTS liklok_events_clip ON liklok_events(clip_id);
     CREATE TABLE IF NOT EXISTS liklok_nope (user_id INTEGER NOT NULL, show_key TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, show_key));
+    CREATE TABLE IF NOT EXISTS liklok_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
   `);
   if (!enabled()) return;
   fs.mkdirSync(dir, { recursive: true });
+  // Version 2 reads subtitles inside the video too: episodes cut without any are looked at again.
+  if (Number(db().prepare("SELECT v FROM liklok_meta WHERE k = 'version'").get()?.v || 1) < 2) {
+    for (const r of db().prepare('SELECT id, media_key FROM liklok_clips WHERE subs = 0').all()) {
+      for (const ext of ['mp4', 'jpg', 'vtt']) fs.rmSync(fileOf(r.id, ext), { force: true });
+      db().prepare('DELETE FROM liklok_clips WHERE id = ?').run(r.id);
+      db().prepare('DELETE FROM liklok_scanned WHERE media_key = ?').run(r.media_key);
+    }
+    db().prepare("DELETE FROM liklok_scanned WHERE result = 'ok:0'").run();
+    db().prepare("INSERT OR REPLACE INTO liklok_meta (k, v) VALUES ('version', '2')").run();
+  }
   setTimeout(() => { builder().catch((e) => console.warn(`[liklok] builder stopped: ${e.message}`)); }, 90_000).unref?.();
 }
 
@@ -273,6 +285,7 @@ async function buildEpisode(item) {
   let cues = [];
   const sidecar = deps.subtitleFor(item.file);
   if (sidecar) { try { cues = parseSrt(await fs.promises.readFile(sidecar, 'utf8')); } catch { /* no subs then */ } }
+  if (cues.length < 20) cues = await embeddedCues(item.file).catch(() => []);
   const times = deps.timesFor(item.file) || {};
   const recap = range(times.recap), intro = range(times.intro);
   const clips = pickClips({ duration: info.duration, cuts, rms, cues, avoid: [recap, intro].filter(Boolean), from: recap ? recap[1] + 1 : 0 });
@@ -292,6 +305,35 @@ async function buildEpisode(item) {
   }
   console.log(`[liklok] ${status.current}: ${made} clips${cues.length ? '' : ' (no subtitles)'}`);
   return made;
+}
+
+// The episode's own text subtitle track (or the .mkv original's, beside a converted .mp4), English first and the
+// SDH one first among those (its [laughs] help), never a forced track.
+const TEXT_SUBS = new Set(['subrip', 'ass', 'ssa', 'mov_text', 'webvtt', 'text']);
+export function pickSubtitleTrack(streams) {
+  const ok = streams.filter((s) => TEXT_SUBS.has(s.codec_name) && !s.disposition?.forced && !/forced/i.test(s.tags?.title || ''));
+  const en = ok.filter((s) => /^(en|eng)$/i.test(s.tags?.language || ''));
+  const pool = en.length ? en : ok.filter((s) => !s.tags?.language || /^(und|sv|swe)$/i.test(s.tags.language));
+  return pool.find((s) => s.disposition?.hearing_impaired || /sdh|\bhi\b|hearing/i.test(s.tags?.title || '')) || pool[0] || null;
+}
+async function embeddedCues(file) {
+  const base = file.replace(/\.[^.\\/]+$/, '');
+  for (const f of [...new Set([file, `${base}.mkv`])]) {
+    if (!fs.existsSync(f)) continue;
+    const streams = await new Promise((resolve) => execFile(FFPROBE, ['-v', 'error', '-select_streams', 's', '-show_entries', 'stream=index,codec_name:stream_tags=language,title:stream_disposition=forced,hearing_impaired',
+      '-of', 'json', f], { timeout: 30000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (e, out) => { try { resolve(e ? [] : JSON.parse(out).streams || []); } catch { resolve([]); } }));
+    const track = pickSubtitleTrack(streams);
+    if (!track) continue;
+    const text = await new Promise((resolve) => {
+      const child = execFile(FFMPEG, ['-hide_banner', '-nostdin', '-loglevel', 'error', '-i', f, '-map', `0:${track.index}`, '-f', 'srt', 'pipe:1'],
+        { timeout: 180000, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (e, out) => resolve(e ? '' : String(out)));
+      trackChild(child, FFMPEG, [], 'liklok');
+      background(child);
+    });
+    const cues = parseSrt(text);
+    if (cues.length >= 20) return cues;
+  }
+  return [];
 }
 
 // One pass over the episode: scene cuts (non-B frames only, at 160 px) and the loudness of every second.

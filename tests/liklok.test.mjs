@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickClips, parseSrt, episodeQueue, planClip } from '../src/liklok.js';
+import { pickClips, parseSrt, episodeQueue, planClip, pickSubtitleTrack } from '../src/liklok.js';
 import { parseVtt } from '../public/liklok.js';
 
 // A made-up 22-minute episode: a cut every 8 s, quiet talk, and one lively scene at 10:00-10:50 that ends on a laugh.
@@ -74,4 +74,11 @@ test('planClip always encodes, frame-exact, and tone-maps HDR', () => {
   assert.equal(args[args.indexOf('-t') + 1], '40.760');
   assert.ok(args.includes('bt709'));
   assert.ok(!args.includes('copy'));
+});
+
+test('pickSubtitleTrack: English text, SDH first, never forced or pictures', () => {
+  const s = (index, codec_name, language, extra = {}) => ({ index, codec_name, tags: { language, title: extra.title }, disposition: { forced: extra.forced ? 1 : 0, hearing_impaired: extra.hi ? 1 : 0 } });
+  assert.equal(pickSubtitleTrack([s(2, 'hdmv_pgs_subtitle', 'eng'), s(3, 'subrip', 'eng', { forced: true }), s(4, 'subrip', 'eng'), s(5, 'subrip', 'eng', { title: 'English SDH' })]).index, 5);
+  assert.equal(pickSubtitleTrack([s(2, 'subrip', 'fre'), s(3, 'ass', 'und')]).index, 3);
+  assert.equal(pickSubtitleTrack([s(2, 'hdmv_pgs_subtitle', 'eng')]), null);
 });
