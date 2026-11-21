@@ -14,7 +14,7 @@ export const PLACES = [
   { id: 'discover', route: 'discover', syn: syn(['home', 'browse', 'trending', 'films', 'shows', 'genres'], ['hem', 'bläddra', 'trendar', 'filmer', 'serier', 'genrer']) },
   { id: 'live', route: 'live', syn: syn(['tv', 'seele tv', 'channels', 'guide', 'live tv'], ['tv', 'kanaler', 'tablå']) },
   { id: 'instant', route: 'discover/instant', syn: syn(['instant', 'on lilin', 'on the server', 'ready to watch', 'library', 'my titles', 'collection'], ['direkt', 'på lilin', 'på servern', 'redo att se', 'bibliotek', 'mina titlar', 'samling']) },
-  { id: 'saved', route: 'discover', label: 'Saved for later', syn: syn(['saved', 'watchlist', 'following', 'new episodes', 'continue watching'], ['sparat', 'sparad till senare', 'följer', 'nya avsnitt', 'fortsätt titta']) },
+  { id: 'saved', route: 'discover', label: 'My list', syn: syn(['my list', 'saved', 'watchlist', 'following', 'new episodes', 'continue watching'], ['min lista', 'sparat', 'sparad till senare', 'följer', 'nya avsnitt', 'fortsätt titta']) },
   { id: 'you', route: 'you', syn: syn(['settings', 'preferences', 'me', 'my account'], ['inställningar', 'jag', 'mitt konto']) },
   { id: 'history', route: 'you/history', syn: syn(['diary', 'watched', 'what i watched', 'recently watched', 'watch history'], ['historik', 'dagbok', 'sett', 'vad jag sett', 'tittarhistorik']) },
   { id: 'ratings', route: 'you/ratings', syn: syn(['reviews', 'my reviews', 'stars', 'my ratings'], ['betyg', 'recensioner', 'mina recensioner', 'stjärnor']) },

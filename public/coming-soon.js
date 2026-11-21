@@ -1,6 +1,6 @@
 // Discover → Coming soon: the row on the home screen and the full page behind See all, grouped by week and
 // month. The server picks and ranks the titles (src/coming-soon.js); this draws them with their dates and a
-// one-tap Save (films) or Follow (shows), through app.js's own Save for later / Follow (watchlist.js).
+// one-tap My list, through app.js's own My list (watchlist.js).
 import { T, langTag } from './i18n.js';
 import { todayIso } from './watchlist.js';
 
@@ -69,42 +69,31 @@ export function groupComingSoon(items, today = todayIso()) {
   return [...groups.values()].sort((a, b) => a.first.localeCompare(b.first));
 }
 
-// ui: h, icon, api helpers and app.js's Save for later / Follow (watchItem, setWatch), plus the shared Discover pieces.
+// ui: h, icon, api helpers and app.js's My list (watchItem, setWatch, listToast), plus the shared Discover pieces.
 export function createComingSoon(ui) {
   const { h, icon, toast } = ui;
-  // A Save or Follow toast offers the way to Library › Watchlist, where the title now waits.
   const savedToast = (text) => (ui.savedToast || toast)(text);
   const view = { type: 'all' };
 
-  // Save a film (it adds itself once a good copy is out, for people who may download) or Follow a show.
+  // Add a film or show to My list: everything on it downloads by itself once it's out (for people who may download).
   function saveButton(t) {
-    const isTv = t.type === 'tv';
     const button = h('button', { type: 'button', class: 'cs-save' });
     let busy = false;
     const draw = () => {
-      const item = ui.watchItem(t.type, t.id);
-      const on = isTv ? Boolean(item?.follow) : Boolean(item?.saved);
+      const on = Boolean(ui.watchItem(t.type, t.id)?.saved);
       button.classList.toggle('is-on', on);
       button.setAttribute('aria-pressed', String(on));
-      const label = isTv ? (on ? T('Following {0}', t.title) : T('Follow {0}', t.title)) : (on ? T('Saved: {0}', t.title) : T('Save {0} for later', t.title));
-      button.setAttribute('aria-label', label);
-      button.title = isTv ? (on ? T('Following') : T('Follow')) : (on ? T('Saved') : T('Save'));
-      button.replaceChildren(icon(isTv ? 'bell' : 'bookmark'));
+      button.setAttribute('aria-label', on ? T('Remove {0} from My list', t.title) : T('Add {0} to My list', t.title));
+      button.title = T('My list');
+      button.replaceChildren(icon(on ? 'check' : 'plus'));
     };
     button.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (busy) return;
       busy = true; button.classList.add('is-busy');
-      const item = ui.watchItem(t.type, t.id);
       try {
-        if (isTv) {
-          const next = await ui.setWatch(t, { follow: !item?.follow });
-          (next?.follow ? savedToast : toast)(next?.follow ? (next.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'));
-        } else {
-          const auto = ui.autoDownload();
-          const next = await ui.setWatch(t, item?.saved ? { saved: false } : { saved: true, ...(auto ? { auto: true } : {}) });
-          (next?.saved ? savedToast : toast)(next?.saved ? (next.auto ? T('Saved. Lilin adds it once a good copy is out.') : T('Saved for later')) : T('Removed from Saved'));
-        }
+        const next = await ui.setWatch(t, { saved: !ui.watchItem(t.type, t.id)?.saved });
+        (next ? savedToast : toast)(ui.listToast ? ui.listToast(next, t) : next ? T('Added to My list') : T('Removed from My list'));
       } catch (err) { toast(err.message); } finally { busy = false; button.classList.remove('is-busy'); draw(); }
     });
     button._update = draw;
@@ -155,7 +144,7 @@ export function createComingSoon(ui) {
       const groups = groupComingSoon(data.items, today);
       if (!groups.length) { content.replaceChildren(ui.notice(T('Nothing dated yet'), T('Nothing with a release date in the next few months. Check back soon.'))); return; }
       content.replaceChildren(
-        h('p', { class: 'cs-intro' }, T('The closest and most talked-about first. Save a film or follow a show to keep track of it.')),
+        h('p', { class: 'cs-intro' }, T('The closest and most talked-about first. Add one to My list and it downloads by itself once it’s out.')),
         ...groups.map((g) => h('section', { class: 'cs-group', 'aria-label': g.label },
           h('h4', { class: 'cs-group-head' }, g.label, h('span', { class: 'cs-count' }, String(g.items.length))),
           h('ul', { class: 'grid cs-grid' }, g.items.map((t) => card(t, today))))));

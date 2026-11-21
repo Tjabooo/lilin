@@ -1,16 +1,17 @@
-// Save for later and Follow, per person.
+// My list, per person (it was Save for later + Follow until 2026-11-21; both are one list now).
 //
-// Saved titles are a list to come back to (Discover → "Saved for later"). A saved film can also wait
-// for its release: once TMDB says it's out (digital or disc; the cinema date when neither is known)
-// the server looks for a good copy with the normal Download command (smart-download.js, which never
-// takes a cam; see filmOut) and keeps looking, with growing pauses, until one turns up.
+// Everything on someone's list downloads by itself (when they may download; see runRound):
+// - A film waits for its release: once TMDB says it's out (digital or disc; the cinema date when neither is known)
+//   the server looks for a good copy with the normal Download command (smart-download.js, which never takes a
+//   cam; see filmOut) and keeps looking, with growing pauses, until one turns up. The person hears about it when
+//   it lands (server.js announceArrivals). People who can't download hear once that it's out.
+// - A show gets the season to start with (the one after the last episode you finished, else season 1; the next
+//   one too once you're two episodes from a season's end), and each new episode once it has aired, starting after
+//   the last episode that had aired when it was added, so the list never pulls in the whole back catalogue at once.
+//   Episodes that arrive by themselves carry a "New" badge until you open the show, and the next episodes and
+//   release dates fill the "Coming up" shelf in the Library.
 //
-// Following a show downloads each new episode once it has aired. It starts after the last episode
-// that had aired when you followed (or switched automatic downloads on), so following never pulls in
-// the back catalogue. Episodes that arrive this way carry a "New" badge until you open the show, and
-// the next episodes and release dates fill the "Coming up" shelf in the Library.
-//
-// Checks run in the background (runRound), one title at a time, and only for people who may download.
+// Checks run in the background (runRound), one title at a time.
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -101,33 +102,38 @@ export class WatchlistStore {
         air_date TEXT, state TEXT NOT NULL DEFAULT 'waiting', tries INTEGER NOT NULL DEFAULT 0,
         check_at INTEGER NOT NULL DEFAULT 0, note TEXT, got_at INTEGER, seen INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (user_id, tmdb_id, season, episode));`);
+    // My list (2026-11-21): seasons = the seasons a show's list entry has fetched, start_* = when to try the next
+    // one again, out_told = a film's "it's out" notice went to someone who can't download. Old rows join the list:
+    // every saved or followed title is on it, shows are followed, and everything downloads by itself.
+    if (!this.db.prepare("SELECT 1 FROM pragma_table_info('watchlist') WHERE name = 'seasons'").get()) {
+      this.db.exec(`ALTER TABLE watchlist ADD COLUMN seasons TEXT;
+        ALTER TABLE watchlist ADD COLUMN start_tries INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE watchlist ADD COLUMN start_at INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE watchlist ADD COLUMN out_told INTEGER NOT NULL DEFAULT 0;
+        UPDATE watchlist SET saved = 1, follow = CASE WHEN type = 'tv' THEN 1 ELSE 0 END, auto = 1, check_at = 0, tries = 0;`);
+    }
   }
 
   get(userId, type, tmdbId) {
     return this.db.prepare('SELECT * FROM watchlist WHERE user_id = ? AND type = ? AND tmdb_id = ?').get(userId, type, tmdbId) || null;
   }
 
-  // meta: { title, year, poster, backdrop, overview, rating }; flags: { saved?, follow?, auto?, baseline? }.
-  // A title that is neither saved nor followed leaves the list.
+  // meta: { title, year, poster, backdrop, overview, rating }; flags: { saved?, follow?, baseline? }: saved (or, from
+  // older pages, follow) false takes the title off the list. On the list, a show is followed and all of it downloads.
   set(userId, type, tmdbId, meta, flags, now = Date.now()) {
     const old = this.get(userId, type, tmdbId);
-    const saved = flags.saved ?? Boolean(old?.saved);
-    const follow = type === 'tv' && (flags.follow ?? Boolean(old?.follow));
-    let auto = flags.auto ?? Boolean(old?.auto);
-    if (type === 'tv' && !follow) auto = false;
-    if (!saved && !follow) { this.remove(userId, type, tmdbId); return null; }
+    const on = flags.saved ?? flags.follow ?? Boolean(old?.saved || old?.follow);
+    if (!on) { this.remove(userId, type, tmdbId); return null; }
+    const follow = type === 'tv';
     const m = { title: meta?.title || old?.title || 'Untitled', year: meta?.year ?? old?.year ?? null, poster: meta?.poster ?? old?.poster ?? null,
       backdrop: meta?.backdrop ?? old?.backdrop ?? null, overview: meta?.overview ?? old?.overview ?? null, rating: meta?.rating ?? old?.rating ?? null };
     const baseline = flags.baseline ? JSON.stringify(flags.baseline) : old?.baseline ?? null;
-    // Switching automatic downloads on (or following again) checks right away.
-    const recheck = !old || (auto && !old.auto) || (follow && !old.follow);
     this.db.prepare(`INSERT INTO watchlist (user_id, type, tmdb_id, title, year, poster, backdrop, overview, rating, saved, follow, auto, added_at, baseline, check_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1, ?, ?, 0)
       ON CONFLICT(user_id, type, tmdb_id) DO UPDATE SET title = excluded.title, year = excluded.year, poster = excluded.poster,
-        backdrop = excluded.backdrop, overview = excluded.overview, rating = excluded.rating, saved = excluded.saved, follow = excluded.follow,
-        auto = excluded.auto, baseline = excluded.baseline${recheck ? ", check_at = 0, tries = 0, state = CASE WHEN state = 'got' AND type = 'movie' THEN state ELSE 'waiting' END" : ''}`)
-      .run(userId, type, tmdbId, m.title, m.year, m.poster, m.backdrop, m.overview, m.rating, saved ? 1 : 0, follow ? 1 : 0, auto ? 1 : 0, old?.added_at ?? now, baseline);
-    if (type === 'tv' && old?.follow && !follow) this.db.prepare('DELETE FROM follow_episodes WHERE user_id = ? AND tmdb_id = ?').run(userId, tmdbId);
+        backdrop = excluded.backdrop, overview = excluded.overview, rating = excluded.rating, saved = 1, follow = excluded.follow,
+        auto = 1, baseline = excluded.baseline`)
+      .run(userId, type, tmdbId, m.title, m.year, m.poster, m.backdrop, m.overview, m.rating, follow ? 1 : 0, old?.added_at ?? now, baseline);
     return this.get(userId, type, tmdbId);
   }
 
@@ -143,10 +149,10 @@ export class WatchlistStore {
       .run(...keys.map((k) => fields[k]), row.user_id, row.type, row.tmdb_id);
   }
 
-  // Rows whose next check is due: followed shows, and saved films not yet downloaded.
+  // Rows whose next check is due: shows, and films not yet downloaded.
   due(now = Date.now()) {
     return this.db.prepare(`SELECT * FROM watchlist WHERE check_at <= ?
-      AND ((type = 'tv' AND follow = 1) OR (type = 'movie' AND state != 'got')) ORDER BY check_at`).all(now);
+      AND (type = 'tv' OR (type = 'movie' AND state != 'got')) ORDER BY check_at`).all(now);
   }
 
   addEpisode(userId, tmdbId, season, episode, airDate) {
@@ -178,6 +184,11 @@ export class WatchlistStore {
     return this.db.prepare("SELECT user_id, title FROM watchlist WHERE type = 'tv' AND follow = 1").all();
   }
 
+  // Everything on everyone's list (by title): "From My list" notifications when it lands (server.js).
+  listed() {
+    return this.db.prepare('SELECT user_id, type, tmdb_id, title, year FROM watchlist WHERE saved = 1 OR follow = 1').all();
+  }
+
   // A person's list, newest first, as the page sees it.
   list(userId) {
     const eps = this.db.prepare('SELECT * FROM follow_episodes WHERE user_id = ? ORDER BY season, episode').all(userId);
@@ -187,7 +198,7 @@ export class WatchlistStore {
         type: r.type, id: r.tmdb_id, tmdbId: r.tmdb_id, title: r.title, year: r.year, poster: r.poster, backdrop: r.backdrop,
         overview: r.overview, rating: r.rating, saved: Boolean(r.saved), follow: Boolean(r.follow), auto: Boolean(r.auto),
         addedAt: r.added_at, release: r.release, releaseKind: r.release_kind, nextEpisode: parse(r.next_ep),
-        state: r.state, note: r.note, checkedAt: r.checked_at,
+        state: r.state, note: r.note, checkedAt: r.checked_at, seasons: parse(r.seasons) || [],
         newEpisodes: mine.filter((e) => e.state === 'got' && !e.seen).map((e) => ({ season: e.season, episode: e.episode })),
         waiting: mine.filter((e) => e.state === 'waiting').map((e) => ({ season: e.season, episode: e.episode, note: e.note })),
         missed: mine.filter((e) => e.state === 'missed').map((e) => ({ season: e.season, episode: e.episode, note: e.note })),
@@ -201,7 +212,8 @@ export class WatchlistStore {
 //   film(tmdbId) -> TMDB /movie/{id} with release_dates, show(tmdbId) -> TMDB /tv/{id},
 //   season(tmdbId, n) -> TMDB /tv/{id}/season/{n},
 //   download(user, { type, tmdbId, season?, episodes? }) -> the finished smart-download job,
-//   changed(userId), log(msg), now()
+//   finished(userId, tmdbId) -> the last episode they finished { season, episode } or null,
+//   notify(userId, { title, body }) -> a "From My list" notification, changed(userId), log(msg), now()
 export async function runRound(store, deps) {
   const now = deps.now?.() ?? Date.now();
   let checked = 0;
@@ -225,7 +237,12 @@ async function checkFilm(store, row, user, deps, now) {
   const today = isoDay(now);
   const rel = filmOut(await deps.film(row.tmdb_id), today);
   const base = { release: rel.date, release_kind: rel.kind, checked_at: now };
-  if (!row.auto || !deps.canAuto(user)) return store.patch(row, { ...base, state: 'waiting', note: null, check_at: now + FILM_EVERY });
+  if (!deps.canAuto(user)) {
+    // Someone who can't download hears once that it's out (the list can't fetch it for them).
+    const tell = rel.out && !row.out_told;
+    if (tell) deps.notify?.(row.user_id, { title: `${row.title} is out`, body: 'It’s on your list, and a proper copy can be had now.' });
+    return store.patch(row, { ...base, state: 'waiting', note: null, check_at: now + FILM_EVERY, ...(tell ? { out_told: 1 } : {}) });
+  }
   if (!rel.out) return store.patch(row, { ...base, state: 'waiting', note: null, tries: 0, check_at: now + FILM_EVERY });
   const job = await deps.download(user, { type: 'movie', tmdbId: row.tmdb_id });
   if (job?.state === 'done' && ['started', 'queued', 'have'].includes(job.outcome)) {
@@ -236,11 +253,52 @@ async function checkFilm(store, row, user, deps, now) {
   store.patch(row, { ...base, state: 'looking', note: job?.message || job?.error || 'No suitable release yet.', tries, check_at: now + retryDelay(tries) });
 }
 
+// The seasons a show on someone's list should have now: the one with the next episode they haven't finished
+// (season 1 when they haven't watched any), plus the one after once they're within two episodes of a season's end.
+// Only seasons that have started airing; specials never.
+export function startSeasons(details, finished, today) {
+  const lastAired = details?.last_episode_to_air?.season_number || 0;
+  const aired = (details?.seasons || []).filter((s) => s.season_number >= 1 && s.episode_count > 0 && s.season_number <= lastAired
+    && (!s.air_date || s.air_date <= today)).sort((a, b) => a.season_number - b.season_number);
+  if (!aired.length) return [];
+  const fin = finished?.season >= 1 ? finished : null;
+  let i = fin ? aired.findIndex((s) => s.season_number >= fin.season) : 0;
+  if (i < 0) return [];
+  if (fin && aired[i].season_number === fin.season && fin.episode >= aired[i].episode_count) i++;
+  if (i >= aired.length) return [];
+  const out = [aired[i].season_number];
+  const left = fin && aired[i].season_number === fin.season ? aired[i].episode_count - fin.episode : Infinity;
+  if (left <= 2 && aired[i + 1]) out.push(aired[i + 1].season_number);
+  return out;
+}
+
 async function checkShow(store, row, user, deps, now) {
   const today = isoDay(now);
   const details = await deps.show(row.tmdb_id);
   const fields = { next_ep: JSON.stringify(nextUp(details)), checked_at: now, note: null };
-  const auto = row.auto && deps.canAuto(user);
+  const auto = deps.canAuto(user);
+  // Rows from before My list that were only saved have no starting point: new episodes start after today's last one.
+  if (!row.baseline) { row.baseline = JSON.stringify(baselineFrom(details)); fields.baseline = row.baseline; }
+  let failed = false;
+  if (auto && (row.start_at || 0) <= now) {
+    const got = new Set(parse(row.seasons) || []);
+    for (const season of startSeasons(details, deps.finished?.(row.user_id, row.tmdb_id), today).filter((n) => !got.has(n))) {
+      let job = null, error = null;
+      try { job = await deps.download(user, { type: 'tv', tmdbId: row.tmdb_id, season }); } catch (e) { error = e.message || String(e); }
+      const some = ['added', 'have', 'queued'].some((k) => job?.[k]?.length);
+      if (job?.state === 'done' && some) {
+        got.add(season);
+        if (job.added?.length) deps.log?.(`[watchlist] ${row.title} S${String(season).padStart(2, '0')}: on its way (My list)`);
+      } else {
+        failed = true;
+        fields.note = error || job?.message || job?.error || 'No suitable release yet.';
+      }
+    }
+    fields.seasons = JSON.stringify([...got].sort((a, b) => a - b));
+    const tries = failed ? (row.start_tries || 0) + 1 : 0;
+    fields.start_tries = tries;
+    fields.start_at = failed ? now + retryDelay(tries) : 0;
+  } else if (auto && row.start_tries) { failed = true; fields.note = row.note; } // a season to try again later
   if (auto) {
     const baseline = parse(row.baseline) || { season: 0, episode: 0 };
     const last = details?.last_episode_to_air;
@@ -271,7 +329,7 @@ async function checkShow(store, row, user, deps, now) {
     }
   }
   const waiting = auto ? store.waitingCount(row.user_id, row.tmdb_id) : 0;
-  fields.state = waiting ? 'looking' : 'waiting';
-  fields.check_at = now + (waiting ? HOUR : SHOW_EVERY);
+  fields.state = waiting || failed ? 'looking' : 'waiting';
+  fields.check_at = now + (waiting || failed ? HOUR : SHOW_EVERY);
   store.patch(row, fields);
 }

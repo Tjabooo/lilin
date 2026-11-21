@@ -1,5 +1,5 @@
-// Save for later and Follow on the page: dates, what's coming up, New badges and status lines.
-// The server keeps the list and does the downloading (src/watchlist.js); these are the words.
+// My list on the page: dates, what's coming up, New badges and status lines.
+// The server keeps the list and downloads everything on it (src/watchlist.js); these are the words.
 import { T, langTag } from './i18n.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -48,27 +48,47 @@ export function newEpisodes(item, files) {
   return item.newEpisodes.filter((e) => ready.has(`${e.season}:${e.episode}`)).length;
 }
 
-// One line under the Save / Follow buttons, or '' when there's nothing to add.
+// One line under the My list button, or '' when there's nothing to add. Everything on the list downloads by itself
+// for people who may download (autoDownload).
 export function watchStatus(item, { today = todayIso(), autoDownload = false, inLibrary = false } = {}) {
   if (!item) return '';
   if (item.type === 'movie') {
-    if (!item.auto || !autoDownload) {
+    if (!autoDownload) {
       return item.release > today && !inLibrary ? `${RELEASE_WORDS[item.releaseKind] || T('Out')} ${whenPhrase(item.release, today)}.` : '';
     }
-    if (item.state === 'got') return T('Downloaded when it came out.');
     if (inLibrary) return '';
+    if (item.state === 'got') return T('Downloaded from My list when it came out.');
     if (item.state === 'looking') return T('Out now. Looking for a good copy{0}', item.note ? `: ${item.note}` : '.');
-    if (item.release > today) return T('Downloads automatically once it’s out {0}.', whenPhrase(item.release, today));
-    if (!item.release) return T('Downloads automatically once a release date is known and it’s out.');
+    if (item.release > today) return T('Downloads by itself once it’s out {0}.', whenPhrase(item.release, today));
+    if (!item.release) return T('Downloads by itself once a release date is known and it’s out.');
     return T('Looking for a good copy…');
   }
   const parts = [];
   const n = item.nextEpisode;
-  if (item.follow && n?.airDate) parts.push(T('Next: {0} {1} {2}.', episodeCode(n), n.airDate < today ? T('aired') : T('airs'), whenPhrase(n.airDate, today)));
-  else if (item.follow) parts.push(T('No new episodes announced yet.'));
-  if (item.follow && item.auto && autoDownload) {
+  if (n?.airDate) parts.push(T('Next: {0} {1} {2}.', episodeCode(n), n.airDate < today ? T('aired') : T('airs'), whenPhrase(n.airDate, today)));
+  if (autoDownload) {
+    if (item.state === 'looking' && !item.waiting?.length && item.note) parts.push(T('Looking for a good copy: {0}', item.note));
     if (item.waiting?.length) parts.push(T('Looking for {0}.', item.waiting.map(episodeCode).join(', ')));
     if (item.missed?.length) parts.push(T('Couldn’t find {0}.', item.missed.map(episodeCode).join(', ')));
+    if (!parts.length) parts.push(T('New episodes download by themselves as they air.'));
   }
   return parts.join(' ');
+}
+
+// The short line on a My list card on Discover: when it's out, or how it's doing. ready: a film that's in your library;
+// coming: one that's downloading.
+export function listLine(item, { today = todayIso(), autoDownload = false, ready = false, coming = false } = {}) {
+  if (!item) return '';
+  if (item.type === 'movie') {
+    if (ready) return T('Ready to watch');
+    if (coming) return T('On its way');
+    if (item.release > today) return `${RELEASE_WORDS[item.releaseKind] || T('Out')} · ${dayLabel(item.release, today)}`;
+    if (!autoDownload) return item.release ? T('Out now') : '';
+    return item.state === 'looking' ? T('Looking for a good copy') : '';
+  }
+  const fresh = item.newEpisodes?.length || 0;
+  if (fresh) return fresh === 1 ? T('{0} new episode', fresh) : T('{0} new episodes', fresh);
+  const n = item.nextEpisode;
+  if (n?.airDate >= today) return `${episodeCode(n)} · ${dayLabel(n.airDate, today)}`;
+  return '';
 }

@@ -5,8 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { WatchlistStore, runRound, filmRelease, filmOut, airedAfter, baselineFrom, retryDelay } from '../src/watchlist.js';
-import { comingUp, newEpisodes, watchStatus, dayLabel } from '../public/watchlist.js';
+import { WatchlistStore, runRound, filmRelease, filmOut, airedAfter, baselineFrom, retryDelay, startSeasons } from '../src/watchlist.js';
+import { comingUp, newEpisodes, watchStatus, listLine, dayLabel } from '../public/watchlist.js';
 import { topicFor } from '../src/live.js';
 
 const HOUR = 3600e3, DAY = 24 * HOUR;
@@ -147,9 +147,17 @@ test('the page words: dates, Coming up, New badges and status lines', () => {
   assert.equal(watchStatus(show, { today, autoDownload: true }), 'Next: S02E07 airs tomorrow. Looking for S02E06.');
   assert.equal(watchStatus(show, { today, autoDownload: false }), 'Next: S02E07 airs tomorrow.');
   assert.equal(watchStatus({ type: 'movie', saved: true, auto: true, state: 'waiting', release: '2026-12-01' }, { today, autoDownload: true }),
-    'Downloads automatically once it’s out on Tue 1 Dec.');
+    'Downloads by itself once it’s out on Tue 1 Dec.');
   assert.equal(watchStatus({ type: 'movie', saved: true, auto: false, release: '2026-12-01', releaseKind: 'disc' }, { today }), 'Out on disc on Tue 1 Dec.');
-  assert.equal(watchStatus({ type: 'movie', saved: true, auto: true, state: 'got' }, { today, autoDownload: true }), 'Downloaded when it came out.');
+  assert.equal(watchStatus({ type: 'movie', saved: true, auto: true, state: 'got' }, { today, autoDownload: true }), 'Downloaded from My list when it came out.');
+  assert.equal(watchStatus({ type: 'tv', saved: true, follow: true, state: 'waiting' }, { today, autoDownload: true }), 'New episodes download by themselves as they air.');
+  // My list cards on Discover
+  assert.equal(listLine({ type: 'movie', release: '2026-12-01', releaseKind: 'digital' }, { today, autoDownload: true }), 'Out to stream · Tue 1 Dec');
+  assert.equal(listLine({ type: 'movie', release: '2026-01-01', state: 'got' }, { today, autoDownload: true, coming: true }), 'On its way');
+  assert.equal(listLine({ type: 'movie', release: '2026-01-01', state: 'got' }, { today, autoDownload: true, ready: true }), 'Ready to watch');
+  assert.equal(listLine({ type: 'movie', release: '2026-01-01', state: 'looking' }, { today, autoDownload: true }), 'Looking for a good copy');
+  assert.equal(listLine(show, { today }), '2 new episodes');
+  assert.equal(listLine({ ...show, newEpisodes: [] }, { today }), 'S02E07 · Tomorrow');
 });
 
 test('watchlist changes reach the person’s other pages', () => {
@@ -182,8 +190,6 @@ test('watchlist API: list, validation, removal and a clear message without TMDB'
     assert.deepEqual((await call('GET', '/api/watchlist')).items, []);
     await call('POST', '/api/watchlist', { type: 'book', tmdbId: 1, saved: true }, 400);
     await call('POST', '/api/watchlist', { type: 'movie', tmdbId: -4, saved: true }, 400);
-    const off = await call('POST', '/api/watchlist', { type: 'movie', tmdbId: 603, saved: true, auto: true }, 503);
-    assert.match(off.error, /set up on the server/);
     assert.match((await call('POST', '/api/watchlist', { type: 'movie', tmdbId: 603, saved: true }, 503)).error, /TMDB/);
     assert.equal((await call('POST', '/api/watchlist', { type: 'tv', tmdbId: 603, saved: false, follow: false })).item, null);
     assert.equal((await call('POST', '/api/watchlist/seen', { tmdbId: 603 })).cleared, 0);
@@ -210,4 +216,83 @@ test('a film counts as out only once a proper copy can exist (never just in cine
   assert.equal(filmOut({ release_date: '1999-03-31', release_dates: { results: [{ release_dates: [{ type: 5, release_date: '2027-01-01' }] }] } }, '2026-11-15').out, true);
   assert.equal(filmOut({ status: 'Released' }, '2026-11-15').out, true);
   assert.equal(filmOut({ status: 'In Production' }, '2026-11-15').out, false);
+});
+
+test('My list: a show starts with the season after the last episode you finished, the next one near a season’s end', () => {
+  const details = { last_episode_to_air: { season_number: 3, episode_number: 4 }, seasons: [
+    { season_number: 0, episode_count: 5, air_date: '2019-01-01' }, { season_number: 1, episode_count: 10, air_date: '2020-01-01' },
+    { season_number: 2, episode_count: 8, air_date: '2022-01-01' }, { season_number: 3, episode_count: 10, air_date: '2026-10-01' },
+    { season_number: 4, episode_count: 10, air_date: '2027-10-01' }] };
+  const today = '2026-11-05';
+  assert.deepEqual(startSeasons(details, null, today), [1], 'never watched: season 1, never specials');
+  assert.deepEqual(startSeasons(details, { season: 1, episode: 4 }, today), [1]);
+  assert.deepEqual(startSeasons(details, { season: 1, episode: 8 }, today), [1, 2], 'two from the end: the next season too');
+  assert.deepEqual(startSeasons(details, { season: 1, episode: 10 }, today), [2]);
+  assert.deepEqual(startSeasons(details, { season: 3, episode: 4 }, today), [3], 'season 4 hasn’t aired');
+  assert.deepEqual(startSeasons(details, { season: 3, episode: 10 }, today), []);
+  assert.deepEqual(startSeasons({ seasons: [{ season_number: 1, episode_count: 8, air_date: '2027-01-01' }] }, null, today), [], 'not aired: new episodes come as they air');
+});
+
+test('My list: a show downloads its first season once, then follows new episodes; a failed season is tried again', async () => {
+  const store = await tempStore();
+  const user = { id: 1, canDownload: true };
+  store.set(1, 'tv', 30, meta('Listed Show'), { saved: true, baseline: { season: 2, episode: 3 } });
+  const item = store.list(1)[0];
+  assert.equal(item.follow, true, 'shows on My list are followed');
+  let now = at('2026-11-05');
+  const downloads = [];
+  let seasonJob = { state: 'done', outcome: 'none', message: 'No release clearly matches this title.', added: [] };
+  const deps = {
+    now: () => now, user: () => user, canAuto: () => true, finished: () => null,
+    show: async () => ({ last_episode_to_air: { season_number: 2, episode_number: 3 }, next_episode_to_air: null,
+      seasons: [{ season_number: 1, episode_count: 8, air_date: '2024-01-01' }, { season_number: 2, episode_count: 8, air_date: '2026-10-01' }] }),
+    season: async () => ({ episodes: [] }),
+    download: async (u, spec) => { downloads.push(spec); return spec.episodes ? { state: 'done', added: [] } : seasonJob; },
+  };
+  await runRound(store, deps);
+  assert.deepEqual(downloads, [{ type: 'tv', tmdbId: 30, season: 1 }]);
+  assert.equal(store.list(1)[0].state, 'looking');
+  now += 30 * 60e3;
+  await runRound(store, deps);
+  assert.equal(downloads.length, 1, 'not before its retry time');
+  now += 2 * HOUR;
+  seasonJob = { state: 'done', outcome: 'started', added: [{ episodes: [1, 2, 3, 4, 5, 6, 7, 8] }] };
+  await runRound(store, deps);
+  assert.equal(downloads.length, 2);
+  assert.deepEqual(store.list(1)[0].seasons, [1]);
+  assert.equal(store.list(1)[0].state, 'waiting');
+  now += 4 * HOUR;
+  await runRound(store, deps);
+  assert.equal(downloads.length, 2, 'a season is fetched once');
+});
+
+test('My list: someone who can’t download hears once that a film is out; old saved and followed rows join the list', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-watchlist-'));
+  const { DatabaseSync } = (await import('node:module')).createRequire(import.meta.url)('node:sqlite');
+  const old = new DatabaseSync(path.join(dir, '.lilin.db'));
+  old.exec(`CREATE TABLE watchlist (
+        user_id INTEGER NOT NULL, type TEXT NOT NULL, tmdb_id INTEGER NOT NULL,
+        title TEXT NOT NULL, year INTEGER, poster TEXT, backdrop TEXT, overview TEXT, rating REAL,
+        saved INTEGER NOT NULL DEFAULT 0, follow INTEGER NOT NULL DEFAULT 0, auto INTEGER NOT NULL DEFAULT 0,
+        added_at INTEGER NOT NULL, release TEXT, release_kind TEXT, next_ep TEXT, baseline TEXT,
+        state TEXT NOT NULL DEFAULT 'waiting', note TEXT, tries INTEGER NOT NULL DEFAULT 0,
+        check_at INTEGER NOT NULL DEFAULT 0, checked_at INTEGER,
+        PRIMARY KEY (user_id, type, tmdb_id));
+    INSERT INTO watchlist (user_id, type, tmdb_id, title, saved, follow, auto, added_at, check_at) VALUES
+      (2, 'movie', 40, 'Saved Film', 1, 0, 0, 1, 99999999999999), (2, 'tv', 41, 'Followed Show', 0, 1, 0, 2, 0), (2, 'tv', 42, 'Saved Show', 1, 0, 0, 3, 0);`);
+  old.close();
+  const store = new WatchlistStore(dir);
+  assert.deepEqual(store.list(2).map((i) => [i.id, i.saved, i.follow, i.auto]), [[42, true, true, true], [41, true, true, true], [40, true, false, true]]);
+  const told = [];
+  const deps = {
+    now: () => at('2026-11-05'), user: () => ({ id: 2, canDownload: false }), canAuto: () => false, notify: (id, msg) => told.push([id, msg.title]),
+    film: async () => ({ release_date: '2024-01-01' }), show: async () => ({ last_episode_to_air: { season_number: 1, episode_number: 2 } }),
+    download: async () => { throw Error('no downloads for this person'); },
+  };
+  await runRound(store, deps);
+  assert.deepEqual(told, [[2, 'Saved Film is out']]);
+  assert.deepEqual(JSON.parse(store.get(2, 'tv', 42).baseline), { season: 1, episode: 2 }, 'a saved show starts its new episodes from now, not the back catalogue');
+  store.patch(store.get(2, 'movie', 40), { check_at: 0 });
+  await runRound(store, deps);
+  assert.equal(told.length, 1, 'once');
 });

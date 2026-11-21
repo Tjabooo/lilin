@@ -13,7 +13,7 @@ import { createStreamStats } from './player-stats.js';
 import { playPartial, loadHls, fmtEta as fmtWait } from './player-partial.js';
 import { SUB_SIZES, SUB_BACKGROUNDS, SUB_POSITIONS, subLook, subRaise, secondChoices, createNightAudio,
   SLEEP_MINUTES, sleepTimer, sleepSecondsLeft, sleepFade, sleepLabel } from './player-comfort.js';
-import { comingUp, watchStatus, todayIso } from './watchlist.js';
+import { comingUp, watchStatus, listLine, todayIso } from './watchlist.js';
 import { createRightNow } from './right-now.js';
 import { travelTitle, sizeWords, stateWords, travelSummary, travelOrder } from './travel.js';
 import { libraryUnion, transferState, transferAttention, transferPaused, packScope } from './library-downloads.js';
@@ -537,7 +537,7 @@ async function loadProgress() {
   try { const data = await api('/api/me/progress'); state.progress = data.progress || {}; state.finished = data.finished || {}; state.seen = data.seen || {}; state.hidden = data.hidden || {}; } catch { /* local copy only */ }
 }
 
-// ---------- Save for later and Follow (watchlist.js; the server downloads, src/watchlist.js) ----------
+// ---------- My list (watchlist.js; the server downloads everything on it, src/watchlist.js) ----------
 const watch = { items: [], autoDownload: false, revision: 0 };
 const watchItem = (type, id) => watch.items.find((i) => i.type === type && i.id === Number(id)) || null;
 async function loadWatchlist() {
@@ -545,18 +545,18 @@ async function loadWatchlist() {
   try { Object.assign(watch, await api('/api/watchlist')); watch.revision++; } catch { return; }
   refreshWatchViews();
 }
-// Every place that shows the list: Save / Follow boxes in open sheets, Discover's Saved for later row.
+// Every place that shows the list: My list buttons in open sheets and on Coming soon cards, Discover's My list row.
 function refreshWatchViews() {
   document.querySelectorAll('.watch-box').forEach((box) => box._update?.());
   refreshSavedRow();
-  document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: Save / Follow on its cards
+  document.querySelectorAll('.cs-save').forEach((b) => b._update?.()); // comingsoon: My list on its cards
 }
 function refreshSavedRow() {
   const body = $('#discover-body');
   if (state.view !== 'discover' || instantPage() || disc.list || disc.genre || !body.querySelector('.discover-controls')) return;
   const old = body.querySelector('.saved-shelf'), fresh = savedRow();
   if (old) old.replaceWith(fresh || '');
-  else if (fresh) (body.querySelector('.continue-shelf') || body.querySelector('.discover-controls')).after(fresh);
+  else if (fresh) (body.querySelector('.discover-content > .continue-shelf') || body.querySelector('.discover-controls')).after(fresh);
 }
 async function setWatch(t, flags) {
   const { item } = await api('/api/watchlist', jsonPost({ type: t.type, tmdbId: t.id, ...flags }));
@@ -566,47 +566,41 @@ async function setWatch(t, flags) {
   refreshWatchViews();
   return item;
 }
-// Saved: it waits in Saved for later on Discover (there's no list to go to); Follow says what it does.
+// What adding something to My list sets off: it downloads by itself (when this person may download).
+function listToast(item, t) {
+  if (!item) return T('Removed from My list');
+  if (!watch.autoDownload) return T('Added to My list');
+  if (t.type === 'tv') return T('Added to My list. It downloads by itself, and new episodes follow as they air.');
+  return item.state === 'got' || matchesFor(t).some((f) => f.done) ? T('Added to My list')
+    : T('Added to My list. It downloads by itself once a good copy is out, and you’ll get a notification.');
+}
 const watchlistToast = (text) => toast(text);
-// Save (any title), Follow (shows) and the automatic-download switch, with one status line. The title page puts
-// box.save and box.follow in its button bar (lead: the one that's its gold button); the box keeps the rest.
+// The My list button (box.save; the title page puts it in its button bar, lead: it's the gold button) and one
+// status line under it.
 function watchBox(t, { lead = null } = {}) {
-  const isTv = t.type === 'tv';
   const box = h('div', { class: 'watch-box' });
   let busy = false;
-  const act = async (flags, what) => {
+  box.save = h('button', { type: 'button', class: `${lead === 'save' ? 'play-btn action-btn' : 'chip'} watch-toggle`, 'data-act': 'save', onclick: async () => {
     if (busy) return;
     busy = true; box.classList.add('is-busy');
     try {
-      const item = await setWatch(t, flags);
-      if (what) toast(what(item));
+      const on = Boolean(watchItem(t.type, t.id)?.saved);
+      toast(listToast(await setWatch(t, { saved: !on }), t));
     } catch (err) { toast(err.message); } finally { busy = false; box.classList.remove('is-busy'); box._update(); }
-  };
-  const toggle = (id, run) => h('button', { type: 'button', class: `${lead === id ? 'play-btn action-btn' : 'chip'} watch-toggle`, 'data-act': id, onclick: () => run() });
-  box.save = toggle('save', () => { const saved = Boolean(watchItem(t.type, t.id)?.saved); act({ saved: !saved }, (i) => (i?.saved ? T('Saved. It waits on Discover, in Saved for later.') : T('Removed from Saved'))); });
-  box.follow = isTv ? toggle('follow', () => { const follow = Boolean(watchItem(t.type, t.id)?.follow);
-    act({ follow: !follow }, (i) => (i?.follow ? (i.auto ? T('Following. New episodes arrive as they air.') : T('Following')) : T('Stopped following'))); }) : null;
+  } });
+  box.follow = null; // shows on My list are followed (src/watchlist.js)
   box._update = () => {
     if (!box.isConnected && box._drawn) return;
     box._drawn = true;
     const item = watchItem(t.type, t.id);
-    const saved = Boolean(item?.saved), follow = Boolean(item?.follow);
-    const auto = Boolean(item?.auto) && watch.autoDownload;
-    const inLibrary = !isTv && matchesFor(t).some((f) => f.done);
-    box.save.classList.toggle('is-on', saved); box.save.setAttribute('aria-pressed', String(saved));
-    box.save.replaceChildren(icon('bookmark'), h('span', {}, saved ? T('Saved') : T('Save')));
-    if (box.follow) {
-      box.follow.classList.toggle('is-on', follow); box.follow.setAttribute('aria-pressed', String(follow));
-      box.follow.replaceChildren(icon('bell'), h('span', {}, follow ? T('Following') : T('Follow')));
-    }
-    // Films: wait for the release. Shows: new episodes as they air (only while following).
-    const offerAuto = watch.autoDownload && (isTv ? follow : saved && !inLibrary && item?.state !== 'got');
-    const autoSwitch = offerAuto && h('label', { class: 'watch-auto' },
-      h('input', { type: 'checkbox', checked: auto, onchange: (e) => act({ auto: e.currentTarget.checked }) }),
-      h('span', {}, isTv ? T('Add new episodes as they air') : T('Add it when a good copy is out')));
+    const on = Boolean(item?.saved);
+    const inLibrary = t.type !== 'tv' && matchesFor(t).some((f) => f.done);
+    box.save.classList.toggle('is-on', on); box.save.setAttribute('aria-pressed', String(on));
+    box.save.setAttribute('aria-label', on ? T('Remove from My list') : T('Add to My list'));
+    box.save.replaceChildren(icon(on ? 'check' : 'plus'), h('span', {}, T('My list')));
     const line = watchStatus(item, { today: todayIso(), autoDownload: watch.autoDownload, inLibrary });
-    box.replaceChildren(...[autoSwitch, line && h('p', { class: 'watch-status', role: 'status' }, line)].filter(Boolean));
-    box.hidden = !autoSwitch && !line;
+    box.replaceChildren(...[line && h('p', { class: 'watch-status', role: 'status' }, line)].filter(Boolean));
+    box.hidden = !line;
   };
   box._update();
   return box;
@@ -1299,18 +1293,22 @@ function newEpisodesRow() {
   });
   return carousel(T('New episodes'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('New episodes') }, cards), null, 'home-shelf');
 }
-// Saved for later (Save on a title page): only when something is saved; films not out yet say when.
+// My list (the My list button on a title page), right under Continue watching: everything on it, newest first. Each
+// card says where it stands: when it's out, on its way, ready, new episodes.
 function savedRow() {
   const items = watch.items.filter((i) => i.saved && (disc.type === 'all' || disc.type === i.type));
   if (!items.length) return null;
-  const upcoming = new Map(comingUp(items, todayIso()).map((c) => [c.item, c]));
   const cards = items.map((i) => {
-    const li = titleCard({ type: i.type, id: i.id, title: i.title, year: i.year, poster: i.poster, backdrop: i.backdrop });
-    const soon = upcoming.get(i);
-    if (soon) li.querySelector('.sub').textContent = `${soon.what} · ${soon.when}`;
+    const t = { type: i.type, id: i.id, title: i.title, year: i.year, poster: i.poster, backdrop: i.backdrop };
+    const li = titleCard(t);
+    const here = i.type === 'movie' ? matchesFor(t) : [];
+    const line = listLine(i, { today: todayIso(), autoDownload: watch.autoDownload, ready: here.some((f) => f.done), coming: here.some((f) => !f.done) });
+    if (line) li.querySelector('.sub').textContent = line;
+    const fresh = i.newEpisodes?.length || 0;
+    if (fresh) li.querySelector('.poster')?.append(h('span', { class: 'new-badge' }, fresh === 1 ? T('New') : T('{0} new', fresh)));
     return li;
   });
-  return carousel(T('Saved for later'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('Saved for later') }, cards), null, 'home-shelf saved-shelf');
+  return carousel(T('My list'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('My list') }, cards), null, 'home-shelf saved-shelf');
 }
 // Instant (#discover/instant): everything on the server, newest first or A–Z, a page at a time.
 const INSTANT_SORTS = [['newest', T('Newest')], ['title', 'A–Z']];
@@ -1524,9 +1522,9 @@ async function renderDiscover() {
     content.replaceChildren(...[
       ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: anime ? T('New this season') : T('Trending this week') }) : null),
       continueRow(),
+      savedRow(), // My list: right under Continue watching
       newEpisodesRow(),
       !anime && rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
-      savedRow(),
       !anime && rowSlot(moods, signal),
       trending,
       seeds.length > 0 && rowSlot(forYouRow(seeds, signal), signal),
@@ -2341,7 +2339,6 @@ const TITLE_ACTIONS = {
   play: (c, lead) => (c.fa ? c.fa.play : showPlayButton(c, lead)),
   resume: (c, lead) => TITLE_ACTIONS.play(c, lead),
   save: (c) => c.watch?.save,
-  follow: (c) => c.watch?.follow,
   playOnTv: (c) => c.file() && titleChip('playOnTv', false, 'tv', T('Play on TV'), (e) => openPicker(c.file(), e.currentTarget)),
   toPhone: (c) => c.file() && [icon('phone'), T('To phone'), (o) => openTravel(c.file(), o)],
   // The owner's tools (title-model.js: admin).
@@ -2422,13 +2419,13 @@ function renderTitle() {
   const lead = (id) => model.primary === id;
   const focused = $('#sheet-body').contains(document.activeElement) ? document.activeElement.dataset?.act : null;
   titleView.showId = c.showId;
-  // The parts with buttons of their own: films' Play / Add pair, shows' download panel, Save / Follow.
+  // The parts with buttons of their own: films' Play / Add pair, shows' download panel, My list.
   if (!tv) c.fa = filmActions(t, { stateOf: c.stateOf });
   // The season panel (a whole season, a quality) is the owner's: everyone else presses an episode.
   if (tv && canGet() && t.id != null && state.status.admin) {
     c.tvd = showDownload(t, { season: titleView.season.get(`tv:${t.id}`) ?? null, onAdded: () => updateOpenTitle(), lead: false });
   }
-  if (state.status.search && t.id != null) c.watch = watchBox(t, { lead: ['save', 'follow'].find(lead) || null });
+  if (state.status.search && t.id != null) c.watch = watchBox(t, { lead: lead('save') ? 'save' : null });
   const bar = h('div', { class: 'title-bar' });
   if (c.fa) bar.append(c.fa.play);
   const seen = new Set(c.fa ? [c.fa.play] : []);
@@ -3970,7 +3967,7 @@ function maybeAskFriends() {
   }));
 }
 // comingsoon: Discover's Coming soon row and page (coming-soon.js), with one-tap Save / Follow from watchlist.js
-const comingSoon = createComingSoonView({ h, icon, toast, savedToast: (text) => watchlistToast(text), watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
+const comingSoon = createComingSoonView({ h, icon, toast, savedToast: (text) => watchlistToast(text), listToast, watchItem, setWatch, autoDownload: () => watch.autoDownload, openDetails, ownershipBadge, peek,
   carousel, segmented, skeletonGrid, cachedApi, notice, rerender: () => renderDiscover(),
   openList: (list) => { leaveDiscoverHome(); disc.list = list; window.scrollTo({ top: 0 }); renderDiscover(); }, back: () => { disc.list = null; renderDiscover(); } });
 // reviews: stars + written reviews (reviews.js); its sheets open in the picker
@@ -9294,7 +9291,7 @@ function accountPage() {
   const me = state.me;
   // The shared home account has no sign-in of its own: the page offers your own instead.
   if (!me.email) return [
-    settingsRow(T('Home network'), T('Everyone at home who opens the server’s local address shares this account: one history, one Saved for later.'), null),
+    settingsRow(T('Home network'), T('Everyone at home who opens the server’s local address shares this account: one history, one My list.'), null),
     settingsRow(T('Sign in as yourself'), T('Your own history, friends and settings on this device.'),
       h('a', { class: 'chip', href: '/signin?own=1&next=%2Fyou' }, T('Sign in'))),
   ];
@@ -9704,7 +9701,9 @@ function notificationSettings() {
   if (pushView.devices.length) {
     out.push(settingsRow(T('Downloads ready'), T('When something you downloaded can be watched.'),
       toggle(p.pushDownload !== false, (v) => saveMe({ pushDownload: v }), T('Notify when downloads are ready'))));
-    out.push(settingsRow(T('New episodes'), T('When a new episode of a show you watch or follow arrives on Lilin.'),
+    out.push(settingsRow(T('My list'), T('When something on your list is out in good quality and ready to watch.'),
+      toggle(p.pushMyList !== false, (v) => saveMe({ pushMyList: v }), T('Notify about My list'))));
+    out.push(settingsRow(T('New episodes'), T('When a new episode of a show you watch or have on your list arrives on Lilin.'),
       toggle(p.pushEpisode !== false, (v) => saveMe({ pushEpisode: v }), T('Notify about new episodes'))));
     out.push(settingsRow(T('Watch Together invites'), T('When someone asks you to join their room. Off: nobody can invite you this way.'),
       toggle(p.pushWatch !== false, (v) => saveMe({ pushWatch: v }), T('Notify about Watch Together invites'))));
@@ -11678,7 +11677,7 @@ async function openPlace(p) {
   endSearch();
   if (!p.route) { PLACE_ACTIONS[p.action]?.(null); return; }
   await setView(p.route);
-  if (p.id === 'saved') $('#discover-body .saved-shelf')?.scrollIntoView({ block: 'center' }); // Saved for later lives on Discover
+  if (p.id === 'saved') $('#discover-body .saved-shelf')?.scrollIntoView({ block: 'center' }); // My list lives on Discover
 }
 searchToggle.addEventListener('click', () => setSearching(true));
 input.addEventListener('focus', () => { if (!searchUi.isOpen()) setSearching(true); });

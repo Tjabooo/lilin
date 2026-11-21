@@ -40,7 +40,7 @@ export function pageState(x) {
 export function titleModel(x) {
   const tv = x.type === 'tv';
   const state = pageState(x);
-  const watchable = Boolean(x.search && x.tmdb); // Save / Follow need a TMDB title
+  const watchable = Boolean(x.search && x.tmdb); // My list needs a TMDB title
   const owned = state === 'ready' || state === 'leavingSoon' || state === 'preparing';
   const getMore = Boolean(x.canGet && x.tmdb); // Play can fetch it (a cold start)
   const tools = Boolean(x.admin); // the owner's download tools
@@ -50,13 +50,12 @@ export function titleModel(x) {
     if (!tv || x.play) primary = x.play === 'resume' ? 'resume' : 'play';
     else if (x.onServer > 0 || getMore) primary = 'play'; // caught up: the next episode, here or fetched
   } else if (state === 'onItsWay' || state === 'onServer') primary = 'play';
-  else if (state === 'unreleased') primary = watchable ? (tv ? 'follow' : 'save') : null;
+  else if (state === 'unreleased') primary = watchable ? 'save' : null; // save: the My list button
   else if (state === 'notOnLilin') primary = getMore ? 'play' : watchable ? 'save' : null;
 
   const secondary = [];
   const chip = (id, when = true) => { if (when && id !== primary && !secondary.includes(id) && secondary.length < 4) secondary.push(id); };
-  chip('save', watchable && !(tv && state === 'unreleased'));
-  chip('follow', watchable && tv);
+  chip('save', watchable);
   chip('playOnTv', !tv && owned && state !== 'preparing');
 
   const more = [];

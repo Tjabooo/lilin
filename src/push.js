@@ -14,8 +14,8 @@ import path from 'node:path';
 
 // kind -> the user setting that switches it (all on by default)
 export const KINDS = { download: 'pushDownload', episode: 'pushEpisode', watch: 'pushWatch', agent: 'pushAgent', update: 'pushUpdate', idea: 'pushIdea',
-  friend: 'pushFriend', share: 'pushShare' }; // friends
-const TTL = { download: 86400, episode: 2 * 86400, watch: 600, test: 600, agent: 12 * 3600, update: 3 * 86400, idea: 7 * 86400 }; // an invite is stale after a few minutes
+  friend: 'pushFriend', share: 'pushShare', mylist: 'pushMyList' }; // friends; mylist: My list (watchlist.js)
+const TTL = { download: 86400, mylist: 2 * 86400, episode: 2 * 86400, watch: 600, test: 600, agent: 12 * 3600, update: 3 * 86400, idea: 7 * 86400 }; // an invite is stale after a few minutes
 const URGENCY = { watch: 'high', agent: 'high' };
 const MAX_DEVICES = 10; // per person; the oldest goes first
 const RECORD_SIZE = 4096;

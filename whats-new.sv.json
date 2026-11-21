@@ -1,4 +1,21 @@
 {
+  "2026-11-21-my-list": {
+    "title": "Min lista",
+    "items": {
+      "My list": {
+        "title": "Min lista",
+        "text": "Spara till senare och Följ är nu en och samma knapp: Min lista. Allt på din lista syns på Upptäck, direkt under Fortsätt titta, med när det kommer ut eller hur det går."
+      },
+      "Your list downloads by itself": {
+        "title": "Din lista laddas ner av sig själv",
+        "text": "Lägg till en film så hämtar Lilin en bra kopia så fort en finns, aldrig en biografinspelning. Lägg till en serie så hämtas säsongen du är på, och sedan varje nytt avsnitt när det har sänts. Du får en avisering när det går att titta (stäng av det under Du, Aviseringar)."
+      },
+      "Your saved and followed titles moved over": {
+        "title": "Det du sparat och följt har flyttat med",
+        "text": "Allt du hade sparat eller följde finns nu på Min lista."
+      }
+    }
+  },
   "2026-11-21-forget-recent-search": {
     "title": "Rensa en tidigare sökning",
     "items": {

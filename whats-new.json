@@ -1,5 +1,27 @@
 [
 {
+  "id": "2026-11-21-my-list",
+  "date": "2026-11-21",
+  "title": "My list",
+  "items": [
+    {
+      "kind": "new",
+      "title": "My list",
+      "text": "Save for later and Follow are now one button: My list. Everything on your list shows up on Discover, right under Continue watching, with when it\u2019s out or how it\u2019s doing."
+    },
+    {
+      "kind": "new",
+      "title": "Your list downloads by itself",
+      "text": "Add a film and Lilin gets a good copy as soon as one is out, never a cinema recording. Add a show and it gets the season you\u2019re up to, then each new episode as it airs. You get a notification when it\u2019s ready to watch (switch it off in You, under Notifications)."
+    },
+    {
+      "kind": "improved",
+      "title": "Your saved and followed titles moved over",
+      "text": "Everything you had saved or followed is on My list now."
+    }
+  ]
+},
+{
   "id": "2026-11-21-forget-recent-search",
   "date": "2026-11-21",
   "title": "Clear a recent search",

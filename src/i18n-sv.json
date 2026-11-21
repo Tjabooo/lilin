@@ -1,4 +1,12 @@
 {
+ "From My list: {0} episodes of {1} are ready": "Från Min lista: {0} avsnitt av {1} är klara",
+ "From My list: {0} is ready": "Från Min lista: {0} är klar",
+ "From My list: {0} is on Lilin": "Från Min lista: {0} finns på Lilin",
+ "A good copy just downloaded. It plays instantly now. Tap to watch.": "En bra kopia har laddats ner. Den spelas direkt nu. Tryck för att titta.",
+ "A good copy just arrived. It plays instantly now. Tap to watch.": "En bra kopia har precis kommit. Den spelas direkt nu. Tryck för att titta.",
+ "{0} is out": "{0} har kommit ut",
+ "It’s on your list, and a proper copy can be had now.": "Den står på din lista, och nu finns det en riktig kopia att få tag på.",
+ "My list needs TMDB. Add TMDB_TOKEN to .env and restart.": "Min lista behöver TMDB. Lägg till TMDB_TOKEN i .env och starta om.",
  "This video is still downloading.": "Videon laddas fortfarande ner.",
  "This download can’t be played right now. Try again in a moment.": "Den här nedladdningen går inte att spela just nu. Försök igen om en stund.",
  "This video is still starting.": "Videon startar fortfarande.",

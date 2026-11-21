@@ -1882,7 +1882,7 @@ setInterval(dubRound, 3 * 60 * 1000).unref();
 const humanDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 function notOutMessage(title, rel) {
   const when = rel.expect ? ` It should be out around ${humanDay(rel.expect)}.` : '';
-  return `${title} isn’t out to stream or buy yet, so the only copies around are cinema recordings.${when} Press Save and switch on “Add it when a good copy is out” to get it then.`;
+  return `${title} isn’t out to stream or buy yet, so the only copies around are cinema recordings.${when} Add it to My list and it downloads by itself once a good copy is out.`;
 }
 // The Download command (smart-download.js) for one person: a film, a season or some episodes.
 // Used by the Download button and by Save for later / Follow (watchlist.js) in the background.
@@ -2157,6 +2157,8 @@ async function checkWatchlist() {
         show: (id) => cachedTmdb(`/tv/${id}`, {}, 3600 * 1000),
         season: (id, n) => cachedTmdb(`/tv/${id}/season/${n}`, {}, 3600 * 1000),
         download: finishedSmartJob,
+        finished: (userId, tmdbId) => social.lastFinished(userId)[`tv:${tmdbId}`] || null,
+        notify: (userId, msg) => notify([userId], 'mylist', { ...msg, url: '/', tag: `mylist-${msg.title}`.slice(0, 64) }),
         changed: (userId) => live.publish('watchlist', { audience: 'user', userId }),
         log: (msg) => console.log(msg),
       });
@@ -4023,15 +4025,32 @@ let agentPushes = []; // times of recent agent notifications (rate limit)
 const announcedEpisodes = new Set(); // media keys already announced as new episodes since startup
 setInterval(() => { for (const [k, at] of watchInvitesSent) if (Date.now() - at > 120000) watchInvitesSent.delete(k); }, 600000).unref();
 const pushTitle = (title) => shows.knownShow(title, null)?.title || title;
+const announcedListFilms = new Set(); // films already announced to the people with them on My list, since startup
 function announceArrivals(hash, arrived, claimants) {
-  const follows = new Map(); // person -> show keys they follow (Follow, watchlist.js)
+  const follows = new Map(); // person -> show keys they follow (shows on My list, watchlist.js)
   for (const r of watchlist.followers()) {
     if (!follows.has(r.user_id)) follows.set(r.user_id, new Set());
     follows.get(r.user_id).add(shows.showKey(r.title));
   }
+  const listed = new Map(); // person -> "film:key" / "tv:key" -> the title as their list has it
+  for (const r of watchlist.listed()) {
+    if (!listed.has(r.user_id)) listed.set(r.user_id, new Map());
+    listed.get(r.user_id).set(`${r.type === 'tv' ? 'tv' : 'film'}:${shows.showKey(r.title)}`, r.title);
+  }
+  const listName = (userId, key) => listed.get(userId)?.get(key) || null;
   for (const [userId, files] of arrived) {
     const infos = files.map(parseFile);
     const shown = new Set(infos.map((i) => (i.season != null ? shows.showKey(i.title) : `film:${i.title}`)));
+    // From My list: the film it was waiting for, or the season a show on it starts with.
+    const filmName = files.length === 1 && infos[0].season == null ? listName(userId, `film:${shows.showKey(infos[0].title)}`) : null;
+    const showName = shown.size === 1 && infos[0].season != null && files.length > 1 ? listName(userId, `tv:${[...shown][0]}`) : null;
+    if (filmName || showName) {
+      if (filmName) announcedListFilms.add(`film:${shows.showKey(infos[0].title)}`);
+      notify([userId], 'mylist', { title: filmName ? `From My list: ${filmName} is ready` : `From My list: ${files.length} episodes of ${showName} are ready`,
+        body: filmName ? 'A good copy just downloaded. It plays instantly now. Tap to watch.' : 'They play instantly now. Tap to watch.',
+        url: '/', tag: `download-${hash.toLowerCase()}` });
+      continue;
+    }
     // A followed show's episodes that downloaded by themselves count as new episodes.
     if (shown.size === 1 && infos[0].season != null && follows.get(userId)?.has([...shown][0])) {
       const name = pushTitle(infos[0].title);
@@ -4046,6 +4065,19 @@ function announceArrivals(hash, arrived, claimants) {
     // Play first: no Library to open; Discover's Instant filter has it (and Continue watching, when it was a Play).
     notify([userId], 'download', { title, body: files.length === 1 ? 'It plays instantly now. Tap to watch.' : 'They play instantly now. Tap to watch.',
       url: '/#discover/instant', tag: `download-${hash.toLowerCase()}` });
+  }
+  // A film on someone else's list landed (someone got it): they hear once that it plays now.
+  const skipList = new Set(claimants);
+  if (announcedListFilms.size > 2000) announcedListFilms.clear();
+  for (const full of new Set([...arrived.values()].flat())) {
+    const info = parseFile(full);
+    if (info.season != null) continue;
+    const key = `film:${shows.showKey(info.title)}`;
+    const people = [...listed.keys()].filter((id) => !skipList.has(id) && listName(id, key));
+    if (!people.length || announcedListFilms.has(key)) continue;
+    announcedListFilms.add(key);
+    for (const id of people) notify([id], 'mylist', { title: `From My list: ${listName(id, key)} is on Lilin`,
+      body: 'A good copy just arrived. It plays instantly now. Tap to watch.', url: '/', tag: `mylist-${key}`.slice(0, 64) });
   }
   // New episodes: everyone else with an episode of the show in their library hears once per episode.
   // Following alone isn't enough: a show that isn't in your library stays quiet until it lands there.
@@ -5142,30 +5174,26 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { items: watchlist.list(user.id), autoDownload: mayAutoDownload(user) });
   }
   if (p === '/api/watchlist' && req.method === 'POST') {
+    // My list: { type, tmdbId, saved } adds (true) or removes (false). Pages from before My list send follow.
     const body = await readJson(req);
     const type = body.type === 'tv' ? 'tv' : body.type === 'movie' ? 'movie' : null;
     const tmdbId = Number(body.tmdbId);
     if (!type || !Number.isSafeInteger(tmdbId) || tmdbId <= 0) throw new HttpError(400, 'Which film or show?');
-    const flags = {};
-    for (const k of ['saved', 'follow', 'auto']) if (body[k] != null) flags[k] = Boolean(body[k]);
-    if (flags.auto && !mayAutoDownload(user)) {
-      throw user.canDownload ? new HttpError(503, 'Automatic downloads need TMDB, qBittorrent and torrent search set up on the server.')
-        : new HttpError(403, 'Automatic downloads need download rights. Ask the server’s owner.');
-    }
+    const on = body.saved ?? body.follow;
     const old = watchlist.get(user.id, type, tmdbId);
-    const leaving = !(flags.saved ?? old?.saved) && !(type === 'tv' && (flags.follow ?? old?.follow));
-    if (leaving) {
+    const mine = () => watchlist.list(user.id).find((i) => i.type === type && i.id === tmdbId) || null;
+    if (on == null) return sendJson(res, 200, { item: mine() });
+    if (!on) {
       watchlist.remove(user.id, type, tmdbId);
       return sendJson(res, 200, { item: null });
     }
-    if (!tmdbOn()) throw new HttpError(503, 'Saving titles needs TMDB. Add TMDB_TOKEN to .env and restart.');
+    if (!tmdbOn()) throw new HttpError(503, 'My list needs TMDB. Add TMDB_TOKEN to .env and restart.');
     const details = await cachedTmdb(`/${type}/${tmdbId}`, {}, 3600 * 1000);
-    if (type === 'tv' && flags.follow && !old?.follow && flags.auto == null) flags.auto = mayAutoDownload(user);
-    // Following starts after the episode that aired last, so nothing older downloads by itself.
-    if (type === 'tv' && (flags.auto ?? old?.auto) && (!old?.auto || !old?.follow)) flags.baseline = baselineFrom(details);
+    // New episodes start after the one that aired last; what came before is the season to start with (watchlist.js).
+    const flags = { saved: true, ...(type === 'tv' && !old?.baseline ? { baseline: baselineFrom(details) } : {}) };
     watchlist.set(user.id, type, tmdbId, watchMeta(type, details), flags);
     setImmediate(checkWatchlist);
-    return sendJson(res, 200, { item: watchlist.list(user.id).find((i) => i.type === type && i.id === tmdbId) || null });
+    return sendJson(res, 200, { item: mine() });
   }
   if (p === '/api/watchlist/seen' && req.method === 'POST') {
     const tmdbId = Number((await readJson(req)).tmdbId);
