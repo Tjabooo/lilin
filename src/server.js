@@ -1776,6 +1776,27 @@ async function dubRound() {
       const key = versions.versionKey({ ...i, ...showOf.get(i.id), ...filmOf.get(i.id) });
       if (key) groups.set(key, [...(groups.get(key) || []), i]);
     }
+    // A season that's dubbed except a few episodes (a dual-audio pack that skipped episodes already here, from
+    // another release): fetch the dub of those episodes once, the same way a new download does.
+    const seasons = new Map();
+    for (const i of items) {
+      const id = /^tv-(\d+)$/.exec(showOf.get(i.id)?.show || '')?.[1];
+      if (!id || i.season == null || i.episode == null) continue;
+      const k = `${id}:${i.season}`;
+      if (!seasons.has(k)) seasons.set(k, { tmdbId: Number(id), season: i.season, all: new Map(), dubbed: new Set() });
+      const se = seasons.get(k);
+      se.all.set(i.episode, i);
+      if (isDualAudio(i.full) || dubGraft.hasGraft(i.full)) se.dubbed.add(i.episode);
+    }
+    for (const se of seasons.values()) {
+      const missing = [...se.all.keys()].filter((ep) => !se.dubbed.has(ep)).sort((a, b) => a - b);
+      if (!se.dubbed.size || !missing.length || dubGraft.tryOf(dubKey({ type: 'tv', ...se }))) continue;
+      const holder = accounts.holders(accounts.mediaKey(se.all.get(missing[0]).full))[0];
+      const user = (holder && accounts.userById(holder)) || accounts.ownerUser();
+      if (!user) continue;
+      console.log(`[dub] tv ${se.tmdbId} season ${se.season}: fetching the dub of episode${missing.length > 1 ? 's' : ''} ${missing.join(', ')}`);
+      queueDubFetch(user, { type: 'tv', tmdbId: se.tmdbId, season: se.season, episodes: missing, range: false });
+    }
     const pending = new Set();
     for (const group of groups.values()) {
       const dubs = group.filter((i) => isDualAudio(i.full));
