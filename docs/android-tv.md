@@ -5,7 +5,7 @@ Google TV built in, Chromecast with Google TV, Nvidia Shield and other Android T
 It runs the Samsung app itself: the same Rust app (`public/tv-rs`, WebAssembly drawing with WebGL, see
 `tv/rust/README.md`), loaded from the server at every start, so both TVs look and behave the same and a Lilin
 update reaches them without a new app. It speaks the TV's language (Swedish or English) and follows each person's
-theme from Settings → Appearance. A box without WebGL or WebAssembly gets the older JavaScript app (`public/tv`).
+theme from Settings → Appearance.
 
 ## Installing it on a TV
 
@@ -63,7 +63,7 @@ with another key won't install over the app (the TV would have to uninstall it f
 
 To ship a new version of the app itself, raise `code` (and `name`) in `tv/android/version.properties`, build and
 publish; installed apps update themselves (Android 12+) or offer it on their next start. Changes to `public/tv-rs`
-and `public/tv` need no new app at all. The launcher icon, splash and banner come from `tv/android/art/render.py`.
+need no new app at all. The launcher icon, splash and banner come from `tv/android/art/render.py`.
 
 `--install` with `TV=<address>` installs over adb instead (Developer options → USB/network debugging on the TV);
 `--debug` builds a debuggable app whose page shows up in `chrome://inspect`.
@@ -72,9 +72,8 @@ and `public/tv` need no new app at all. The launcher icon, splash and banner com
 
 - **A thin shell.** `MainActivity` shows `assets/shell.html` in a WebView whose address is the Lilin server, so the
   TV screens' requests are same-origin. The shell starts `/tv-rs/host.js` with the TV's language, the video
-  variant its decoder takes and `android: true`; if WebGL or WebAssembly is missing (or the Rust app stops) it
-  loads the JavaScript app (`tv.css`, `sv.js`, `logic.js`, `tv.js`) instead. `localStorage['lilin:tv-engine'] = 'js'`
-  forces the JavaScript one. The page is laid out at 1920×1080 and fitted to the screen; the TV's font-size setting
+  variant its decoder takes and `android: true`. If the Rust app stops, it reports why to the server (`[client] … tv-app
+  failed` in the log), says so and starts again (there is no other TV app). The page is laid out at 1920×1080 and fitted to the screen; the TV's font-size setting
   doesn't reflow it. Lilin's font ships inside the app, so the first screen draws in it at once.
 - **The player.** The TV app was written for Samsung's AVPlay. The shell gives it an object with the same methods
   (`webapis.avplay`), backed by Android's ExoPlayer (`VideoPlayer.java`) drawing into a surface *under* the page;

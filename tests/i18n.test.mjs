@@ -40,24 +40,16 @@ test('every line in the TV app has Swedish, with the same blanks', () => {
   const sandbox = { window: {} };
   vm.runInNewContext(read('public/tv/sv.js'), sandbox);
   const strings = sandbox.window.LilinTvStrings;
-  const lines = [...linesIn(read('public/tv/tv.js')), ...linesIn(read('public/tv/logic.js')),
-    ...linesIn(read('tv/android/app/src/main/assets/shell.html'))]; // the Android shell's update offer too
-  assert.ok(lines.length > 80);
+  const lines = linesIn(read('tv/android/app/src/main/assets/shell.html')); // the Android shell's update offer
+  assert.ok(lines.length > 0);
   for (const line of lines) assert.ok(line in strings, line);
   for (const [en, line] of Object.entries(strings)) assert.equal(blanks(line), blanks(en), en);
 });
 
-test('the TV app speaks Swedish when the shell loads sv.js, else English, and asks the server for the same', () => {
-  const sandbox = { LilinTvStrings: { 'Season {0}': 'Säsong {0}' } };
-  vm.runInNewContext(read('public/tv/logic.js'), sandbox);
-  assert.equal(sandbox.LilinTvLogic.T('Season {0}', 3), 'Säsong 3');
-  const english = {};
-  vm.runInNewContext(read('public/tv/logic.js'), english);
-  assert.equal(english.LilinTvLogic.T('Season {0}', 3), 'Season 3');
-  assert.match(read('public/tv/tv.js'), /'X-Lilin-Lang': window\.LilinTvStrings \? 'sv' : 'en'/);
-  assert.match(read('tv/tizen/shell.js'), /\/tv\/sv\.js/); // Samsung: always Swedish
+test('the Android shell loads sv.js on a Swedish TV and tells the Rust app its language', () => {
   const android = read('tv/android/app/src/main/assets/shell.html');
-  assert.match(android, /LILIN_SWEDISH \? \['sv\.js', 'logic\.js', 'tv\.js'\] : \['logic\.js', 'tv\.js'\]/); // Android: the TV's language
+  assert.match(android, /if \(window\.LILIN_SWEDISH\) script\(server \+ '\/tv\/sv\.js/);
+  assert.match(android, /lang: window\.LILIN_SWEDISH \? 'sv' : 'en'/);
 });
 
 test('server messages: exact lines, lines with blanks, and unknown text', () => {

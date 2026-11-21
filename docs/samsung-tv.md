@@ -6,13 +6,12 @@ The app is in Swedish (`public/tv/sv.js`).
 
 The app is written in Rust (`tv/rust`, built into `public/tv-rs/lilin_tv.wasm`): every screen is drawn with WebGL
 in one canvas, so the TV's slow CPU does no page layout or styling at all. The shell starts it through
-`public/tv-rs/host.js`. If a TV can't run it (no WebGL or WebAssembly) or it stops, the shell starts the
-JavaScript app in `public/tv` instead, which the Android TV app also uses. To force the JavaScript app on a TV, set
-`localStorage['lilin:tv-engine'] = 'js'` (over DevTools). See [tv/rust/README.md](../tv/rust/README.md).
+`public/tv-rs/host.js`. If it stops, it reports why to the server (`[client] … tv-app failed` in the log) and
+starts again; there is no other TV app. See [tv/rust/README.md](../tv/rust/README.md).
 
 ## 1. Have Lilin running
 
-The TV loads `public/tv-rs/` (and `public/tv/` as the fallback) from the server; those files are read directly, so
+The TV loads `public/tv-rs/` from the server; those files are read directly, so
 updating them needs no restart. Changes to the Rust app need `bash tv/rust/build.sh` before committing (the built
 `.wasm` is committed, so the server needs no Rust).
 

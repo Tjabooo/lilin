@@ -13,9 +13,32 @@
 
   function start(opts) {
     var server = String(opts.server || '').replace(/\/+$/, '');
-    var fail = opts.onFail || function () {};
-    // Which TV: the Samsung shell passes nothing (Swedish, HEVC, AVPlay); the Android TV shell passes its
-    // language, the play-link variant its decoder can take, and android: true (ExoPlayer behind the AVPlay shape).
+    // There's no other TV app to fall back on (the JavaScript one is gone): when this one stops, it tells the
+    // server why (logged as "[client] … tv-app failed: …"), says so on screen and hands back to the shell, whose
+    // onFail starts this app again (older shells try the JavaScript app, find it gone, and retry the same way).
+    var crashes = 0;
+    try { crashes = Number(root.sessionStorage.getItem('lilin:tv-crashes')) || 0; } catch (e) { /* blocked */ }
+    var old = document.getElementById('lilin-tv-stopped');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    function fail(why) {
+      try {
+        var headers = { 'Content-Type': 'application/json' }, tok = null;
+        try { tok = root.localStorage.getItem('lilin:tv-session'); } catch (e) { /* blocked */ }
+        if (tok && tok !== 'home') headers['X-Lilin-Session'] = tok;
+        fetch(server + '/api/client/report', { method: 'POST', headers: headers, credentials: 'omit',
+          body: JSON.stringify({ kind: 'tv-app', detail: String(why) }) }).catch(function () { /* offline */ });
+      } catch (e) { /* no fetch */ }
+      try { root.sessionStorage.setItem('lilin:tv-crashes', String(crashes + 1)); } catch (e) { /* blocked */ }
+      var box = document.createElement('div');
+      box.id = 'lilin-tv-stopped';
+      box.style.cssText = 'position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:9;display:flex;'
+        + 'align-items:center;justify-content:center;background:#0b0b0d;color:#e9e4da;font:500 40px sans-serif';
+      box.textContent = (opts.lang || 'sv') === 'sv' ? 'Lilin kunde inte starta. Försöker igen…' : 'Lilin couldn’t start. Trying again…';
+      document.body.appendChild(box);
+      // Longer each time in a row (up to a minute), so a broken update doesn't spin the TV.
+      var again = opts.onFail || function () { root.location.reload(); };
+      setTimeout(again, Math.min(60000, 2000 * Math.pow(2, Math.min(crashes, 5))));
+    }
     var platform = { lang: opts.lang || 'sv', play: opts.play || 'browser-hevc', android: Boolean(opts.android) };
     var failed = false;
     function giveUp(why) {
@@ -469,6 +492,8 @@
       document.body.appendChild(canvas);
       // The splash goes once Rust has drawn its first frame.
       setTimeout(function () { if (app && !failed) app.innerHTML = ''; }, 300);
+      // A minute without stopping: the next stop starts the wait from the beginning again.
+      setTimeout(function () { if (!failed) try { root.sessionStorage.removeItem('lilin:tv-crashes'); } catch (e) { /* blocked */ } }, 60000);
     }).catch(function (e) { giveUp(e && e.message || String(e)); });
   }
 

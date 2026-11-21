@@ -3,7 +3,7 @@
 // Behind Cloudflare Access (docs/remote-access.md) only /c/... answers without the Access login, which a
 // TV can't do. So an app built with https://<your Lilin>/c/tv as its address (tv/android) sends
 // everything here, and Lilin checks it like this instead:
-//   * the TV app's own files, the sign-in code (tv.js pairing) and the app's update are open;
+//   * the TV app's own files, the sign-in code (pairing) and the app's update are open;
 //   * the API calls the TV app makes need the TV's own session (X-Lilin-Session, from pairing), which
 //     the normal sign-in check enforces; anything else is "Not found";
 //   * cookies are dropped, so a browser's Lilin session never works through here.
@@ -11,7 +11,7 @@
 export const TV_GATEWAY = '/c/tv';
 
 const OPEN = [
-  /^\/tv\/[\w.-]+\.(js|css)$/,
+  /^\/tv\/sv\.js$/, // the Swedish lines the shells use (the Rust app has its own copy compiled in)
   /^\/tv-rs\/[\w.-]+\.(js|wasm|png)$/, // the Rust TV app (host.js, lilin_tv.wasm, wordmark.png)
   /^\/fonts\/[\w.-]+\.woff2$/,
   /^\/api\/(health|status)$/,
@@ -21,7 +21,7 @@ const OPEN = [
   /^\/android(\/|\.apk|\.json)?$/,
   /^\/play\//,
 ];
-// What the TV apps ask for: public/tv/tv.js and the Rust one, tv/rust/src (tests/tv-gateway.test.mjs checks every call).
+// What the TV app asks for: tv/rust/src (tests/tv-gateway.test.mjs checks every call).
 const SIGNED_IN = [
   /^\/api\/library$/,
   /^\/api\/me\/progress$/,
@@ -46,6 +46,7 @@ const SIGNED_IN = [
   /^\/api\/live\/[\w-]{1,40}\/tune$/,
   /^\/api\/watch\/clock$/,
   /^\/api\/watch\/[A-Za-z0-9_-]{24}\/(heartbeat|leave)$/,
+  /^\/api\/client\/report$/, // public/tv-rs/host.js: why the TV app stopped (only logged)
 ];
 
 // The path behind /c/tv, or null when the request isn't for the gateway.

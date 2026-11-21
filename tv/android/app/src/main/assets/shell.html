@@ -7,7 +7,7 @@
 <!--
   Lilin's Android TV shell (tv/android). The app shows this page with the Lilin server as its address,
   then loads the TV app from the server: the same one the Samsung app runs (public/tv-rs: Rust drawing with
-  WebGL), or the JavaScript one (public/tv) on a box without WebGL/WebAssembly. Before that,
+  WebGL). Before that,
   it gives them what the Samsung TV has and Android doesn't: an AVPlay-shaped player (the app's native one),
   tizen.application.exit and Samsung's key codes. It also asks for the server's address when the app was
   built without one, and offers the app's own updates.
@@ -181,9 +181,7 @@
     retryTimer = setTimeout(function () { waiting = false; load(); }, 5000);
   }
   var WORDMARK = document.querySelector('.shell .wm').outerHTML;
-  var ENGINE_KEY = 'lilin:tv-engine'; // "js" forces the JavaScript app (a way back if the Rust one misbehaves)
-  var jsStarted = false, started = false;
-  function engine() { try { return localStorage.getItem(ENGINE_KEY) || ''; } catch (e) { return ''; } }
+  var started = false;
   function script(src, done) {
     var s = document.createElement('script');
     s.async = false; // downloaded together, run in this order
@@ -193,35 +191,16 @@
     add(s);
   }
   function started1() { if (!started) { started = true; setTimeout(checkForUpdate, 4000); } }
-  // The JavaScript app: /tv/tv.css, (/tv/sv.js), /tv/logic.js, /tv/tv.js.
-  function loadJs() {
-    if (jsStarted) return;
-    jsStarted = true;
-    var v = Date.now();
-    var app = document.getElementById('app');
-    if (app && !app.firstChild) app.innerHTML = '<div class="shell">' + WORDMARK + '<i></i><p id="shell-note"></p></div>';
-    var css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = server + '/tv/tv.css?v=' + v;
-    add(css);
-    (window.LILIN_SWEDISH ? ['sv.js', 'logic.js', 'tv.js'] : ['logic.js', 'tv.js']).forEach(function (name, i, all) {
-      script(server + '/tv/' + name + '?v=' + v, function (err) {
-        if (err) { jsStarted = false; return retry(); }
-        if (i === all.length - 1) started1();
-      });
-    });
-  }
   // The Rust app (what the Samsung app runs): /tv-rs/host.js starts /tv-rs/lilin_tv.wasm. Swedish TVs also get
   // /tv/sv.js, for this page's own lines (the update offer).
   function load() {
-    if (engine() === 'js') return loadJs();
     var v = Date.now();
     if (window.LILIN_SWEDISH) script(server + '/tv/sv.js?v=' + v, function () { /* English if it fails */ });
     script(server + '/tv-rs/host.js?v=' + v, function (err) {
       if (err || !window.LilinTvHost) return retry();
       window.LilinTvHost.start({
         server: server, lang: window.LILIN_SWEDISH ? 'sv' : 'en', play: window.LILIN_TV_PLAY, android: true,
-        onFail: function () { loadJs(); },
+        onFail: retry,
       });
       started1();
     });
