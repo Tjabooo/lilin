@@ -1738,7 +1738,9 @@ const DUB_RETRY_MS = 7 * 24 * 3600 * 1000, DUB_TRIES = 6;
 const dubKey = (b) => `${b.type}:${b.tmdbId}:${b.season ?? ''}`;
 function queueDubFetch(user, body) {
   const key = dubKey(body), prev = dubGraft.tryOf(key);
-  const episodes = prev?.body?.episodes && body.episodes ? [...new Set([...prev.body.episodes, ...body.episodes])] : null;
+  // Episodes asked for now and before; a whole season (no list) either time stays the whole season.
+  const episodes = !body.episodes ? null : !prev ? body.episodes
+    : prev.body?.episodes ? [...new Set([...prev.body.episodes, ...body.episodes])].sort((a, b) => a - b) : null;
   dubGraft.noteTry(key, { user: user.id, body: { ...body, episodes, range: Boolean(episodes && (prev?.body?.range || body.range)) }, count: 0, at: 0 });
   setTimeout(() => runDubFetch(key), 2 * 60 * 1000).unref?.();
 }

@@ -23,11 +23,13 @@ const MIN_SCORE = 0.45;       // correlation a match needs to count
 const TMP_TAG = '.lilin-tmp'; // convert.js isTempFile: scans skip it
 
 let stateFile = null;
-let state = { grafted: {}, failed: {}, tries: {} };
+let state = { v: 2, grafted: {}, failed: {}, tries: {} };
 
 export function init({ dataDir }) {
   stateFile = path.join(dataDir, 'dub-graft.json');
   try { state = { grafted: {}, failed: {}, tries: {}, ...JSON.parse(fs.readFileSync(stateFile, 'utf8')) }; } catch { /* first run */ }
+  // v2 (2026-11-21): fetches queued before then lost their episode list and asked for whole seasons. Start over.
+  if (!state.v) { state.tries = {}; state.v = 2; save(); }
 }
 function save() {
   if (!stateFile) return;
