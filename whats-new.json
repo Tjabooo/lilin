@@ -1,5 +1,29 @@
 [
 {
+  "id": "2026-11-21-next-episode-late-subs",
+  "date": "2026-11-21",
+  "title": "Next episode, every episode",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Next episode shows up even when the subtitles arrive late",
+      "text": "On shows where the end credits change every episode, Next episode could go missing when an episode's subtitles were still downloading as you pressed play. The player now checks again while you watch, on the TV app too."
+    }
+  ]
+},
+{
+  "id": "2026-11-21-anime-dubs",
+  "date": "2026-11-21",
+  "title": "English dubs, built in",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Anime get their English dub as an audio track",
+      "text": "There's no Dubbed choice to make any more. When you add an anime, Lilin also looks for its English dub and adds it to the episodes you already have, lined up with the picture. Switch between Japanese and English under Audio in the player. If a dub isn't out yet, Lilin checks again every week for a while."
+    }
+  ]
+},
+{
   "id": "2026-11-21-next-episode-credits",
   "date": "2026-11-21",
   "title": "Next episode at the credits",

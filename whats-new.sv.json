@@ -1,4 +1,22 @@
 {
+  "2026-11-21-next-episode-late-subs": {
+    "title": "Nästa avsnitt, varje avsnitt",
+    "items": {
+      "Next episode shows up even when the subtitles arrive late": {
+        "title": "Nästa avsnitt visas även när undertexterna kommer sent",
+        "text": "I serier där eftertexterna byts varje avsnitt kunde Nästa avsnitt saknas om avsnittets undertexter fortfarande laddades ner när du tryckte på spela. Spelaren kollar nu igen medan du tittar, även i TV-appen."
+      }
+    }
+  },
+  "2026-11-21-anime-dubs": {
+    "title": "Engelsk dubbning, inbyggd",
+    "items": {
+      "Anime get their English dub as an audio track": {
+        "title": "Anime får sin engelska dubbning som ljudspår",
+        "text": "Du behöver inte längre välja Dubbat. När du lägger till en anime letar Lilin också efter den engelska dubbningen och lägger in den i avsnitten du redan har, i synk med bilden. Byt mellan japanska och engelska under Ljud i spelaren. Om dubbningen inte har kommit ut än kollar Lilin igen varje vecka ett tag."
+      }
+    }
+  },
   "2026-11-21-next-episode-credits": {
     "title": "Nästa avsnitt vid eftertexterna",
     "items": {

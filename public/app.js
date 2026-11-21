@@ -2357,7 +2357,6 @@ const TITLE_ACTIONS = {
   },
   getVersion: (c) => [icon('plus'), T('Get another version'), () => c.fa?.revealAdvanced()],
   advanced: (c) => [icon('search'), T('Advanced options'), () => c.fa?.revealAdvanced()],
-  dubbed: (c) => (c.fa || c.tvd) && [icon('plus'), T('Dubbed'), () => (c.fa ? c.fa.chooseDub() : c.tvd.dubBtn.click()), 'title-dubbed'],
   identify: (c) => c.file() && [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
   delete: (c) => {
     if (!c.tv) return c.file() && [icon('trash'), T('Delete'), (o) => openDelete(c.file(), o), 'is-danger'];
@@ -2370,14 +2369,6 @@ const TITLE_ACTIONS = {
   },
   details: (c) => [icon('download'), T('Download details'), (o) => openTransferDetails(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title, transfers: c.stateOf().transfers }, o)],
 };
-// ⋯'s Dubbed shows once the server says it's anime; a ⋯ with nothing else in it hides with it.
-function showDubbed(on, within = $('#sheet-body')) {
-  const item = within.querySelector('.title-dubbed');
-  if (!item) return;
-  item.hidden = !on;
-  const menu = item.closest('.row-more');
-  if (menu) menu.hidden = ![...menu.querySelectorAll('.row-menu-item')].some((b) => !b.hidden);
-}
 // The show's Play: carry on where you left off, else the next episode (or the first), here or fetched.
 function showPlayButton(c, lead) {
   const x = c.t.id != null ? showNextTarget(c.t, c.up) : c.up && !c.up.f.converting ? { t: c.t, season: c.up.f.season, episode: c.up.f.episode, kind: c.up.kind, f: c.up.f, progress: c.up.progress } : null;
@@ -2446,7 +2437,6 @@ function renderTitle() {
   }
   const items = model.more.map((id) => TITLE_ACTIONS[id](c)).filter(Boolean);
   if (items.length) bar.append(rowMenu(T('More for {0}', t.title), items));
-  showDubbed(Boolean(c.fa?.dub.anime || c.tvd?.dub.anime), bar);
   // The hero stays while the same title is redrawn, so a playing trailer (and the picture's fade) carries on.
   const heroKey = `${t.type}:${t.id}:${t.backdrop}`;
   if (!titleView.hero || titleView.heroKey !== heroKey) {
@@ -3612,41 +3602,16 @@ function advancedOptions(key, { exact, onExact, browse }) {
   return box;
 }
 
-// Anime only: Audio, original or Dubbed. Dubbed looks for dual-audio releases and nothing else.
-// Starts on what this person last chose for the title; hidden until the server says it's anime.
-const dubChoices = new Map(); // tmdb id -> 'sub' | 'dub', for this session
-const isDubbedCopy = (f) => Boolean(f.versionDubbed || f.versions?.some((v) => v.versionDubbed));
-function audioChoice(t, id, onChange) {
-  const sel = h('select', { class: 'sub-select', id, 'aria-describedby': `${id}-hint` },
-    h('option', { value: 'sub' }, T('Original with subtitles')), h('option', { value: 'dub' }, T('Dubbed')));
-  // Placed by the caller: in the season panel it runs under the whole row, so it can't stretch the field beside it.
-  const hint = h('p', { class: 'adv-hint dl-audio-hint', id: `${id}-hint`, hidden: true }, T('Only dual-audio releases, with English and Japanese. If there’s none, nothing is added.'));
-  const field = h('div', { class: 'dl-field dl-audio', hidden: true }, h('label', { for: id }, T('Audio')), sel);
-  const choice = { field, hint, anime: false, dubbing: () => choice.anime && sel.value === 'dub', lock: (on) => { sel.disabled = on; },
-    choose: (value) => { sel.value = value; dubChoices.set(t.id, value); paint(); }, focus: () => sel.focus(),
-    remember: () => (choice.anime ? api(`/api/title/${t.type}/${t.id}/dub`, jsonPost({ dubbed: choice.dubbing() })).catch(() => {}) : null) };
-  const paint = () => { hint.hidden = sel.value !== 'dub'; onChange(); };
-  sel.addEventListener('change', () => { dubChoices.set(t.id, sel.value); paint(); });
-  if (canGet() && t.id) api(`/api/title/${t.type}/${t.id}/dub`).then(({ anime, dubbed }) => {
-    if (!anime) return;
-    choice.anime = true;
-    field.hidden = false;
-    sel.value = dubChoices.get(t.id) || (dubbed ? 'dub' : 'sub');
-    paint();
-  }).catch(() => { /* no choice offered: an ordinary download */ });
-  return choice;
-}
-
 // Films: Play when it's here (or on the server), else one Download press. Then state and progress.
 // The title page puts root.play and root.get in its button bar; one gold button at a time: Play when there's
 // something to play (not while it's being prepared), else Add, else Play now in the download card.
 // stateOf: where the page reads the film's files and downloads (titleState, or the Library entry for a video
 // without a TMDB id).
+// A copy with an English dub: a dual-audio release, or one the dub was added to (src/dub-graft.js).
+const isDubbedCopy = (f) => Boolean(f.versionDubbed || f.dubGrafted || f.versions?.some((v) => v.versionDubbed || v.dubGrafted));
 const filmExact = new Map(); // tmdb id -> exact resolution for this session
 function filmActions(t, { stateOf = () => titleState(t) } = {}) {
-  const dub = audioChoice({ ...t, type: 'movie' }, `film-audio-${t.id}`, () => root._update?.());
-  dub.field.append(dub.hint);
-  const body = () => ({ type: 'movie', tmdbId: t.id, ...(filmExact.get(t.id) ? { quality: filmExact.get(t.id) } : {}), ...(dub.anime ? { dub: dub.dubbing() } : {}) });
+  const body = () => ({ type: 'movie', tmdbId: t.id, ...(filmExact.get(t.id) ? { quality: filmExact.get(t.id) } : {}) });
   const play = h('button', { type: 'button', class: 'play-btn action-btn', 'data-act': 'play' });
   const get = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon', 'data-act': 'download' }, icon('plus'), h('span', {}, T('Add to library')));
   const status = h('p', { class: 'action-status', role: 'status' });
@@ -3654,17 +3619,16 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
   // Transfers are the owner's to see (play first): members only ever meet Play.
   const tools = Boolean(state.status.admin);
   const progress = tools ? transferSummary(() => stateOf().transfers, t.title, { lead: () => false }) : null;
-  const root = h('div', { class: 'title-film' }, dub.field, progress, h('div', { class: 'action-result' }, status, retry));
-  root.play = play; root.get = get; root.buttons = [play]; root.dub = dub;
+  const root = h('div', { class: 'title-film' }, progress, h('div', { class: 'action-result' }, status, retry));
+  root.play = play; root.get = get; root.buttons = [play];
   const advanced = canGet() && t.id ? advancedOptions(`movie-${t.id}`, {
     exact: filmExact.get(t.id) || '', onExact: (v) => filmExact.set(t.id, v),
     browse: () => ({ query: [t.title, t.year].filter(Boolean).join(' '), type: 'movie', movieId: t.id, canonicalTitle: t.title, strict: true }),
   }) : null;
   if (advanced) root.append(advanced);
-  // Advanced options and Dubbed wait behind the page's ⋯ until asked for (or opened before).
-  let showAdvanced = false, showDub = false;
+  // Advanced options wait behind the page's ⋯ until asked for (or opened before).
+  let showAdvanced = false;
   root.revealAdvanced = () => { if (!advanced) return; showAdvanced = true; advanced.open = true; advancedOpen.set(`movie-${t.id}`, true); root._update(); advanced.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
-  root.chooseDub = () => { showDub = true; dub.choose('dub'); root._update(); dub.focus(); };
   // Not out to stream or buy yet: no Add (only cinema recordings exist); Save is the page's button then.
   // The card's date guesses first; the page's release info (digital/disc dates) settles it.
   const day = String(t.date || t.releaseDate || '').slice(0, 10) || null;
@@ -3678,19 +3642,17 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
     if (was !== Boolean(soon)) updateOpenTitle(); // the page's gold button may change (Save instead of Add)
   }).catch(() => {});
   // Play, whatever it takes: yours plays, someone else's copy plays at once, anything else gets ready in the player.
-  // Dubbed: only a dual-audio copy counts, so a subtitled one here doesn't stop the dub being fetched.
   let playing = false;
   play.addEventListener('click', async (e) => {
     if (play.getAttribute('aria-disabled') === 'true' || playing) return;
-    const s = stateOf(), wantDub = dub.dubbing();
-    const mine = wantDub ? s.ready.find((f) => isDubbedCopy(f) && !f.converting) : s.ready.find((f) => !f.converting);
+    const s = stateOf();
+    const mine = s.ready.find((f) => !f.converting);
     if (mine) return openPlayer(mine);
     playing = true; play.setAttribute('aria-disabled', 'true');
     try {
-      if (dub.anime) await dub.remember();
-      const theirs = wantDub ? s.onServer.find(isDubbedCopy) : s.onServer[0];
+      const theirs = s.onServer[0];
       if (theirs) await addAndPlay(theirs);
-      else await playTitle({ t }, e.currentTarget, { body: canGet() && t.id ? body() : null, dub: wantDub });
+      else await playTitle({ t }, e.currentTarget, { body: canGet() && t.id ? body() : null });
     } catch (err) { status.textContent = err.message; } finally { playing = false; root._update(); }
   });
   let adding = false;
@@ -3699,11 +3661,11 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
   get.addEventListener('click', async () => {
     if (get.getAttribute('aria-disabled') === 'true') return;
     const s = stateOf();
-    const theirs = dub.dubbing() ? s.onServer.find(isDubbedCopy) : s.onServer[0];
-    if ((s.ready.length && !dub.dubbing()) || !theirs) return start();
+    const theirs = s.onServer[0];
+    if (s.ready.length || !theirs) return start();
     // Someone else already has it here: add their copy instead of downloading another.
     adding = true; status.textContent = ''; root._update();
-    try { await dub.remember(); await addFromServer([theirs]); } catch (err) { status.textContent = err.message; } finally { adding = false; root._update(); }
+    try { await addFromServer([theirs]); } catch (err) { status.textContent = err.message; } finally { adding = false; root._update(); }
   });
   retry.addEventListener('click', start);
   root._update = () => {
@@ -3721,22 +3683,17 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
     }
     // "Add to library" either way: someone else's copy here is added at once, otherwise Lilin fetches one.
     // Shown only when there's nothing to play and nothing on its way; while it runs it says what it's doing.
-    // Dubbed: only a dual-audio copy counts as having it, so a subtitled one doesn't hide the button.
-    const wantDub = dub.dubbing() && !s.ready.some(isDubbedCopy);
-    const addable = wantDub ? s.onServer.some(isDubbedCopy) : !file && s.onServer.length > 0;
+    const addable = !file && s.onServer.length > 0;
     get.hidden = true; // the owner reaches it from ⋯ (Download without playing); Play does the rest
-    get.lastChild.textContent = adding ? T('Adding…') : cmd?.busy ? commandStep(cmd) : wantDub && file ? T('Add dubbed version') : T('Add to library');
+    get.lastChild.textContent = adding ? T('Adding…') : cmd?.busy ? commandStep(cmd) : T('Add to library');
     const waiting = Boolean(soon && !addable && !playable && !s.active.length && !cmd?.busy && !adding && t.id);
     // The one gold button: Play (not while it's being prepared).
     const lit = !play.hidden && !converting;
     play.classList.toggle('play-btn', lit); play.classList.toggle('chip', !lit);
     if (advanced) advanced.hidden = waiting || !(showAdvanced || advanced.open);
-    dub.field.hidden = !dub.anime || !canGet() || (Boolean(file) && !showDub); // yours already: Dubbed is in ⋯
-    showDubbed(dub.anime);
-    dub.lock(Boolean(cmd?.busy || adding));
     get.setAttribute('aria-disabled', String(Boolean(cmd?.busy || adding || waiting)));
     root.setAttribute('aria-busy', String(Boolean(cmd?.busy)));
-    const result = (!playable || dub.dubbing()) && commandResult(cmd);
+    const result = !playable && commandResult(cmd);
     const line = waiting ? comingSoonText(soon) : result?.text || '';
     if (!addable && status.textContent !== line) status.textContent = line;
     status.classList.toggle('is-error', Boolean(result?.retry));
@@ -3749,7 +3706,6 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
 }
 
 // Shows: when someone else already has episodes here that you don't, one press adds all of them.
-// An anime also gets Add dubbed beside it: the panel, set to Dubbed, since those copies may be subtitled.
 // Otherwise the button opens the panel; the season and quality chosen stay while it's open.
 // Long seasons (Black Clover's 170, One Piece's 197) can download a range of episodes instead.
 const showPanels = new Map(); // tmdb id -> { open, season, profile, exact, last: { [season]: command key }, ranges: { [season]: { on, from, to } } }
@@ -3762,7 +3718,6 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   const panelId = `dl-panel-${t.id}`;
   const toggle = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon title-add', 'data-act': 'download', 'aria-expanded': String(ps.open), 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add to library')));
   const paintToggle = () => { const lit = lead && !ps.open; toggle.classList.toggle('play-btn', lit); toggle.classList.toggle('action-btn', lit); toggle.classList.toggle('chip', !lit); };
-  const dub = audioChoice({ ...t, type: 'tv' }, `${panelId}-audio`, () => { addError = ''; panel._update?.(); });
   const seasonSel = h('select', { class: 'sub-select', id: `${panelId}-season`, disabled: true }, h('option', {}, T('Loading seasons…')));
   const avail = h('p', { class: 'dl-avail' });
   const note = h('p', { class: 'dl-note' });
@@ -3781,7 +3736,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   const panel = h('div', { class: 'dl-panel', id: panelId, hidden: !ps.open },
     h('div', { class: 'dl-fields' },
       h('div', { class: 'dl-field' }, h('label', { for: seasonSel.id }, T('Season')), seasonSel),
-      dub.field, scopeField, rangeRow, dub.hint),
+      scopeField, rangeRow),
     note, avail, submit, quiet, h('div', { class: 'dl-result' }, status, retry),
     advancedOptions(`tv-${t.id}`, {
       exact: ps.exact, onExact: (v) => { ps.exact = v; },
@@ -3819,23 +3774,13 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   };
   toggle.addEventListener('click', (e) => {
     if (addingAll) return;
-    // Not when they've chosen Dubbed: those may be subtitled copies, and the panel offers the dub.
-    const extra = dub.dubbing() ? [] : serverOnlyEpisodes(titleState(t));
+    const extra = serverOnlyEpisodes(titleState(t));
     if (extra.length) return addEverything(extra);
     ps.open = !ps.open;
     paintToggle();
     toggle.setAttribute('aria-expanded', String(ps.open));
     panel.hidden = !ps.open;
     if (ps.open) { load(); if (e.detail === 0) seasonSel.focus(); } // keyboard: straight to Season
-  });
-  const dubBtn = h('button', { type: 'button', class: 'chip action-btn stroke-icon dl-add-dubbed', hidden: true, 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add dubbed')));
-  dubBtn.addEventListener('click', () => {
-    dub.choose('dub');
-    ps.open = true;
-    panel.hidden = false;
-    load();
-    panel._update();
-    dub.focus();
   });
   seasonSel.addEventListener('change', () => { ps.season = Number(seasonSel.value); ps.touched = true; addError = ''; panel._update(); });
   // The season's range state, its TMDB numbering (first..last) and the episodes it asks for.
@@ -3859,7 +3804,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit.click(); });
   }
   const body = (episodes = null, range = false) => ({ type: 'tv', tmdbId: t.id, season: ps.season,
-    ...(ps.exact ? { quality: ps.exact } : {}), ...(episodes?.length ? { episodes } : {}), ...(range ? { range: true } : {}), ...(dub.anime ? { dub: dub.dubbing() } : {}) });
+    ...(ps.exact ? { quality: ps.exact } : {}), ...(episodes?.length ? { episodes } : {}), ...(range ? { range: true } : {}) });
   const run = (episodes, range = false) => {
     if (submit.getAttribute('aria-disabled') === 'true' || !ps.season) return;
     const b = body(episodes, range);
@@ -3872,7 +3817,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     if (!submit._add) return ranged() ? (rangeList().length ? run(rangeList(), true) : null) : run(null);
     if (submit.getAttribute('aria-disabled') === 'true') return;
     adding = true; panel._update();
-    try { await dub.remember(); await addFromServer(submit._add); } catch (err) { addError = err.message; } finally { adding = false; panel._update(); }
+    try { await addFromServer(submit._add); } catch (err) { addError = err.message; } finally { adding = false; panel._update(); }
   });
   retry.addEventListener('click', () => run(retry._episodes));
   panel._update = () => {
@@ -3892,10 +3837,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
         if (document.activeElement !== input) input.value = String(v);
       }
     }
-    // Dubbed: the counts and buttons below go by dual-audio copies only; a subtitled season isn't the dub.
-    const dubbing = dub.dubbing();
-    const full = titleState(t);
-    const s = dubbing ? { ...full, ready: full.ready.filter(isDubbedCopy), onServer: full.onServer.filter(isDubbedCopy), active: full.active.filter((d) => d.dualAudio) } : full;
+    const full = titleState(t), s = full;
     const ready = new Set(s.ready.filter((f) => f.season === n && f.episode != null).map((f) => f.episode));
     const server = new Set(s.onServer.filter((f) => f.season === n && f.episode != null && !ready.has(f.episode)).map((f) => f.episode));
     const downloading = new Set(s.active.flatMap((d) => (d.episodes || []).filter((ep) => ep.season === n && !ep.available).map((ep) => ep.episode)).filter((e) => !ready.has(e)));
@@ -3923,8 +3865,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
       : useRange ? T('{0} of {1}–{2}. A season batch still serves a range: episodes outside it are skipped.', plural(picked.length, 'episode'), bounds().first, bounds().last)
       : T('Lilin picks a good copy of the season and skips episodes you already have.');
     // The show's button: "Add to library" until some of it is yours, then "More episodes" for the rest.
-    const addsAll = !dubbing && serverOnlyEpisodes(full).length > 0;
-    dubBtn.hidden = !(addsAll && dub.anime && !addingAll);
+    const addsAll = serverOnlyEpisodes(full).length > 0;
     const toggleText = addingAll ? T('Adding…') : full.ready.length && !addsAll ? T('More episodes') : T('Add to library');
     if (toggle._mode !== toggleText) {
       toggle._mode = toggleText;
@@ -3934,10 +3875,8 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
     if (addsAll) toggle.removeAttribute('aria-expanded'); // it adds right away, so there's no panel to expand
     else toggle.setAttribute('aria-expanded', String(ps.open));
     paintToggle();
-    showDubbed(dub.anime);
     seasonSel.disabled = locked || !seasons?.length;
     scopeSel.disabled = fromIn.disabled = toIn.disabled = locked;
-    dub.lock(locked);
     panel.setAttribute('aria-busy', String(locked));
     const result = commandResult(cmd);
     const text = addError || result?.text || '';
@@ -3950,7 +3889,7 @@ function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
   commandViews.add(panel);
   panel._update();
   if (ps.open) load();
-  return { toggle, dubBtn, panel, dub };
+  return { toggle, panel };
 }
 
 // Upgrade quality: the season is here but looks soft. A clearly better pack replaces it episode by episode.
@@ -8376,7 +8315,11 @@ function skipIntro() {
 skipIntroEl.addEventListener('click', (e) => { e.stopPropagation(); skipIntro(); });
 for (const event of ['timeupdate', 'seeking', 'seeked', 'play', 'ended', 'emptied']) video.addEventListener(event, updateSkipIntro);
 
-async function loadPlayerCredits(session) {
+// Asked again while neither answer is known: the guess needs the episode's subtitles, and those are often
+// still being downloaded when playback starts (Rings of Power E05 got no Next episode that way).
+const CREDITS_RETRY_MS = 60_000;
+const CREDITS_RETRIES = 20;
+async function loadPlayerCredits(session, tries = 0) {
   try {
     const data = await api(`/api/media/${session.kind}/${encodeURIComponent(mediaId(session))}/credits`, { signal: session.abort.signal });
     if (current !== session) return;
@@ -8384,6 +8327,10 @@ async function loadPlayerCredits(session) {
     session.creditsGuess = Number.isFinite(data.creditsGuess) && data.creditsGuess > 0 ? data.creditsGuess : null;
     updateUpNext();
   } catch { /* Unknown credits start: Up next waits for the end of the file. */ }
+  if (current !== session || session.abort.signal.aborted) return;
+  if (session.creditsAt == null && session.creditsGuess == null && tries < CREDITS_RETRIES) {
+    setTimeout(() => { if (current === session) loadPlayerCredits(session, tries + 1); }, CREDITS_RETRY_MS);
+  }
 }
 
 function updateUpNext() {

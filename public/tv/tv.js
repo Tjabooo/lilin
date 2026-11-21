@@ -2415,11 +2415,15 @@
     }
     function paintUpNext() {
       var next = nextUp();
-      var on = Boolean(next && !s.dismissed && L.isNextTime(s.time, s.duration, s.creditsAt, s.ended));
+      var real = L.isNextTime(s.time, s.duration, s.creditsAt, s.ended);
+      // Where the dialogue ends (server guess) shows the card when the real credits start is unknown, but
+      // only the real start or the end of the file counts down.
+      var guessAt = L.nextPromptAt(s.duration, s.creditsAt) === null ? L.nextPromptAt(s.duration, s.creditsGuess) : null;
+      var on = Boolean(next && !s.dismissed && (real || (guessAt !== null && s.time >= guessAt)));
       if (upNext.classList.contains('show') !== on) upNext.classList.toggle('show', on);
-      var counting = on && !s.busy && autoChain < L.AUTOPLAY_CHAIN && autoplayOn();
+      var counting = on && real && !s.busy && autoChain < L.AUTOPLAY_CHAIN && autoplayOn();
       if (counting && s.autoLeft == null) startCountdown();
-      else if (!on) stopCountdown();
+      else if (!on || !real) stopCountdown();
       if (!on) return;
       var title = [L.episodeLabel(next), next.episodeName].filter(Boolean).join(' · ');
       var t = upNext.querySelector('.up-next-title');
@@ -2754,7 +2758,16 @@
       if (f.part) return; // no intro marks until it's whole
       var base = '/api/media/lib/' + encodeURIComponent(f.id);
       api(base + '/intro').then(function (d) { if (d.intro && d.intro.end - d.intro.start >= 5) s.intro = d.intro; }).catch(function () {});
-      api(base + '/credits').then(function (d) { if (d.creditsAt > 0) s.creditsAt = d.creditsAt; }).catch(function () {});
+      // Asked again while neither is known: the guess needs subtitles that are often still downloading.
+      var creditsTries = 0;
+      (function askCredits() {
+        api(base + '/credits').then(function (d) {
+          if (d.creditsAt > 0) s.creditsAt = d.creditsAt;
+          if (d.creditsGuess > 0) s.creditsGuess = d.creditsGuess;
+        }).catch(function () {}).then(function () {
+          if (!s.closed && !(s.creditsAt > 0) && !(s.creditsGuess > 0) && creditsTries++ < 20) setTimeout(askCredits, 60000);
+        });
+      })();
     }
 
     show({ el: el, leave: close, key: function (code) {
