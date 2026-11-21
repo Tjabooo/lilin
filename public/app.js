@@ -6134,13 +6134,16 @@ const SUB_SYNC_TEXT = {
   unsure: T('Couldn’t check the timing automatically.'),
   exact: T('Made for this exact file.'),
   undone: T('Using the original timing.'),
+  waiting: T('The timing is checked once the download has finished.'),
 };
 const subSyncBusy = (s) => s?.state === 'queued' || s?.state === 'syncing';
 const fmtSubShift = (s) => `${Math.round(Math.abs(s) * 100) / 100} s ${s < 0 ? T('earlier') : T('later')}`;
 
 function subSyncText(s) {
   if (s.state === 'failed') return T('Timing check failed: {0}', s.error || T('unknown error'));
+  if (s.state === 'trusted') return s.growing ? T('From the video itself. More lines are added as it downloads.') : null;
   if (s.state !== 'synced') return SUB_SYNC_TEXT[s.state];
+  if (s.replaced) return T('The first subtitles didn’t fit this video, so Lilin found ones that do.');
   return s.offset != null
     ? T('Timing fixed: lines moved {0}{1}{2}.', fmtSubShift(s.offset), s.ratio && s.ratio !== 1 ? T(', adjusted for frame rate') : '', s.parts > 1 ? T(', in {0} parts (the subtitles were made for a differently cut version)', s.parts) : '')
     : null;
@@ -6170,7 +6173,7 @@ function subSyncItems(f, session) {
   ];
   const s = ccSync;
   if (!ccActive || !s) return [];
-  const text = s.state === 'trusted' ? null : subSyncText(s);
+  const text = subSyncText(s);
   const lang = ccLangs.find((l) => l.code === ccActive);
   const action = (label, act) => h('button', { class: 'cc-item cc-action', onclick: () => subSyncAction(f, session, lang, act) }, label);
   return [
@@ -6210,16 +6213,19 @@ async function subSyncAction(f, session, l, act) {
   } catch (err) { if (current === session && generation === subtitleGeneration && ccActive === l.code) toast(err.message); }
 }
 
-async function watchSubSync(f, session, l, wasBusy = false) {
+async function watchSubSync(f, session, l, wasBusy = false, lastStamp = null) {
   const generation = subtitleGeneration;
   clearTimeout(ccSyncTimer);
   let s;
   try { s = await api(`/api/subs/sync?kind=${f.kind}&id=${encodeURIComponent(mediaId(f))}&lang=${l.code}`); } catch { return; }
   if (current !== session || generation !== subtitleGeneration || ccActive !== l.code) return;
   ccSync = s;
+  // Read from a video that's still downloading: the server reads it again now and then; the track follows.
+  const grew = lastStamp && s.stamp && s.stamp !== lastStamp;
+  if (!subSyncBusy(s) && s.growing) ccSyncTimer = setTimeout(() => watchSubSync(f, session, l, false, s.stamp), 90000);
   if (subSyncBusy(s)) {
     ccSyncTimer = setTimeout(() => watchSubSync(f, session, l, true), 3000);
-  } else if (wasBusy && ['synced', 'ok'].includes(s.state)) {
+  } else if (grew || (wasBusy && ['synced', 'ok'].includes(s.state))) {
     reloadSubTrack(l);
   } else if (wasBusy && s.state === 'failed') {
     toast(T('Couldn’t check the subtitle timing'));

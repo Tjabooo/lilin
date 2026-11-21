@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-21-subtitles-fit",
+  "date": "2026-11-21",
+  "title": "Subtitles that fit",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Subtitles from the video itself come first",
+      "text": "Many videos come with their own subtitles, made for exactly that copy. Lilin now always uses those before downloading any, even while a video is still downloading: lines keep appearing as more of it arrives."
+    },
+    {
+      "kind": "fix",
+      "title": "Out-of-sync subtitles get swapped",
+      "text": "Downloaded subtitles are sometimes made for a different cut, with scenes in another order. When Lilin can’t line them up, it now tries other subtitles for the same episode or film and keeps the first that fits. Subtitles picked while a video was still downloading are also checked once it’s done."
+    }
+  ]
+},
+{
   "id": "2026-11-21-settings-search",
   "date": "2026-11-21",
   "title": "Search your settings",

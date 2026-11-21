@@ -59,6 +59,8 @@ const CHECK_VERSION = 'v3|'; // bump to re-check files after the audio checks ch
 const SYNC_TOLERANCE = 0.04; // seconds; below one video frame
 let onConvertedHook = null;
 let onSidecarHook = null;
+let replaceableHook = null; // subtitle file → may the video's own track replace it?
+let retireHook = null;      // subtitle file about to be replaced → keep a copy
 let fixDir = null;     // cache directory for audio-fixed copies
 // Conversions write their temporary MP4 on a faster scratch drive when it has room (SCRATCH_DIR), then
 // copy the finished file next to the original in one sequential write. scratchRoomFn() = free bytes.
@@ -141,7 +143,8 @@ function plannedSidecars(file, subs) {
       }
     }
     used.add(name);
-    if (fs.existsSync(name)) continue;
+    // Kept, unless it's a downloaded file (or a partial read during Play now): the video's own track wins.
+    if (fs.existsSync(name) && !replaceableHook?.(name)) continue;
     out.push({ index: s.index, target: name, tmp: name.replace(/\.srt$/, `${TMP_TAG}.srt`) });
   }
   return out;
@@ -942,8 +945,13 @@ async function convert(job, slot) {
 async function finishConvert({ job, slot, file, output, tmp, localTmp, sidecars, shift, releaseScratch, started = 0 }) {
   for (const sc of sidecars) {
     try {
-      if (fs.existsSync(sc.target) || !fs.statSync(sc.tmp).size) fs.rmSync(sc.tmp, { force: true });
-      else { fs.renameSync(sc.tmp, sc.target); onSidecarHook?.(sc.target); }
+      const taken = fs.existsSync(sc.target);
+      if ((taken && !replaceableHook?.(sc.target)) || !fs.statSync(sc.tmp).size) fs.rmSync(sc.tmp, { force: true });
+      else {
+        if (taken) { retireHook?.(sc.target); console.log(`[convert] ${path.basename(sc.target)}: replaced by the video's own track`); }
+        fs.renameSync(sc.tmp, sc.target);
+        onSidecarHook?.(sc.target);
+      }
     } catch { fs.rmSync(sc.tmp, { force: true }); }
   }
   // A restart in the middle of an earlier finish (picked up from a run folder): the copy may already be in place.
@@ -1426,8 +1434,10 @@ export function convertSoon() {
 
 // listCandidates(): Promise<[{ file, deleteOriginal }] | null>
 // null means the inventory is temporarily unavailable; skip the whole scan, including destructive cache cleanup.
-export async function startConverter({ dataDir, cacheDir = path.join(dataDir, 'cache'), listCandidates, onConverted, onSidecar, scratchDir: scratch = null, scratchRoom = null }) {
+export async function startConverter({ dataDir, cacheDir = path.join(dataDir, 'cache'), listCandidates, onConverted, onSidecar, replaceable = null, retire = null, scratchDir: scratch = null, scratchRoom = null }) {
   onSidecarHook = onSidecar || null;
+  replaceableHook = replaceable;
+  retireHook = retire;
   scratchDir = scratch && scratchRoom ? path.resolve(scratch) : null;
   scratchRoomFn = scratchRoom;
   const audioRoot = process.env.AUDIO_FIX_DIR ? path.resolve(process.env.AUDIO_FIX_DIR) : path.join(cacheDir, 'audio');

@@ -43,7 +43,11 @@ export const autoSyncEnabled = () => AUTO;
 // Existing downloads deserve the improved timing check too, without overriding a manual choice.
 export function ensureSync(srt, video) {
   const e = entryFor(srt);
-  if (AUTO && !e?.trusted && e?.state !== 'undone' && !e?.manual && e?.version !== ENGINE_VERSION) return queueSync(srt, video);
+  // Also files that were "checked" before the video had arrived (Play now): there was nothing to check against then.
+  const blind = e?.state === 'unsure' && !e.reference && !e.error;
+  // Couldn't be lined up before other uploads were tried: they are now, once.
+  const untried = e?.state === 'unsure' && e.reference && !e.othersTried;
+  if (AUTO && !e?.trusted && e?.state !== 'undone' && !e?.manual && (e?.version !== ENGINE_VERSION || blind || untried)) return queueSync(srt, video);
   return stateOf(srt);
 }
 
@@ -76,7 +80,7 @@ function entryFor(srt) {
 const backupPath = (srt) => path.join(backupDir, `${crypto.createHash('sha1').update(keyOf(srt)).digest('hex').slice(0, 24)}.srt`);
 
 // { state, offset, ratio, reference, canUndo, canSync, error } for the viewer.
-// state: null | queued | syncing | synced | ok | unsure | failed | exact | undone | trusted
+// state: null | waiting | queued | syncing | synced | ok | unsure | failed | undone | trusted
 export function stateOf(srt) {
   const e = entryFor(srt);
   const busy = e?.state === 'queued' || e?.state === 'syncing';
@@ -89,6 +93,10 @@ export function stateOf(srt) {
     reference: e?.reference ?? null,
     error: e?.error ?? null,
     at: e?.at ?? null,
+    // Taken from a video that is still downloading: extracted again as more of it arrives.
+    growing: Boolean(e?.growing),
+    replaced: Boolean(e?.replaced),
+    stamp: stamp(srt),
     canUndo: e?.state === 'synced' && fs.existsSync(backupPath(srt)),
     canSync: !e?.trusted && !busy && ffmpegOk !== false,
   };
@@ -152,6 +160,12 @@ export function queueSync(srt, video) {
   const e = registry[k];
   if (e?.trusted) return stateOf(srt);
   if (e?.state === 'queued' || e?.state === 'syncing') return stateOf(srt);
+  // A Play now video isn't where it's kept yet: the check runs once it is (ensureSync on the next showing).
+  if (!video || !fs.existsSync(video)) {
+    registry[k] = { path: srt, video, state: 'waiting', stamp: stamp(srt), at: Date.now() };
+    save();
+    return stateOf(srt);
+  }
   // Re-checking a file that was already fixed starts again from the original.
   const fromBackup = e?.state === 'synced' && fs.existsSync(backupPath(srt));
   registry[k] = { path: srt, video, state: 'queued', at: Date.now() };
@@ -172,7 +186,8 @@ async function drain() {
       try {
         const result = await syncFile(srt, video, fromBackup, prior);
         registry[k] = { path: srt, ...result, version: ENGINE_VERSION, stamp: stamp(srt), at: Date.now() };
-        const what = result.state === 'synced' ? `shifted ${fmt(result.offset)}${result.ratio !== 1 ? `, rate ×${result.ratio.toFixed(4)}` : ''}`
+        const what = result.replaced ? `replaced by another upload, shifted ${fmt(result.offset)}`
+          : result.state === 'synced' ? `shifted ${fmt(result.offset)}${result.ratio !== 1 ? `, rate ×${result.ratio.toFixed(4)}` : ''}`
           : result.state === 'ok' ? 'already in sync' : 'no confident match, left unchanged';
         console.log(`[subsync] ${path.basename(srt)}: ${what} (reference: ${result.reference || 'none'})`);
       } catch (err) {
@@ -196,11 +211,14 @@ async function syncFile(srt, video, fromBackup = false, prior = null) {
   const lang = (/\.([a-z]{2,3}(?:-[a-z]{2})?)\.(?:[\w-]+\.)?srt$/i.exec(srt)?.[1] || '').toLowerCase();
 
   const attempts = [];
+  const tracks = []; // every reference that loaded, kept for other uploads of the same subtitles
   // 1-3. Subtitle references.
   for (const ref of await subtitleReferences(srt, video, lang)) {
     const refCues = await ref.load().catch(() => null);
     if (!refCues || refCues.length < MIN_CUES) continue;
-    const result = solve(cues, cueTrack(refCues), { kind: 'subtitles' });
+    const track = { label: ref.label, kind: 'subtitles', data: cueTrack(refCues) };
+    tracks.push(track);
+    const result = solve(cues, track.data, { kind: 'subtitles' });
     attempts.push({ ...result, reference: ref.label });
     if (result.confident) break;
   }
@@ -208,6 +226,7 @@ async function syncFile(srt, video, fromBackup = false, prior = null) {
   if (!attempts.some((a) => a.confident)) {
     const voice = await voiceTrack(video);
     if (voice) {
+      tracks.push({ label: 'audio', kind: 'audio', data: voice });
       const result = solve(cues, voice, { kind: 'audio' });
       attempts.push({ ...result, reference: 'audio' });
     }
@@ -215,7 +234,11 @@ async function syncFile(srt, video, fromBackup = false, prior = null) {
   const best = attempts.find((a) => a.confident);
   if (!best) {
     if (fromBackup) return { state: 'synced', ...prior }; // keep the earlier fix
-    return { state: 'unsure', reference: attempts.map((a) => a.reference).join(', ') || null };
+    // Made for another cut (scenes moved, a recap added) or just badly timed: another upload of the same
+    // subtitles may fit. Only tried when there was something to check against.
+    const other = tracks.length ? await tryOtherUploads(srt, video, lang, text, tracks) : null;
+    if (other) return other;
+    return { state: 'unsure', reference: attempts.map((a) => a.reference).join(', ') || null, othersTried: Boolean(tracks.length && otherUploads) };
   }
 
   const tolerance = best.kind === 'audio' ? 0.25 : 0.12;
@@ -232,6 +255,146 @@ async function syncFile(srt, video, fromBackup = false, prior = null) {
   await fs.promises.rename(tmp, srt);
   return { state: 'synced', offset: round(best.offset), ratio: best.ratio, sections, reference: best.reference, confidence: round(best.z) };
 }
+
+// ---------- other uploads ----------
+// Set by the server: (srt, video, lang) → up to two other OpenSubtitles uploads [{ text, label }] (downloads).
+let otherUploads = null;
+export function setOtherUploads(fn) { otherUploads = fn; }
+
+async function tryOtherUploads(srt, video, lang, text, tracks) {
+  if (!otherUploads) return null;
+  let others = [];
+  try { others = await otherUploads(srt, video, lang) || []; } catch (e) { console.warn(`[subsync] other uploads for ${path.basename(srt)}: ${e.message}`); }
+  for (const other of others) {
+    const cues = parseCues(other.text);
+    if (cues.length < MIN_CUES) continue;
+    for (const t of tracks) {
+      const r = solve(cues, t.data, { kind: t.kind });
+      if (!r.confident) continue;
+      fs.mkdirSync(backupDir, { recursive: true });
+      await fs.promises.writeFile(backupPath(srt), text, 'utf8'); // Undo goes back to the first download
+      const sections = r.sections.length > 1 ? r.sections.map((x) => ({ from: round(x.from), offset: round(x.offset) })) : null;
+      const tmp = `${srt}.subsync-tmp`;
+      await fs.promises.writeFile(tmp, retime(other.text, r.ratio, r.offset, sections), 'utf8');
+      await fs.promises.rename(tmp, srt);
+      const reference = `${t.label}, other subtitles (${other.label})`;
+      return { state: 'synced', offset: round(r.offset), ratio: r.ratio, sections, reference, confidence: round(r.z), replaced: true };
+    }
+  }
+  return null;
+}
+
+// ---------- the video's own subtitles ----------
+// A text track inside the video is made for exactly that release: better than any download. Used for
+// languages that have no subtitle file yet (or only a downloaded one), also while a Play now video is
+// still arriving: then only the part that's there can be read, so it's read again every couple of minutes
+// and once more when the download has finished.
+const probeCache = new Map(); // file -> { at, size, streams }
+async function textTracks(file) {
+  let size;
+  try { size = fs.statSync(file).size; } catch { return []; }
+  const hit = probeCache.get(file);
+  if (hit && hit.size === size && Date.now() - hit.at < 10 * 60 * 1000) return hit.streams;
+  const info = await probe(file);
+  const streams = (info?.streams || []).filter((s) => s.codec_type === 'subtitle' && TEXT_SUBS.has(s.codec_name)
+    && !s.disposition?.forced && !/forced|\bsigns?\b/i.test(s.tags?.title || ''));
+  probeCache.set(file, { at: Date.now(), size, streams });
+  if (probeCache.size > 200) probeCache.delete(probeCache.keys().next().value);
+  return streams;
+}
+// Chinese and Portuguese tags don't say which variant; those aren't guessed.
+const guessable = (lang) => !/^(zh|pt)-/.test(lang);
+const sdhLike = (s) => s.disposition?.hearing_impaired || /\bsdh\b|hearing|\bcc\b|dubtitle|commentary/i.test(s.tags?.title || '');
+async function ownTrack(files, lang) {
+  if (!guessable(lang)) return null;
+  for (const file of files) {
+    if (!file) continue;
+    const same = (await textTracks(file)).filter((s) => sameLang(s.tags?.language, lang));
+    const pick = same.find((s) => !sdhLike(s)) || same[0];
+    if (pick) return { file, index: pick.index };
+  }
+  return null;
+}
+const sourcesOf = (file) => [file, originalOf(file)];
+
+// Languages the video carries as text (ISO 639-1 codes, as the subtitle menu uses).
+export async function embeddedLanguages(file) {
+  const out = new Set();
+  for (const f of sourcesOf(file)) {
+    if (!f) continue;
+    for (const s of await textTracks(f)) {
+      const code = ISO3[String(s.tags?.language || '').toLowerCase()] || String(s.tags?.language || '').toLowerCase();
+      if (/^[a-z]{2}$/.test(code)) out.add(code);
+    }
+  }
+  return out;
+}
+
+async function extractTo(src, out) {
+  const text = decode(await run(FFMPEG, ['-v', 'error', '-i', src.file, '-map', `0:${src.index}`, '-f', 'srt', 'pipe:1'], { timeoutMs: 5 * 60 * 1000 }));
+  const count = parseCues(text).length;
+  if (!count) return 0;
+  // A read of a file that's still arriving can come out shorter than the last one (pieces fetched out of order).
+  try { if (parseCues(decode(fs.readFileSync(out))).length > count && registry[keyOf(out)]?.growing) return 0; } catch { /* first copy */ }
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  const tmp = `${out}.subsync-tmp`;
+  fs.writeFileSync(tmp, text, 'utf8');
+  fs.renameSync(tmp, out);
+  return count;
+}
+
+// Saves the video's own `lang` track as `out`. source: the file to read (the partial file during Play now).
+// Returns `out`, or null when the video has no such track.
+export async function useOwnTrack(source, out, lang, { growing = false } = {}) {
+  const src = await ownTrack(growing ? [source] : sourcesOf(source), lang);
+  if (!src) return null;
+  if (fs.existsSync(out)) retire(out);
+  const count = await extractTo(src, out).catch((e) => { console.warn(`[subsync] reading ${lang} from ${path.basename(src.file)}: ${e.message}`); return 0; });
+  if (!count) return null;
+  registry[keyOf(out)] = { path: out, trusted: true, stamp: stamp(out), ...(growing && { growing: { lang, at: Date.now() } }) };
+  save();
+  console.log(`[subsync] ${path.basename(out)}: taken from the video's own ${lang} track (${count} lines${growing ? ', still downloading' : ''})`);
+  return out;
+}
+
+// Reads a growing track again: every two minutes while the video downloads, and once it's complete.
+const growJobs = new Map();
+export function refreshOwnTrack(srt, source, partial) {
+  const k = keyOf(srt);
+  const e = registry[k];
+  if (!e?.growing) return Promise.resolve(false);
+  if (growJobs.has(k)) return growJobs.get(k);
+  if (partial && Date.now() - (e.growing.at || 0) < 120 * 1000) return Promise.resolve(false);
+  const job = (async () => {
+    const src = await ownTrack(partial ? [source] : sourcesOf(source), e.growing.lang);
+    const count = src ? await extractTo(src, srt).catch(() => 0) : 0;
+    registry[k] = partial ? { ...e, stamp: stamp(srt), growing: { ...e.growing, at: Date.now() } }
+      : { path: srt, trusted: true, stamp: stamp(srt) }; // complete now (or the track wasn't found: the copy stays)
+    save();
+    return count > 0;
+  })().finally(() => growJobs.delete(k));
+  growJobs.set(k, job);
+  return job;
+}
+
+// A downloaded subtitle file (or a partial read of the video's own track) that the video's own track
+// may replace. Files a person put there, timed by hand or restored with Undo are left alone.
+export function replaceable(srt) {
+  const e = entryFor(srt);
+  if (!e) return false;
+  if (e.growing) return true;
+  return !e.trusted && !e.manual && e.state !== 'undone';
+}
+// Keeps a copy of a subtitle file that's about to be replaced, in the cache.
+export function retire(srt) {
+  try {
+    const dir = path.join(backupDir || path.dirname(srt), 'replaced');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(srt, path.join(dir, `${Date.now()}-${path.basename(srt)}`));
+  } catch { /* best effort */ }
+  forget(srt);
+}
+
 const round = (n) => Math.round(n * 1000) / 1000;
 
 // ---------- SRT ----------
@@ -304,7 +467,7 @@ async function probe(file) {
   try { return JSON.parse((await run(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_streams', file])).toString()); } catch { return null; }
 }
 
-const ISO3 = { eng: 'en', swe: 'sv', dan: 'da', nor: 'no', nob: 'no', fin: 'fi', ger: 'de', deu: 'de', dut: 'nl', nld: 'nl', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', pol: 'pl', ara: 'ar', tur: 'tr', por: 'pt', geo: 'ka', kat: 'ka', tgl: 'tl', fil: 'tl' };
+const ISO3 = { jpn: 'ja', kor: 'ko', rus: 'ru', hun: 'hu', cze: 'cs', ces: 'cs', gre: 'el', ell: 'el', heb: 'he', hin: 'hi', ice: 'is', isl: 'is', nno: 'no', rum: 'ro', ron: 'ro', ukr: 'uk', eng: 'en', swe: 'sv', dan: 'da', nor: 'no', nob: 'no', fin: 'fi', ger: 'de', deu: 'de', dut: 'nl', nld: 'nl', fre: 'fr', fra: 'fr', spa: 'es', ita: 'it', pol: 'pl', ara: 'ar', tur: 'tr', por: 'pt', geo: 'ka', kat: 'ka', tgl: 'tl', fil: 'tl' };
 const sameLang = (iso, lang) => {
   const code = ISO3[String(iso || '').toLowerCase()] || String(iso || '').toLowerCase();
   return Boolean(lang) && (code === lang || lang.startsWith(`${code}-`));

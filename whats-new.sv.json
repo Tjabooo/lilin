@@ -1,4 +1,17 @@
 {
+  "2026-11-21-subtitles-fit": {
+    "title": "Undertexter som passar",
+    "items": {
+      "Subtitles from the video itself come first": {
+        "title": "Undertexter från själva videon går först",
+        "text": "Många videor har egna undertexter, gjorda för just den kopian. Nu använder Lilin alltid dem innan något laddas ner, även medan videon fortfarande laddas ner: fler repliker dyker upp allt eftersom mer av den kommer in."
+      },
+      "Out-of-sync subtitles get swapped": {
+        "title": "Undertexter i otakt byts ut",
+        "text": "Nedladdade undertexter är ibland gjorda för en annan version, med scenerna i en annan ordning. När Lilin inte kan få dem i takt provar den nu andra undertexter för samma avsnitt eller film och behåller de första som passar. Undertexter som valdes medan en video laddades ner kontrolleras också när den är klar."
+      }
+    }
+  },
   "2026-11-21-settings-search": {
     "title": "Sök i dina inställningar",
     "items": {

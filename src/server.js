@@ -438,6 +438,17 @@ subtitles.setReferenceSource({
     return info;
   },
 });
+// The video's own subtitle tracks come before downloads. During Play now `info.hashFile` is the partial file.
+subtitles.setOwnTracks({
+  languages: (file, info) => subsync.embeddedLanguages(info?.hashFile || file),
+  use: (file, info, lang) => {
+    const growing = Boolean(info?.hashFile && info.hashFile !== file);
+    return subsync.useOwnTrack(growing ? info.hashFile : file, subtitles.sidecarPath(file, lang), lang, { growing });
+  },
+  replaceable: (srt) => subsync.replaceable(srt),
+});
+// Downloaded subtitles that can't be lined up: the next best uploads are tried.
+subsync.setOtherUploads((srt, video, lang) => subtitles.otherUploads(video, infoFor(video), lang, srt));
 subtitles.initSubtitles({
   dataDir: DATA_DIR,
   // Downloaded subtitles get their timing checked in the background. Even a file-hash match is checked:
@@ -5384,6 +5395,8 @@ async function handleApi(req, res, url) {
     const srt = await subtitles.ensureSubtitle(file, info, lang, { pending: partial });
     // The timing check listens to the video's sound: a download still missing pieces waits until it's watched in full.
     if (!partial) subsync.ensureSync(srt, file);
+    // Read from the video while it downloads: read again (now and then, and once complete).
+    subsync.refreshOwnTrack(srt, partial ? info.hashFile : file, partial).catch(() => {});
     activity.record(req, 'subtitles', `${subtitles.LANG_NAMES[lang] || lang} subtitles for ${titleOf(file)}`, { quietMs: 24 * 3600 * 1000 });
     return sendJson(res, 200, { url: `/api/subs/file/${body.kind}/${encodeURIComponent(body.id)}/${lang}.vtt` });
   }
@@ -5394,9 +5407,10 @@ async function handleApi(req, res, url) {
     const id = body ? body.id : url.searchParams.get('id');
     const lang = String((body ? body.lang : url.searchParams.get('lang')) || '').toLowerCase();
     if (!subtitles.validLang(lang)) throw new HttpError(400, 'Unknown language.');
-    const { file: video, partial } = await subsTarget(user, kind, String(id || ''));
+    const { file: video, info, partial } = await subsTarget(user, kind, String(id || ''));
     const srt = subtitles.findSidecar(video, lang);
     if (!srt) throw new HttpError(404, 'Those subtitles aren’t on the server.');
+    if (!body) await subsync.refreshOwnTrack(srt, partial ? info.hashFile : video, partial).catch(() => {});
     if (!body) return sendJson(res, 200, partial ? { ...subsync.stateOf(srt), canSync: false } : subsync.stateOf(srt));
     if (partial && body.action === 'sync') throw new HttpError(409, 'The timing check works once the download has finished.');
     if (body.action === 'undo') return sendJson(res, 200, subsync.undoSync(srt));
@@ -6643,6 +6657,8 @@ converter.startConverter({
   scratchDir: CONVERT_SCRATCH_DIR,
   scratchRoom,
   onSidecar: (srt) => subsync.markTrusted(srt), // extracted from the video: already in sync
+  replaceable: (srt) => subsync.replaceable(srt),
+  retire: (srt) => subsync.retire(srt),
   listCandidates: conversionCandidates,
   onConverted: () => { invalidateLibrary(); },
 });

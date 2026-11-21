@@ -219,6 +219,8 @@ const autoLabelled = (l) => ({ ...l, name: `${l.name} (${tr('auto-translated')})
 // Languages for a local file: saved subtitles plus those available online.
 export async function languagesForFile(file, info) {
   const local = localLanguages(file);
+  // The video's own text tracks count as saved: choosing one costs no download.
+  if (ownTracks) for (const l of await ownTracks.languages(file, info).catch(() => [])) if (LANG_NAMES[l]) local.add(l);
   let problem = null;
   let remote = { codes: new Set(), proper: new Set() };
   try { remote = await remoteLanguages(info); } catch (e) { problem = e.message; }
@@ -298,16 +300,37 @@ export function ensureSubtitle(file, info, lang, { pending = false } = {}) {
   // A bad or stale id resolves to a path that isn't there: don't spend an OpenSubtitles download on it.
   if (!pending && !fs.existsSync(file)) return Promise.reject(fail(404, 'That video isn’t on the server any more.'));
   const existing = findSidecar(file, lang);
-  if (existing && !isAutoSidecar(existing)) return Promise.resolve(existing);
   const key = `${file}|${lang}`;
-  if (existing && !inflight.has(key) && Date.now() - (upgradeChecked.get(key) || 0) < SIX_HOURS) return Promise.resolve(existing);
+  // The video's own track beats any download, also one saved earlier (checked once per file and server run).
+  const ownFirst = ownTracks && !ownChecked.has(key) && (!existing || isAutoSidecar(existing) || ownTracks.replaceable(existing));
+  if (!ownFirst) {
+    if (existing && !isAutoSidecar(existing)) return Promise.resolve(existing);
+    if (existing && !inflight.has(key) && Date.now() - (upgradeChecked.get(key) || 0) < SIX_HOURS) return Promise.resolve(existing);
+  }
   if (!inflight.has(key)) {
-    if (existing) upgradeChecked.set(key, Date.now());
-    const job = existing ? download(file, info, lang, { properOnly: true }).catch(() => existing) : download(file, info, lang);
+    const job = (async () => {
+      if (ownFirst) {
+        ownChecked.add(key);
+        const own = await ownTracks.use(file, info, lang).catch(() => null);
+        if (own) {
+          if (existing && existing !== own) await fs.promises.rm(existing, { force: true }).catch(() => {});
+          return own;
+        }
+        if (existing && !isAutoSidecar(existing)) return existing;
+      }
+      if (existing) upgradeChecked.set(key, Date.now());
+      return existing ? download(file, info, lang, { properOnly: true }).catch(() => existing) : download(file, info, lang);
+    })();
     inflight.set(key, job.finally(() => inflight.delete(key)));
   }
   return inflight.get(key);
 }
+
+// The video's own subtitle tracks (subsync.js, set by the server):
+// { languages(file, info) → codes, use(file, info, lang) → saved path | null, replaceable(srt) → bool }
+let ownTracks = null;
+const ownChecked = new Set();
+export function setOwnTracks(source) { ownTracks = source; }
 
 async function download(file, info, lang, { properOnly = false } = {}) {
   const search = async (extra) => (await osFetch(query(searchParams(info, { languages: lang, ...extra })))).data || [];
@@ -338,9 +361,50 @@ async function download(file, info, lang, { properOnly = false } = {}) {
   await fs.promises.writeFile(out, text, 'utf8');
   if (!auto) await fs.promises.rm(autoSidecarPath(file, lang), { force: true }).catch(() => {});
   noteDownloadsLeft(dl.remaining);
+  notePicked(out, best.entry.file_id);
   console.log(`[subtitles] saved ${path.basename(out)} (${dl.remaining ?? '?'} downloads left today)`);
   // Lets the timing check run (whether or not the file hash matched).
   try { onDownloaded?.(file, out, { exact: best.sub.attributes.moviehash_match === true }); } catch { /* best effort */ }
+  return out;
+}
+
+// ---------- other uploads ----------
+// When a downloaded subtitle can't be lined up with its video (made for another cut, or badly timed),
+// the timing check (subsync.js) asks for the next best uploads of the same language and keeps the first
+// that fits. Each file is downloaded at most once per subtitle; downloads stop well before the daily
+// limit so people's own requests still go through.
+const picked = new Map(); // subtitle path (lower case) -> file ids already used for it
+let pickedFile = null;
+function notePicked(out, fileId) {
+  const k = out.toLowerCase();
+  picked.set(k, [...new Set([...(picked.get(k) || []), fileId])]);
+  if (picked.size > 2000) picked.delete(picked.keys().next().value);
+  if (pickedFile) fs.promises.writeFile(pickedFile, JSON.stringify(Object.fromEntries(picked))).catch(() => {});
+}
+const OTHER_RESERVE = 5;
+export async function otherUploads(file, info, lang, srt, { limit = 2 } = {}) {
+  if (!API_KEY || !info?.title) return [];
+  if (downloadsLeft != null && downloadsLeft <= OTHER_RESERVE && Date.now() - downloadsLeftAt < DAY) return [];
+  const used = new Set(picked.get(srt.toLowerCase()) || []);
+  const search = async (extra) => (await osFetch(query(searchParams(info, { languages: lang, ai_translated: 'exclude', ...extra })))).data || [];
+  const hash = await movieHash(info.hashFile || file).catch(() => null);
+  const results = [...(hash ? await search({ moviehash: hash }) : []), ...await search({})];
+  const seen = new Set();
+  const out = [];
+  let tries = 0;
+  while (out.length < limit && tries < limit + 1) {
+    const rest = results.filter((r) => isProperUpload(r) && !(r.attributes?.files || []).some((f) => used.has(f.file_id) || seen.has(f.file_id)));
+    const best = selectSubtitle(rest, file, info, lang);
+    if (!best) break;
+    tries++;
+    seen.add(best.entry.file_id);
+    if (downloadsLeft != null && downloadsLeft <= OTHER_RESERVE) break;
+    await login().catch(() => {});
+    const text = await downloadReference({ attributes: { files: [best.entry] } }).catch(() => null);
+    notePicked(srt, best.entry.file_id);
+    if (text && /-->/.test(text)) out.push({ text, label: best.sub.attributes?.release || best.entry.file_name || 'OpenSubtitles' });
+  }
+  if (tries) console.log(`[subtitles] tried ${tries} other upload${tries === 1 ? '' : 's'} for ${path.basename(srt)} (${downloadsLeft ?? '?'} downloads left today)`);
   return out;
 }
 
@@ -588,6 +652,8 @@ let wants = {}; // infohash -> { name, langs: { en: 'waiting' | 'ready' | 'missi
 export function initSubtitles({ dataDir, onDownload }) {
   onDownloaded = onDownload || null;
   wantsFile = path.join(dataDir, '.lilin-subs.json');
+  pickedFile = path.join(dataDir, '.lilin-subtitle-picks.json');
+  try { for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(pickedFile, 'utf8')))) picked.set(k, v); } catch { /* none yet */ }
   try { wants = JSON.parse(fs.readFileSync(wantsFile, 'utf8')); } catch { wants = {}; }
 }
 const saveWants = () => { try { fs.writeFileSync(wantsFile, JSON.stringify(wants, null, 2)); } catch { /* best effort */ } };
