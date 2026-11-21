@@ -45,7 +45,8 @@ import { createCreditsCard } from './credits-card.js'; // the credits card: pict
 import { createDaypart } from './daypart.js'; // Discover by time of day: morning + late-night rows and look
 import { createChannelStatic, STATIC_MIN_MS } from './channel-static.js'; // Live TV: grain + corner number on a channel switch
 import { createPauseScreen } from './pause-screen.js'; // the pause screen: logo + synopsis after a few seconds paused
-import { createGettingReady } from './getting-ready.js'; // play first: the player's Getting it ready screen
+import { createGettingReady } from './getting-ready.js';
+import { createNotices } from './notices.js'; // owner popups: shown once on the next open, OK to carry on // play first: the player's Getting it ready screen
 
 translatePage();
 saveLanguage(lang);
@@ -3997,6 +3998,7 @@ function filmUpgrade(session) {
 
 // ---------- casting: device picker ----------
 const jsonPost = (body) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const notices = createNotices({ h, api, jsonPost, toast: (t) => toast(t), ago: (ms) => ago(ms), rerender: () => { if (settingsOpen()) renderSettingsWhenStill(); } });
 const people = createPeople({ h, api, toast, me: () => state.me, openProfile: (p, opener) => profiles.open(p, opener) }); // faces and profile pictures (people.js); a face with an id opens its profile
 const social = createSocial({ h, api, jsonPost, toast, icon, people }); // likes, Popular, watch parties, Wrapped (social.js)
 // friends: You → Friends (friends.js); requests are also For you cards and light the You tab's dot
@@ -9739,6 +9741,7 @@ function ownerSettings() {
       h('li', {}, T('Set Session Duration to 1 month and save.')),
       h('li', {}, T('If you’ve set a Global session timeout (Settings → Authentication), raise that too: it caps every app.'))),
     h('p', { class: 'set-hint' }, T('If someone’s sign-in runs out while Lilin is open, Lilin tells them and signs them back in with one tap.'))));
+  out.push(notices.ownerCard()); // owner popups
   return out;
 }
 // House → People: everyone who uses Lilin, their picture and what they may do; inviting someone new, and who may
@@ -11826,6 +11829,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
   schedulePoll();
   connectLive();
   pushDevice.registerWorker();
+  notices.showPending(); // owner popups: over everything, OK to carry on
   setTimeout(maybeShowWhatsNew, 1200); // let the first screen settle before showing update notes
   // For you (the You tab's dot) and friend requests waiting for an answer (their popup)
   setTimeout(() => loadForYou().then(() => { if (sharesSocial()) maybeAskFriends(); }), 1600);

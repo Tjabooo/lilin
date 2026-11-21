@@ -1,0 +1,49 @@
+/* Owner popups (notices.js): a card over everything until OK, and the owner's composer in Server rules. */
+.notice-layer {
+  position: fixed; inset: 0; z-index: 10050; display: grid; place-items: center; padding: 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  background: rgb(var(--picture-dark) / .72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  opacity: 0; transition: opacity .18s ease;
+}
+.notice-layer.open { opacity: 1; }
+.notice-layer.leaving { opacity: 0; }
+.notice-card {
+  position: relative; width: min(440px, 100%); max-height: calc(100dvh - 40px); overflow: auto;
+  padding: 28px 24px 20px; border-radius: 22px; background: var(--curtain); color: var(--text);
+  box-shadow: 0 0 0 1px var(--hairline), 0 30px 80px -20px rgb(0 0 0 / .7), 0 0 60px -30px var(--glow-color);
+  transform: translateY(14px) scale(.97); transition: transform .22s cubic-bezier(.2, .9, .3, 1.2);
+}
+.notice-layer.open .notice-card { transform: none; }
+.notice-layer.leaving .notice-card { transform: translateY(8px) scale(.98); }
+.notice-mark {
+  width: 38px; height: 4px; border-radius: 4px; margin-bottom: 18px;
+  background: var(--bulb); box-shadow: 0 0 14px var(--glow-color);
+}
+.notice-from { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dust); margin-bottom: 6px; }
+.notice-title { margin: 0 0 10px; font-size: 1.35rem; line-height: 1.25; }
+.notice-text { margin: 0 0 22px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; color: var(--text); }
+.notice-ok { width: 100%; justify-content: center; }
+
+.notice-compose { display: flex; flex-direction: column; gap: 14px; }
+.notice-compose > .set-text { display: flex; flex-direction: column; gap: 4px; }
+.notice-langs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.notice-lang { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--seat); }
+.notice-lang-name { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dust); }
+.notice-field { display: flex; flex-direction: column; gap: 4px; }
+.notice-field-label { font-size: .8rem; color: var(--dust); }
+.notice-input {
+  width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: var(--velvet);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px;
+}
+.notice-input:focus { outline: none; border-color: var(--bulb); box-shadow: 0 0 0 3px var(--bulb-dim); }
+.notice-area { resize: vertical; min-height: 90px; }
+.notice-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.notice-send:not(:disabled) { background: var(--bulb); color: var(--on-bulb-bold); }
+.notice-buttons .chip:disabled { opacity: .45; }
+.notice-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.notice-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.notice-row + .notice-row { border-top: 1px solid var(--hairline); }
+.notice-row-text { flex: 1; min-width: 0; }
+.notice-row-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notice-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) { .notice-layer, .notice-card { transition: none; } }

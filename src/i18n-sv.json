@@ -777,5 +777,8 @@
  "Cyberpunk": "Cyberpunk",
  "Martial arts": "Kampsport",
  "Time travel": "Tidsresor",
- "School life": "Skolliv"
+ "School life": "Skolliv",
+ "Only the server’s owner can send popups.": "Bara serverns ägare kan skicka popupar.",
+ "Write the message first (English, Swedish or both).": "Skriv meddelandet först (engelska, svenska eller båda).",
+ "That popup is gone.": "Den popupen finns inte längre."
 }

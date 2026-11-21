@@ -29,6 +29,7 @@ import { createStaticFiles } from './static-files.js';
 import { createAssetVersions, VERSION_LENGTH } from './asset-versions.js';
 import * as invites from './invites.js';
 import * as ideas from './ideas.js';
+import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
@@ -353,6 +354,7 @@ screenTime.initScreenTime({ dataDir: DATA_DIR });
 clips.initClips({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, getEncoder: () => converter.converterStatus().encoder });
 clips.watchClips(() => live.publish('clips', { audience: 'admin' })); // a new clip shows up in open Clips tabs
 ideas.initIdeas({ dataDir: DATA_DIR });
+notices.initNotices({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
 profiles.initProfiles(); // profiles: profiles in .lilin.db
 letterboxd.initLetterboxd(); // letterboxd: linked accounts and what was imported from them
@@ -4495,6 +4497,26 @@ async function handleApi(req, res, url) {
     activity.record(req, action === 'wake' ? 'wake' : 'restart', r.detail);
     return sendJson(res, 200, { ok: true, message: r.message });
   }
+  // Owner popups (notices.js): shown once to everyone but restricted people the next time they open Lilin.
+  if (p === '/api/notices' || p.startsWith('/api/notices/')) {
+    if (p === '/api/notices' && req.method === 'GET') {
+      return sendJson(res, 200, { pending: notices.pendingFor(user, { restricted: accounts.isRestricted(user) }), all: user.isOwner ? notices.all() : undefined });
+    }
+    if ((m = p.match(/^\/api\/notices\/([a-f0-9]{8})\/seen$/)) && req.method === 'POST') {
+      notices.seen(user, m[1]);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (!user.isOwner) throw new HttpError(403, 'Only the server’s owner can send popups.');
+    if (p === '/api/notices' && req.method === 'POST') {
+      notices.add(await readJson(req));
+      return sendJson(res, 200, { all: notices.all() });
+    }
+    if ((m = p.match(/^\/api\/notices\/([a-f0-9]{8})\/(stop|delete)$/)) && req.method === 'POST') {
+      if (m[2] === 'stop') notices.stop(m[1]); else notices.remove(m[1]);
+      return sendJson(res, 200, { all: notices.all() });
+    }
+    throw new HttpError(404, 'Not found.');
+  }
   // The idea box (ideas.js): anyone sends the owner an idea for Lilin; the owner answers in Settings.
   if (p === '/api/ideas' || p.startsWith('/api/ideas/')) {
     if (p === '/api/ideas' && req.method === 'GET') {
@@ -5828,7 +5850,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/letterboxd(?:\/sync|\/import)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/letterboxd(?:\/sync|\/import)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
