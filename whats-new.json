@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-tv-credits-picture",
+  "date": "2026-11-21",
+  "title": "Credits picture on Samsung TVs",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "The credits keep playing in the small picture",
+      "text": "On Samsung TVs, the small picture next to the end credits card was black. It now shows the credits as they roll. Restart the TV app once to get the fix."
+    }
+  ]
+},
+{
   "id": "2026-11-21-tv-profiles",
   "date": "2026-11-21",
   "title": "Profiles on the TV",

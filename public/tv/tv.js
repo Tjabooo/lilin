@@ -2333,7 +2333,10 @@
       if (on === creditsOn) return;
       creditsOn = on;
       el.classList.toggle('credits', on);
-      try { if (on) av.setDisplayRect(CREDITS_RECT[0], CREDITS_RECT[1], CREDITS_RECT[2], CREDITS_RECT[3]); else av.setDisplayRect(0, 0, 1920, 1080); } catch (e) { /* not now */ }
+      // Samsung: the <object> must move with the picture, or the new rect stays black.
+      var r = on ? CREDITS_RECT : [0, 0, 1920, 1080];
+      obj.style.cssText = on ? 'position:absolute;left:' + r[0] + 'px;top:' + r[1] + 'px;width:' + r[2] + 'px;height:' + r[3] + 'px;' : '';
+      try { av.setDisplayRect(r[0], r[1], r[2], r[3]); } catch (e) { /* not now */ }
       if (on) { osd.classList.remove('show'); askSong(3); }
     }
     function askSong(tries) {

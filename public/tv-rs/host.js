@@ -391,7 +391,11 @@
         return answer(JSON.stringify({ tracks: out, current: cur }));
       },
       av_select_audio: function (i) { try { av.setSelectTrack('AUDIO', i); return 1; } catch (e) { return 0; } },
-      av_rect: function (x, y, w, h) { try { av.setDisplayRect(x, y, w, h); } catch (e) { /* not open */ } },
+      // Samsung: when the picture moves during playback, the <object> must move with it, or the new rect stays black.
+      av_rect: function (x, y, w, h) {
+        if (avObject) avObject.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px;z-index:0;';
+        try { av.setDisplayRect(x, y, w, h); } catch (e) { /* not open */ }
+      },
       platform: function () { return answer(JSON.stringify(platform)); },
     };
     var wrapped = {};

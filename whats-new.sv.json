@@ -1,4 +1,13 @@
 {
+  "2026-11-21-tv-credits-picture": {
+    "title": "Eftertextbilden på Samsung-TV",
+    "items": {
+      "The credits keep playing in the small picture": {
+        "title": "Eftertexterna syns i den lilla bilden",
+        "text": "På Samsung-TV var den lilla bilden bredvid eftertextkortet svart. Nu syns eftertexterna medan de rullar. Starta om TV-appen en gång för att få fixen."
+      }
+    }
+  },
   "2026-11-21-tv-profiles": {
     "title": "Profiler på TV:n",
     "items": {
