@@ -5,6 +5,7 @@ use crate::host;
 use crate::text::{body, display, Font};
 use crate::ui::{self, Ease};
 use crate::util::{f, s};
+use super::profiles;
 use crate::{key, t, Cx, Key, Nav, Res, Screen, TOKEN_KEY};
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
@@ -14,18 +15,44 @@ use serde_json::Value;
 const STATUS: u32 = 1;
 const READY: u32 = 2;
 const RETRY: u32 = 3;
+const INBOX: u32 = 4;
 
 pub struct Boot {
     sid: u32,
     note: String,
     waiting: u32,
     shown: Ease,
+    /// Someone just picked (or signed in) the profile: don't ask Who's watching again.
+    picked: bool,
+    has_me: bool,
+    me: Value,
 }
 impl Boot {
     pub fn new(cx: &mut Cx, note: Option<String>) -> Boot {
         let sid = cx.sid();
         cx.get("/api/status", sid, STATUS);
-        Boot { sid, note: note.unwrap_or_default(), waiting: 0, shown: Ease::at(0.0) }
+        Boot { sid, note: note.unwrap_or_default(), waiting: 0, shown: Ease::at(0.0), picked: false, has_me: false, me: Value::Null }
+    }
+    pub fn picked(cx: &mut Cx) -> Boot {
+        let mut b = Boot::new(cx, None);
+        b.picked = true;
+        b
+    }
+    /// This profile's session ended: forget it, then the other profiles or a new sign-in.
+    fn signed_out(&mut self, cx: &mut Cx, note: Option<String>) {
+        let token = cx.token().unwrap_or_default();
+        host::forget(TOKEN_KEY);
+        let rest = profiles::drop_token(&token);
+        if rest.is_empty() {
+            let p = Pair::new(cx, self.has_me, note);
+            cx.nav.push(Nav::Reset(Box::new(p)));
+        } else {
+            if let Some(n) = note {
+                cx.toast(&n);
+            }
+            let p = profiles::Picker::new(cx, rest, self.has_me);
+            cx.nav.push(Nav::Reset(Box::new(p)));
+        }
     }
 }
 fn splash(cx: &mut Cx, note: &str, a: f32) {
@@ -59,9 +86,8 @@ impl Screen for Boot {
         match tag {
             STATUS => {
                 if res.status == 401 {
-                    host::forget(TOKEN_KEY);
-                    let p = Pair::new(cx, false, None);
-                    cx.nav.push(Nav::Reset(Box::new(p)));
+                    self.has_me = false;
+                    self.signed_out(cx, None);
                     return;
                 }
                 if !res.ok() {
@@ -75,26 +101,44 @@ impl Screen for Boot {
                 }
                 let me = res.json.get("me").cloned().unwrap_or(Value::Null);
                 cx.state.live_name = String::from(s(&res.json, "liveName"));
-                let has_me = me.get("id").map(|x| !x.is_null()).unwrap_or(false);
-                let token = cx.token();
-                match token {
-                    None => {
-                        let p = Pair::new(cx, has_me, None);
-                        cx.nav.push(Nav::Reset(Box::new(p)));
-                    }
-                    Some(tk) if tk != "home" && s(&me, "via") != "session" => {
-                        // The TV's session ended (signed out elsewhere, password changed, or a year passed).
-                        host::forget(TOKEN_KEY);
-                        let p = Pair::new(cx, has_me, Some(String::from(t!("This TV was signed out. Sign it in again."))));
-                        cx.nav.push(Nav::Reset(Box::new(p)));
-                    }
-                    Some(_) => {
-                        cx.state.me = me;
-                        self.waiting = 2;
-                        cx.load_library(Some((self.sid, READY)));
-                        cx.load_genres(Some((self.sid, READY)));
+                self.has_me = me.get("id").map(|x| !x.is_null()).unwrap_or(false);
+                if let Some(tk) = cx.token() {
+                    if tk != "home" && s(&me, "via") != "session" {
+                        // This profile's session ended (signed out elsewhere, password changed, or a year passed).
+                        self.signed_out(cx, Some(String::from(t!("This TV was signed out. Sign it in again."))));
+                        return;
                     }
                 }
+                self.me = me;
+                // Profiles someone added for this TV, then Who's watching (or straight in).
+                cx.get("/api/tv/profiles/inbox", self.sid, INBOX);
+            }
+            INBOX => {
+                let device = String::from(s(&res.json, "device"));
+                if res.ok() && !device.is_empty() {
+                    host::save(profiles::DEVICE_KEY, &device);
+                }
+                let incoming: Vec<Value> = if res.ok() { crate::util::arr(&res.json, "profiles").to_vec() } else { Vec::new() };
+                let token = cx.token().unwrap_or_default();
+                let list = profiles::note_current(&token, &self.me, &incoming);
+                if !incoming.is_empty() {
+                    let names: Vec<&str> = incoming.iter().map(|v| s(v, "name")).collect();
+                    cx.toast(&t!("New profiles on this TV: {0}", names.join(", ")));
+                }
+                if token.is_empty() || (!self.picked && list.len() > 1) {
+                    if list.is_empty() {
+                        let p = Pair::new(cx, self.has_me, None);
+                        cx.nav.push(Nav::Reset(Box::new(p)));
+                    } else {
+                        let p = profiles::Picker::new(cx, list, self.has_me);
+                        cx.nav.push(Nav::Reset(Box::new(p)));
+                    }
+                    return;
+                }
+                cx.state.me = core::mem::take(&mut self.me);
+                self.waiting = 2;
+                cx.load_library(Some((self.sid, READY)));
+                cx.load_genres(Some((self.sid, READY)));
             }
             READY => {
                 self.waiting = self.waiting.saturating_sub(1);
@@ -121,6 +165,8 @@ const NEW_T: u32 = 13;
 
 pub struct Pair {
     sid: u32,
+    /// Adding a profile from Who's watching (Back goes back there).
+    adding: bool,
     home: bool,
     home_on: bool,
     code: String,
@@ -139,6 +185,7 @@ impl Pair {
         let sid = cx.sid();
         let mut p = Pair {
             sid,
+            adding: false,
             home,
             home_on: false,
             code: String::new(),
@@ -152,6 +199,12 @@ impl Pair {
             shown: Ease::at(0.0),
         };
         p.new_code(cx);
+        p
+    }
+    /// Adding another profile to this TV.
+    pub fn adding(cx: &mut Cx, home: bool) -> Pair {
+        let mut p = Pair::new(cx, home, None);
+        p.adding = true;
         p
     }
     /// The QR code on a white card on the right, lit like the code boxes.
@@ -200,9 +253,15 @@ impl Pair {
     }
     fn signed_in(&mut self, cx: &mut Cx, token: Option<&str>, name: &str) {
         self.alive = false;
-        host::save(TOKEN_KEY, token.filter(|t| !t.is_empty()).unwrap_or("home"));
+        let token = token.filter(|t| !t.is_empty()).unwrap_or("home");
+        host::save(TOKEN_KEY, token);
+        // Every sign-in becomes a profile on this TV (Boot fills in the picture once the server says who it is).
+        let mut list = profiles::load();
+        let name_kept = if token == "home" { String::new() } else { String::from(name) };
+        profiles::upsert(&mut list, profiles::Profile { token: String::from(token), id: 0, name: name_kept, avatar: String::new() });
+        profiles::save(&list);
         cx.toast(&t!("Signed in as {0}", if name.is_empty() { String::from(t!("you")) } else { String::from(name) }));
-        let b = Boot::new(cx, None);
+        let b = Boot::picked(cx);
         cx.nav.push(Nav::Reset(Box::new(b)));
     }
 }
@@ -229,7 +288,7 @@ impl Screen for Pair {
         cx.g.light(rect(-300.0, 380.0, 1700.0, 700.0), ui::seat().alpha(0.55));
         ui::wordmark(cx, ui::EDGE, 112.0, 46.0);
         let h1 = display(84.0, 800);
-        cx.tx.draw(&mut cx.g, h1, t!("Sign in this TV"), ui::EDGE - 4.0, 196.0, ui::paper());
+        cx.tx.draw(&mut cx.g, h1, if self.adding { t!("Add a profile") } else { t!("Sign in this TV") }, ui::EDGE - 4.0, 196.0, ui::paper());
         let step = body(38.0, 400);
         let bold = body(38.0, 700);
         let num = display(38.0, 800);

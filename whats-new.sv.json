@@ -1,4 +1,13 @@
 {
+  "2026-11-21-tv-profiles": {
+    "title": "Profiler på TV:n",
+    "items": {
+      "Who's watching? on the TV app": {
+        "title": "Vem tittar? i TV-appen",
+        "text": "En TV kan nu ha flera personer inloggade. När TV-appen startar frågar den vem som tittar, så Fortsätt titta, din lista och det du har sett är dina egna. Lägg till någon med Lägg till profil (skanna koden med deras mobil), byt med Byt profil i fältet högst upp och ta bort en under Hantera profiler."
+      }
+    }
+  },
   "2026-11-21-next-episode-song": {
     "title": "Eftertextkortet, i alla serier",
     "items": {

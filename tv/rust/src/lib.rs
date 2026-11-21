@@ -292,11 +292,23 @@ impl Cx {
         host::load(TOKEN_KEY)
     }
     fn request(&mut self, method: &str, path: &str, body: Option<&Value>, route: Route) -> u32 {
+        let token = self.token();
+        self.request_as(method, path, body, route, token)
+    }
+    fn request_as(&mut self, method: &str, path: &str, body: Option<&Value>, route: Route, token: Option<String>) -> u32 {
         self.next_req += 1;
         let id = self.next_req;
         self.reqs.insert(id, route);
         let mut headers = alloc::format!("X-Lilin-TV: 1\nX-Lilin-Lang: {}\n", if platform::swedish() { "sv" } else { "en" });
-        if let Some(t) = self.token() {
+        // This TV's device key (profiles added for it from elsewhere: screens/profiles.rs).
+        if let Some(d) = host::load(screens::profiles::DEVICE_KEY) {
+            if !d.is_empty() {
+                headers.push_str("X-Lilin-TV-Device: ");
+                headers.push_str(&d);
+                headers.push('\n');
+            }
+        }
+        if let Some(t) = token {
             if t != "home" && !t.is_empty() {
                 headers.push_str("X-Lilin-Session: ");
                 headers.push_str(&t);
@@ -319,6 +331,10 @@ impl Cx {
     }
     pub fn post(&mut self, path: &str, body: Value, sid: u32, tag: u32) {
         self.request("POST", path, Some(&body), Route::Screen(sid, tag));
+    }
+    /// Fire and forget, as another profile on this TV (its session token).
+    pub fn post_as(&mut self, path: &str, token: &str) {
+        self.request_as("POST", path, Some(&Value::Object(Default::default())), Route::App(AppJob::Ignore, 0), Some(String::from(token)));
     }
     /// Fire and forget.
     pub fn post_quiet(&mut self, path: &str, body: Value) {

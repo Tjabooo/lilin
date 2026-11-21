@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-tv-profiles",
+  "date": "2026-11-21",
+  "title": "Profiles on the TV",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Who's watching? on the TV app",
+      "text": "One TV can now keep several people signed in. When the TV app starts it asks who's watching, so Continue watching, your list and what you've seen are your own. Add someone with Add profile (scan the code with their phone), switch with Switch profile on the top bar, and remove one under Manage profiles."
+    }
+  ]
+},
+{
   "id": "2026-11-21-next-episode-song",
   "date": "2026-11-21",
   "title": "The credits card, on every show",

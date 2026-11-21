@@ -53,7 +53,7 @@ http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ error: 'The dev server only reads (blocked ' + req.method + ').' }));
     }
     const headers = {};
-    for (const h of ['x-lilin-tv', 'x-lilin-lang', 'x-lilin-session']) if (req.headers[h]) headers[h] = req.headers[h];
+    for (const h of ['x-lilin-tv', 'x-lilin-lang', 'x-lilin-session', 'x-lilin-tv-device']) if (req.headers[h]) headers[h] = req.headers[h];
     if (fakeCredits && /^\/api\/media\/lib\/[^/]+\/credits$/.test(url.pathname)) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ creditsAt: fakeCredits }));

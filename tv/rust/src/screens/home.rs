@@ -2,12 +2,11 @@
 //! Search, Live TV, Discover and Documentaries.
 use super::browse::{self, Kind, Row, Rows};
 use crate::gfx::{rect, SCREEN};
-use crate::host;
 use crate::logic;
 use crate::text::{body, display};
 use crate::ui::{self, Ambient, Lit};
 use crate::util::s;
-use crate::{key, t, Cx, Key, Nav, Res, Screen, TOKEN_KEY};
+use crate::{key, t, Cx, Key, Nav, Res, Screen};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -33,7 +32,7 @@ pub struct Home {
 /// The bar: Search, Live TV (its name is the owner's pick), Discover, Documentaries, Switch account.
 fn tops(cx: &Cx) -> [String; 5] {
     let live = if cx.state.live_name.is_empty() { String::from("Lilin TV") } else { cx.state.live_name.clone() };
-    [String::from(t!("Search")), live, String::from(t!("Discover")), String::from(t!("Documentaries")), String::from(t!("Switch account"))]
+    [String::from(t!("Search")), live, String::from(t!("Discover")), String::from(t!("Documentaries")), String::from(t!("Switch profile"))]
 }
 
 impl Home {
@@ -255,8 +254,8 @@ impl Screen for Home {
                             cx.push(Box::new(s));
                         }
                         _ => {
-                            host::forget(TOKEN_KEY);
-                            let p = super::pair::Pair::new(cx, true, None);
+                            let list = super::profiles::load();
+                            let p = super::profiles::Picker::new(cx, list, true);
                             cx.nav.push(Nav::Reset(Box::new(p)));
                         }
                     }

@@ -18,6 +18,7 @@ import * as subsync from './subsync.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
 import { createTvPairing } from './tv.js';
+import { createTvProfiles, DEVICE_HEADER as TV_DEVICE_HEADER } from './tv-profiles.js';
 import { tvPlay } from './tv-play.js'; // the TV apps' Play (play first)
 import { createCopyCheck } from './copy-check.js'; // only cinema recordings of a recent film? (warned before Play)
 import { startWeb as startWebSignIn, tvExtras as tvSignInExtras, placeOf as signInPlace, WEB_TTL_MS } from './signin-link.js';
@@ -214,6 +215,7 @@ function notify(userIds, kind, message) {
 }
 const auth = createAuth({ dataDir: DATA_DIR });
 const tvPairing = createTvPairing();
+const tvProfiles = createTvProfiles(auth.store.db); // profiles on a TV (Who's watching?)
 const tvPairLimit = createPairLimit(); // sign-in codes asked for from outside the home network (tv-gateway.js)
 // Scan to sign in on a computer (signin-link.js): the sign-in page's QR codes, approved from a signed-in phone.
 const webPairing = createTvPairing({ ttl: WEB_TTL_MS, maxPending: 300 });
@@ -4108,6 +4110,19 @@ async function handleApi(req, res, url) {
     if (req.auth.remote && !req.tvGateway) throw new HttpError(403, 'Sign in a TV from the home network.');
     return sendJson(res, 200, tvPairing.poll(url.searchParams.get('id')));
   }
+  // Profiles on a TV (tv-profiles.js): the TV checks in with its device key (a new one if it has none) and gets
+  // the profiles someone added for it, each a TV session of its own. From the home network, through the TV gateway,
+  // or with a TV's own session.
+  if (p === '/api/tv/profiles/inbox' && req.method === 'GET') {
+    if (req.auth.remote && !req.tvGateway && req.auth.via !== 'session') throw new HttpError(403, 'Sign in a TV from the home network.');
+    const got = tvProfiles.inbox(req.headers[TV_DEVICE_HEADER], { address: clientAddress(req), who: req.auth.email || req.auth.via || '',
+      home: !req.auth.remote && req.auth.via === 'home' });
+    const profiles = got.drops.map((d) => {
+      const u = accounts.userById(d.userId);
+      return u && { token: d.token, id: u.id, name: u.name || accounts.displayNameFor(u.email) || '', avatar: u.avatar || '' };
+    }).filter(Boolean);
+    return sendJson(res, 200, { device: got.device, profiles });
+  }
 
   activity.seen(req);
   { // video requests often come without the Access email: remember who this visitor's address is
@@ -5836,6 +5851,7 @@ function publicPath(req, url) {
   if (/^\/api\/(house\/(report|summary|load|boot)|screentime|agent\/notify)$/.test(p)) return true;
   if (/^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(p)) return true; // scout: the runner's token routes
   if (/^\/api\/tv\/pair\/(start|poll)$/.test(p)) return true; // home network only (checked in the route)
+  if (p === '/api/tv/profiles/inbox') return true; // the TV's device key (checked in the route)
   if (isAndroidPath(p)) return !req.auth.remote || Boolean(req.tvGateway); // the Android TV app's steps and file (android-tv.js)
   if (p.startsWith('/api/subs/file/') && !req.auth.remote) return true;
   if (p.startsWith('/api/')) return false;

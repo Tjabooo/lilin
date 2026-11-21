@@ -16,6 +16,8 @@ const OPEN = [
   /^\/fonts\/[\w.-]+\.woff2$/,
   /^\/api\/(health|status)$/,
   /^\/api\/tv\/pair\/(start|poll)$/,
+  /^\/api\/auth\/logout$/, // removing a profile from a TV ends its session
+  /^\/api\/tv\/profiles\/inbox$/, // profiles added for this TV (tv-profiles.js; the device key is the secret)
   /^\/android(\/|\.apk|\.json)?$/,
   /^\/play\//,
 ];

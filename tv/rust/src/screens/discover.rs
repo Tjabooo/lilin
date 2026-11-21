@@ -6,7 +6,7 @@ use crate::gfx::{rect};
 use crate::text::{body, display};
 use crate::ui::{self, Ambient, Ease, Lit};
 use crate::util::{arr, s};
-use crate::{key, t, Cx, Key, Nav, Res, Screen, TOKEN_KEY};
+use crate::{key, t, Cx, Key, Nav, Res, Screen};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -329,7 +329,7 @@ impl Discover {
                 }
                 Tab::Type(n) => String::from(ts[*n].1),
                 Tab::Docs => String::from(t!("Documentaries")),
-                Tab::Switch => String::from(t!("Switch account")),
+                Tab::Switch => String::from(t!("Switch profile")),
             })
             .collect()
     }
@@ -416,8 +416,8 @@ impl Screen for Discover {
                         cx.push(Box::new(s));
                     }
                     Tab::Switch => {
-                        crate::host::forget(TOKEN_KEY);
-                        let p = super::pair::Pair::new(cx, true, None);
+                        let list = super::profiles::load();
+                        let p = super::profiles::Picker::new(cx, list, true);
                         cx.nav.push(Nav::Reset(Box::new(p)));
                     }
                     Tab::Type(n) => {
