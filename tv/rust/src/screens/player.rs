@@ -383,7 +383,8 @@ impl Player {
         }
         self.last_save = t;
         self.count_played();
-        let done = self.ended || self.duration - self.time < logic::DONE_SECONDS;
+        // Near the end, or at the closing credits (the credits card / Up next): leaving there counts as watched.
+        let done = self.ended || self.duration - self.time < logic::DONE_SECONDS || logic::is_next_time(self.time, self.duration, self.credits_at, false);
         let key = logic::progress_ref(&self.f);
         let wall = host::epoch_ms();
         if let Value::Object(m) = &mut cx.state.progress {

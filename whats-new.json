@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-credits-count-as-watched",
+  "date": "2026-11-21",
+  "title": "Leaving at the credits counts",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Stopping at the credits marks the episode watched",
+      "text": "If you closed the player or the app while the credits played and Next episode was showing, the episode stayed in Continue watching as unfinished. It now counts as watched, and the next episode shows up in Continue watching instead. Works on the website and the TV app (restart the TV app once)."
+    }
+  ]
+},
+{
   "id": "2026-11-21-tv-every-season",
   "date": "2026-11-21",
   "title": "Every season on the TV",

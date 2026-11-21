@@ -1,4 +1,13 @@
 {
+  "2026-11-21-credits-count-as-watched": {
+    "title": "Att sluta vid eftertexterna räknas",
+    "items": {
+      "Stopping at the credits marks the episode watched": {
+        "title": "Att sluta vid eftertexterna markerar avsnittet som sett",
+        "text": "Om du stängde spelaren eller appen medan eftertexterna rullade och Nästa avsnitt visades, låg avsnittet kvar i Fortsätt titta som osett. Nu räknas det som sett, och nästa avsnitt dyker upp i Fortsätt titta i stället. Gäller både webbplatsen och TV-appen (starta om TV-appen en gång)."
+      }
+    }
+  },
   "2026-11-21-tv-every-season": {
     "title": "Alla säsonger på TV:n",
     "items": {

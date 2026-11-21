@@ -5636,8 +5636,10 @@ function saveProgress(force = false) {
   const now = Date.now();
   if (!force && now - lastSave < 5000) return;
   lastSave = now;
-  // Treat as finished near the end, or once Next episode was pressed (even with long credits left).
-  const done = current.nextPressed || video.duration - video.currentTime < 90;
+  // Treat as finished near the end, once Next episode was pressed, or once the credits card / Up next shows
+  // (closing the player or the app at the credits counts as watched, even with long credits left).
+  const done = current.nextPressed || video.duration - video.currentTime < 90
+    || upNextShowing({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: current.creditsAt, creditsGuess: current.creditsGuess });
   try {
     if (done) localStorage.removeItem(resumeKey(current));
     else localStorage.setItem(resumeKey(current), JSON.stringify({ time: video.currentTime, duration: video.duration }));

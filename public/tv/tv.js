@@ -2510,7 +2510,10 @@
       if (!force && t - s.lastSave < 15000) return;
       s.lastSave = t;
       countPlayed();
-      var done = s.ended || s.duration - s.time < L.DONE_SECONDS;
+      // Near the end, or at the closing credits (where Up next shows): leaving there counts as watched.
+      var guessAt = L.nextPromptAt(s.duration, s.creditsAt) === null ? L.nextPromptAt(s.duration, s.creditsGuess) : null;
+      var done = s.ended || s.duration - s.time < L.DONE_SECONDS || L.isNextTime(s.time, s.duration, s.creditsAt, false)
+        || (guessAt !== null && s.time >= guessAt);
       var key = L.progressRef(f);
       if (done) {
         delete state.progress[key];
