@@ -417,3 +417,23 @@ test('a dropped pick known only by its page link is not picked again on the retr
   await wait(retry);
   assert.notEqual(added[1], first, 'the dropped page-link pick is skipped');
 });
+
+test('a show sharing its English name with another (Ondskan = "Evil") is searched by its own name, never the other show', async () => {
+  const added = [], queries = [];
+  const evil = { type: 'tv', title: 'Evil', originalTitle: 'Ondskan', year: 2023, season: 1, want: {} };
+  const other = ['Evil.S01.1080p.AMZN.WEB-DL', 'Evil.2019.S01.1080p.BluRay.x265', 'Evil S01 Pilot 1080p WEB'];
+  const deps = (titleTwin, own = []) => seasonDeps({
+    titleTwin, seasonEpisodes: aired(6),
+    searchTorrents: async (q) => { queries.push(q); return { results: /E\d|x\d/.test(q) ? [] : results((/^Ondskan/.test(q) ? own : other).map((n) => [n, 300, 20 * GB])) }; },
+    addDownload: async (d) => { added.push(d.name); return { existing: false }; },
+  });
+  let job = await wait(startSmartJob(evil, deps(async () => true, ['Ondskan.S01.1080p.WEB-DL.SWEDiSH'])));
+  assert.deepEqual(added, ['Ondskan.S01.1080p.WEB-DL.SWEDiSH']); assert.equal(queries[0], 'Ondskan S01', 'its own name first');
+  added.length = 0;
+  job = await wait(startSmartJob(evil, deps(async () => true)));
+  assert.deepEqual(added, [], 'the American Evil is never taken for it'); assert.notEqual(job.outcome, 'started');
+  // No other show by that name ("Money Heist"): unchanged, the English name still counts.
+  added.length = 0;
+  job = await wait(startSmartJob(evil, deps(async () => false)));
+  assert.equal(added.length, 1);
+});

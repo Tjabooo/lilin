@@ -71,6 +71,10 @@ export function startSmartJob(spec, deps) {
     ...(spec.dub ? { dub: true } : {}),
   };
   jobs.set(job.id, job);
+  if (spec.type === 'tv' && spec.originalTitle) {
+    Object.defineProperty(job, 'originalTitle', { value: spec.originalTitle, writable: true });
+    if (deps.titleTwin && !deps.isTwin) deps = twinGuarded(deps, spec);
+  }
   if (spec.dub) deps = dubbedOnly(deps);
   (spec.type === 'tv' ? (spec.upgrade ? runUpgrade : runSeason)(job, { ...spec, only }, deps) : runFilm(job, spec, deps)).catch((e) => {
     job.state = 'failed';
@@ -90,6 +94,37 @@ function dubbedOnly(deps) {
     return { ...found, results: (found.results || []).filter((r) => isDualAudio(r.name)) };
   } };
 }
+
+// A show whose English name another show also has ("Evil": Swedish Ondskan 2023 and the American Evil 2019): its
+// releases go by its own name ("Ondskan S01E01"), and a release under the English name counts only with the right
+// year in it. Nothing else under that name can be told apart (2026-11-21: Ondskan got the American Evil's episodes).
+// deps.titleTwin(): another TMDB show carries the English name (asked once, on the first search).
+function twinGuarded(deps, spec) {
+  let twin = null;
+  const isTwin = () => (twin ||= Promise.resolve().then(() => deps.titleTwin()).then(Boolean, () => false));
+  return { ...deps, isTwin, searchTorrents: async (query, type, opts) => {
+    const found = await deps.searchTorrents(query, type, opts);
+    if (!await isTwin()) return found;
+    return { ...found, results: (found.results || []).filter((r) => twinFits(r.name, spec, deps.parseName)) };
+  } };
+}
+export function twinFits(name, { title, originalTitle, year }, parseName) {
+  // The name before the season or episode ("Evil.2019.S01.1080p" -> "Evil 2019"): packs keep "S01" in the parsed title.
+  const head = String(name).replace(/[._]+/g, ' ').split(/\b(?:S\d{1,2}|season\s?\d{1,2}|\d{1,2}x\d{2,3})\b/i)[0].trim();
+  const p = parseName(head || name, { file: false });
+  const near = Boolean(p.year && year && Math.abs(p.year - year) <= 1);
+  if (p.year && year && !near) return false;
+  if (sameShow(p.title, title) && !sameShow(p.title, originalTitle)) return near;
+  return true;
+}
+// Every name the show's releases go by, the likeliest first: its own name before the English one when the English
+// one is shared (job.twin), and House's aliases.
+const ALIASES = { house: ['House MD'], housemd: ['House'] };
+function showNames(job) {
+  const names = job.twin ? [job.originalTitle, job.title] : [job.title, job.originalTitle];
+  return [...new Set(names.filter(Boolean).flatMap((t) => [t, ...(ALIASES[showKey(t)] || [])]))];
+}
+const ofShow = (name, job) => showNames(job).some((t) => sameShow(name, t));
 
 const hashOf = (r) => /btih:([a-z0-9]+)/i.exec(r.magnet || '')?.[1]?.toLowerCase() || null;
 // A pack whose file list arrived but no file in it could be read (no episode numbers Lilin knows):
@@ -379,6 +414,7 @@ function betterCopy(pool, pick, want, deps) {
 }
 
 async function runSeason(job, spec, deps) {
+  job.twin = Boolean(await deps.isTwin?.());
   await animeOf(job, spec);
   const { season, only } = spec;
   const plan = deps.seasonEpisodes ? await deps.seasonEpisodes(spec.title, spec.year, season) : null;
@@ -408,7 +444,7 @@ async function runSeason(job, spec, deps) {
   const ranged = Boolean(spec.range && only && missing && missing.length >= PACK_FROM && aired);
   const inRange = (e) => !only || only.includes(e);
   let freeBytes = await deps.freeBytes?.('tv');
-  const want = { ...spec.want, title: job.title, season, anime: Boolean(ctx) };
+  const want = { ...spec.want, title: job.title, titles: showNames(job), season, anime: Boolean(ctx) };
   const covered = new Set();
   let packWhy = null;
   // A batch already on the server beats a fresh one for the rest of a season: one release throughout,
@@ -479,7 +515,7 @@ async function runSeason(job, spec, deps) {
   // ---- a season pack, with what's already here switched off ----
   if (!ctx && (ranged || (!only && (!missing || missing.length >= PACK_FROM || missing.length === aired.length)))) {
     job.step = 'Looking for a season pack…';
-    const titles = [job.title, ...(showKey(job.title) === 'house' ? ['House MD'] : showKey(job.title) === 'housemd' ? ['House'] : [])];
+    const titles = showNames(job);
     let results = [], best = { pick: null, why: null };
     for (const query of seasonQueries(titles, season, want.profile)) {
       try { results = [...results, ...await search(query, 'tv', deps)]; } catch (e) { if (e.status === 503) throw e; continue; }
@@ -572,6 +608,7 @@ const perEpisodeText = (bytes) => `${Math.round(bytes / 1024 ** 3 * 10) / 10} GB
 const describe = (quality, name, bytes) => [quality === '2160p' ? '4K' : quality, { remux: 'Remux', bluray: 'BluRay', web: 'WEB-DL', webrip: 'WEBRip', tv: 'TV capture', dvd: 'DVD', upscale: 'upscale' }[sourceOf(name)], bytes && perEpisodeText(bytes)].filter(Boolean).join(' · ');
 
 async function runUpgrade(job, spec, deps) {
+  job.twin = Boolean(await deps.isTwin?.());
   const { season } = spec;
   const now = spec.upgrade;
   const plan = deps.seasonEpisodes ? await deps.seasonEpisodes(spec.title, spec.year, season) : null;
@@ -584,12 +621,12 @@ async function runUpgrade(job, spec, deps) {
   const count = aired?.length || now.episodes.length;
   const current = { name: now.names[0] || '', size: now.bytes / now.episodes.length * count, quality: now.quality || null };
   // stream false: nobody watches an upgrade while it downloads, so the picture alone decides.
-  const want = { ...spec.want, profile: 'best', stream: false, quality: spec.want?.quality || null, title: job.title, season, type: 'tv', episodes: count, missing: count };
+  const want = { ...spec.want, profile: 'best', stream: false, quality: spec.want?.quality || null, title: job.title, titles: showNames(job), season, type: 'tv', episodes: count, missing: count };
   const bar = pictureScore(current, want, 'pack') + UPGRADE_MARGIN;
   const nowText = describe(now.quality, current.name, now.bytes / now.episodes.length);
   job.step = 'Looking for a better season pack…';
   const freeBytes = await deps.freeBytes?.('tv');
-  const titles = [job.title, ...(showKey(job.title) === 'house' ? ['House MD'] : showKey(job.title) === 'housemd' ? ['House'] : [])];
+  const titles = showNames(job);
   let results = [];
   for (const query of seasonQueries(titles, season, 'best')) {
     try { results = [...results, ...await search(query, 'tv', deps)]; } catch (e) { if (e.status === 503) throw e; }
@@ -634,15 +671,15 @@ const NOTHING = 'Nothing found.';
 // TV category and then everywhere. Only releases of this show, season and episode count.
 // hurry: a promise; once it's settled, the searches stop waiting for slow sites (torrents.js, settleQuickly).
 async function findEpisode(job, season, episode, want, deps, ctx = null, hurry = null) {
-  const title = job.title;
   // Anime: the title check is the context's (any known name), and numbering is placed on TMDB's.
   const fits1 = (r) => usable(r) && (ctx
     ? ((eps) => eps.includes(episode) && eps.length <= 3)(episodesIn(r.name, season, ctx)) // not a whole batch
-    : sameShow(deps.parseName(r.name).title, title) && episodesIn(r.name, season).includes(episode));
+    : ofShow(deps.parseName(r.name).title, job) && episodesIn(r.name, season).includes(episode));
   const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && fits1(r);
   let fits = [], error = null, hurried = false;
   Promise.resolve(hurry).then(() => { hurried = Boolean(hurry); }, () => { hurried = true; });
-  const queries = ctx ? episodeQueriesAnime(ctx, season, episode).slice(0, 5) : episodeQueries(title, season, episode);
+  const queries = ctx ? episodeQueriesAnime(ctx, season, episode).slice(0, 5)
+    : [...new Set(showNames(job).flatMap((t) => episodeQueries(t, season, episode)))];
   for (const [i, query] of queries.entries()) {
     // A lively pack is already there: other spellings of the episode's number won't find anything livelier.
     if (hurried && i > 0) break;
@@ -730,19 +767,19 @@ async function findPack(job, season, ep, want, deps, ctx) {
     const packs = seasonPacks(unique(lists.flat()).filter(usable).filter((r) => !r.cam && r.seeders >= 2), ctx, season, [ep]);
     return withRest(packs, (l) => choose(l, want, 'pack'));
   }
-  const title = job.title;
-  const titles = [title, ...(showKey(title) === 'house' ? ['House MD'] : showKey(title) === 'housemd' ? ['House'] : [])];
-  const isPack = (r) => ((t) => t != null && sameShow(deps.parseName(t, { file: false }).title, title))(packTitle(r.name, season));
-  const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && usable(r) && (isPack(r) || Boolean(seasonSet(r.name, title, season, deps.parseName)));
+  const titles = showNames(job);
+  const setOf = (name) => titles.map((t) => seasonSet(name, t, season, deps.parseName)).find(Boolean) || null;
+  const isPack = (r) => ((t) => t != null && ofShow(deps.parseName(t, { file: false }).title, job))(packTitle(r.name, season));
+  const good = (r) => !r.cam && r.seeders >= GOOD_SEEDERS && usable(r) && (isPack(r) || Boolean(setOf(r.name)));
   const run = (q) => search(q, 'tv', deps, patience(job, good)).catch((e) => { if (e.status === 503) throw e; return []; });
   const results = unique((await Promise.all(seasonQueries(titles, season, 'balanced').slice(0, 2).map(run))).flat()).filter(usable);
   const season1 = withRest(results, (l) => pickBest(l, want, deps.parseName));
   if (season1.pick) return season1;
   // Every season in one: per episode, its size over (seasons × this season's episodes).
-  const sets = (list) => list.map((r) => ({ r, set: seasonSet(r.name, title, season, deps.parseName) })).filter((x) => x.set)
+  const sets = (list) => list.map((r) => ({ r, set: setOf(r.name) })).filter((x) => x.set)
     .map(({ r, set }) => ({ ...r, packEpisodes: (set.to - set.from + 1) * Math.max(1, want.episodes || 20), set: true }));
   let found = sets(results);
-  if (!found.length) found = sets(unique(await run(`${title} complete`)).filter(usable));
+  if (!found.length) found = sets(unique(await run(`${titles[0]} complete`)).filter(usable));
   return withRest(found.filter((r) => !r.cam && r.seeders >= 2), (l) => choose(l, want, 'pack'));
 }
 const unique = (list) => { const seen = new Set(); return list.filter((r) => { const k = r.magnet || r.ref || r.name; return !seen.has(k) && seen.add(k); }); };

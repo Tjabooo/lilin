@@ -1059,6 +1059,14 @@ async function svtAdd(user, title, { seasons = null, episodes = null, name = nul
 
 // Smart Download's other source: exactly this title on SVT Play, or nothing. A show's seasons have to be
 // numbered the way TMDB numbers them, which SVT's dated seasons ("Sommar 2026") aren't.
+// Another TMDB show also goes by this English name (Swedish Ondskan and the American Evil are both "Evil"):
+// smart-download.js then searches the show's own name and wants the year on English-named releases.
+async function tvTitleTwin(title, tmdbId) {
+  const key = shows.showKey(title);
+  const found = await tmdb('/search/tv', { query: title });
+  return (found.results || []).some((r) => r.id !== tmdbId && [r.name, r.original_name].some((n) => n && shows.showKey(n) === key));
+}
+
 function svtAlternative(user, { type, title, originalTitle, year, tmdbId }) {
   if (!svt.svtEnabled() || !svtQueue) return null;
   const keys = new Set([title, originalTitle].filter(Boolean).map(shows.showKey));
@@ -1765,7 +1773,7 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     want,
     preferAlternative: !upgrade && !animeCtx && details.original_language === 'sv',
   }, {
-    parseName, magnetFor1337x: torrents.magnetFor1337x,
+    parseName, magnetFor1337x: torrents.magnetFor1337x, titleTwin: () => tvTitleTwin(title, tmdbId),
     // Someone is waiting to watch: the sites that answer quickly decide (torrents.js, quick).
     // (opts: what settles a search, how long the slower sites may take: smart-download.js)
     searchTorrents: (q, t, opts = {}) => torrents.searchTorrents(q, t, { documentary, quick: !background && !upgrade, good: opts.good, wait: opts.wait, hurry: opts.hurry }),
@@ -6422,7 +6430,7 @@ function startPickJob(pick, details) {
     originalTitle: original && original !== pick.title && /^[\p{Script=Latin}\d\s\p{P}]+$/u.test(original) ? original : null,
     want: { profile: 'balanced', prefer: null, quality: null, maxBytes: PICK_MAX_BYTES[type], audioLang: owner?.settings?.audioLang || '', runtime },
   }, {
-    parseName, magnetFor1337x: torrents.magnetFor1337x,
+    parseName, magnetFor1337x: torrents.magnetFor1337x, titleTwin: () => tvTitleTwin(pick.title, pick.tmdbId),
     searchTorrents: (q, t) => torrents.searchTorrents(q, t, { documentary }),
     alternative: null,
     addDownload: async (opts) => {

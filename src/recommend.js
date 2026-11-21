@@ -288,8 +288,10 @@ export function pickBest(results, want, parseName) {
   if (want.type === 'tv') {
     const keyOf = (r) => { const t = packTitle(r.name, want.season); return t == null ? null : showKey(parseName(t, { file: false }).title); };
     // "The Office US" for TMDB's "The Office": only when no pack uses the plain name.
+    // want.titles: every name the show goes by (smart-download.js showNames), else the title alone.
+    const titles = want.titles?.length ? want.titles : [want.title];
     const exact = live.filter((r) => { const t = packTitle(r.name, want.season);
-      return t != null && sameShow(parseName(t, { file: false }).title, want.title); });
+      return t != null && ((n) => titles.some((x) => sameShow(n, x)))(parseName(t, { file: false }).title); });
     const packs = exact.length ? exact : live.filter((r) => keyOf(r)?.startsWith(key) && COUNTRIES.has(keyOf(r).slice(key.length)));
     return choose(packs, want, 'pack');
   }
