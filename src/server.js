@@ -1745,14 +1745,22 @@ function queueDubFetch(user, body) {
 async function runDubFetch(key) {
   const t = dubGraft.tryOf(key);
   const user = t && accounts.userById(t.user);
-  if (!user) return;
+  if (!user || (t.at && Date.now() - t.at < 3600_000)) return; // already ran (the queue and a retry can meet)
   dubGraft.noteTry(key, { at: Date.now(), count: (t.count || 0) + 1 });
   try { await startSmartFor(user, { ...t.body, dub: true, dubCompanion: true }, { background: true }); }
   catch (e) { console.warn(`[dub] ${key}: ${e.message}`); }
 }
-setInterval(() => {
-  for (const [key, t] of dubGraft.allTries()) if ((t.count || 0) < DUB_TRIES && t.at && Date.now() - t.at > DUB_RETRY_MS) runDubFetch(key);
-}, 6 * 3600 * 1000).unref();
+// Weekly retries, and fetches queued before a restart that never ran (at 0), a minute apart.
+function dubRetries() {
+  let delay = 0;
+  for (const [key, t] of dubGraft.allTries()) {
+    if ((t.count || 0) >= DUB_TRIES || (t.at && Date.now() - t.at < DUB_RETRY_MS)) continue;
+    setTimeout(() => runDubFetch(key), delay).unref?.();
+    delay += 60_000;
+  }
+}
+setTimeout(dubRetries, 3 * 60 * 1000).unref();
+setInterval(dubRetries, 6 * 3600 * 1000).unref();
 
 // Dual-audio copies still waiting to give their dub to another copy: not converted meanwhile.
 let dubPending = new Set();
