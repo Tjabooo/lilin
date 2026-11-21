@@ -40,6 +40,7 @@ import * as reviews from './reviews.js'; // reviews: stars + written reviews (re
 import * as lists from './lists.js'; // lists: shelves people put together and share (lists.js)
 import * as ghosts from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later (ghosts.js)
 import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
+import * as liklok from './liklok.js'; // liklok: the clip feed (preview, LIKLOK_EMAILS only)
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -76,7 +77,7 @@ import * as listShare from './list-share.js'; // shared list links with a poster
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
-import { creditsFor, creditsGuessFor, introFor, initCredits, knownTimes, recapFor, storedIntro } from './credits.js';
+import { creditsFor, creditsGuessFor, introFor, initCredits, knownTimes, recapFor, storedIntro, storedRecap } from './credits.js';
 import { createThemeMusic } from './theme-music.js'; // theme: theme music on show pages
 import { createLiveTv } from './live-tv.js';
 import { LiveChat } from './live-chat.js'; // livechat
@@ -373,6 +374,10 @@ moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => con
     notify(ids, 'share', { title: `${from} sent you a moment`, body: m.note || [m.title, m.label].filter(Boolean).join(' · '), url: `/?moment=${m.id}`, tag: `moment-${m.id}` });
     for (const id of ids) live.publish('moments', { audience: 'user', userId: id });
   } });
+// liklok: clips from the first episodes of every show, built in the background while anyone may see it.
+liklok.initLikLok({ cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, library: () => liveLibrary(),
+  subtitleFor: (file) => subtitles.findSidecar(file, 'en') || subtitles.findSidecar(file, 'sv'),
+  timesFor: (file) => ({ intro: storedIntro(file), recap: storedRecap(file) }) });
 // pick: Pick together (match.js): everyone swipes the same posters; a title everyone says yes to is a match.
 const match = createMatch({
   tmdb: (endpoint, params, lang) => (TMDB_LANGUAGES[lang] ? tmdb(endpoint, params, TMDB_LANGUAGES[lang]) : tmdb(endpoint, params)),
@@ -4836,6 +4841,32 @@ async function handleApi(req, res, url) {
     } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
     throw new HttpError(404, 'Not found.');
   }
+  // liklok: the clip feed (liklok.js). Only for LIKLOK_EMAILS; to everyone else it isn't there.
+  if (p.startsWith('/api/liklok/')) {
+    if (!liklok.enabled() || !liklok.allowed(user)) throw new HttpError(404, 'Not found.');
+    try {
+      if (p === '/api/liklok/feed' && req.method === 'GET') {
+        const skip = String(url.searchParams.get('skip') || '').split(',').filter((s) => /^[a-f0-9]{12}$/.test(s)).slice(0, 400);
+        const n = Math.max(1, Math.min(20, Number(url.searchParams.get('n')) || 8));
+        const clips = liklok.feed(user, { items: await liveLibrary(), progress: accounts.progressOf(user.id), skip, n });
+        const cards = new Map(await Promise.all([...new Set(clips.map((c) => c.titleKey).filter(Boolean))].map(async (k) => [k, await profileCard(k)])));
+        for (const c of clips) c.card = (c.titleKey && cards.get(c.titleKey)) || null; // the show's page and My list
+        return sendJson(res, 200, { clips, status: liklok.summary() });
+      }
+      if (p === '/api/liklok/status' && req.method === 'GET') return sendJson(res, 200, liklok.summary());
+      if (p === '/api/liklok/event' && req.method === 'POST') return sendJson(res, 200, liklok.record(user, await readJson(req)));
+      if (p === '/api/liklok/unnope' && req.method === 'POST') return sendJson(res, 200, liklok.undoNope(user, (await readJson(req)).id));
+      if ((m = p.match(/^\/api\/liklok\/v\/([a-f0-9]{12}\.(?:mp4|jpg|vtt))$/)) && req.method === 'GET') {
+        const file = liklok.fileFor(m[1]);
+        if (!file) throw new HttpError(404, 'That clip is gone.');
+        if (file.endsWith('.mp4')) return sendVideo(req, res, file);
+        const type = file.endsWith('.jpg') ? 'image/jpeg' : 'text/vtt; charset=utf-8';
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' });
+        return fs.createReadStream(file).pipe(res);
+      }
+    } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
+    throw new HttpError(404, 'Not found.');
+  }
   // profiles: everyone's own page (profiles.js). Who sees what is decided there; this adds the title cards.
   if (p === '/api/profiles' || p.startsWith('/api/profiles/')) {
     try {
@@ -5062,6 +5093,7 @@ async function handleApi(req, res, url) {
       casting: await castAllowed(req),
       admin: activity.isAdmin(req),
       notes: activity.isAdmin(req) && Boolean(user?.canSeeNotes),
+      liklok: liklok.enabled() && liklok.allowed(user), // liklok
       clips: activity.isAdmin(req) && clips.clipsConfigured(),
       me: { ...accounts.publicUser(user), via: req.auth.via, hasPassword: auth.hasPassword(req.auth.email), needsPassword: needsPassword(req) },
       rules: accounts.serverSettings(),

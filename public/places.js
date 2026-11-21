@@ -12,6 +12,7 @@ const syn = (en, sv) => ({ en, sv });
 
 export const PLACES = [
   { id: 'discover', route: 'discover', syn: syn(['home', 'browse', 'trending', 'films', 'shows', 'genres'], ['hem', 'bläddra', 'trendar', 'filmer', 'serier', 'genrer']) },
+  { id: 'liklok', route: 'liklok', syn: syn(['clips', 'shorts', 'feed', 'scroll', 'tiktok'], ['klipp', 'flöde', 'scrolla']) },
   { id: 'live', route: 'live', syn: syn(['tv', 'seele tv', 'channels', 'guide', 'live tv'], ['tv', 'kanaler', 'tablå']) },
   { id: 'instant', route: 'discover/instant', syn: syn(['instant', 'on lilin', 'on the server', 'ready to watch', 'library', 'my titles', 'collection'], ['direkt', 'på lilin', 'på servern', 'redo att se', 'bibliotek', 'mina titlar', 'samling']) },
   { id: 'saved', route: 'discover', label: 'My list', syn: syn(['my list', 'saved', 'watchlist', 'following', 'new episodes', 'continue watching'], ['min lista', 'sparat', 'sparad till senare', 'följer', 'nya avsnitt', 'fortsätt titta']) },

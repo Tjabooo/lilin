@@ -12,13 +12,15 @@ const social = (me) => Boolean(me?.email && !me.restricted);
 
 // Tab order in the bar. House only shows for owners (and members with owner rights). There is no Library: Play is
 // the only action (think of something, find it, press Play), so what's here is a filter on Discover (Instant).
-export const TABS = ['discover', 'live', 'house', 'you'];
+export const TABS = ['discover', 'live', 'liklok', 'house', 'you'];
 
 export const ROUTES = {
   discover: { view: 'discover', tab: 'discover', label: 'Discover' },
   // Discover's Instant filter: everything on the server, which plays at once (the old Library's titles for everyone).
   'discover/instant': { view: 'discover', tab: 'discover', sub: 'instant', label: 'Plays instantly' },
   live: { view: 'live', tab: 'live', label: 'Live' },
+  // liklok: the clip feed, a preview only the people in LIKLOK_EMAILS get (the server says so in /api/status).
+  liklok: { view: 'liklok', tab: 'liklok', label: 'LikLok', allowed: (me, s) => Boolean(s?.liklok) },
 
   // You: the person's own hub (replaces Settings). The root list is the phone's index; each row opens a page.
   // Your watching is private (always your own view, also for the home network's shared account).

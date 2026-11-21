@@ -27,6 +27,7 @@ import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
 import { createLists } from './lists.js'; // lists: shelves on profiles, with their own links
 import { createMoments } from './moments.js'; // friends: Moments
+import { createLikLok } from './liklok.js'; // liklok: the clip feed (preview)
 import { createGhosts } from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { createInvite } from './invite.js'; // one Invite sheet: Lilin, Friend, Room, Pick, Moment
@@ -7160,6 +7161,23 @@ const pickUi = createMatch({ h, api, jsonPost, toast, icon, people, me: () => st
   openTitle: (t) => openDetails(t, null), offerRoom: (token) => offerWatchRoom(token), watchClient, canDownload: () => canDownload(), invite,
   enterRoom: async (room) => { await openPlayer({ ...room.media, key: room.media.id, done: true }, { watchRoom: room }); setWatchPanel(true); } });
 // friends: Moments (moments.js): player scissors button (next to the cog) → Clip a moment, and Settings → Moments.
+// liklok: the clip feed. Keep watching / From episode 1 play the library file (added to your library first, like
+// leaving Live does), My list and the show's page go through the usual title code.
+const likLokUI = createLikLok({ h, api, jsonPost, toast, root: $('#liklok-body'), playerOpen: () => !$('#player').hidden,
+  isSaved: (card) => Boolean(watchItem(card.type, card.id)?.saved),
+  toggleSave: async (card) => {
+    const item = await setWatch(card, { saved: !watchItem(card.type, card.id)?.saved });
+    toast(listToast(item, card));
+    return Boolean(item?.saved);
+  },
+  openShow: (card, opener) => openDetails(card, opener),
+  play: async (p, at) => {
+    if (!state.library.some((f) => f.mediaKey && f.mediaKey === p.mediaKey)) {
+      try { await api('/api/library/add', jsonPost({ ids: [p.libId] })); loadLibrary().catch(() => {}); } catch { /* still plays */ }
+    }
+    await openPlayer({ kind: 'lib', id: p.libId, key: p.libId, mediaKey: p.mediaKey, title: p.title, season: p.season, episode: p.episode,
+      episodeName: p.episodeName, done: true }, at > 0 ? { startAt: at } : {});
+  } });
 const momentsUI = createMoments({ h, api, jsonPost, toast, icon, people, me: () => state.me, friendsUI, invite, copyWithToast, fmtAgo, video, playerEl: $('#player'),
   current: () => current, subCues: () => (subTrack?.cues ? [...subTrack.cues] : []), inRoom: () => Boolean(party),
   describe: (f) => {
@@ -8236,6 +8254,7 @@ function openPlayerShell(opts = {}) {
     document.body.classList.remove('in-player');
     opener?.focus?.({ preventScroll: true });
     if (state.view === 'library') { libraryRenderPending = true; renderUpdatedLibrary(); }
+    if (state.view === 'liklok') setTimeout(() => likLokUI.resume(), 0); // liklok: back to the clip
   });
   playerEl.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -11798,6 +11817,7 @@ async function setView(target, { address = true } = {}) {
   if (address) rememberView(id, Boolean(r.sub) && fromRoot);
   const viewChanged = r.view !== state.view;
   state.route = id; state.sub = r.sub || null; state.view = r.view;
+  likLokUI.setActive(r.view === 'liklok'); // liklok: plays only while its tab shows
   tabStack[r.tab] = id;
   try { sessionStorage.setItem('lilin:stack', JSON.stringify(tabStack)); } catch { /* private mode: no stacks */ }
   document.querySelectorAll('.tab').forEach((t) => { if (t.dataset.view === r.tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });

@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="/profiles.css"><!-- profiles -->
   <link rel="stylesheet" href="/theme-music.css"><!-- theme: theme music on show pages -->
   <link rel="stylesheet" href="/notices.css"><!-- owner popups -->
+  <link rel="stylesheet" href="/liklok.css"><!-- liklok: the clip feed (preview) -->
 </head>
 <body>
   <header class="top" id="top">
@@ -70,6 +71,11 @@
         <button class="tab" data-view="live">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12.5" rx="2"/><path d="m8 3 4 4 4-4"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg>
           <span>Live</span>
+        </button>
+        <!-- liklok: the clip feed, a preview for LIKLOK_EMAILS only -->
+        <button class="tab" data-view="liklok" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 9.2v5.6l4.4-2.8z"/></svg>
+          <span>LikLok</span>
         </button>
         <button class="tab" data-view="house" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>
@@ -110,6 +116,12 @@
     <section id="view-discover" class="view" aria-labelledby="discover-heading">
       <h2 class="view-heading" id="discover-heading">Trending this week</h2>
       <div id="discover-body"></div>
+    </section>
+
+    <!-- liklok: the clip feed (liklok.js draws it all) -->
+    <section id="view-liklok" class="view" aria-labelledby="liklok-heading" hidden>
+      <h2 class="sr-only" id="liklok-heading">LikLok</h2>
+      <div id="liklok-body"></div>
     </section>
 
     <!-- Owners: House › Downloads (it was the Library tab's view; there is no Library now, Play is the only action) -->

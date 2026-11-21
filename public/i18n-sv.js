@@ -2811,4 +2811,18 @@ export default {
   "Still looking: this one’s a puzzle…": "Letar fortfarande: det här är en kluring …",
   "Matches: {0}": "Stämmer: {0}",
   "MAGIc search didn’t work": "MAGIsk sökning fungerade inte",
+  // liklok
+  "LikLok": "LikLok",
+  "{0} episodes looked at · {1} clips": "{0} avsnitt genomgångna · {1} klipp",
+  "About the show": "Om serien",
+  "Couldn’t load LikLok": "Kunde inte ladda LikLok",
+  "From episode 1": "Från avsnitt 1",
+  "From the start": "Från början",
+  "Got it. No more {0}.": "Uppfattat. Ingen mer {0}.",
+  "It looks through the first episodes of every show on the server and cuts out the best bits. This page fills in by itself.": "Den går igenom de första avsnitten av varje serie på servern och klipper ut de bästa bitarna. Sidan fylls på av sig själv.",
+  "LikLok is cutting its first clips": "LikLok klipper sina första klipp",
+  "Now: {0}": "Nu: {0}",
+  "Tap for sound": "Tryck för ljud",
+  "That’s every clip for now": "Det var alla klipp för nu",
+  "Why this clip": "Varför det här klippet",
 };
