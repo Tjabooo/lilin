@@ -111,6 +111,35 @@ export function introChapter(info) {
   return found.length ? found.sort((a, b) => a.start - b.start)[0] : null;
 }
 
+// The "Previously on…" recap (Skip recap) is found in three ways: a recap chapter, or the opening minutes
+// matching scenes from the episode or two before it (recapFor), with a "Previously on" subtitle line to back
+// a short one up. Like the intro, anything uncertain gives null: no button rather than skipping new scenes.
+export const RECAP_MIN = 15; // seconds: shorter is a sting or a single flashback, not a recap
+export const RECAP_MAX = 300;
+export function recapChapter(info) {
+  const duration = Number(info?.format?.duration);
+  if (!Number.isFinite(duration) || duration <= 0 || !Array.isArray(info?.chapters)) return null;
+  const found = info.chapters.filter((chapter) =>
+    /^(?:recap|previously(?:\s+on\b.*)?|last\s+time(?:\s+on\b.*)?|the\s+story\s+so\s+far|story\s+so\s+far)$/i.test(chapterTitle(chapter)))
+    .map((chapter) => ({ start: Number(chapter.start_time), end: Number(chapter.end_time) }))
+    .filter(({ start, end }) => Number.isFinite(start) && Number.isFinite(end) && start >= 0 && start < 120
+      && end - start >= RECAP_MIN && end - start <= RECAP_MAX && end < duration / 2);
+  return found.length ? found.sort((a, b) => a.start - b.start)[0] : null;
+}
+
+// A "Previously on" line in the first minutes of the subtitles: the episode opens with a recap.
+export function saysPreviously(srt) {
+  for (const block of String(srt || '').replace(/\r/g, '').split(/\n\s*\n/)) {
+    const lines = block.split('\n');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    const m = i < 0 ? null : /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->/.exec(lines[i]);
+    if (!m) continue;
+    if (SECS(m[1], m[2], m[3], m[4]) > 120) return false;
+    if (/\b(?:previously\s+on|last\s+time\s+on|previously\s*(?:\.\.\.|…|:))/i.test(lines.slice(i + 1).join(' ').replace(/<[^>]+>/g, ''))) return true;
+  }
+  return false;
+}
+
 function probe(file) {
   return new Promise((resolve) => {
     execFile(FFPROBE, ['-v', 'error', '-show_chapters', '-show_entries',
@@ -120,7 +149,7 @@ function probe(file) {
       try {
         const info = JSON.parse(stdout);
         const duration = Number(info?.format?.duration);
-        resolve({ duration: Number.isFinite(duration) && duration > 0 ? duration : null, chapter: creditsStart(info), intro: introChapter(info) });
+        resolve({ duration: Number.isFinite(duration) && duration > 0 ? duration : null, chapter: creditsStart(info), intro: introChapter(info), recap: recapChapter(info) });
       } catch { resolve(null); }
     });
   });
@@ -277,13 +306,85 @@ function longestRun(a, b, d, { minMatch, minSound }) {
   return best;
 }
 
+// A recap is a montage of short clips taken from anywhere in earlier episodes, so unlike the theme song
+// there's no single alignment to find. Each second of the opening (a) is looked for everywhere in the
+// earlier episode (b): the best spot by average differing bits, giving up on a spot after a few frames
+// that are clearly different. allowed(j) leaves out parts of b that would match for another reason
+// (its logos, theme song and credits). Gives the clips as { s, e, j } frame indexes: a's stretch s..e
+// heard at b's frame j, consecutive seconds joined when b runs on with them.
+const CLIP_BLOCK = FRAMES(1);
+export async function matchClips(a, b, allowed = () => true) {
+  const B = CLIP_BLOCK, len = b.codes.length;
+  const ok = new Uint8Array(len);
+  for (let j = 0; j < len; j++) ok[j] = !b.quiet[j] && allowed(j) ? 1 : 0;
+  const blocks = [];
+  for (let s = 0; s + B <= a.codes.length; s += B) {
+    await yieldNow();
+    const frames = [];
+    for (let k = s; k < s + B; k++) if (!a.quiet[k]) frames.push(k);
+    if (frames.length < B / 2) continue; // mostly silence: no evidence either way
+    let best = MATCH_BITS, bestJ = -1;
+    for (let j0 = 0; j0 + B <= len; j0++) {
+      let sum = 0, n = 0, bad = false;
+      for (let f = 0; f < frames.length; f++) {
+        const k = frames[f], j = j0 + (k - s);
+        if (!ok[j]) { sum += 16; n++; } else { sum += popcount(a.codes[k] ^ b.codes[j]); n++; }
+        if (n >= 4 && sum > 13 * n) { bad = true; break; } // unrelated audio averages 16
+      }
+      if (!bad && sum / n < best) { best = sum / n; bestJ = j0; }
+    }
+    if (bestJ >= 0) blocks.push({ s, j: bestJ });
+  }
+  const clips = [];
+  for (const block of blocks) {
+    const last = clips[clips.length - 1];
+    if (last && block.s === last.e && Math.abs(block.j - (last.j + (block.s - last.s))) <= 2) last.e = block.s + B;
+    else clips.push({ s: block.s, e: block.s + B, j: block.j });
+  }
+  return clips;
+}
+
+// The recap among an episode's opening clips (seconds, { s, e } from every earlier episode compared), or null.
+// It starts in the first RECAP_LEAD seconds, ends before the opening titles, is several separate clips with
+// short gaps between them (cuts, a narrator's "Previously on…"), and is mostly matched audio. A long unbroken
+// match is a scene played again, not a montage, and ends the search. said: the subtitles say "Previously on",
+// which lets a recap of two clips count.
+const RECAP_LEAD = 75;
+const RECAP_GAP = 10;
+const RECAP_CLIP_MAX = 30;
+export function recapSpan(clips, { intro = null, said = false } = {}) {
+  const limit = intro ? intro.start : Infinity;
+  const list = clips.filter((c) => c.s < limit).map((c) => ({ s: c.s, e: Math.min(c.e, limit) })).sort((x, y) => x.s - y.s);
+  const run = [];
+  let end = -Infinity;
+  for (const c of list) {
+    if (c.e - c.s > RECAP_CLIP_MAX) break;
+    if (run.length ? c.s - end > RECAP_GAP : c.s > RECAP_LEAD) break;
+    run.push(c);
+    end = Math.max(end, c.e);
+  }
+  if (!run.length) return null;
+  // Overlapping clips (the same moment found in two episodes) count once.
+  let matched = 0, pieces = 0, reach = -Infinity;
+  for (const c of run) {
+    if (c.s >= reach) { pieces++; matched += c.e - c.s; } else if (c.e > reach) matched += c.e - reach;
+    reach = Math.max(reach, c.e);
+  }
+  const start = run[0].s;
+  if (end - start < RECAP_MIN || end - start > RECAP_MAX || matched < 10 || matched < (end - start) * 0.25 || pieces < (said ? 2 : 3)) return null;
+  // Shown from the very start when only a logo or "Previously on" comes before it; skips to the end of the last
+  // clip, or straight to the opening titles when they follow within seconds (the tail of the last clip).
+  const to = intro && intro.start - end <= 5 ? intro.start : end - 0.5; // a second judged as matched may run a moment past the clip
+  return { start: start <= 15 ? 0 : Math.ceil(start * 10) / 10, end: Math.floor(to * 10) / 10 };
+}
+
 // ---- decoding ----
 const WINDOW = 360; // seconds of each ending to compare
 const INTRO_WINDOW = 480; // seconds from the start where the opening titles are looked for, past long cold opens
 const INTRO_FAR_WINDOW = 900; // searched only when that finds nothing, with stricter rules (see introFor)
 let busy = Promise.resolve(); // one decode at a time: it reads hundreds of MB from the media drive
 
-function decodeAudio(file, start, seconds) {
+function decodeAudio(file, start, seconds, limit = 120000) {
   const task = busy.then(() => new Promise((resolve) => {
     const args = ['-v', 'error', '-nostdin', '-ss', start.toFixed(3), '-i', file, '-t', seconds.toFixed(3),
       '-map', '0:a:0', '-vn', '-sn', '-dn', '-ac', '1', '-ar', String(RATE), '-f', 's16le', 'pipe:1'];
@@ -293,7 +394,7 @@ function decodeAudio(file, start, seconds) {
     background(child);
     const chunks = [];
     let size = 0;
-    const timer = setTimeout(() => child.kill(), 120000);
+    const timer = setTimeout(() => child.kill(), limit);
     child.stdout.on('data', (d) => { chunks.push(d); size += d.length; });
     child.stderr.resume();
     child.on('error', () => { clearTimeout(timer); resolve(null); });
@@ -311,8 +412,9 @@ function decodeAudio(file, start, seconds) {
 }
 
 // ---- per-file facts, cached on disk ----
-// files[path] = { key, duration, chapter, intro, vs: { siblingKey: creditsStart | null },
-//   ivs: { siblingKey: { start, end } | null }, ifar: the same, from the longer search }  (v: what the probe recorded; older entries are probed again)
+// files[path] = { key, duration, chapter, intro, recap, vs: { siblingKey: creditsStart | null },
+//   ivs: { siblingKey: { start, end } | null }, ifar: the same, from the longer search,
+//   rvs: { siblingKey: [{ s, e }] clips of the opening heard in that earlier episode (seconds) } }  (v: what the probe recorded; older entries are probed again)
 // siblingKey = the sibling's tok and its path without the extension. tok is the file's identity: its key
 // when first seen, and kept by the MP4 copy that takes over from its original (see twinOf), so neither the
 // episode nor its neighbours have to compare their audio again when originals are removed.
@@ -329,7 +431,7 @@ export function initCredits({ dataDir } = {}) {
     const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
     if (saved && typeof saved.files === 'object') state = { files: saved.files };
   } catch { /* first run */ }
-  for (const entry of Object.values(state.files)) { addIdentity(entry); entry.ifar ||= {}; }
+  for (const entry of Object.values(state.files)) { addIdentity(entry); entry.ifar ||= {}; entry.rvs ||= {}; }
 }
 
 const stem = (file) => file.slice(0, file.length - path.extname(file).length);
@@ -377,7 +479,7 @@ function save() {
   saveTimer.unref?.();
 }
 
-const FACTS = 2; // 2: opening chapters
+const FACTS = 3; // 2: opening chapters, 3: recap chapters
 const probing = new Map();
 async function facts(file) {
   const stat = await fsp.stat(file).catch(() => null);
@@ -387,12 +489,13 @@ async function facts(file) {
   if (hit?.key === key && hit.probed && hit.v === FACTS) { hit.at = Date.now(); return hit; }
   if (probing.has(file)) return probing.get(file);
   const task = probe(file).then((info) => {
-    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, vs: {}, ivs: {}, ifar: {} }; // not cached: retried next time
+    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, recap: null, vs: {}, ivs: {}, ifar: {}, rvs: {} }; // not cached: retried next time
     const same = hit?.key === key; // only the probe got older: keep the comparisons already made
     const twin = !same && info.duration ? twinOf(file, info.duration) : null;
     const entry = { key, tok: same && hit.tok || twin?.entry.tok || key, duration: info.duration,
-      chapter: info.chapter ?? twin?.entry.chapter ?? null, intro: info.intro ?? twin?.entry.intro ?? null,
-      vs: same && hit.vs || { ...twin?.entry.vs }, ivs: same && hit.ivs || { ...twin?.entry.ivs }, ifar: same && hit.ifar || { ...twin?.entry.ifar }, probed: true, v: FACTS, at: Date.now() };
+      chapter: info.chapter ?? twin?.entry.chapter ?? null, intro: info.intro ?? twin?.entry.intro ?? null, recap: info.recap ?? twin?.entry.recap ?? null,
+      vs: same && hit.vs || { ...twin?.entry.vs }, ivs: same && hit.ivs || { ...twin?.entry.ivs }, ifar: same && hit.ifar || { ...twin?.entry.ifar },
+      rvs: same && hit.rvs || { ...twin?.entry.rvs }, probed: true, v: FACTS, at: Date.now() };
     state.files[file] = entry;
     if (twin && !fs.existsSync(twin.file)) delete state.files[twin.file];
     save();
@@ -554,4 +657,84 @@ export async function introFor(file, siblings = []) {
     if (entry.ifar[id]) far.push(entry.ifar[id]);
   }
   return far.length === 2 ? agreeIntro(far) : null;
+}
+
+// ---- recaps ----
+const RECAP_WINDOW = 300; // seconds from the start where a recap is looked for
+const EPISODE_MAX = 2 * 3600; // a longer "episode" is a film or a special: not decoded whole
+const wholePrints = new Map(); // whole earlier episodes, kept while the next one or two are compared with them
+async function wholePrint(file, entry) {
+  const id = `${file}|${entry.key}`;
+  if (wholePrints.has(id)) { const p = wholePrints.get(id); wholePrints.delete(id); wholePrints.set(id, p); return p; }
+  const task = decodeAudio(file, 0, entry.duration, 15 * 60e3)
+    .then(async (samples) => (samples ? fingerprint(samples) : null));
+  wholePrints.set(id, task);
+  while (wholePrints.size > 3) wholePrints.delete(wholePrints.keys().next().value);
+  const value = await task;
+  if (!value) wholePrints.delete(id);
+  return value;
+}
+
+// The parts of an earlier episode its opening may share for reasons other than a recap: logos at the very
+// start, its own recap and theme song, and the closing credits.
+function recapSources(entry, file) {
+  const intro = entry.intro || storedIntro(file);
+  const skip = [[0, 20]];
+  if (intro) skip.push([intro.start - 2, intro.end + 2]);
+  if (entry.recapAt) skip.push([0, entry.recapAt.end + 2]);
+  const credits = entry.chapter ?? (Object.values(entry.vs || {}).filter((v) => v != null).sort((x, y) => x - y)[0] ?? null);
+  skip.push([credits ?? Math.max(entry.duration / 2, entry.duration - 120), Infinity]);
+  return (frame) => { const t = SECONDS(frame); return !skip.some(([a, b]) => t >= a && t < b); };
+}
+
+const recapping = new Map();
+async function compareRecap(file, entry, other, peer) {
+  const pair = `${file}\n${other}\nrecap`;
+  if (recapping.has(pair)) return recapping.get(pair);
+  const task = (async () => {
+    const opening = await audioPrint(file, entry, 'opening'); // the intro's print covers the recap's minutes too
+    const pb = opening && await wholePrint(other, peer);
+    if (!opening || !pb) return false;
+    const n = Math.min(opening.codes.length, FRAMES(RECAP_WINDOW));
+    const pa = { codes: opening.codes.subarray(0, n), quiet: opening.quiet.subarray(0, n) };
+    const clips = await matchClips(pa, pb, recapSources(peer, other));
+    entry.rvs[siblingKey(other, peer)] = clips.map((c) => ({ s: Math.round(SECONDS(c.s) * 10) / 10, e: Math.round(SECONDS(c.e) * 10) / 10 }));
+    save();
+    return true;
+  })().finally(() => recapping.delete(pair));
+  recapping.set(pair, task);
+  return task;
+}
+
+// { start, end } in seconds of the episode's "Previously on…" recap, or null. earlier: the one or two episodes
+// before it, nearest first (the last of the previous season for a premiere). sidecar: its subtitles, if any.
+// The opening titles are found first: the recap ends where they start.
+export async function recapFor(file, earlier = [], siblings = [], sidecar = null) {
+  const entry = await facts(file);
+  if (!entry) return null;
+  if (entry.recap) return entry.recap;
+  if (!entry.duration || entry.duration < 300) return null;
+  const intro = await introFor(file, siblings);
+  const clips = [];
+  let compared = 0;
+  for (const other of earlier.slice(0, 2)) {
+    if (path.resolve(other) === path.resolve(file)) continue;
+    const peer = await facts(other);
+    if (!peer?.duration || peer.duration < 300 || peer.duration > EPISODE_MAX) continue;
+    const id = siblingKey(other, peer);
+    if (!(id in entry.rvs)) await compareRecap(file, entry, other, peer);
+    if (entry.rvs[id]) { compared++; clips.push(...entry.rvs[id]); }
+  }
+  if (!compared) return null;
+  let said = false;
+  if (sidecar) { try { said = saysPreviously(await fsp.readFile(sidecar, 'utf8')); } catch { /* no hint */ } }
+  const found = recapSpan(clips, { intro, said });
+  entry.recapAt = found;
+  return found;
+}
+
+// The recap already worked out for a file, from the cache alone (nothing is read or decoded).
+export function storedRecap(file) {
+  const entry = state.files[file];
+  return entry ? entry.recap || entry.recapAt || null : null;
 }

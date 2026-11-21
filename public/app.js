@@ -4605,7 +4605,7 @@ function openRemote(session, { replace = false } = {}) {
   let dragging = false;
   let lastAction = 0;
   // Skip intro / Up next on the phone, from the TV's reported position (the TV can't show Lilin's buttons).
-  const cue = { intro: null, creditsAt: null, duration: null, lastPosition: null, introDone: false,
+  const cue = { intro: null, recap: null, creditsAt: null, duration: null, lastPosition: null, introDone: false,
     dismissed: false, busy: false, error: '', autoLeft: null, autoTimer: null, announced: null };
 
   $('#remote-body').replaceChildren(
@@ -4678,6 +4678,11 @@ function openRemote(session, { replace = false } = {}) {
       cue.intro = Number.isFinite(start) && Number.isFinite(end) && end - start >= 5 ? { start, end } : null;
       if (activeRemote === token) renderCues();
     }).catch(() => { /* no known intro: no button */ });
+    if (ref.kind === 'lib') api(`${base}/recap`).then((data) => {
+      const start = Number(data.recap?.start), end = Number(data.recap?.end);
+      cue.recap = Number.isFinite(start) && Number.isFinite(end) && end - start >= 5 ? { start, end } : null;
+      if (activeRemote === token) renderCues();
+    }).catch(() => { /* no known recap: no button */ });
     // The first lookup of a long episode can take half a minute; Up next waits for the end until then.
     api(`${base}/credits`).then((data) => {
       cue.creditsAt = Number.isFinite(data.creditsAt) && data.creditsAt > 0 ? data.creditsAt : null;
@@ -4692,9 +4697,11 @@ function openRemote(session, { replace = false } = {}) {
     if (st.state === 'playing' && Number.isFinite(st.position)) cue.lastPosition = st.position;
     const reading = { state: st.state, position: st.position, duration: cue.duration, creditsAt: cue.creditsAt, lastPosition: cue.lastPosition };
 
-    const introOn = !dragging && tvIntroShowing({ ...reading, intro: cue.intro });
+    const recapOn = !dragging && tvIntroShowing({ ...reading, intro: cue.recap });
+    const introOn = !recapOn && !dragging && tvIntroShowing({ ...reading, intro: cue.intro });
     if (introOn && prefs().skipIntro === 'auto' && !cue.introDone && st.state === 'playing') { skipIntroOnTv(true); return; }
-    r.skipIntro.hidden = !introOn;
+    r.skipIntro.hidden = !introOn && !recapOn;
+    if (recapOn || introOn) r.skipIntro.firstChild.nodeValue = recapOn ? T('Skip recap') : T('Skip intro');
 
     const next = nextUp();
     const show = Boolean(next && !cue.dismissed && !dragging && tvNextShowing(reading));
@@ -4727,6 +4734,11 @@ function openRemote(session, { replace = false } = {}) {
   }
 
   function skipIntroOnTv(auto = false) {
+    if (!auto && cue.recap && tvIntroShowing({ state: st.state, position: st.position, intro: cue.recap })) {
+      st.position = cue.recap.end;
+      send('seek', cue.recap.end);
+      return;
+    }
     if (!cue.intro || (auto && cue.introDone)) return;
     cue.introDone = true; // once per cast: seeking back to watch it is left alone
     st.position = cue.intro.end;
@@ -7861,7 +7873,7 @@ const SHORTCUTS = [
   ['F', T('Fullscreen')],
   ['C', T('Subtitles on or off')],
   ['N', T('Night mode')],
-  ['S', T('Skip intro (while it shows)')],
+  ['S', T('Skip intro or recap (while it shows)')],
   ['P', T('Picture in picture')],
   [T('I or right-click'), T('Stats for nerds')],
   ['0 – 9', T('Jump to 0% – 90%')],
@@ -8048,7 +8060,7 @@ async function loadPlayerMedia(f, opts = {}) {
   }
   fitToken++;
   resetPlayerMedia();
-  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, creditsGuess: null, intro: null, introDone: false,
+  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, creditsGuess: null, intro: null, recap: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
   syncSettingsBtn();
   setPlayerTitle(f);
@@ -8156,7 +8168,7 @@ async function loadPlayerMedia(f, opts = {}) {
   renderParty();
   // Intro and credits lookups are optional and never delay playback. The intro is needed first, and
   // both share the server's one-at-a-time audio decoding, so the credits are asked for after it.
-  loadPlayerIntro(session).finally(() => loadPlayerCredits(session));
+  loadPlayerIntro(session).finally(() => { loadPlayerCredits(session); loadPlayerRecap(session); });
   // Asking for the timeline previews early lets the server make them while the video plays.
   const previewBase = `/api/media/${session.kind}/${encodeURIComponent(mediaId(session))}/preview`;
   seekPreview.load({ indexUrl: previewBase, sheetUrl: (n, key) => `${previewBase}/${n}.jpg?k=${key}` });
@@ -8278,6 +8290,8 @@ let autoChain = 0; // episodes started by the countdown since the last key press
 // season's other episodes. The button shows while they play; Settings → Intros can skip them on its own,
 // once per playback, so seeking back to watch the intro is left alone. In Watch Together only the
 // host can seek, so only the host gets the button, and nothing skips on its own.
+// The same button says Skip recap during a "Previously on…" recap (also from credits.js: the opening minutes
+// matching scenes of the episodes before). Recaps are never skipped on their own: some people want them.
 const skipIntroEl = $('#skip-intro');
 async function loadPlayerIntro(session) {
   try {
@@ -8288,18 +8302,36 @@ async function loadPlayerIntro(session) {
     updateSkipIntro();
   } catch { /* No known intro: no button. */ }
 }
-function introShowing(session = current) {
-  const intro = session?.intro;
-  if (!intro || !session.ready || (party && !party.isHost) || seeking != null || video.ended) return false;
-  const t = video.currentTime;
-  return t >= intro.start - 0.25 && t < intro.end - 1;
+async function loadPlayerRecap(session) {
+  if (session.kind !== 'lib') return;
+  try {
+    const data = await api(`/api/media/${session.kind}/${encodeURIComponent(mediaId(session))}/recap`, { signal: session.abort.signal });
+    if (current !== session) return;
+    const start = Number(data.recap?.start), end = Number(data.recap?.end);
+    session.recap = Number.isFinite(start) && Number.isFinite(end) && end - start >= 5 ? { start, end } : null;
+    updateSkipIntro();
+  } catch { /* No known recap: no button. */ }
 }
+// 'recap', 'intro' or null: what the button would skip right now.
+function skipShowing(session = current) {
+  if (!session?.ready || (party && !party.isHost) || seeking != null || video.ended) return null;
+  const t = video.currentTime;
+  if (session.recap && t >= session.recap.start - 0.25 && t < session.recap.end - 1) return 'recap';
+  if (session.intro && t >= session.intro.start - 0.25 && t < session.intro.end - 1) return 'intro';
+  return null;
+}
+const introShowing = (session = current) => skipShowing(session) != null;
 function updateSkipIntro() {
   const session = current;
-  const show = introShowing(session);
-  if (show && prefs().skipIntro === 'auto' && !party && !session.introDone && !video.paused && !video.seeking) {
+  const kind = skipShowing(session), show = kind != null;
+  if (kind === 'intro' && prefs().skipIntro === 'auto' && !party && !session.introDone && !video.paused && !video.seeking) {
     skipIntro();
     return;
+  }
+  if (show) {
+    const label = kind === 'recap' ? T('Skip recap') : T('Skip intro');
+    const text = skipIntroEl.firstChild; // the text before the icon
+    if (text?.nodeType === 3 && text.nodeValue.trim() !== label) text.nodeValue = `\n      ${label}\n      `;
   }
   if (skipIntroEl.hidden === !show) return;
   skipIntroEl.hidden = !show;
@@ -8308,10 +8340,12 @@ function updateSkipIntro() {
 }
 function skipIntro() {
   const session = current;
-  if (!introShowing(session)) return;
-  session.introDone = true;
-  if (party) party.control('seek', session.intro.end);
-  else { video.currentTime = session.intro.end; updateTime(); }
+  const kind = skipShowing(session);
+  if (!kind) return;
+  if (kind === 'intro') session.introDone = true;
+  const to = session[kind].end;
+  if (party) party.control('seek', to);
+  else { video.currentTime = to; updateTime(); }
   updateSkipIntro();
 }
 skipIntroEl.addEventListener('click', (e) => { e.stopPropagation(); skipIntro(); });

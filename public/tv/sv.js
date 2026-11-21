@@ -102,6 +102,7 @@ window.LilinTvStrings = {
   'Sign in on a TV': 'Logga in på en TV',
   'Sign in this TV': 'Logga in den här TV:n',
   'Skip intro': 'Hoppa över intro',
+  'Skip recap': 'Hoppa över sammanfattning',
   'Space': 'Mellanslag',
   'Starting…': 'Startar…',
   'Start over': 'Börja om',

@@ -75,7 +75,7 @@ import * as listShare from './list-share.js'; // shared list links with a poster
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
-import { creditsFor, creditsGuessFor, introFor, initCredits, knownTimes, storedIntro } from './credits.js';
+import { creditsFor, creditsGuessFor, introFor, initCredits, knownTimes, recapFor, storedIntro } from './credits.js';
 import { createThemeMusic } from './theme-music.js'; // theme: theme music on show pages
 import { createLiveTv } from './live-tv.js';
 import { LiveChat } from './live-chat.js'; // livechat
@@ -3894,6 +3894,27 @@ async function creditPeers(file) {
   return { siblings: siblings.slice(0, 2).map((i) => i.full), next: siblings.find((i) => i.episode === here.episode + 1)?.full };
 }
 
+// Skip recap: the one or two episodes before this one in the show's order (originals, nearest first), across
+// seasons, so a premiere's "Previously on" is compared with the last season's finale.
+async function recapPeers(file) {
+  const items = await scanLibrary();
+  const all = libraryCache.all || items || [];
+  const here = all.find((i) => samePath(i.full, file));
+  if (!here || here.season == null || here.episode == null) return [];
+  const key = shows.showKey(here.title);
+  const seen = new Set();
+  return all
+    .filter((i) => i.season != null && i.episode != null && shows.showKey(i.title) === key
+      && (i.season < here.season || (i.season === here.season && i.episode < here.episode)))
+    .sort((a, b) => b.season - a.season || b.episode - a.episode || a.full.localeCompare(b.full))
+    .filter((i) => !seen.has(`${i.season}|${i.episode}`) && seen.add(`${i.season}|${i.episode}`))
+    .slice(0, 2).map((i) => converter.originalFor(i.full) || i.full);
+}
+const englishSidecar = (file) => subtitles.findSidecar(file, 'en') || [...subtitles.localLanguages(file)].map((l) => subtitles.findSidecar(file, l)).find(Boolean) || null;
+async function recapOf(file, siblings) {
+  return recapFor(file, await recapPeers(file), siblings, subtitles.findSidecar(file, 'en') || null);
+}
+
 // theme: every episode of the show a file belongs to (originals), for its theme music. Nothing is decoded here.
 const themeMusic = createThemeMusic({ dir: path.join(CACHE_DIR, 'theme-music'), storedIntro, idle: () => !load.watching(),
   search: async (file) => introFor(file, (await creditPeers(file)).siblings) });
@@ -3918,6 +3939,7 @@ const seasonsToPrep = new Map((() => { try { return JSON.parse(fs.readFileSync(P
 const savePrepSeasons = () => { try { fs.writeFileSync(PREP_FILE, JSON.stringify([...seasonsToPrep])); } catch (e) { console.warn(`[prep] ${e.message}`); } };
 let prepRunning = false;
 const PREP_DELAY = 30e3; // episodes of a pack land in a burst
+const RECAP_WAIT = 25e3; // a play waits this long for Skip recap's first look; it carries on for next time
 function startSeasonPrep() {
   if (prepRunning || !seasonsToPrep.size) return;
   prepRunning = true;
@@ -3948,9 +3970,10 @@ async function prepSeason({ key, season }) {
     const { siblings } = await creditPeers(file);
     await introFor(file, siblings);
     await creditsFor(file, siblings);
+    await recapOf(file, siblings);
     await new Promise((resolve) => { setTimeout(resolve, load.watching() ? 15e3 : 1e3); });
   }
-  if (files.size) console.log(`[prep] Skip intro and Up next ready for ${files.size} files of ${key} season ${season}`);
+  if (files.size) console.log(`[prep] Skip intro, Skip recap and Up next ready for ${files.size} files of ${key} season ${season}`);
 }
 setTimeout(startSeasonPrep, 60e3).unref();
 
@@ -5581,7 +5604,7 @@ async function handleApi(req, res, url) {
     const creditsAt = await creditsFor(file, peers.siblings);
     if (peers.next) creditPeers(peers.next).then((n) => creditsFor(peers.next, n.siblings)).catch(() => {});
     // No credits start found: where the dialogue ends, for a Next episode button without the countdown.
-    const sidecar = creditsAt == null ? subtitles.findSidecar(file, 'en') || [...subtitles.localLanguages(file)].map((l) => subtitles.findSidecar(file, l)).find(Boolean) : null;
+    const sidecar = creditsAt == null ? englishSidecar(file) : null;
     const guess = sidecar ? await creditsGuessFor(file, sidecar) : null;
     // The guess counts as the credits start (card, 10 s countdown); creditsGuess says it was guessed.
     return sendJson(res, 200, { creditsAt: creditsAt ?? guess, creditsGuess: guess });
@@ -5595,6 +5618,19 @@ async function handleApi(req, res, url) {
     const intro = await introFor(file, peers.siblings);
     if (peers.next) creditPeers(peers.next).then((n) => introFor(peers.next, n.siblings)).catch(() => {});
     return sendJson(res, 200, { intro });
+  }
+  // Skip recap: a "Previously on…" recap chapter, or the opening minutes matching scenes of the episode or two
+  // before (credits.js). The first look decodes the whole earlier episode, so the answer waits at most
+  // RECAP_WAIT and the search carries on for the next play; the next episode's is found meanwhile.
+  if ((m = p.match(/^\/api\/media\/(lib|dl)\/([A-Za-z0-9_-]+)\/recap$/))) {
+    const listed = await sourceFile(m[1], m[2]);
+    const file = converter.originalFor(listed) || listed;
+    if (m[1] !== 'lib') return sendJson(res, 200, { recap: null });
+    const peers = await creditPeers(file);
+    const task = recapOf(file, peers.siblings).catch(() => null);
+    task.then(() => { if (peers.next) creditPeers(peers.next).then((n) => recapOf(peers.next, n.siblings)).catch(() => {}); });
+    const recap = await Promise.race([task, new Promise((resolve) => { setTimeout(resolve, RECAP_WAIT, null).unref?.(); })]);
+    return sendJson(res, 200, { recap: recap || null });
   }
   // theme: a show page's theme music (theme-music.js), from the opening its episodes share. 204 = none (yet).
   if ((m = p.match(/^\/api\/media\/lib\/([A-Za-z0-9_-]+)\/theme$/))) {

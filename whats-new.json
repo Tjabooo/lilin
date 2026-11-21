@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-skip-recap",
+  "date": "2026-11-21",
+  "title": "Skip recap",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Skip the \u201cPreviously on\u201d recap",
+      "text": "When an episode opens with a recap of earlier episodes, the Skip intro button now says Skip recap and jumps past it. Lilin finds recaps by listening for scenes from the episode or two before, so it works on the phone, the computer and the TV (restart the TV app once). Recaps are never skipped on their own, even if you skip intros automatically. In shows you already have, the button can take until the next episode to turn up."
+    }
+  ]
+},
+{
   "id": "2026-11-21-tv-resume-right-episode",
   "date": "2026-11-21",
   "title": "The TV picks the right episode",

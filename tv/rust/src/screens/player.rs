@@ -22,6 +22,7 @@ const PAGE: u32 = 9;
 const SONG: u32 = 10;
 const UPGRADE_LINK: u32 = 11;
 const ADAPT_LINK: u32 = 12;
+const RECAP: u32 = 13;
 const LANGS_MENU: u32 = 5;
 const SUB_FETCH: u32 = 6;
 const SUB_FILE: u32 = 7;
@@ -199,6 +200,8 @@ pub struct Player {
     playing: bool,
     ended: bool,
     intro: Option<(f64, f64)>,
+    /// The "Previously on…" recap: the same button says Skip recap while it plays (never skipped on its own).
+    recap: Option<(f64, f64)>,
     intro_done: bool,
     credits_at: Option<f64>,
     dismissed: bool,
@@ -272,6 +275,7 @@ impl Player {
             cx.get(&alloc::format!("/api/play-link?kind=lib&id={}&variant={}", crate::util::enc(&fid), variant), sid, LINK);
             let base = alloc::format!("/api/media/lib/{}", crate::util::enc(&fid));
             cx.get(&alloc::format!("{}/intro", base), sid, INTRO);
+            cx.get(&alloc::format!("{}/recap", base), sid, RECAP);
             cx.get(&alloc::format!("{}/credits", base), sid, CREDITS);
             if !cx.state.setting("subLang").is_empty() {
                 cx.get(&alloc::format!("/api/subs/langs?kind=lib&id={}", crate::util::enc(&fid)), sid, LANGS_PREF);
@@ -302,6 +306,7 @@ impl Player {
             playing: false,
             ended: false,
             intro: None,
+            recap: None,
             intro_done: false,
             credits_at: None,
             dismissed: false,
@@ -485,12 +490,23 @@ impl Player {
         !self.playing && !self.ended && !self.closed && self.menu.is_none() && self.rest_since > 0.0 && host::time() - self.rest_since >= 3000.0
     }
     fn skip_intro(&mut self, cx: &mut Cx) {
+        if let (true, Some((_, end))) = (self.recap_on(), self.recap) {
+            self.seek_to(cx, end);
+            return;
+        }
         let Some((_, end)) = self.intro else { return };
         self.intro_done = true;
         self.seek_to(cx, end);
     }
     fn intro_on(&self) -> bool {
         !self.ended && logic::intro_showing(self.time, self.intro)
+    }
+    fn recap_on(&self) -> bool {
+        !self.ended && logic::intro_showing(self.time, self.recap)
+    }
+    /// The skip button is up: during the recap or the opening titles.
+    fn skip_on(&self) -> bool {
+        self.recap_on() || self.intro_on()
     }
     fn up_next_on(&self) -> bool {
         self.next.is_some() && !self.dismissed && logic::is_next_time(self.time, self.duration, self.credits_at, self.ended)
@@ -572,7 +588,7 @@ impl Player {
     /// Starts or stops the Up next countdown to match what's on screen; auto-skips intros when asked to.
     fn settle(&mut self, cx: &mut Cx) {
         self.sync_credits(cx);
-        if self.intro_on() && !self.intro_done && self.playing && cx.state.setting("skipIntro") == "auto" {
+        if self.intro_on() && !self.recap_on() && !self.intro_done && self.playing && cx.state.setting("skipIntro") == "auto" {
             self.skip_intro(cx);
         }
         let on = self.up_next_on();
@@ -803,7 +819,7 @@ impl Player {
         let t = self.seek_target.unwrap_or(self.time);
         let pos = if self.osd_on { logic::fmt_time(t) } else { String::new() };
         let sub = if self.cues.is_empty() { String::new() } else { logic::cue_text(&self.cues, self.time) };
-        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}|{}|{}", pos, sub, self.intro_on(), self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on, self.credits_on, self.song.is_some())
+        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}|{}|{}", pos, sub, self.skip_on() as u8 + self.recap_on() as u8, self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on, self.credits_on, self.song.is_some())
     }
 }
 
@@ -913,13 +929,13 @@ impl Screen for Player {
             }
         }
         let menu_open = self.menu.is_some();
-        let k = if menu_open { 0 } else if self.up_next_on() { 10 + self.card_focus as u64 } else if self.intro_on() { 1 } else { 0 };
+        let k = if menu_open { 0 } else if self.up_next_on() { 10 + self.card_focus as u64 } else if self.skip_on() { 1 } else { 0 };
         self.lit.focus(k);
         self.lit.step(cx);
-        // Skip intro
-        if self.intro_on() && !self.up_next_on() {
+        // Skip intro / Skip recap
+        if self.skip_on() && !self.up_next_on() {
             let f = body(34.0, 700);
-            let label = t!("Skip intro");
+            let label = if self.recap_on() { t!("Skip recap") } else { t!("Skip intro") };
             let w = cx.tx.width(f, label) + 38.0 * 2.0 + 46.0;
             let r = rect(1920.0 - ui::EDGE - w, 1080.0 - 300.0 - 88.0, w, 88.0);
             let lit = self.lit.get(1);
@@ -1208,7 +1224,7 @@ impl Screen for Player {
             }
         }
         match k.code {
-            key::ENTER if self.intro_on() => self.skip_intro(cx),
+            key::ENTER if self.skip_on() => self.skip_intro(cx),
             key::ENTER | key::PLAYPAUSE => self.toggle(cx, None),
             key::PLAY => self.toggle(cx, Some(false)),
             key::PAUSE => self.toggle(cx, Some(true)),
@@ -1287,6 +1303,14 @@ impl Screen for Player {
                     let (a, b) = (f(it, "start").unwrap_or(0.0), f(it, "end").unwrap_or(0.0));
                     if b - a >= 5.0 {
                         self.intro = Some((a, b));
+                    }
+                }
+            }
+            RECAP => {
+                if let Some(it) = res.json.get("recap") {
+                    let (a, b) = (f(it, "start").unwrap_or(0.0), f(it, "end").unwrap_or(0.0));
+                    if b - a >= 5.0 {
+                        self.recap = Some((a, b));
                     }
                 }
             }

@@ -1,4 +1,13 @@
 {
+  "2026-11-21-skip-recap": {
+    "title": "Hoppa över sammanfattning",
+    "items": {
+      "Skip the \u201cPreviously on\u201d recap": {
+        "title": "Hoppa över \u201dTidigare i\u201d-sammanfattningen",
+        "text": "När ett avsnitt börjar med en sammanfattning av tidigare avsnitt säger knappen Hoppa över intro nu Hoppa över sammanfattning och hoppar förbi den. Lilin hittar sammanfattningar genom att lyssna efter scener från avsnittet eller två avsnitt innan, så det fungerar på mobilen, datorn och TV:n (starta om TV-appen en gång). Sammanfattningar hoppas aldrig över av sig själva, även om du hoppar över intron automatiskt. I serier du redan har kan knappen dröja till nästa avsnitt innan den dyker upp."
+      }
+    }
+  },
   "2026-11-21-tv-resume-right-episode": {
     "title": "TV:n väljer rätt avsnitt",
     "items": {

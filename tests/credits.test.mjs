@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { creditsStart, lastDialogueEnd, creditsGuess, creditsGuessFromSrt, creditsSongStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP } from '../src/credits.js';
+import { creditsStart, lastDialogueEnd, creditsGuess, creditsGuessFromSrt, creditsSongStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP,
+  recapChapter, saysPreviously, recapSpan, matchClips } from '../src/credits.js';
 
 const info = (title, start = '1900') => ({ format: { duration: '2100' }, chapters: [{ start_time: start, tags: { title } }] });
 
@@ -318,4 +319,50 @@ test('a sung credits song at the end of the subtitles starts the credits with it
   const short = cue(1, '04:00', '04:02', 'Hello.') + cue(2, '04:10', '04:13', '<i>Adar!</i>');
   assert.equal(creditsSongStart(short), null);
   assert.equal(creditsGuessFromSrt(short, 4162.5), Math.ceil(3853 + 15));
+});
+
+test('a recap montage cut from the episode before is found, and a new opening is not', async () => {
+  const prev = synth(11), here = synth(23), other = synth(31);
+  const before = prev.scene(600);
+  const clip = (at, sec) => before.subarray(Math.round(at * RATE), Math.round((at + sec) * RATE));
+  // "Previously on…" (new), then five clips from all over the last episode with short new bits between them.
+  const parts = [here.scene(3), clip(100, 4), here.scene(1.5), clip(300, 5), clip(450, 3), here.scene(2), clip(200, 6), here.scene(1), clip(520, 4)];
+  const recapEnd = parts.reduce((a, p) => a + p.length, 0) / RATE;
+  const a = await fingerprint(here.pcm(...parts, here.scene(120)));
+  const b = await fingerprint(prev.pcm(before));
+  const sec = (f) => (f * HOP) / RATE;
+  const clips = (await matchClips(a, b)).map((c) => ({ s: sec(c.s), e: sec(c.e) }));
+  const span = recapSpan(clips);
+  assert.ok(span, 'recap found');
+  assert.equal(span.start, 0);
+  assert.ok(span.end <= recapEnd && span.end > recapEnd - 2.5, `ends at ${span.end}, recap ends ${recapEnd}`);
+  const fresh = await fingerprint(other.pcm(other.scene(150)));
+  assert.equal(recapSpan((await matchClips(fresh, b)).map((c) => ({ s: sec(c.s), e: sec(c.e) }))), null);
+});
+
+test('recap rules: a montage near the start, cut at the opening titles; a replayed scene or a lone clip is not one', () => {
+  const montage = [{ s: 3, e: 8 }, { s: 9, e: 14 }, { s: 16, e: 20 }, { s: 22, e: 30 }];
+  assert.deepEqual(recapSpan(montage), { start: 0, end: 29.5 });
+  assert.deepEqual(recapSpan(montage, { intro: { start: 33, end: 90 } }), { start: 0, end: 33 }); // the tail runs into the titles
+  assert.deepEqual(recapSpan(montage, { intro: { start: 15, end: 70 } }), null); // too short before the titles
+  assert.equal(recapSpan([{ s: 2, e: 50 }]), null); // one long scene played again
+  assert.equal(recapSpan([{ s: 100, e: 105 }, { s: 106, e: 111 }, { s: 112, e: 120 }]), null); // too late
+  assert.equal(recapSpan([{ s: 3, e: 12 }, { s: 14, e: 24 }]), null);
+  assert.deepEqual(recapSpan([{ s: 3, e: 12 }, { s: 14, e: 24 }], { said: true }), { start: 0, end: 23.5 });
+  assert.deepEqual(recapSpan([{ s: 30, e: 35 }, { s: 36, e: 41 }, { s: 43, e: 50 }]), { start: 30, end: 49.5 });
+  // A match a minute after the recap is something else: the recap ends at the gap.
+  assert.deepEqual(recapSpan([...montage, { s: 95, e: 99 }]), { start: 0, end: 29.5 });
+});
+
+test('recap chapters and a "Previously on" line', () => {
+  const at = (title, start, end) => recapChapter({ format: { duration: '2400' }, chapters: [{ start_time: String(start), end_time: String(end), tags: { title } }] });
+  assert.deepEqual(at('Recap', 0, 62), { start: 0, end: 62 });
+  assert.deepEqual(at('Previously on Dexter', 0, 80), { start: 0, end: 80 });
+  assert.equal(at('Recap', 0, 8), null);
+  assert.equal(at('Recap', 1500, 1600), null);
+  assert.equal(at('Chapter 1', 0, 60), null);
+  assert.equal(saysPreviously('1\n00:00:01,001 --> 00:00:02,878\nPreviously on Chucky...\n\n2\n00:00:03,462 --> 00:00:05,506\nHi.\n'), true);
+  assert.equal(saysPreviously('1\r\n00:00:00,500 --> 00:00:02,000\r\n<i>Previously on AMC\'s\r\nBreaking Bad...</i>\r\n'), true);
+  assert.equal(saysPreviously('1\n00:20:01,001 --> 00:20:02,878\nPreviously on Chucky...\n'), false);
+  assert.equal(saysPreviously('1\n00:00:01,001 --> 00:00:02,878\nWhat happened previously?\n'), false);
 });
