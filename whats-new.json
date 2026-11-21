@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-own-subs-after-tidy",
+  "date": "2026-11-21",
+  "title": "Complete subtitles after downloads finish",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Subtitles stay complete after a download is tidied up",
+      "text": "An episode watched with Play now could keep only its first few subtitle lines after Lilin finished and tidied up the download. Lilin now reads the full subtitles from the copy it keeps, so the whole episode has them."
+    }
+  ]
+},
+{
   "id": "2026-11-21-play-now-subs-grow",
   "date": "2026-11-21",
   "title": "Full subtitles during Play now",

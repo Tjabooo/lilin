@@ -108,3 +108,16 @@ test('a download made for another cut is swapped for an upload that fits', { ski
   assert.match(fs.readFileSync(side, 'utf8'), /00:00:02,000 --> /, 'the other upload, moved 3.5 s earlier');
   subsync.setOtherUploads(null);
 });
+
+test('after the original is deleted, the saved .subtitles.mks still counts as the own track', { skip: !hasFfmpeg }, async () => {
+  const dir = setup();
+  const mkv = makeVideo(dir, 'Show.S01E03.mkv', srt(300));
+  const archive = path.join(dir, 'Show.S01E03.subtitles.mks');
+  assert.equal(spawnSync(process.env.FFMPEG || 'ffmpeg', ['-v', 'error', '-i', mkv, '-map', '0:s', '-c', 'copy', '-f', 'matroska', '-y', archive]).status, 0);
+  const mp4 = path.join(dir, 'Show.S01E03.mp4');
+  assert.equal(spawnSync(process.env.FFMPEG || 'ffmpeg', ['-v', 'error', '-i', mkv, '-map', '0:v', '-map', '0:a', '-c', 'copy', '-y', mp4]).status, 0);
+  fs.rmSync(mkv); // convert deleted the original; the MP4 copy has no subtitle tracks
+  const out = path.join(dir, 'Show.S01E03.en.srt');
+  assert.equal(await subsync.useOwnTrack(mp4, out, 'en'), out);
+  assert.ok(fs.readFileSync(out, 'utf8').includes('Line 5'));
+});

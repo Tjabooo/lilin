@@ -562,10 +562,12 @@ export function bitmapCues(frames, videoStart = 0) {
   return cues;
 }
 
-// The MKV/AVI an MP4 copy was made from, when it's still there.
+// The MKV/AVI an MP4 copy was made from, when it's still there. Once convert has deleted it, the
+// "<name>.subtitles.mks" it saved holds the same subtitle tracks on the same timeline.
 function originalOf(file) {
   const stem = path.join(path.dirname(file), path.basename(file, path.extname(file)));
   for (const ext of ['.mkv', '.avi', '.MKV', '.AVI', '.webm']) if (stem + ext !== file && fs.existsSync(stem + ext)) return stem + ext;
+  if (fs.existsSync(`${stem}.subtitles.mks`)) return `${stem}.subtitles.mks`;
   return null;
 }
 

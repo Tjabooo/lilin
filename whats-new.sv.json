@@ -1,4 +1,13 @@
 {
+  "2026-11-21-own-subs-after-tidy": {
+    "title": "Hela undertexterna när nedladdningen är klar",
+    "items": {
+      "Subtitles stay complete after a download is tidied up": {
+        "title": "Undertexterna förblir hela när en nedladdning städas undan",
+        "text": "Ett avsnitt som sågs med Spela nu kunde bara ha kvar de första undertextraderna efter att Lilin hade laddat klart och städat undan nedladdningen. Nu läser Lilin hela undertexterna från kopian den sparar, så hela avsnittet får dem."
+      }
+    }
+  },
   "2026-11-21-play-now-subs-grow": {
     "title": "Hela undertexterna med Spela nu",
     "items": {
