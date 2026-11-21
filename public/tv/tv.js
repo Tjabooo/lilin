@@ -319,7 +319,7 @@
     return { key: s.tmdbId ? 'tv:' + s.tmdbId : s.id, wake: pic.wake,
       el: h('div', { class: 'card ' + (cls || 'poster') }, h('div', { class: 'art' }, pic.el, cls === 'tile' ? badge() : null),
         h('div', { class: 'name', text: s.title }), cls === 'tile' ? h('div', { class: 'sub', text: titleSub({ year: s.year, type: 'tv' }) }) : null),
-      open: function () { showPage(s); } };
+      open: function () { openShow(s); } };
   }
   function filmCard(f, cls) {
     var pic = lazy(f.poster || f.backdrop);
@@ -383,7 +383,7 @@
         h('div', { class: 'name', text: p.title }), sub),
       open: function () {
         var show = p.type === 'tv' && state.shows.filter(function (s) { return s.id === p.showId; })[0];
-        if (show) return showPage(show);
+        if (show) return openShow(show);
         var path = p.items[0] && p.items[0].svtPath;
         if (path) return svtScreen({ type: 'svt', path: path, title: p.title, backdrop: p.backdrop, kind: p.type === 'tv' ? 'series' : 'film' });
         if (p.tmdbId != null) return discoverTitle({ type: p.type, id: p.tmdbId, title: p.title, poster: p.poster, backdrop: p.backdrop, year: p.year });
@@ -1593,6 +1593,15 @@
   function showOf(f) {
     for (var i = 0; i < state.shows.length; i++) if (state.shows[i].id === f.show) return state.shows[i];
     return null;
+  }
+
+  // A show in your library opens on its full title page (every TMDB season; episodes you have play at once, the rest
+  // get ready like anything else). Only shows TMDB doesn't know keep the library-only page.
+  function openShow(s) {
+    if (s.tmdbId && String(s.tmdbId) !== '0') {
+      return discoverTitle({ type: 'tv', id: Number(s.tmdbId) || s.tmdbId, title: s.title, poster: s.poster, backdrop: s.backdrop, overview: s.overview, year: s.year });
+    }
+    showPage(s);
   }
 
   // ---------- a show: seasons and episodes ----------

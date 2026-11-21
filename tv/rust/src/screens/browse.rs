@@ -858,8 +858,7 @@ pub fn open(cx: &mut Cx, c: &Card) -> bool {
         }
         Act::Show(sid) => {
             if let Some(sh) = cx.state.show(sid).cloned() {
-                let s = super::show::ShowScreen::new(cx, sh);
-                cx.push(alloc::boxed::Box::new(s));
+                open_show(cx, sh);
             }
         }
         Act::Film(fid) => {
@@ -876,8 +875,7 @@ pub fn open(cx: &mut Cx, c: &Card) -> bool {
             let Some(p) = cx.state.pending.iter().find(|p| &p.key == key).cloned() else { return true };
             if p.tv {
                 if let Some(sh) = cx.state.show(&p.show_id).cloned() {
-                    let s = super::show::ShowScreen::new(cx, sh);
-                    cx.push(alloc::boxed::Box::new(s));
+                    open_show(cx, sh);
                     return true;
                 }
             }
@@ -905,6 +903,22 @@ pub fn open(cx: &mut Cx, c: &Card) -> bool {
         Act::Nothing => {}
     }
     true
+}
+
+/// A show in your library opens on its full title page (every TMDB season; episodes you have play at once, the rest
+/// get ready like anything else). Only shows TMDB doesn't know keep the library-only page.
+pub fn open_show(cx: &mut Cx, sh: Value) {
+    let tm = id(&sh, "tmdbId");
+    if tm.is_empty() || tm == "0" {
+        let s = super::show::ShowScreen::new(cx, sh);
+        cx.push(alloc::boxed::Box::new(s));
+        return;
+    }
+    let idv: Value = tm.parse::<i64>().map(Value::from).unwrap_or(Value::from(tm.clone()));
+    let yr = year(&sh).parse::<i64>().ok();
+    let v = serde_json::json!({ "type": "tv", "id": idv, "title": s(&sh, "title"), "poster": s(&sh, "poster"), "backdrop": s(&sh, "backdrop"), "overview": s(&sh, "overview"), "year": yr });
+    let t = super::title::TitleScreen::new(cx, v);
+    cx.push(alloc::boxed::Box::new(t));
 }
 
 /// Hero text for a title: "2024 · Film · ★ 8 · Drama · Crime".

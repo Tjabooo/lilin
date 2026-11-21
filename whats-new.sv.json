@@ -1,4 +1,13 @@
 {
+  "2026-11-21-tv-every-season": {
+    "title": "Alla säsonger på TV:n",
+    "items": {
+      "Shows list every season on the TV": {
+        "title": "Serier visar alla säsonger på TV:n",
+        "text": "På TV:n visade en serie som du redan hade några säsonger av bara de säsongerna. Nu öppnas hela sidan med alla säsonger, och alla avsnitt går att spela: de du har startar direkt, resten görs redo först."
+      }
+    }
+  },
   "2026-11-21-tv-long-subtitles": {
     "title": "Alla undertextrader på Samsung-TV",
     "items": {

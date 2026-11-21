@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-tv-every-season",
+  "date": "2026-11-21",
+  "title": "Every season on the TV",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Shows list every season on the TV",
+      "text": "On the TV, a show you already had a few seasons of only listed those seasons. It now opens on the full page with every season, and any episode plays: ones you have start right away, the rest get ready first."
+    }
+  ]
+},
+{
   "id": "2026-11-21-tv-long-subtitles",
   "date": "2026-11-21",
   "title": "All subtitle lines on Samsung TVs",
