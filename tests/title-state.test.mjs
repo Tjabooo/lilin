@@ -80,7 +80,7 @@ test('Play is the gold button wherever something plays now or can start playing'
 test('nothing lost: every action is reachable in some state, the download tools for the owner', () => {
   const reach = (list) => new Set(list.flatMap(({ model }) => [model.primary, ...model.secondary, ...model.more, ...model.inline]).filter(Boolean));
   const everyone = reach(all), owner = reach(all.filter((x) => x.role === 'owner'));
-  for (const id of ['play', 'resume', 'save', 'follow', 'trailer', 'rate', 'review', 'playOnTv', 'toPhone', 'dubbed', 'versions', 'episodes', 'audio', 'identityNote']) {
+  for (const id of ['play', 'resume', 'save', 'follow', 'trailer', 'rate', 'review', 'playOnTv', 'toPhone', 'versions', 'episodes', 'identityNote']) {
     assert.ok(everyone.has(id), `${id} is reachable`);
   }
   for (const id of ['download', 'moreEpisodes', 'addSeason', 'delete', 'keep', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
@@ -98,7 +98,7 @@ test('only the owner identifies films; restricted and no-download people never g
   for (const { role, model } of all) {
     const acts = [model.primary, ...model.secondary, ...model.more];
     if (role !== 'owner') assert.ok(!acts.includes('identify'), role);
-    if (role === 'noDl' || role === 'restricted') for (const id of ['download', 'moreEpisodes', 'advanced', 'getVersion', 'dubbed']) assert.ok(!acts.includes(id), `${role}: ${id}`);
+    if (role === 'noDl' || role === 'restricted') for (const id of ['download', 'moreEpisodes', 'advanced', 'getVersion']) assert.ok(!acts.includes(id), `${role}: ${id}`);
   }
 });
 

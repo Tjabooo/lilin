@@ -51,6 +51,7 @@ import { downloadDestination, downloadFilePath } from './download-paths.js';
 import { fetchTorrentFile, TorrentFetchError } from './torrent-fetch.js';
 import { filterMode, filterApplies, firstAdult, adultReason, torrentFileNames, BLOCKED_MESSAGE } from './content-filter.js';
 import * as smart from './smart-download.js';
+import * as dubGraft from './dub-graft.js';
 import * as svt from './svtplay.js';
 import { createSvtQueue, expectedSize } from './svt-queue.js';
 import { createDocumentaries } from './documentaries.js';
@@ -187,6 +188,7 @@ const PICKS_RESERVE = 300 * 1024 ** 3; // the media drive always keeps this much
 const TV_PICK_TAG = 'lilin-tv';
 const FRESH_DAYS = 14;                 // the Fresh channel: picks, plus anything that arrived this recently
 activity.initActivity({ dataDir: DATA_DIR, nameForUser: accounts.displayNameFor, avatarForUser: accounts.avatarForEmail, idForUser: accounts.idForEmail });
+dubGraft.init({ dataDir: DATA_DIR });
 accounts.initAccounts({ dataDir: DATA_DIR, adminEmails: activity.adminEmails(), mediaDir: MEDIA_DIR,
   notesEmails: String(process.env.NOTES_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean) });
 reviews.initReviews(); // reviews: own table in the accounts database
@@ -1337,6 +1339,7 @@ async function libraryView(user) {
     const base = { ...rest, mediaKey, ...showOf.get(rest.id), ...filmOf.get(rest.id) };
     Object.assign(base, versions.versionInfo({ ...base, full }));
     if (base.versionDubbed && wantsDub(user, base.filmTitle || base.title)) base.preferDub = true;
+    if (dubGraft.hasGraft(full)) base.dubGrafted = true;
     base.versionKey = versions.versionKey(base);
     if (!entry) { server.push(base); continue; }
     own.push({
@@ -1701,7 +1704,7 @@ async function haveEpisodes(key, seasonNo, user = null, ctx = null, { dub = fals
   }
   const library = await libraryVisibleItems(await scanLibrary(), user || accounts.ownerUser());
   for (const i of library || []) {
-    if (dub && !isDualAudio(i.full)) continue;
+    if (dub && !isDualAudio(i.full) && !dubGraft.hasGraft(i.full)) continue;
     if (ctx ? i.episode == null || !(season.sameShow(i.title, key) || ctx.keys.includes(shows.showKey(i.title)))
       : i.season !== seasonNo || i.episode == null || !season.sameShow(i.title, key)) continue;
     const managedState = managed.get(path.resolve(i.full).toLowerCase());
@@ -1726,6 +1729,86 @@ function rememberDub(user, type, id, on) {
   const list = (user.settings?.dubbed || []).filter((k) => k !== key);
   if (on || list.length !== (user.settings?.dubbed || []).length) accounts.updateMe(user, { dubbed: on ? [...list, key] : list });
 }
+
+// ---- English dubs for anime (dub-graft.js) ----
+// Downloading an anime also fetches a dual-audio release of it (two minutes later, in the background, dual audio
+// only). Once both copies of an episode are on the server, the dub becomes an audio track of the copy that was
+// asked for and the dual-audio copy is deleted. No dub out yet: tried again weekly, six times in all.
+const DUB_RETRY_MS = 7 * 24 * 3600 * 1000, DUB_TRIES = 6;
+const dubKey = (b) => `${b.type}:${b.tmdbId}:${b.season ?? ''}`;
+function queueDubFetch(user, body) {
+  const key = dubKey(body), prev = dubGraft.tryOf(key);
+  const episodes = prev?.body?.episodes && body.episodes ? [...new Set([...prev.body.episodes, ...body.episodes])] : null;
+  dubGraft.noteTry(key, { user: user.id, body: { ...body, episodes, range: Boolean(episodes && (prev?.body?.range || body.range)) }, count: 0, at: 0 });
+  setTimeout(() => runDubFetch(key), 2 * 60 * 1000).unref?.();
+}
+async function runDubFetch(key) {
+  const t = dubGraft.tryOf(key);
+  const user = t && accounts.userById(t.user);
+  if (!user) return;
+  dubGraft.noteTry(key, { at: Date.now(), count: (t.count || 0) + 1 });
+  try { await startSmartFor(user, { ...t.body, dub: true, dubCompanion: true }, { background: true }); }
+  catch (e) { console.warn(`[dub] ${key}: ${e.message}`); }
+}
+setInterval(() => {
+  for (const [key, t] of dubGraft.allTries()) if ((t.count || 0) < DUB_TRIES && t.at && Date.now() - t.at > DUB_RETRY_MS) runDubFetch(key);
+}, 6 * 3600 * 1000).unref();
+
+// Dual-audio copies still waiting to give their dub to another copy: not converted meanwhile.
+let dubPending = new Set();
+let dubBusy = false;
+async function dubRound() {
+  if (dubBusy || !MEDIA_DIR) return;
+  dubBusy = true;
+  try {
+    const items = await scanLibrary();
+    if (!items?.some((i) => isDualAudio(i.full))) { dubPending = new Set(); return; }
+    let list = [];
+    if (QBIT_URL) { try { list = await qbit('/api/v2/torrents/info'); } catch { return; } }
+    const owned = (file) => list.some((t) => isInside(file, t.content_path || path.join(t.save_path || '', t.name)));
+    const tmdbOn = Boolean(TMDB_TOKEN || TMDB_KEY);
+    const [{ showOf }, filmOf] = await Promise.all([
+      shows.groupShows(items, tmdbOn ? tmdb : null),
+      shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), tmdbOn ? tmdb : null),
+    ]);
+    const groups = new Map();
+    for (const i of items) {
+      const key = versions.versionKey({ ...i, ...showOf.get(i.id), ...filmOf.get(i.id) });
+      if (key) groups.set(key, [...(groups.get(key) || []), i]);
+    }
+    const pending = new Set();
+    for (const group of groups.values()) {
+      const dubs = group.filter((i) => isDualAudio(i.full));
+      const others = group.filter((i) => !isDualAudio(i.full));
+      if (!dubs.length || !others.length) continue;
+      for (const d of dubs) {
+        if (owned(d.full)) { pending.add(d.full); continue; } // still downloading or seeding
+        const done = others.find((o) => dubGraft.hasGraft(o.full));
+        const target = done || others.find((o) => !dubGraft.pairFailed(o.full, d.full) && !owned(o.full));
+        if (!target) continue; // nothing it could go into: it stays a version of its own
+        pending.add(d.full);
+        if (!done) {
+          if (converter.needsConversion(target.full) || converter.isBusy(target.full) || converter.isBusy(d.full)
+            || watchRooms.protects(accounts.mediaKey(target.full))) continue; // next round
+          const r = await dubGraft.graft(target.full, d.full, { beforeSwap: () => converter.forget(target.full) });
+          if (!r.ok) continue;
+        }
+        // Whoever had the dual-audio copy has the episode with the dub instead.
+        const tKey = accounts.mediaKey(target.full);
+        for (const id of accounts.holders(accounts.mediaKey(d.full))) accounts.addEntry(id, tKey, 'added');
+        try {
+          await deleteMediaPlan(await deletePlan(d.id), 'file', { everyone: true });
+          pending.delete(d.full);
+        } catch (e) { console.warn(`[dub] couldn't delete ${d.file} yet: ${e.message}`); }
+      }
+    }
+    dubPending = pending;
+    invalidateLibrary();
+  } catch (e) { console.warn(`[dub] ${e.message}`); }
+  finally { dubBusy = false; }
+}
+setTimeout(dubRound, 90_000).unref();
+setInterval(dubRound, 3 * 60 * 1000).unref();
 
 const humanDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 function notOutMessage(title, rel) {
@@ -1772,7 +1855,7 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
   if (lift) background = true; // nobody waits on it: no cold start, and it yields to first watches
   // Dubbed: dual-audio releases only, anime only. The choice is remembered for the player.
   const dub = Boolean(animeCtx && !upgrade && body.dub === true);
-  if (animeCtx && !upgrade && typeof body.dub === 'boolean') rememberDub(user, type, tmdbId, dub);
+  if (animeCtx && !upgrade && typeof body.dub === 'boolean' && !body.dubCompanion) rememberDub(user, type, tmdbId, dub);
   // Running time (minutes, a film's or an episode's): Best Quality checks a pick can play while it downloads.
   const runtime = Number(type === 'tv' ? details.episode_run_time?.[0] || details.last_episode_to_air?.runtime : details.runtime) || null;
   const want = { ...downloadWant(user, body, { background }), runtime, ...(body.allowCam === true && type === 'movie' ? { allowCam: true } : {}) };
@@ -1802,6 +1885,8 @@ async function startSmartFor(user, body, { background = false, onAdded = null } 
     upgrading: ({ hash }, n) => registerUpgrade(hash, { title, season: n, by: user.id, old: upgrade?.old || [] }),
     log: (msg) => console.log(msg),
   });
+  // An anime: its English dub is fetched alongside and added to these episodes as an audio track (dub-graft.js).
+  if (animeCtx && !dub && !upgrade && !lift && !body.dubCompanion) queueDubFetch(user, { type, tmdbId, season: seasonNo, episodes: episodes?.length ? episodes : null, range });
   return { id, title, type, season: seasonNo, episodes: upgrade ? null : episodes, upgrade: Boolean(upgrade || lift) };
 }
 // The best quality this film is here in, for someone who can watch it ("1080p"); 409 when it isn't here or is already 4K.
@@ -2046,7 +2131,7 @@ async function filmHave(tmdbId, user, quality = null, { dub = false, onTheWay = 
     const ids = await shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), null);
     const mine = accounts.libraryOf(user.id);
     const matches = items.filter((i) => Number(ids.get(i.id)?.tmdbId) === Number(tmdbId) && !ids.get(i.id)?.movieAmbiguous
-      && (!quality || versions.sameQuality(versions.qualityOf(i.file), quality)) && (!dub || isDualAudio(i.full)));
+      && (!quality || versions.sameQuality(versions.qualityOf(i.file), quality)) && (!dub || isDualAudio(i.full) || dubGraft.hasGraft(i.full)));
     if (matches.some((i) => mine.has(accounts.mediaKey(i.full)))) return 'library';
     if (matches.length) {
       for (const i of matches) accounts.addEntry(user.id, accounts.mediaKey(i.full), 'added');
@@ -5378,7 +5463,7 @@ async function handleApi(req, res, url) {
       const { file, info } = await subsTarget(user, kind, url.searchParams.get('id'));
       // anime: Japanese audio, so the player turns on English subtitles for people who never chose any.
       // Not for a dual-audio copy of an anime they asked for dubbed.
-      const heardDubbed = isDualAudio(file) && wantsDub(user, info?.title);
+      const heardDubbed = (isDualAudio(file) || dubGraft.hasGraft(file)) && wantsDub(user, info?.title);
       return sendJson(res, 200, { ...await subtitles.languagesForFile(file, info), anime: Boolean(info?.title && anime.contextForTitle(info.title)) && !heardDubbed });
     }
     // Not downloaded yet (torrent search): look up by title.
@@ -5505,7 +5590,7 @@ async function handleApi(req, res, url) {
     try { [tracks, vid] = await Promise.all([converter.probeAudio(served), converter.probeVideo(served)]); } catch { /* unreadable: say nothing */ }
     if (!tracks) return sendJson(res, 200, { known: false });
     // They asked for this anime dubbed: the player starts on the English track.
-    const preferAudio = isDualAudio(source) && wantsDub(user, infoFor(source)?.title) ? 'en' : null;
+    const preferAudio = (isDualAudio(source) || dubGraft.hasGraft(source)) && wantsDub(user, infoFor(source)?.title) ? 'en' : null;
     if (phone) {
       return sendJson(res, 200, {
         preferAudio, known: true, codec: 'aac', tracks, browserSafe: true, aligned: true, phone: true,
@@ -5966,6 +6051,7 @@ async function conversionCandidates() {
     const deleteOriginal = qbitReachable && (process.env.CONVERT_DELETE_ORIGINAL || 'off').toLowerCase() === 'on';
     for (const i of libraryCache.all || []) {
       if (isTorrentFile(i.full) || isUnfinished(i.full)) continue;
+      if (dubPending.has(i.full)) continue; // only here for its dub (dub-graft.js)
       // Also skip anything still being written (copied in, or downloaded by another program).
       if (recentlyChanged(i.full)) continue;
       list.push({ file: i.full, deleteOriginal });

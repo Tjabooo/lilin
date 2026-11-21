@@ -2769,14 +2769,8 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .dl-field label, .adv-field label { font-size: 13px; font-weight: 500; color: var(--dust); }
 .dl-field .sub-select, .adv-field .sub-select { width: 100%; min-width: 0; height: 48px; padding-left: 12px; background-color: var(--velvet); }
 .dl-field[hidden] { display: none; }
-.title-film > .dl-audio { max-width: 340px; }
-.dl-add-dubbed { display: inline-flex; align-items: center; justify-content: center; }
-.dl-add-dubbed[hidden] { display: none; }
-.dl-audio-hint[hidden] { display: none; }
-/* Audio and Episodes share a row. Audio takes the row when a season has no Episodes choice; From – to sits under Episodes; the hint spans. */
-.dl-fields > .dl-audio:has(+ .dl-scope[hidden]) { grid-column: 1 / -1; }
+/* Season and Episodes share a row; From – to sits under Episodes. */
 .dl-fields > .dl-range { grid-column: 2; }
-.dl-fields > .dl-audio-hint { grid-column: 1 / -1; }
 .dl-range-boxes { display: flex; align-items: center; gap: 8px; }
 .dl-num { flex: 1 1 0; min-width: 0; height: 48px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--velvet); color: var(--paper); font: inherit; font-variant-numeric: tabular-nums; text-align: center; -moz-appearance: textfield; }

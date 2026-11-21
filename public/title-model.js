@@ -20,7 +20,7 @@
 //   expires     an automatic delete is scheduled at all
 //   owner       the server's owner (Identify film); admin: owner rights (the download tools); ambiguous: the file
 //               matched several films
-//   anime       the server says it's anime (Dubbed); versions: versions of the film in the library
+//   anime       the server says it's anime; versions: versions of the film in the library
 //
 // Output: { state, primary, secondary, more, inline }
 //   primary     the only gold button (null: none, e.g. while preparing)
@@ -63,19 +63,16 @@ export function titleModel(x) {
   const menu = (id, when = true) => { if (when && id !== primary && !secondary.includes(id) && !more.includes(id)) more.push(id); };
   if (!tv && owned) {
     menu('toPhone', state !== 'preparing');
-    menu('dubbed', getMore && x.anime);
     menu('keep', tools && x.expires && x.keep && state !== 'leavingSoon');
     menu('getVersion', tools && getMore);
     menu('identify', x.owner);
     menu('delete', tools);
   }
   if (!tv && !owned) {
-    menu('dubbed', getMore && x.anime && state === 'onServer'); // their copy may be subtitled: fetch the dub instead
     menu('download', tools && getMore && state === 'notOnLilin'); // fetch it without playing
     menu('advanced', tools && getMore && state !== 'unreleased' && state !== 'onServer');
   }
   if (tv) {
-    menu('dubbed', getMore && x.anime);
     menu('moreEpisodes', tools && getMore && state !== 'unreleased'); // the season panel: a whole season, a quality
     menu('keep', tools && x.expires && x.keep && state !== 'leavingSoon');
     menu('delete', tools && (owned || x.transfers > 0));
@@ -87,7 +84,6 @@ export function titleModel(x) {
   inline.push('rate', 'review'); // the reactions block
   if (tools && state === 'leavingSoon' && x.keep) inline.push('keep'); // in the state line
   if (!tv && x.versions > 1) inline.push('versions');
-  if (!tv && x.anime && getMore && !owned && state !== 'onServer') inline.push('audio'); // Subtitled or Dubbed, beside Play
   if (!tv && x.ambiguous) inline.push('identityNote');
   if (tv) inline.push('episodes'); // each episode plays when pressed; a season's ⋯ holds the rest
   if (tv && tools && (getMore || x.onServer > 0)) inline.push('addSeason');

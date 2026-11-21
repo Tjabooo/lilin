@@ -28,7 +28,7 @@ test('a film downloads with one press; a show uses the minimal season panel', ()
 });
 
 test('a show someone else already has joins your library in one press, every season, in batches the API accepts', () => {
-  assert.match(ui, /const extra = dub\.dubbing\(\) \? \[\] : serverOnlyEpisodes\(titleState\(t\)\);\s+if \(extra\.length\) return addEverything\(extra\);\s+ps\.open = !ps\.open;/, 'adds before any panel opens');
+  assert.match(ui, /const extra = serverOnlyEpisodes\(titleState\(t\)\);\s+if \(extra\.length\) return addEverything\(extra\);\s+ps\.open = !ps\.open;/, 'adds before any panel opens');
   assert.match(ui, /function serverOnlyEpisodes\(s, season = null\)/);
   assert.match(ui, /const ADD_BATCH = 400;/);
   assert.match(ui, /files\.slice\(i, i \+ ADD_BATCH\)/);
@@ -62,19 +62,10 @@ test('Settings has one Downloads group: automatic quality, size limit, audio lan
   assert.doesNotMatch(settings, /Preferred quality/);
 });
 
-test('the Audio choice is for anime, sends dub, and Dubbed counts only dual-audio copies', () => {
-  const ui = app;
-  assert.match(ui, /\/api\/title\/\$\{t\.type\}\/\$\{t\.id\}\/dub/);
-  assert.match(ui, /if \(!anime\) return;/, 'hidden unless the server says it is anime');
-  assert.equal((ui.match(/\.\.\.\(dub\.anime \? \{ dub: dub\.dubbing\(\) \} : \{\}\)/g) || []).length, 2, 'films and seasons');
-  assert.match(ui, /ready: full\.ready\.filter\(isDubbedCopy\), onServer: full\.onServer\.filter\(isDubbedCopy\)/);
-  assert.match(ui, /b\.dub \? 'dub' : ''/, 'dubbed and subtitled requests are separate commands');
-});
-
-test('an anime others have here offers Add dubbed beside the one-press add', () => {
-  assert.match(app, /dubBtn\.hidden = !\(addsAll && dub\.anime && !addingAll\)/, 'only when one press would add copies, anime only');
-  assert.match(app, /dubBtn\.addEventListener\('click', \(\) => \{\s+dub\.choose\('dub'\);\s+ps\.open = true;/, 'opens the panel set to Dubbed');
-  assert.match(page, /dubbed: \(c\) => \(c\.fa \|\| c\.tvd\) && \[icon\('plus'\), T\('Dubbed'\), \(\) => \(c\.fa \? c\.fa\.chooseDub\(\) : c\.tvd\.dubBtn\.click\(\)\)/, 'Dubbed waits in the page’s ⋯');
+test('no Dubbed choice anywhere: the dub is fetched and added to the episode by itself (dub-graft.js)', () => {
+  assert.doesNotMatch(app, /function audioChoice\(|dubBtn|chooseDub|showDubbed|T\('Dubbed'\)|T\('Add dubbed'\)/);
+  assert.doesNotMatch(app, /dub: dub\.dubbing\(\)/, 'requests never ask for dual audio themselves');
+  assert.doesNotMatch(css, /dl-audio-hint/);
 });
 
 test('Upgrade quality sits with the season and in the player, not in the add panel', () => {
@@ -83,11 +74,4 @@ test('Upgrade quality sits with the season and in the player, not in the add pan
   const menu = between('function renderQualityMenu() {', '// Another version of what');
   assert.match(menu, /qualityBtn\.hidden = !stream && !vers && !upgrade/, 'the menu opens for the upgrade alone');
   assert.match(menu, /quality-upgrade/);
-});
-
-test('the Dubbed hint runs under the row, so it never stretches the field beside Audio', () => {
-  assert.doesNotMatch(between('function audioChoice(', '// Films: Play when'), /T\('Audio'\)\), sel, hint\)/);
-  assert.match(between('function showDownload(', '// Upgrade quality: the season is here'), /rangeRow, dub\.hint\)/);
-  assert.match(css, /\.dl-fields > \.dl-audio-hint \{ grid-column: 1 \/ -1; \}/);
-  assert.match(css, /\.dl-field \{ display: grid; align-content: start;/);
 });
