@@ -5533,7 +5533,8 @@ async function handleApi(req, res, url) {
     // No credits start found: where the dialogue ends, for a Next episode button without the countdown.
     const sidecar = creditsAt == null ? subtitles.findSidecar(file, 'en') || [...subtitles.localLanguages(file)].map((l) => subtitles.findSidecar(file, l)).find(Boolean) : null;
     const guess = sidecar ? await creditsGuessFor(file, sidecar) : null;
-    return sendJson(res, 200, { creditsAt, creditsGuess: guess });
+    // The guess counts as the credits start (card, 10 s countdown); creditsGuess says it was guessed.
+    return sendJson(res, 200, { creditsAt: creditsAt ?? guess, creditsGuess: guess });
   }
   // The opening titles to offer Skip intro for: an opening chapter, or the theme song this episode
   // shares with its season neighbours (credits.js). The next episode's is found meanwhile.

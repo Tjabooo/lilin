@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-next-episode-song",
+  "date": "2026-11-21",
+  "title": "The credits card, on every show",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Next episode starts with the credits song",
+      "text": "On shows where the end credits change every episode, the credits card now shows when the closing song starts, with the usual 10 second countdown to the next episode. Before, it waited until the song was over and only showed a button."
+    }
+  ]
+},
+{
   "id": "2026-11-21-next-episode-late-subs",
   "date": "2026-11-21",
   "title": "Next episode, every episode",

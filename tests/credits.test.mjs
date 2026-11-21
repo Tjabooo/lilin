@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { creditsStart, lastDialogueEnd, creditsGuess, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP } from '../src/credits.js';
+import { creditsStart, lastDialogueEnd, creditsGuess, creditsGuessFromSrt, creditsSongStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP } from '../src/credits.js';
 
 const info = (title, start = '1900') => ({ format: { duration: '2100' }, chapters: [{ start_time: start, tags: { title } }] });
 
@@ -301,4 +301,21 @@ test('the end of the dialogue gives a guessed credits start, skipping music and 
   assert.equal(creditsGuess(4100, 4162.5), null, 'a short tail is a closing scene');
   assert.equal(creditsGuess(1000, 4162.5), null, 'dialogue ending in the first half is broken subtitles');
   assert.equal(creditsGuess(null, 4162.5), null);
+});
+
+test('a sung credits song at the end of the subtitles starts the credits with its first line', () => {
+  const cue = (n, a, b, t) => `${n}\n01:${a},000 --> 01:${b},000\n${t}\n\n`;
+  const lines = [cue(1, '06:50', '06:52', 'Yes!')];
+  for (let k = 0; k < 12; k++) {
+    const at = 430 + k * 8; // 01:07:10 onwards
+    const mm = (x) => String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0');
+    lines.push(cue(k + 2, mm(at), mm(at + 6), '<i>Away I must wander</i>'));
+  }
+  const srt = lines.join('');
+  assert.equal(creditsSongStart(srt), 4030);
+  assert.equal(creditsGuessFromSrt(srt, 4330), 4030);
+  // One italic line at the end is a voice off screen, not a song: the dialogue rule applies.
+  const short = cue(1, '04:00', '04:02', 'Hello.') + cue(2, '04:10', '04:13', '<i>Adar!</i>');
+  assert.equal(creditsSongStart(short), null);
+  assert.equal(creditsGuessFromSrt(short, 4162.5), Math.ceil(3853 + 15));
 });

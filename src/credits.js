@@ -25,10 +25,10 @@ export function creditsStart(info) {
   return matches.length ? Math.min(...matches) : null;
 }
 
-// A softer third source, used only when the two above find nothing: where the dialogue ends. Shows whose
-// end-credits music changes every episode (Rings of Power) never match, and Up next then only showed at
-// the very end of the file. The last spoken line plus a short slack is a guess, so the player shows the
-// Next episode button there but never starts the autoplay countdown from it.
+// A third source, used only when the two above find nothing: the subtitles. Shows whose end-credits music
+// changes every episode (Rings of Power) never match, and Up next then only showed at the very end of the
+// file. When the subtitles end in a sung credits song (italic or ♪ lines), the credits start with the song;
+// otherwise they start a moment after the last spoken line. The player treats it like a real credits start.
 const NOT_DIALOGUE = /subtit|opensubtitles|addic7ed|synced|sync and correct|corrected by|ripped by|www\.|\.(?:com|org|net)\b/i;
 const SECS = (h, m, s, ms) => Number(h) * 3600 + Number(m) * 60 + Number(s) + Number(String(ms).padEnd(3, '0')) / 1000;
 export function lastDialogueEnd(srt) {
@@ -56,6 +56,41 @@ export function creditsGuess(lastLine, duration) {
   const tail = duration - lastLine;
   if (tail < GUESS_MIN_TAIL || tail > GUESS_MAX_TAIL) return null;
   return Math.ceil(lastLine + GUESS_SLACK);
+}
+
+// A credits song in the subtitles: the last cues are all sung (wholly in italics, or with ♪), close together,
+// for at least SONG_MIN seconds up to the last cue. Its first line is where the credits start.
+const SONG_MIN = 40;
+const SONG_GAP = 12; // seconds of silence a verse may leave between sung lines
+const SONG_LINES = 4;
+export function creditsSongStart(srt) {
+  const cues = [];
+  for (const block of String(srt || '').replace(/\r/g, '').split(/\n\s*\n/)) {
+    const lines = block.split('\n');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    const m = i < 0 ? null : /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
+    if (!m) continue;
+    const raw = lines.slice(i + 1).join(' ').replace(/\{[^}]*\}/g, '').trim();
+    const text = raw.replace(/<[^>]*>/g, '').trim();
+    if (!/\p{L}/u.test(text) || NOT_DIALOGUE.test(text)) continue;
+    const sung = /[♪♫]/.test(raw) || /^<i>(?:(?!<\/i>)[\s\S])*<\/i>$/i.test(raw);
+    cues.push({ start: SECS(m[1], m[2], m[3], m[4]), end: SECS(m[5], m[6], m[7], m[8]), sung });
+  }
+  cues.sort((a, b) => a.start - b.start);
+  let k = cues.length - 1;
+  if (k < 0 || !cues[k].sung) return null;
+  while (k > 0 && cues[k - 1].sung && cues[k].start - cues[k - 1].end <= SONG_GAP) k--;
+  const run = cues.length - k;
+  return run >= SONG_LINES && cues[cues.length - 1].end - cues[k].start >= SONG_MIN ? cues[k].start : null;
+}
+
+export function creditsGuessFromSrt(srt, duration) {
+  const song = creditsSongStart(srt);
+  if (song != null && Number.isFinite(duration) && duration >= 300 && song > duration / 2) {
+    const tail = duration - song;
+    if (tail >= GUESS_MIN_TAIL && tail <= GUESS_MAX_TAIL) return Math.floor(song);
+  }
+  return creditsGuess(lastDialogueEnd(srt), duration);
 }
 
 // The opening titles (Skip intro) are found the same two ways: an opening chapter, or the theme song
@@ -428,7 +463,7 @@ export async function creditsFor(file, siblings = []) {
 export async function creditsGuessFor(file, sidecar) {
   const entry = await facts(file);
   if (!entry?.duration || !sidecar) return null;
-  try { return creditsGuess(lastDialogueEnd(await fsp.readFile(sidecar, 'utf8')), entry.duration); } catch { return null; }
+  try { return creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
 }
 
 // What's already known about a video for Live TV: its length, the opening titles and where the credits start.

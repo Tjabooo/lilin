@@ -1,4 +1,13 @@
 {
+  "2026-11-21-next-episode-song": {
+    "title": "Eftertextkortet, i alla serier",
+    "items": {
+      "Next episode starts with the credits song": {
+        "title": "Nästa avsnitt börjar med eftertextlåten",
+        "text": "I serier där eftertexterna byts varje avsnitt visas eftertextkortet nu när slutlåten börjar, med den vanliga nedräkningen på 10 sekunder till nästa avsnitt. Förut väntade det tills låten var slut och visade bara en knapp."
+      }
+    }
+  },
   "2026-11-21-next-episode-late-subs": {
     "title": "Nästa avsnitt, varje avsnitt",
     "items": {
