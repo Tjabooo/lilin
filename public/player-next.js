@@ -38,6 +38,15 @@ export function isNextEpisodeTime({ ended, time, duration, creditsAt }) {
   return promptAt !== null && Number.isFinite(time) && time >= promptAt;
 }
 
+// Up next also shows at a guessed credits start (where the dialogue ends, see credits.js) when the real one
+// is unknown, but only the real start or the end of the file starts the autoplay countdown.
+export function upNextShowing({ ended, time, duration, creditsAt, creditsGuess }) {
+  if (isNextEpisodeTime({ ended, time, duration, creditsAt })) return true;
+  if (nextEpisodePromptAt(duration, creditsAt) != null) return false;
+  const guess = nextEpisodePromptAt(duration, creditsGuess);
+  return guess != null && Number.isFinite(time) && time >= guess;
+}
+
 // ---- Play on TV ----
 // The TV can't show Lilin's buttons, so the phone's remote shows them instead. All it knows is what the
 // TV reports every poll (state, position, duration), so the cues come from that position: Skip intro

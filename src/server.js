@@ -73,7 +73,7 @@ import * as listShare from './list-share.js'; // shared list links with a poster
 import { WatchRooms } from './watch.js';
 import * as social from './social.js';
 import { handleWatchPage } from './watch-page.js';
-import { creditsFor, introFor, initCredits, knownTimes, storedIntro } from './credits.js';
+import { creditsFor, creditsGuessFor, introFor, initCredits, knownTimes, storedIntro } from './credits.js';
 import { createThemeMusic } from './theme-music.js'; // theme: theme music on show pages
 import { createLiveTv } from './live-tv.js';
 import { LiveChat } from './live-chat.js'; // livechat
@@ -5445,7 +5445,10 @@ async function handleApi(req, res, url) {
     const peers = m[1] === 'lib' ? await creditPeers(file) : { siblings: [] };
     const creditsAt = await creditsFor(file, peers.siblings);
     if (peers.next) creditPeers(peers.next).then((n) => creditsFor(peers.next, n.siblings)).catch(() => {});
-    return sendJson(res, 200, { creditsAt });
+    // No credits start found: where the dialogue ends, for a Next episode button without the countdown.
+    const sidecar = creditsAt == null ? subtitles.findSidecar(file, 'en') || [...subtitles.localLanguages(file)].map((l) => subtitles.findSidecar(file, l)).find(Boolean) : null;
+    const guess = sidecar ? await creditsGuessFor(file, sidecar) : null;
+    return sendJson(res, 200, { creditsAt, creditsGuess: guess });
   }
   // The opening titles to offer Skip intro for: an opening chapter, or the theme song this episode
   // shares with its season neighbours (credits.js). The next episode's is found meanwhile.

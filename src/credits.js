@@ -25,6 +25,39 @@ export function creditsStart(info) {
   return matches.length ? Math.min(...matches) : null;
 }
 
+// A softer third source, used only when the two above find nothing: where the dialogue ends. Shows whose
+// end-credits music changes every episode (Rings of Power) never match, and Up next then only showed at
+// the very end of the file. The last spoken line plus a short slack is a guess, so the player shows the
+// Next episode button there but never starts the autoplay countdown from it.
+const NOT_DIALOGUE = /subtit|opensubtitles|addic7ed|synced|sync and correct|corrected by|ripped by|www\.|\.(?:com|org|net)\b/i;
+const SECS = (h, m, s, ms) => Number(h) * 3600 + Number(m) * 60 + Number(s) + Number(String(ms).padEnd(3, '0')) / 1000;
+export function lastDialogueEnd(srt) {
+  let last = null;
+  for (const block of String(srt || '').replace(/\r/g, '').split(/\n\s*\n/)) {
+    const lines = block.split('\n');
+    const i = lines.findIndex((l) => l.includes('-->'));
+    const m = i < 0 ? null : /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/.exec(lines[i]);
+    if (!m) continue;
+    const text = lines.slice(i + 1).join(' ').replace(/<[^>]*>|\{[^}]*\}/g, '').trim();
+    // Music notes, [sound cues] and credit lines for the subtitle makers are not dialogue.
+    const words = text.replace(/\[[^\]]*\]|\([^)]*\)|[♪♫#*]/g, '').trim();
+    if (!/\p{L}/u.test(words) || NOT_DIALOGUE.test(text)) continue;
+    const end = SECS(m[5], m[6], m[7], m[8]);
+    if (last == null || end > last) last = end;
+  }
+  return last;
+}
+
+export const GUESS_SLACK = 15; // seconds after the last line: the closing shot usually lingers a moment
+const GUESS_MIN_TAIL = 90; // a shorter tail after the dialogue is a closing scene, not the credits
+const GUESS_MAX_TAIL = 900;
+export function creditsGuess(lastLine, duration) {
+  if (!Number.isFinite(lastLine) || !Number.isFinite(duration) || duration < 300 || lastLine <= duration / 2) return null;
+  const tail = duration - lastLine;
+  if (tail < GUESS_MIN_TAIL || tail > GUESS_MAX_TAIL) return null;
+  return Math.ceil(lastLine + GUESS_SLACK);
+}
+
 // The opening titles (Skip intro) are found the same two ways: an opening chapter, or the theme song
 // an episode shares with its season neighbours in the first minutes. Uncertain gives null: no button.
 export const INTRO_MIN = 10; // seconds: shorter openings are a title card, not worth a button
@@ -389,6 +422,13 @@ export async function creditsFor(file, siblings = []) {
   }
   // Two siblings that disagree: the later start is the safe one.
   return found.length ? Math.max(...found) : null;
+}
+
+// The guess above for one episode, from its English subtitles beside it (or any other language there).
+export async function creditsGuessFor(file, sidecar) {
+  const entry = await facts(file);
+  if (!entry?.duration || !sidecar) return null;
+  try { return creditsGuess(lastDialogueEnd(await fsp.readFile(sidecar, 'utf8')), entry.duration); } catch { return null; }
 }
 
 // What's already known about a video for Live TV: its length, the opening titles and where the credits start.

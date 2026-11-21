@@ -4,7 +4,7 @@ import { WatchSession, offsetCues } from './watch-sync.js';
 import { createNotesView } from './notes-view.js';
 import { createLiveView, channelName, clock as liveClock, programmeLine } from './live.js';
 import { createLiveChat, liveWatchers } from './live-chat.js'; // livechat
-import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
+import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, upNextShowing, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from './player-next.js';
 import { audioChoices, audioLanguage, nativeAudioMapping, sameAudio } from './player-audio.js';
 import { createSeekPreview } from './seek-preview.js';
 import { measureSpeed, speedWithin, slowForUhd, versionForSpeed, streamFor } from './connection.js';
@@ -8107,7 +8107,7 @@ async function loadPlayerMedia(f, opts = {}) {
   }
   fitToken++;
   resetPlayerMedia();
-  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, intro: null, introDone: false,
+  const session = current = { ...f, origin: f.origin || f, ready: false, abort: new AbortController(), creditsAt: null, creditsGuess: null, intro: null, introDone: false,
     upNextDismissed: false, upNextBusy: false, upNextError: '', upNextAnnounced: null, autoLeft: null, autoTimer: null };
   syncSettingsBtn();
   setPlayerTitle(f);
@@ -8381,6 +8381,7 @@ async function loadPlayerCredits(session) {
     const data = await api(`/api/media/${session.kind}/${encodeURIComponent(mediaId(session))}/credits`, { signal: session.abort.signal });
     if (current !== session) return;
     session.creditsAt = Number.isFinite(data.creditsAt) && data.creditsAt > 0 ? data.creditsAt : null;
+    session.creditsGuess = Number.isFinite(data.creditsGuess) && data.creditsGuess > 0 ? data.creditsGuess : null;
     updateUpNext();
   } catch { /* Unknown credits start: Up next waits for the end of the file. */ }
 }
@@ -8394,12 +8395,13 @@ function updateUpNext() {
   const externalPlayer = nativeSubs || video.webkitDisplayingFullscreen || inPip()
     || video.webkitCurrentPlaybackTargetIsWireless || video.remote?.state === 'connected' || onTvVersion;
   const show = Boolean(session?.ready && next && !party && !session.upNextDismissed && !externalPlayer && seeking == null && !video.seeking
-    && isNextEpisodeTime({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt }));
+    && upNextShowing({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt, creditsGuess: session.creditsGuess }));
   upNextEl.hidden = !show;
   playerEl.classList.toggle('has-up-next', show);
   creditsCard.sync(session, creditsState(session, show, externalPlayer, next));
   // The countdown starts the moment the card does: at the credits, or at the end of the file.
-  const counting = show && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN && autoplayNextOn();
+  const counting = show && isNextEpisodeTime({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt })
+    && !session.upNextBusy && !session.upNextError && autoChain < AUTOPLAY_CHAIN && autoplayNextOn();
   if (counting && session.autoLeft == null) startAutoplay(session);
   else if (!counting && session) stopAutoplay(session);
   if (show) {

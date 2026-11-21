@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { creditsStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP } from '../src/credits.js';
+import { creditsStart, lastDialogueEnd, creditsGuess, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP } from '../src/credits.js';
 
 const info = (title, start = '1900') => ({ format: { duration: '2100' }, chapters: [{ start_time: start, tags: { title } }] });
 
@@ -290,4 +290,15 @@ test('comparisons saved in the old format still count', async (t) => {
   await f.encode('e1.mp4', f.other.pcm(f.other.scene(350)));
   await fs.rm(f.e1);
   assert.deepEqual(await introFor(toMp4(f.e1), [f.e2]), i1);
+});
+
+test('the end of the dialogue gives a guessed credits start, skipping music and subtitle credits', () => {
+  const srt = '1\n00:50:00,000 --> 00:50:02,500\nHello.\n\n2\n01:04:22,333 --> 01:04:25,375\n<i>Adar! Adar!</i>\n\n'
+    + '3\n01:05:00,000 --> 01:05:30,000\n♪ ♪\n\n4\n01:06:00,000 --> 01:06:03,000\n[ominous music]\n\n'
+    + '5\n01:08:00,000 --> 01:08:04,000\nSubtitles by explosiveskull\nwww.OpenSubtitles.org\n';
+  assert.equal(lastDialogueEnd(srt), 3865.375);
+  assert.equal(creditsGuess(3865.375, 4162.5), 3881);
+  assert.equal(creditsGuess(4100, 4162.5), null, 'a short tail is a closing scene');
+  assert.equal(creditsGuess(1000, 4162.5), null, 'dialogue ending in the first half is broken subtitles');
+  assert.equal(creditsGuess(null, 4162.5), null);
 });

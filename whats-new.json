@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-next-episode-credits",
+  "date": "2026-11-21",
+  "title": "Next episode at the credits",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Next episode shows up when the credits start",
+      "text": "Some shows use different music over the credits every episode, so Lilin couldn't tell where they began and only offered the next episode at the very end. Now it also looks at where the talking stops and shows the Next episode button there. It won't start playing on its own until the credits are over."
+    }
+  ]
+},
+{
   "id": "2026-11-21-subtitles-fit",
   "date": "2026-11-21",
   "title": "Subtitles that fit",

@@ -1,4 +1,13 @@
 {
+  "2026-11-21-next-episode-credits": {
+    "title": "Nästa avsnitt vid eftertexterna",
+    "items": {
+      "Next episode shows up when the credits start": {
+        "title": "Nästa avsnitt dyker upp när eftertexterna börjar",
+        "text": "Vissa serier har olika musik under eftertexterna i varje avsnitt, så Lilin kunde inte se var de började och erbjöd nästa avsnitt först allra sist. Nu tittar den också på var pratet tar slut och visar knappen Nästa avsnitt där. Den börjar inte spela av sig själv förrän eftertexterna är slut."
+      }
+    }
+  },
   "2026-11-21-subtitles-fit": {
     "title": "Undertexter som passar",
     "items": {

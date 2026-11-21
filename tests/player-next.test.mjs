@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from '../public/player-next.js';
+import { nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, upNextShowing, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, tvIntroShowing, tvNextShowing, tvFinished } from '../public/player-next.js';
 
 const episode = (id, number, extra = {}) => ({ id, show: 'tv-123', title: 'Example Show', season: 1, episode: number, file: `${id}.mp4`, ...extra });
 const playing = { ...episode('one', 1), kind: 'lib', key: 'one' };
@@ -76,7 +76,7 @@ function playbackHarness({ prepare, autoplayRejected = false, clock = null } = {
   const video = new Element();
   const context = vm.createContext({ T: englishT, $, video, URL, h: (tag, props, ...kids) => ({ tag, props, text: kids.join('') }), titleKeyOf: () => null, AbortController, setTimeout: clock?.setTimeout || setTimeout, clearTimeout: clock?.clearTimeout || clearTimeout,
     Date: clock?.Date || Date, location: { href: 'https://example.test/' },
-    nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, autoplayNextOn: () => true, noteFinished() {}, rightNow: { played() {} },
+    nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, upNextShowing, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, autoplayNextOn: () => true, noteFinished() {}, rightNow: { played() {} },
     createCreditsCard: () => ({ sync() {}, leave() {} }), stage: new Element(), seekRow: new Element(), syncSettingsBtn() {}, invalidateLibraryProgress() {}, state: { library: [episode('one', 1), episode('two', 2, { still: 'https://image.test/two.jpg' })], libraryShows: [{ id: 'tv-123', title: 'Example Show', backdrop: 'https://image.test/show.jpg' }], progress: {}, view: 'library' },
     current: { ...playing, ready: true, sourceUrl: 'https://example.test/one.mp4', abort: new AbortController(), creditsAt: 800, upNextDismissed: false },
     party: null, nativeSubs: false, onTvVersion: false, seeking: null, hasRemotePlayback: false,
@@ -346,4 +346,11 @@ test('the player heading spells out the episode with its TMDB name', () => {
   assert.equal(title(episode('x', 2, { episodeEnd: 3 })), 'Example Show \u00b7 Season 1, Episodes 2\u20133');
   assert.equal(title({ id: 'film', title: 'heat 1995', filmTitle: 'Heat', season: null }), 'Heat');
   assert.equal(title({ id: 'clip', kind: 'clip', title: 'Ace on Mirage' }), 'Ace on Mirage');
+});
+
+test('a guessed credits start shows Up next only when the real one is unknown', () => {
+  assert.equal(upNextShowing({ ended: false, time: 3890, duration: 4162, creditsAt: null, creditsGuess: 3881 }), true);
+  assert.equal(isNextEpisodeTime({ ended: false, time: 3890, duration: 4162, creditsAt: null }), false, 'no countdown from a guess');
+  assert.equal(upNextShowing({ ended: false, time: 3870, duration: 4162, creditsAt: null, creditsGuess: 3881 }), false);
+  assert.equal(upNextShowing({ ended: false, time: 3890, duration: 4162, creditsAt: 4000, creditsGuess: 3881 }), false, 'the real start wins');
 });
