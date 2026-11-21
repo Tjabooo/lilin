@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-play-now-subs-grow",
+  "date": "2026-11-21",
+  "title": "Full subtitles during Play now",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Full subtitles during Play now",
+      "text": "Some episodes started with only the first few subtitle lines while they were still downloading, and the rest never came. Lilin now keeps reading the subtitles from the video as it arrives, so the whole episode gets them, on the TV too (restart the TV app once)."
+    }
+  ]
+},
+{
   "id": "2026-11-21-skip-recap",
   "date": "2026-11-21",
   "title": "Skip recap",

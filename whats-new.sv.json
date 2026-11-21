@@ -1,4 +1,13 @@
 {
+  "2026-11-21-play-now-subs-grow": {
+    "title": "Hela undertexterna med Spela nu",
+    "items": {
+      "Full subtitles during Play now": {
+        "title": "Hela undertexterna med Spela nu",
+        "text": "Vissa avsnitt fick bara de första undertextraderna medan de fortfarande laddades ner, och resten kom aldrig. Nu fortsätter Lilin läsa undertexterna från videon medan den kommer in, så hela avsnittet får dem, även på tv:n (starta om tv-appen en gång)."
+      }
+    }
+  },
   "2026-11-21-skip-recap": {
     "title": "Hoppa över sammanfattning",
     "items": {
