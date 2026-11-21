@@ -1742,8 +1742,12 @@ function queueDubFetch(user, body) {
   const episodes = !body.episodes ? null : !prev ? body.episodes
     : prev.body?.episodes ? [...new Set([...prev.body.episodes, ...body.episodes])].sort((a, b) => a - b) : null;
   dubGraft.noteTry(key, { user: user.id, body: { ...body, episodes, range: Boolean(episodes && (prev?.body?.range || body.range)) }, count: 0, at: 0 });
-  setTimeout(() => runDubFetch(key), 2 * 60 * 1000).unref?.();
+  // Three minutes apart: each search can start FlareSolverr's Chrome, and on Windows every Chrome start logs a failed
+  // logon for the account; a burst of them locked it out (2026-11-21), so the Lilin task couldn't start.
+  dubSlot = Math.max(Date.now() + 2 * 60 * 1000, dubSlot + 3 * 60 * 1000);
+  setTimeout(() => runDubFetch(key), dubSlot - Date.now()).unref?.();
 }
+let dubSlot = 0;
 async function runDubFetch(key) {
   const t = dubGraft.tryOf(key);
   const user = t && accounts.userById(t.user);
@@ -1758,7 +1762,7 @@ function dubRetries() {
   for (const [key, t] of dubGraft.allTries()) {
     if ((t.count || 0) >= DUB_TRIES || (t.at && Date.now() - t.at < DUB_RETRY_MS)) continue;
     setTimeout(() => runDubFetch(key), delay).unref?.();
-    delay += 60_000;
+    delay += 3 * 60_000;
   }
 }
 setTimeout(dubRetries, 3 * 60 * 1000).unref();
