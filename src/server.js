@@ -1172,19 +1172,30 @@ let libraryRevision = 0;
 function invalidateLibrary() { libraryCache.at = 0; libraryRevision++; live.publish('library'); }
 let libraryIds = null; // what the last scan found, so files added or removed outside Lilin show up live
 
-async function scanLibrary() {
+// stale: the page's library (libraryView) takes the last finished scan while a new one runs. Busy times
+// (many downloads and conversions finishing) invalidate the cache every few seconds, and waiting on a fresh scan
+// then took a minute or more: the app gives up after 15 s and showed an empty library (no Continue watching).
+// When the scan it didn't wait for finishes, pages are told to fetch again.
+let libraryStaleServed = false;
+async function scanLibrary({ stale = false } = {}) {
   if (!MEDIA_DIR) return null;
   if (Date.now() - libraryCache.at < 30_000) return libraryCache.items;
-  if (libraryScan) return libraryScan;
-  const task = (async () => {
-    // A completion/delete during a scan must not turn its earlier view into a fresh cache.
-    let revision;
-    do { revision = libraryRevision; await scanLibraryNow(); } while (revision !== libraryRevision);
-    return libraryCache.items;
-  })();
-  const done = task.finally(() => { if (libraryScan === done) libraryScan = null; });
-  libraryScan = done;
-  return done;
+  if (!libraryScan) {
+    const task = (async () => {
+      // A completion/delete during a scan must not turn its earlier view into a fresh cache: scan again, but
+      // at most three times in a row (a busy server would otherwise never finish).
+      let revision, passes = 0;
+      do { revision = libraryRevision; await scanLibraryNow(); } while (revision !== libraryRevision && ++passes < 3);
+      return libraryCache.items;
+    })();
+    const done = task.finally(() => {
+      if (libraryScan === done) libraryScan = null;
+      if (libraryStaleServed) { libraryStaleServed = false; live.publish('library'); }
+    });
+    libraryScan = done;
+  }
+  if (stale && libraryCache.scannedAt) { libraryStaleServed = true; return libraryCache.items; }
+  return libraryScan;
 }
 
 // Bonus material inside a title's folder (Plex/Jellyfin names): not films of their own, so not in the
@@ -1243,7 +1254,7 @@ async function scanLibraryNow() {
   const fulls = new Set(items.map((i) => i.full));
   const visible = items.filter((i) => !(converter.needsConversion(i.full) && fulls.has(converter.twinPath(i.full))));
   visible.sort((a, b) => b.added - a.added);
-  libraryCache = { at: Date.now(), items: visible, all: items };
+  libraryCache = { at: Date.now(), scannedAt: Date.now(), items: visible, all: items };
   const ids = visible.map((i) => i.id).sort().join('|');
   if (libraryIds != null && ids !== libraryIds) live.publish('library');
   libraryIds = ids;
@@ -1349,7 +1360,7 @@ function localizedLibrary(view) {
 }
 
 async function libraryView(user) {
-  const items = await libraryVisibleItems(await scanLibrary(), user);
+  const items = await libraryVisibleItems(await scanLibrary({ stale: true }), user);
   if (!items) throw new HttpError(503, 'No media folder is set up. Add MEDIA_DIR to .env and restart.');
   // A video whose MP4 copy is being made can't be played yet (the player disables Play).
   const converting = converter.convertingFile();
