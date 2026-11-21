@@ -104,6 +104,11 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | `SUBTITLE_LLM_KEY` | — | Sent as a Bearer token, for a server that wants one. |
 | `SUBTITLE_LLM_PAUSE` | — | A command that exits 0 while the machine running the model is busy with something that matters more, checked before every chunk (e.g. `ssh desktop pgrep -x cs2` when the model runs on a gaming PC's graphics card). Proofreading waits, checking every 5 minutes. |
 | `SUBTITLE_LLM` | `on` | `off` pauses proofreading (fixes already made are still used only while it's on). |
+| `MAGIC_SEARCH_URL` | the `SUBTITLE_LLM_URL` server | An OpenAI-compatible server for MAGIc search (Search → "MAGIc search" on a description of three words or more): the model names candidates, TMDB checks they exist, then the model scores each real description against what was asked. 10-30 s a search; one at a time; cached for a day. Without either URL (or without TMDB) the row doesn't show. |
+| `MAGIC_SEARCH_KEY` | — | Sent as a Bearer token to `MAGIC_SEARCH_URL`. |
+| `MAGIC_SEARCH_MODEL` | `SUBTITLE_LLM_MODEL` | The model MAGIc search asks. Knowing titles takes size: a 9B model missed Breaking Bad, a 35B-A3B one (Qwen3.6) got it. |
+| `MAGIC_SEARCH_PAUSE` | — | A command that exits 0 while the model's machine shouldn't be used for a search (e.g. a game running); the search then says the machine is busy instead of waiting. |
+| `MAGIC_SEARCH` | `on` | `off` hides MAGIc search. |
 
 ## Casting
 

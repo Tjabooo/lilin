@@ -129,6 +129,7 @@ const ICONS = {
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h6M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01M18 15v5M15.5 17.5h5"/></svg>',
   smile: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2M9.2 9.6h.01M14.8 9.6h.01"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M13.2 2.8 5.6 13.1h5.6l-1 8.1 7.7-10.4h-5.6z"/></svg>',
+  magic: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M10 3.5c.5 3.6 2.4 5.5 6 6-3.6.5-5.5 2.4-6 6-.5-3.6-2.4-5.5-6-6 3.6-.5 5.5-2.4 6-6zM18 14c.25 1.8 1.2 2.75 3 3-1.8.25-2.75 1.2-3 3-.25-1.8-1.2-2.75-3-3 1.8-.25 2.75-1.2 3-3z"/></svg>',
 };
 const icon = (name) => { const s = h('span'); s.innerHTML = ICONS[name]; return s.firstChild; };
 
@@ -11635,6 +11636,7 @@ function instantMatches(q) {
 const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'), me: () => state.me, status: () => state.status,
   onLilin: (q) => instantMatches(q).map(searchInstantRow),
   openPlace: (p) => openPlace(p), titleGrid, titleCard, carousel, skeletonGrid, emptyState, notice,
+  icon, openTitle: (t, el) => openDetails(t, el), poster: (t) => t.poster && toneArt(t.poster, posterTone(t.poster)),
   footer: (q) => [
     state.status.admin && state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => { searchUi.remember(); findTorrents(q, e.currentTarget); } },
       icon('search'), T('Search torrents for “{0}”', q)),

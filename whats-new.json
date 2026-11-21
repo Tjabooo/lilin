@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-21-magic-search",
+  "date": "2026-11-21",
+  "title": "MAGIc search",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Find a film or show from what you remember",
+      "text": "Can\u2019t remember the name? Type what you do remember in Search, like \u201cteacher makes meth with his student\u201d, and tap MAGIc search. It suggests the titles that fit best, with a line on why each one matches. It takes a few seconds and can be unavailable while MAGI is busy."
+    }
+  ]
+},
+{
   "id": "2026-11-21-own-subs-after-tidy",
   "date": "2026-11-21",
   "title": "Complete subtitles after downloads finish",

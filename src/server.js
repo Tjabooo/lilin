@@ -13,7 +13,8 @@ import * as converter from './convert.js';
 import * as torrents from './torrents.js';
 import * as subtitles from './subtitles.js';
 import { initSubfix, wordFiles, ordinaryWord, looksOcr, titleKeyOf } from './subfix.js';
-import { initProofread, setProofreadGuards } from './subllm.js';
+import { initProofread, setProofreadGuards, borrowModel, machineBusy } from './subllm.js';
+import { createMagicSearch } from './magic-search.js';
 import * as subsync from './subsync.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
@@ -428,6 +429,53 @@ initProofread({
   characters: castOf,
   title: (video) => parseFile(video).title,
 });
+// MAGIc search (magic-search.js): a film or show from what someone remembers. It uses the subtitle
+// proofreader's model server (or MAGIC_SEARCH_URL), MAGIC_SEARCH_MODEL (a bigger model knows more
+// titles), and waits for nothing: when MAGIC_SEARCH_PAUSE says the machine is busy, it says so.
+const magicUrl = () => (process.env.MAGIC_SEARCH_URL ? process.env.MAGIC_SEARCH_URL.replace(/\/+$/, '') : '');
+const magicOn = () => Boolean(magicUrl() || process.env.SUBTITLE_LLM_URL) && process.env.MAGIC_SEARCH !== 'off' && tmdbOn();
+async function magicChat(system, user, { maxTokens = 900 } = {}) {
+  const base = magicUrl() || await borrowModel();
+  if (!base) throw Object.assign(new Error('offline'), { code: 'offline' });
+  const key = magicUrl() ? process.env.MAGIC_SEARCH_KEY : process.env.SUBTITLE_LLM_KEY;
+  const r = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(key && { Authorization: `Bearer ${key}` }) },
+    body: JSON.stringify({
+      model: process.env.MAGIC_SEARCH_MODEL || process.env.SUBTITLE_LLM_MODEL || 'default',
+      temperature: 0.1,
+      max_tokens: maxTokens,
+      response_format: { type: 'json_object' },
+      chat_template_kwargs: { enable_thinking: false }, // Qwen-style models: a reasoning pass triples the wait
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }),
+    signal: AbortSignal.timeout(75 * 1000),
+  });
+  if (!r.ok) throw new Error(`the model answered ${r.status}`);
+  const content = (await r.json()).choices?.[0]?.message?.content || '{}';
+  try { return JSON.parse(content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1)); } catch { return {}; }
+}
+// A candidate the model named → the TMDB title it means (null: no such title).
+async function magicFind({ title, year, type }) {
+  const types = type ? [type] : ['movie', 'tv'];
+  const key = shows.showKey(title);
+  const named = (x) => [x.title, x.original_title, x.name, x.original_name].filter(Boolean).some((n) => shows.showKey(n) === key);
+  const yearOk = (x, slack) => !year || Math.abs((Number(String(x.release_date || x.first_air_date || '').slice(0, 4)) || 0) - year) <= slack;
+  const lists = await Promise.all(types.map((t) => cachedTmdb(`/search/${t}`, { query: title, include_adult: 'false' }, 12 * 3600 * 1000)
+    .then((d) => (d.results || []).slice(0, 10).map((x) => ({ x, t }))).catch(() => [])));
+  const all = lists.flat();
+  const pick = all.find(({ x }) => named(x) && yearOk(x, 1)) || all.find(({ x }) => named(x) && yearOk(x, 3))
+    || (year ? all.find(({ x }) => yearOk(x, 0)) : null) || (all[0] && named(all[0].x) ? all[0] : null);
+  return pick ? mapTitle(pick.x, pick.t) : null;
+}
+const magic = createMagicSearch({
+  chat: magicChat,
+  find: magicFind,
+  busy: () => (process.env.MAGIC_SEARCH_PAUSE ? machineBusy(process.env.MAGIC_SEARCH_PAUSE) : Promise.resolve(false)),
+  log: (m) => console.log(`[magic-search] ${m}`),
+});
+const magicUses = new Map(); // user id → recent search times (a few dozen an hour each)
+
 setProofreadGuards({
   known: wordFiles, ordinary: ordinaryWord, reference: (srt) => subtitles.cachedReference(srt),
   // Only OCR-made subtitles are worth the model (subfix.looksOcr).
@@ -4982,6 +5030,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/status') {
     return sendJson(res, 200, {
       search: Boolean(TMDB_TOKEN || TMDB_KEY), library: Boolean(MEDIA_DIR), downloads: Boolean(QBIT_URL),
+      magic: magicOn(),
       torrents: torrents.torrentsEnabled(),
       subtitles: subtitles.subtitlesConfigured(),
       casting: await castAllowed(req),
@@ -5176,6 +5225,25 @@ async function handleApi(req, res, url) {
     const svtHits = await svtHitsPromise;
     const results = mergeCatalogueResults(search, answers.map((data) => data.results || []));
     return sendJson(res, 200, { results: results.filter(onlyScreen).map((x) => mapTitle(x)), svt: svtHits });
+  }
+  // MAGIc search: titles from a description (magic-search.js); takes 10-30 s
+  if (p === '/api/magic-search') {
+    if (!magicOn()) throw new HttpError(503, 'MAGIc search isn’t set up on this server.');
+    const q = (url.searchParams.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (q.length < 3) return sendJson(res, 200, { results: [], sure: false });
+    const who = user?.id || clientAddress(req);
+    const recent = (magicUses.get(who) || []).filter((t) => Date.now() - t < 3600 * 1000);
+    if (recent.length >= 40) throw new HttpError(429, 'That’s a lot of MAGIc searches. Try again in a while.');
+    magicUses.set(who, [...recent, Date.now()]);
+    try {
+      const data = await magic.search(q, { lang: currentLanguage() });
+      return sendJson(res, 200, withoutDisliked(user, data));
+    } catch (err) {
+      if (err.code === 'busy') throw new HttpError(503, 'MAGI is busy with a game right now. Try again later, or search by title.');
+      if (err.code === 'offline') throw new HttpError(503, 'MAGI is asleep right now. Try again later, or search by title.');
+      console.warn(`[magic-search] ${err.message}`);
+      throw new HttpError(502, 'MAGIc search didn’t work this time. Try again in a moment.');
+    }
   }
   // ---- documentaries ----
   if (p === '/api/docs/home') return sendJson(res, 200, withoutDisliked(user, await docs.home()));

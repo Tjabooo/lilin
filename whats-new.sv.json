@@ -1,4 +1,13 @@
 {
+  "2026-11-21-magic-search": {
+    "title": "MAGIsk sökning",
+    "items": {
+      "Find a film or show from what you remember": {
+        "title": "Hitta en film eller serie utifrån det du minns",
+        "text": "Kommer du inte på namnet? Skriv det du minns i Sök, till exempel “kemilärare kokar meth med sin elev”, och tryck på MAGIsk sökning. Den föreslår titlarna som passar bäst, med en rad om varför var och en stämmer. Det tar några sekunder och kan vara otillgängligt medan MAGI är upptagen."
+      }
+    }
+  },
   "2026-11-21-own-subs-after-tidy": {
     "title": "Hela undertexterna när nedladdningen är klar",
     "items": {
@@ -20,8 +29,8 @@
   "2026-11-21-skip-recap": {
     "title": "Hoppa över sammanfattning",
     "items": {
-      "Skip the \u201cPreviously on\u201d recap": {
-        "title": "Hoppa över \u201dTidigare i\u201d-sammanfattningen",
+      "Skip the “Previously on” recap": {
+        "title": "Hoppa över ”Tidigare i”-sammanfattningen",
         "text": "När ett avsnitt börjar med en sammanfattning av tidigare avsnitt säger knappen Hoppa över intro nu Hoppa över sammanfattning och hoppar förbi den. Lilin hittar sammanfattningar genom att lyssna efter scener från avsnittet eller två avsnitt innan, så det fungerar på mobilen, datorn och TV:n (starta om TV-appen en gång). Sammanfattningar hoppas aldrig över av sig själva, även om du hoppar över intron automatiskt. I serier du redan har kan knappen dröja till nästa avsnitt innan den dyker upp."
       }
     }

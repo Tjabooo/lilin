@@ -127,8 +127,7 @@ function kick() {
 // chunk. Proofreading waits until it says otherwise.
 // Exit 0: busy. Any other exit: free. No answer within 20 s: busy too (if it can't tell, it waits).
 let lastPauseNote = '';
-function busyNow() {
-  const cmd = process.env.SUBTITLE_LLM_PAUSE;
+function busyNow(cmd = process.env.SUBTITLE_LLM_PAUSE, waitMs = 20000) {
   if (!cmd) return Promise.resolve(false);
   const [exe, ...rest] = args(cmd);
   return new Promise((resolve) => {
@@ -145,12 +144,15 @@ function busyNow() {
       const p = spawn(exe, rest, { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true });
       p.stdin.end();
       p.stderr.on('data', (d) => { err = (err + d).slice(-300); });
-      const t = setTimeout(() => { p.kill(); finish(true, `no answer in 20 s, waiting to be safe ${err.trim()}`); }, 20000);
+      const t = setTimeout(() => { p.kill(); finish(true, `no answer in ${waitMs / 1000} s, waiting to be safe ${err.trim()}`); }, waitMs);
       p.on('exit', (code) => { clearTimeout(t); finish(code === 0, code === 0 || code === 1 ? '' : `exit ${code} ${err.trim()}`); });
       p.on('error', (e) => { clearTimeout(t); finish(true, `couldn't run it (${e.message}), waiting to be safe`); });
     } catch (e) { finish(true, `couldn't run it (${e.message}), waiting to be safe`); }
   });
 }
+// Other features that wait on a person (MAGIc search) use their own, narrower check (a game running,
+// not just someone at the desk) with a shorter wait.
+export const machineBusy = (cmd, waitMs = 12000) => busyNow(cmd, waitMs);
 let pausedSince = 0;
 async function waitWhileBusy() {
   while (await busyNow()) {
@@ -171,6 +173,16 @@ async function healthy() {
   if (!available && process.env.SUBTITLE_LLM_SERVER) available = await startServer();
   if (!available) console.warn(`[proofread] the language model at ${url} isn't answering; trying again in 10 minutes`);
   return available;
+}
+
+// Borrow the proofreader's model server for something else (MAGIc search): makes sure it answers,
+// starting SUBTITLE_LLM_SERVER if needed, and keeps it up for the usual idle time afterwards.
+// The base URL, or '' when there is no server or it can't be reached.
+export async function borrowModel() {
+  if (!url) return '';
+  const ok = await healthy();
+  idleLater();
+  return ok ? url : '';
 }
 
 // ---------- a model server Lilin starts itself ----------

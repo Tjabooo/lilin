@@ -344,6 +344,24 @@ body:not(.searching) .search-cancel { display: none; }
 .sr-head { margin: 0 0 var(--s3); font: 700 var(--t-h3)/1.3 var(--display); }
 .sr-chips, .sr-more { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .sr-thumb { flex: none; width: 32px; height: 48px; object-fit: cover; background: var(--surface-2); border-radius: 6px; }
+.sr-magic:empty, .sr-body > .sr-people:empty { display: none; }
+/* MAGIc search (search.js): the offer, the wait, then titles with a line on why each fits */
+.magic-mark { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--bulb); background: var(--bulb-dim); }
+.magic-mark svg { width: 22px; height: 22px; }
+.magic-mark .fill { fill: currentColor; stroke: none; }
+.magic-mark.is-busy svg { animation: magic-turn 2.4s ease-in-out infinite; }
+@keyframes magic-turn { 50% { transform: rotate(180deg) scale(.82); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .magic-mark.is-busy svg { animation: none; } }
+.magic-list { margin: 0; padding: 0; list-style: none; }
+.magic-hit { align-items: flex-start; padding-block: 12px; }
+.magic-poster { flex: none; position: relative; width: 56px; aspect-ratio: 2 / 3; overflow: hidden; background: var(--surface-2); border-radius: var(--r-xs); }
+.magic-poster img { width: 100%; height: 100%; object-fit: cover; }
+.magic-poster .poster-fallback { font-size: 10px; }
+.magic-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.magic-best { padding: 1px 8px; font-size: 12px; font-weight: 650; color: var(--bulb); background: var(--bulb-dim); border-radius: 999px; }
+.magic-why { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--text); opacity: .86; }
+.magic-offer .set-label, .magic-wait .set-label, .magic-hit .set-label { color: var(--text); }
+.magic-hit .set-label { font-size: 16px; }
 /* A page's own filter (Library, Activity, Machines, Game clips, Notes): a funnel, not the search magnifier */
 .filter-field { position: relative; display: flex; align-items: center; flex: 0 1 240px; min-width: 150px; }
 .filter-field svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-2); pointer-events: none; }

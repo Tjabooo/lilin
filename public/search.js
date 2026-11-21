@@ -3,14 +3,18 @@
 // Filtering a page (Library, Activity, Machines, Game clips, Notes) is a small field on that page, not this box.
 // People (findPeople: by name, opens their profile) and Live (findChannels: a channel by name or what's on now,
 // tunes in) show as groups of their own when something matches.
+// MAGIc search: when the box holds a description rather than a title ("teacher makes meth with his student"),
+// a row offers to find it from that (/api/magic-search, a language model + TMDB, 10-30 s). Only on a tap: it
+// runs on a graphics card that may be busy.
 import { matchPlaces, defaultPlaces, placeLabel } from './places.js';
 import { ROUTES } from './routes.js';
 
 const RECENT_KEY = 'lilin:recent-search';
 
 export function createSearch({ h, T, lang, api, input, layer, me, status, onLilin, openPlace, titleGrid, titleCard, carousel,
-  skeletonGrid, emptyState, notice, footer, onChange, findPeople = null, findChannels = null }) {
-  let ctrl = null, timer = 0, peopleCtrl = null;
+  skeletonGrid, emptyState, notice, footer, onChange, findPeople = null, findChannels = null, icon, openTitle, poster }) {
+  let ctrl = null, timer = 0, peopleCtrl = null, magicCtrl = null, magicTick = 0;
+  let magic = null; // { q, slot }: the MAGIc row or its results, kept while the box says the same
   const recent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } };
   function remember(text = input.value) {
     const q = String(text || '').trim();
@@ -24,7 +28,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     render(); onChange?.(true);
   }
   function close() {
-    clearTimeout(timer); ctrl?.abort(); peopleCtrl?.abort();
+    clearTimeout(timer); ctrl?.abort(); peopleCtrl?.abort(); stopMagic(); magic = null;
     if (!isOpen()) return;
     layer.hidden = true; layer.replaceChildren(); input.setAttribute('aria-expanded', 'false');
     onChange?.(false);
@@ -57,7 +61,8 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     const channels = findChannels?.(q) || [];
     const titles = h('div', { class: 'sr-titles' }, status().search ? skeletonGrid(6) : null);
     const folks = h('div', { class: 'sr-people' });
-    layer.replaceChildren(h('div', { class: 'sr-body' },
+    if (magic?.q !== q) { stopMagic(); magic = { q, slot: h('div', { class: 'sr-magic' }) }; if (describes(q)) offerMagic(q); }
+    layer.replaceChildren(h('div', { class: 'sr-body' }, magic.slot,
       places.length > 0 && group(T('Go to'), h('div', { class: 'set-stack' }, places.map(placeRow))),
       owned.length > 0 && group(T('Plays instantly'), h('div', { class: 'set-stack' }, owned)),
       channels.length > 0 && group(T('Live'), h('div', { class: 'set-stack' }, channels.map((c) => h('button', { type: 'button', class: 'sr-row', onclick: () => { remember(); close(); c.tune(); } },
@@ -87,13 +92,62 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     try {
       const data = await api(`/api/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
       const svt = data.svt || [];
+      // Nothing by that name: maybe it's a description after all (the offer stands in for "No matches").
+      if (!data.results.length && !svt.length && q.length >= 4 && magic?.q === q && !magic.slot.firstChild) offerMagic(q);
       slot.replaceChildren(...[
         data.results.length > 0 && group(T('Films and shows'), titleGrid(data.results)),
         svt.length > 0 && carousel(T('Free on SVT Play'), h('ul', { class: 'shelf-items wide-cards', tabindex: '0', 'aria-label': T('Free on SVT Play') }, svt.map(titleCard))),
-        !data.results.length && !svt.length && emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')),
+        !data.results.length && !svt.length && !magic?.slot.firstChild && emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')),
       ].filter(Boolean));
     } catch (err) {
       if (err.name !== 'AbortError') slot.replaceChildren(notice(T('Search didn’t work'), err.message, () => findTitles(q, slot)));
+    }
+  }
+
+  // ---- MAGIc search ----
+  // Three words or more reads as a description; a title that long ("the lord of the rings") just gets the offer too.
+  const describes = (q) => status().magic && q.split(' ').filter(Boolean).length >= 3;
+  function stopMagic() { magicCtrl?.abort(); magicCtrl = null; clearInterval(magicTick); }
+  function offerMagic(q) {
+    if (!status().magic || !magic) return;
+    magic.slot.replaceChildren(h('div', { class: 'set-stack' }, h('button', { type: 'button', class: 'sr-row magic-offer', onclick: () => runMagic(q) },
+      h('span', { class: 'magic-mark', 'aria-hidden': 'true' }, icon('magic')),
+      h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, T('MAGIc search')),
+        h('span', { class: 'set-hint' }, T('Find it from what you remember: plot, a scene, an actor')))),
+      ));
+  }
+  async function runMagic(q) {
+    stopMagic();
+    const slot = magic.slot;
+    const started = Date.now();
+    const clock = h('span', { class: 'set-hint' }, T('Reading your description…'));
+    slot.replaceChildren(h('div', { class: 'set-stack' }, h('div', { class: 'sr-row magic-wait', role: 'status' },
+      h('span', { class: 'magic-mark is-busy', 'aria-hidden': 'true' }, icon('magic')),
+      h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, T('MAGIc search')), clock))));
+    const steps = [[0, T('Reading your description…')], [7, T('Thinking of titles that fit…')], [14, T('Checking them against what you said…')], [35, T('Still thinking: this one’s a puzzle…')]];
+    magicTick = setInterval(() => { const s = (Date.now() - started) / 1000; clock.textContent = steps.filter(([at]) => s >= at).at(-1)[1]; }, 1000);
+    magicCtrl = new AbortController();
+    try {
+      const data = await api(`/api/magic-search?q=${encodeURIComponent(q)}`, { signal: magicCtrl.signal });
+      stopMagic();
+      if (magic?.slot !== slot) return;
+      const list = data.results || [];
+      if (!list.length) {
+        slot.replaceChildren(group(T('MAGIc search'), emptyState(T('Nothing came to mind'), T('Add a detail or two: roughly when it came out, a scene, someone in it.'))));
+        return;
+      }
+      const kind = (t) => (t.type === 'tv' ? T('Series') : T('Film'));
+      slot.replaceChildren(group(T('MAGIc search'), h('ul', { class: 'set-stack magic-list' }, list.map((t, i) => h('li', {},
+        h('button', { type: 'button', class: `sr-row magic-hit${i === 0 && data.sure ? ' is-best' : ''}`, onclick: (e) => { remember(); openTitle(t, e.currentTarget); } },
+          h('span', { class: 'magic-poster' }, poster(t) || h('span', { class: 'poster-fallback' }, t.title)),
+          h('span', { class: 'lrow-text' },
+            h('span', { class: 'magic-name' }, h('span', { class: 'set-label' }, t.title), i === 0 && data.sure && h('span', { class: 'magic-best' }, T('Best match'))),
+            h('span', { class: 'set-hint' }, [t.year, kind(t)].filter(Boolean).join(' · ')),
+            t.why && h('span', { class: 'magic-why' }, t.why))))))));
+    } catch (err) {
+      stopMagic();
+      if (err.name === 'AbortError' || magic?.slot !== slot) return;
+      slot.replaceChildren(notice(T('MAGIc search didn’t work'), err.message, () => runMagic(q)));
     }
   }
 
