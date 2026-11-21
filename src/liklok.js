@@ -89,7 +89,7 @@ export function initLikLok({ cacheDir, encoder, library, subtitleFor, timesFor }
     db().prepare("DELETE FROM liklok_scanned WHERE result = 'ok:0'").run();
     db().prepare("INSERT OR REPLACE INTO liklok_meta (k, v) VALUES ('version', '2')").run();
   }
-  setTimeout(() => { builder().catch((e) => console.warn(`[liklok] builder stopped: ${e.message}`)); }, 90_000).unref?.();
+  setTimeout(() => { builder().catch((e) => console.warn(`[liklok] builder stopped: ${e.message}`)); }, Number(process.env.LIKLOK_DELAY_MS) || 90_000).unref?.();
 }
 
 // ---------- subtitles (pure) ----------
@@ -198,16 +198,24 @@ export function pickClips({ duration, cuts = [], rms = [], cues = [], avoid = []
     const lengthCost = L < 30 ? (30 - L) * 0.03 : L > 55 ? (L - 55) * 0.025 : 0;
     const quiet = d < -6 ? (-6 - d) * 0.15 : 0;
     const action = cutRate > 16 && d > 2 ? 1 : 0;
+    // Tight around the good part: a first or last third much quieter or talk-free than the rest costs.
+    const third = L / 3;
+    const sag = (a, b) => {
+      const loudDrop = d - loudAt(a, b);
+      const talkThere = hasSubs ? lines.reduce((n, c) => n + Math.max(0, Math.min(c.end, b) - Math.max(c.start, a)), 0) / third : share;
+      return clamp((loudDrop - 2) / 5) + (hasSubs && share > 0.3 ? clamp((share - talkThere - 0.25) * 2) : 0);
+    };
+    const flab = 0.35 * (sag(s, s + third) + sag(e - third, e));
     let score, why;
     if (hasSubs) {
       score = 1.1 * bell(share, 0.6, 0.4) + 0.6 * clamp(perMin / 18) + 0.5 * clamp((marks / Math.max(1, lines.length)) * 1.5)
         + 0.4 * clamp(d / 5, -1, 1) + 0.25 * clamp(pk / 4) + 0.45 * clamp(laughsIn.length / 2) + 0.5 * payoff + 0.35 * hook
-        + 0.3 * action + (startCut ? 0.2 : 0) + (endCut ? 0.1 : 0) - 0.45 * dangling - 0.35 * midSentence - lengthCost - quiet;
+        + 0.3 * action + (startCut ? 0.2 : 0) + (endCut ? 0.1 : 0) - 0.45 * dangling - 0.35 * midSentence - lengthCost - quiet - flab;
       why = [`talk ${Math.round(share * 100)}%`, `${turns} lines`, marks && `${marks} !?`, laughsIn.length && `${laughsIn.length} laughs`,
         payoff && 'payoff', action && 'action', `${d >= 0 ? '+' : ''}${d.toFixed(1)} dB`].filter(Boolean).join(' · ');
     } else {
       score = 0.8 * clamp(d / 5, -1, 1) + 0.5 * clamp(pk / 4) + 0.4 * clamp(cutRate / 20) + 0.3 * (loudAt(s, s + 3) > 4 ? 1 : 0)
-        + 0.3 * (loudAt(e - 4, e) > 2 ? 1 : 0) + (startCut ? 0.2 : 0) - lengthCost - quiet;
+        + 0.3 * (loudAt(e - 4, e) > 2 ? 1 : 0) + (startCut ? 0.2 : 0) - lengthCost - quiet - flab;
       why = [`no subs`, `${d >= 0 ? '+' : ''}${d.toFixed(1)} dB`, `${Math.round(cutRate)} cuts/min`, action && 'action'].filter(Boolean).join(' · ');
     }
     return { start: s, end: e, score: Math.round(score * 1000) / 1000, why };

@@ -6179,6 +6179,7 @@ async function handleRequest(req, res) {
         || /^\/api\/live\/(?:channels|[\w-]{1,40}\/(?:tune|chat\/delete))$/.test(url.pathname)
         || /^\/api\/watch(?:\/plan|\/[A-Za-z0-9_-]{24}\/(join|heartbeat|control|leave|switch|invite|chat|react|schedule|cancel))?$/.test(url.pathname)
         || url.pathname === '/api/social/rate' || /^\/api\/reviews(?:\/delete)?$/.test(url.pathname) || /^\/api\/ghosts(?:\/delete)?$/.test(url.pathname) || /^\/api\/lists(?:\/[a-z0-9]{10}(?:\/(?:add|remove|delete))?)?$/.test(url.pathname) || url.pathname === '/api/client/report' || /^\/api\/tv\/pair\/(start|approve)$/.test(url.pathname) || url.pathname === '/api/tv/play'
+        || /^\/api\/liklok\/(event|unnope)$/.test(url.pathname) // liklok
         || /^\/c\/jf\/v1\/(pair\/start|progress|disconnect)$/.test(url.pathname) || /^\/api\/jellyfin\/(approve|[\w-]+\/remove)$/.test(url.pathname)));
     if (!allowed) throw new HttpError(405, 'Method not allowed.');
     if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);
