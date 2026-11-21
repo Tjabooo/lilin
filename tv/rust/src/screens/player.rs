@@ -23,6 +23,9 @@ const SONG: u32 = 10;
 const UPGRADE_LINK: u32 = 11;
 const ADAPT_LINK: u32 = 12;
 const RECAP: u32 = 13;
+const SUB_STATE: u32 = 14;
+/// Flag on a SUB_FILE tag: a background re-read, no toast when it fails.
+const SUB_QUIET: u32 = 1 << 20;
 const LANGS_MENU: u32 = 5;
 const SUB_FETCH: u32 = 6;
 const SUB_FILE: u32 = 7;
@@ -190,6 +193,12 @@ pub struct Player {
     song_tries: i32,
     /// The 4K switch: ticks since start, library reloads, and the version being opened.
     upgrade_ticks: u32,
+    /// Play now: subtitles read from the still-downloading video grow as it arrives; checked every minute and
+    /// loaded again while the server says they're growing (once more when they stop).
+    sub_url: String,
+    sub_watch: bool,
+    sub_growing: bool,
+    sub_ticks: u32,
     upgrade_looks: u32,
     upgrading: Option<Value>,
     sid: u32,
@@ -296,6 +305,10 @@ impl Player {
             song: None,
             song_tries: -1,
             upgrade_ticks: 0,
+            sub_url: String::new(),
+            sub_watch: false,
+            sub_growing: false,
+            sub_ticks: 0,
             upgrade_looks: 0,
             upgrading: None,
             sid,
@@ -753,6 +766,9 @@ impl Player {
         self.sub_lang = String::from(lang);
         self.sub_name = String::from(name);
         self.cues.clear();
+        self.sub_url.clear();
+        self.sub_watch = false;
+        self.sub_growing = false;
         if lang.is_empty() {
             return;
         }
@@ -1337,6 +1353,9 @@ impl Screen for Player {
                 if res.ok() {
                     let url = alloc::format!("{}{}", cx.server, s(&res.json, "url"));
                     cx.get(&url, self.sid, SUB_FILE | ((self.sub_lang.len() as u32) << 8));
+                    self.sub_url = url;
+                    self.sub_watch = self.media_kind() == "part";
+                    self.sub_ticks = 0;
                 } else {
                     cx.toast(&t!("Couldn’t get those subtitles: {0}", res.error()));
                 }
@@ -1361,10 +1380,23 @@ impl Screen for Player {
                     self.backdrop = ui::tmdb_size(b, "w1280");
                 }
             }
+            SUB_STATE => {
+                let growing = res.ok() && crate::util::b(&res.json, "growing");
+                if (growing || self.sub_growing) && !self.sub_url.is_empty() {
+                    let url = self.sub_url.clone();
+                    cx.get(&url, self.sid, SUB_FILE | ((self.sub_lang.len() as u32) << 8) | SUB_QUIET);
+                }
+                self.sub_growing = growing;
+                self.sub_watch = growing;
+            }
             t if t & 0xff == SUB_FILE => {
                 if res.ok() {
-                    self.cues = logic::parse_vtt(&res.body);
-                } else {
+                    let cues = logic::parse_vtt(&res.body);
+                    // A re-read can come back shorter (pieces arrive out of order): keep the longer copy.
+                    if self.cues.is_empty() || cues.len() >= self.cues.len() {
+                        self.cues = cues;
+                    }
+                } else if t & SUB_QUIET == 0 {
                     cx.toast(&t!("Couldn’t get those subtitles: {0}", res.error()));
                 }
             }
@@ -1395,6 +1427,12 @@ impl Screen for Player {
                 self.upgrade_ticks += 1;
                 if self.upgrade_ticks % 40 == 0 {
                     self.try_upgrade(cx); // every 20 s
+                }
+                self.sub_ticks += 1;
+                if self.sub_watch && self.sub_ticks % 120 == 0 {
+                    // every 60 s; the server reads the video again at most every 2 min
+                    let q = alloc::format!("/api/subs/sync?kind=part&id={}&lang={}", crate::util::enc(s(&self.f, "id")), self.sub_lang);
+                    cx.get(&q, self.sid, SUB_STATE);
                 }
                 self.settle(cx);
                 let sig = self.signature();
