@@ -69,6 +69,16 @@ export function initLetterboxd() {
       PRIMARY KEY (user_id, title_key)
     );
   `);
+  onlyFiveLikes();
+}
+
+// Once (2026-11-22): likes that Letterboxd's 3½-4½ stars gave (no heart) are taken back, unless the person
+// changed the thumb since; applyReviews does the work now that only 5 stars or a heart is a like.
+function onlyFiveLikes() {
+  if (db().prepare("SELECT 1 FROM meta WHERE key = 'letterboxd_only_five_likes'").get()) return;
+  const now = Date.now();
+  for (const { user_id } of db().prepare('SELECT DISTINCT user_id FROM letterboxd_log').all()) applyReviews(user_id, now);
+  db().prepare("INSERT INTO meta (key, value) VALUES ('letterboxd_only_five_likes', '1')").run();
 }
 
 // "ebicat", "@ebicat" or a pasted profile link → "ebicat"; null when it can't be a Letterboxd username.
@@ -374,12 +384,17 @@ function applyReviews(userId, now) {
       }
       const rating = db().prepare('SELECT value FROM ratings WHERE user_id = ? AND title_key = ?').get(userId, key);
       let wroteThumb = before?.thumb ?? 0;
-      if (thumb && (!rating || (before && rating.value === before.thumb))) {
+      const untouched = rating && before && rating.value === before.thumb; // still the thumb we wrote
+      if (thumb && (!rating || untouched)) {
         db().prepare(`INSERT INTO ratings (user_id, title_key, value, title, updated_at) VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(user_id, title_key) DO UPDATE SET value = excluded.value, title = excluded.title, updated_at = excluded.updated_at`).run(userId, key, thumb, p.title, p.at || now);
         wroteThumb = thumb;
+      } else if (!thumb && untouched && before.thumb) {
+        // Letterboxd no longer stands for a thumb here (or the rule changed): take back the one we wrote.
+        db().prepare('DELETE FROM ratings WHERE user_id = ? AND title_key = ?').run(userId, key);
+        wroteThumb = 0;
       }
-      if (wroteStars != null || wroteText || wroteThumb) {
+      if (before || wroteStars != null || wroteText || wroteThumb) {
         db().prepare(`INSERT INTO letterboxd_wrote (user_id, title_key, stars, text, thumb) VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(user_id, title_key) DO UPDATE SET stars = excluded.stars, text = excluded.text, thumb = excluded.thumb`).run(userId, key, wroteStars, wroteText, wroteThumb);
       }

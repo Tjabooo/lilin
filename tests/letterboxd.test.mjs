@@ -76,6 +76,14 @@ test('letterboxd: a feed fills the diary, stars and thumbs, never over Lilin’s
   assert.equal(reviews.reviewOf(anna.id, 'movie:949').stars, 2);
   assert.equal(reviews.reviewOf(anna.id, 'movie:14160').stars, 4);
 
+  // A like the import wrote for 5 stars goes when Letterboxd drops to 4½ (no heart); a heart's like stays.
+  const like = (key) => accounts.database().prepare('SELECT value FROM ratings WHERE user_id = ? AND title_key = ?').get(anna.id, key)?.value;
+  await lb.sync(anna.id, { fetchFeed: async () => feed(item({ n: 5, title: 'Jaws', year: 1975, tmdb: 578, day: '2026-10-08', rating: '5.0' })) });
+  assert.equal(like('movie:578'), 1);
+  await lb.sync(anna.id, { fetchFeed: async () => feed(item({ n: 6, title: 'Jaws', year: 1975, tmdb: 578, day: '2026-10-09', rating: '4.5' })) });
+  assert.equal(like('movie:578'), undefined, '4½ stars from Letterboxd is no like');
+  assert.equal(like('movie:348'), 1, 'the heart stays');
+
   // Unlinking takes the diary out and what the import wrote, not what Anna wrote herself.
   lb.unlink(anna.id);
   assert.equal(profiles.diary(anna.id).entries.length, 0);
