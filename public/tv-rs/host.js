@@ -316,9 +316,18 @@
           try { tok = root.localStorage.getItem('lilin:tv-session'); } catch (e) { /* blocked */ }
           if (tok && tok !== 'home') headers['X-Lilin-Session'] = tok;
         }
-        fetch(url, { credentials: 'omit', headers: headers }).then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.blob();
+        // A picture an <img> once loaded (the old JS TV app) sits in the WebView's cache without CORS headers: TMDB
+        // only sends them when asked and doesn't Vary on Origin, so that copy fails this fetch. Then fetch it again
+        // past the cache, which also stores a copy with the headers for next time.
+        function get(cache) {
+          return fetch(url, { credentials: 'omit', headers: headers, cache: cache }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob();
+          });
+        }
+        get('default').catch(function (err) {
+          if (!loading[id] || /^HTTP /.test(err && err.message)) throw err;
+          return get('reload');
         }).then(decode).then(guard(function (pic) {
           if (!loading[id]) { if (pic.close) pic.close(); return; }
           delete loading[id];
