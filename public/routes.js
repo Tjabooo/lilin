@@ -19,7 +19,7 @@ export const ROUTES = {
   // Discover's Instant filter: everything on the server, which plays at once (the old Library's titles for everyone).
   'discover/instant': { view: 'discover', tab: 'discover', sub: 'instant', label: 'Plays instantly' },
   live: { view: 'live', tab: 'live', label: 'Live' },
-  // liklok: the clip feed, a preview only the people in LIKLOK_EMAILS get (the server says so in /api/status).
+  // liklok: the clip feed; the server says in /api/status whether it's on (LIKLOK, LIKLOK_EMAILS).
   liklok: { view: 'liklok', tab: 'liklok', label: 'LikLok', allowed: (me, s) => Boolean(s?.liklok) },
 
   // You: the person's own hub (replaces Settings). The root list is the phone's index; each row opens a page.

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-liklok",
+  "date": "2026-11-22",
+  "title": "LikLok: scroll clips, find your next show",
+  "items": [
+    {
+      "kind": "new",
+      "title": "A feed of the best bits from shows on Lilin",
+      "text": "The new LikLok tab is a feed of short clips from the first episodes of the shows on Lilin. Swipe up for the next one; tap once for sound. Like what you see? Keep watching opens the episode right where the clip is, so the scene just carries on, or start from episode 1. You can also put the show on My list, open its page, or say Not for me and it stops showing up. The feed learns from what you watch to the end and what you swipe past, and puts shows you haven't started first. Clips only come from the start of a show, so nothing gets spoiled."
+    }
+  ]
+},
+{
   "id": "2026-11-22-quote-search",
   "date": "2026-11-22",
   "title": "Find a film by a line from it",

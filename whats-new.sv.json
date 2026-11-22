@@ -1,4 +1,13 @@
 {
+  "2026-11-22-liklok": {
+    "title": "LikLok: scrolla klipp, hitta nästa serie",
+    "items": {
+      "A feed of the best bits from shows on Lilin": {
+        "title": "Ett flöde med de bästa bitarna ur serierna på Lilin",
+        "text": "Nya fliken LikLok är ett flöde med korta klipp från de första avsnitten av serierna på Lilin. Svep uppåt för nästa; tryck en gång för ljud. Gillar du det du ser? Fortsätt titta öppnar avsnittet precis där klippet är, så scenen bara fortsätter, eller börja från avsnitt 1. Du kan också lägga serien på Min lista, öppna dess sida eller välja Inte för mig, så slutar den dyka upp. Flödet lär sig av vad du tittar klart på och vad du sveper förbi, och visar serier du inte har börjat på först. Klippen kommer bara från början av en serie, så inget avslöjas."
+      }
+    }
+  },
   "2026-11-22-quote-search": {
     "title": "Hitta en film på en replik",
     "items": {

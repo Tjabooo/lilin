@@ -27,7 +27,7 @@ import { createFriends } from './friends.js'; // friends
 import { createProfiles } from './profiles.js'; // profiles: everyone's own page
 import { createLists } from './lists.js'; // lists: shelves on profiles, with their own links
 import { createMoments } from './moments.js'; // friends: Moments
-import { createLikLok } from './liklok.js'; // liklok: the clip feed (preview)
+import { createLikLok } from './liklok.js'; // liklok: the clip feed
 import { createGhosts } from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later
 import { createMatch } from './match.js'; // pick: Pick together (swipe to match)
 import { createInvite } from './invite.js'; // one Invite sheet: Lilin, Friend, Room, Pick, Moment

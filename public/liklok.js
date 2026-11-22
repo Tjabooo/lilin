@@ -1,7 +1,7 @@
 // LikLok: a vertical feed of short clips from the shows on the server. Swipe (or scroll, or ↑/↓) from one to the
 // next; each one loops until you move on. Keep watching opens the episode at the second the clip is at, so the
 // scene just carries on; From episode 1 starts the show; My list and the show's page are on the right.
-// Server side: src/liklok.js (/api/liklok/*). A preview for the people in LIKLOK_EMAILS only.
+// Server side: src/liklok.js (/api/liklok/*). Everyone gets it (LIKLOK=off on the server turns it off).
 //
 // Three <video> elements are shared by all the slides (slide k uses pool[k % 3]), so the one before and the two
 // around the current one are loaded and nothing else is: phones only allow so many videos. The first tap turns

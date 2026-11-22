@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickClips, parseSrt, episodeQueue, planClip, pickSubtitleTrack } from '../src/liklok.js';
+import { pickClips, parseSrt, episodeQueue, planClip, pickSubtitleTrack, enabled, allowed } from '../src/liklok.js';
 import { parseVtt } from '../public/liklok.js';
 
 // A made-up 22-minute episode: a cut every 8 s, quiet talk, and one lively scene at 10:00-10:50 that ends on a laugh.
@@ -81,4 +81,20 @@ test('pickSubtitleTrack: English text, SDH first, never forced or pictures', () 
   assert.equal(pickSubtitleTrack([s(2, 'hdmv_pgs_subtitle', 'eng'), s(3, 'subrip', 'eng', { forced: true }), s(4, 'subrip', 'eng'), s(5, 'subrip', 'eng', { title: 'English SDH' })]).index, 5);
   assert.equal(pickSubtitleTrack([s(2, 'subrip', 'fre'), s(3, 'ass', 'und')]).index, 3);
   assert.equal(pickSubtitleTrack([s(2, 'hdmv_pgs_subtitle', 'eng')]), null);
+});
+
+test('LikLok is on for everyone unless LIKLOK=off or LIKLOK_EMAILS names who', () => {
+  const env = { ...process.env };
+  try {
+    delete process.env.LIKLOK; delete process.env.LIKLOK_EMAILS;
+    assert.equal(enabled(), true);
+    assert.equal(allowed({ id: 3, email: 'a@b.c' }), true);
+    assert.equal(allowed({ id: 4, email: null }), true); // the home network's shared account
+    assert.equal(allowed(null), false);
+    process.env.LIKLOK_EMAILS = 'Owner@x.y';
+    assert.equal(allowed({ id: 1, email: 'owner@x.y' }), true);
+    assert.equal(allowed({ id: 2, email: 'a@b.c' }), false);
+    process.env.LIKLOK = 'off';
+    assert.equal(enabled(), false);
+  } finally { process.env = env; }
 });

@@ -1,6 +1,6 @@
 // LikLok: a vertical feed of short clips from the shows on the server (swipe, like Shorts/TikTok), each with a
 // way into the show: Keep watching (the episode, from the second the clip is at), From episode 1, My list.
-// A preview for the people in LIKLOK_EMAILS only (blank = off, and nothing is built).
+// On for everyone signed in; LIKLOK=off turns it off (and nothing is built), LIKLOK_EMAILS limits it to those people.
 //
 // How clips are found, per episode (the first LIKLOK_EPISODES of a show's first season, so nothing late in a show
 // is spoiled), one episode at a time in the background:
@@ -38,9 +38,9 @@ const emails = () => String(process.env.LIKLOK_EMAILS || '').split(',').map((s) 
 const episodesPerShow = () => Math.max(1, Math.min(10, Number(process.env.LIKLOK_EPISODES) || 3));
 const capBytes = () => Math.max(1, Number(process.env.LIKLOK_MAX_GB) || 25) * 1024 ** 3;
 
-export const enabled = () => emails().length > 0;
-// May this person see LikLok?
-export const allowed = (user) => Boolean(user?.email && emails().includes(String(user.email).toLowerCase()));
+export const enabled = () => !/^(off|0|false|no)$/i.test(String(process.env.LIKLOK || '').trim());
+// May this person see LikLok? Everyone, unless LIKLOK_EMAILS names who.
+export const allowed = (user) => Boolean(user) && (!emails().length || Boolean(user.email && emails().includes(String(user.email).toLowerCase())));
 
 let dir = null;
 let deps = { encoder: () => 'x264', library: async () => [], subtitleFor: () => null, timesFor: () => ({}) };

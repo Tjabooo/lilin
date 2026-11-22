@@ -44,7 +44,7 @@ import * as reviews from './reviews.js'; // reviews: stars + written reviews (re
 import * as lists from './lists.js'; // lists: shelves people put together and share (lists.js)
 import * as ghosts from './ghosts.js'; // ghost reactions: emoji left at a moment for friends who watch later (ghosts.js)
 import * as moments from './moments.js'; // friends: Moments (pieces of films/episodes shared with friends or by link)
-import * as liklok from './liklok.js'; // liklok: the clip feed (preview, LIKLOK_EMAILS only)
+import * as liklok from './liklok.js'; // liklok: the clip feed
 import { createAndroidTv, isAndroidPath } from './android-tv.js';
 import { innerPath as tvGatewayPath, gatewayAllows as tvGatewayAllows, createPairLimit } from './tv-gateway.js';
 import { createOidc } from './oidc.js';
@@ -4886,7 +4886,7 @@ async function handleApi(req, res, url) {
     } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
     throw new HttpError(404, 'Not found.');
   }
-  // liklok: the clip feed (liklok.js). Only for LIKLOK_EMAILS; to everyone else it isn't there.
+  // liklok: the clip feed (liklok.js). Off (LIKLOK=off) or not for this person (LIKLOK_EMAILS): it isn't there.
   if (p.startsWith('/api/liklok/')) {
     if (!liklok.enabled() || !liklok.allowed(user)) throw new HttpError(404, 'Not found.');
     try {

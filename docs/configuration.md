@@ -213,12 +213,13 @@ Moments are short pieces (2 s to 3 min) of a film or episode that people cut in 
 | `MOMENTS_DAYS` | `30` | Days a moment, and its link, is kept. The person who made it can delete it sooner. |
 | `MOMENTS_MAX_GB` | `20` | Space all moments together may use. Past it the oldest are deleted first. |
 
-## LikLok (preview)
-LikLok is a tab with a swipeable feed of short clips (22-70 s) from the first episodes of the shows on the server, each with Keep watching (the episode, from the clip's second) and From episode 1. Clips are picked from scene cuts, loudness and the episode's subtitles, and cut in the background. It's a preview: only the people listed see it.
+## LikLok
+LikLok is a tab with a swipeable feed of short clips (22-70 s) from the first episodes of the shows on the server, each with Keep watching (the episode, from the clip's second) and From episode 1. Clips are picked from scene cuts, loudness and the episode's subtitles, and cut in the background.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `LIKLOK_EMAILS` | | Who gets the LikLok tab, comma-separated. Blank = LikLok is off and no clips are cut. |
+| `LIKLOK` | `on` | `off` turns LikLok off for everyone: no tab, and no clips are cut. |
+| `LIKLOK_EMAILS` | | Limits the LikLok tab to these people, comma-separated. Blank = everyone. |
 | `LIKLOK_EPISODES` | `3` | How many episodes from the start of each show's first season are looked at. |
 | `LIKLOK_MAX_GB` | `25` | Space all LikLok clips together may use. Past it no new clips are cut. |
 | `LIKLOK_DIR` | `liklok` in `CACHE_DIR` | Folder for the clips (H.264 MP4s, a thumbnail and subtitles each). |
