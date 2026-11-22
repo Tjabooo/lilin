@@ -80,3 +80,6 @@
 .ls-switches .ls-switch-row { padding: 12px 14px; }
 .ls-switches .ls-switch-row + .ls-switch-row { border-top: 1px solid var(--hairline); }
 .ls-new .pf-save-bar { margin-top: var(--s5); }
+
+/* These views sit inside #picker-body, which is already a padded .sheet-content: don't pad twice (it squeezed them into a narrow middle column) */
+#picker-body > .sheet-content { padding: 0; }
