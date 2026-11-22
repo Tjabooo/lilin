@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-peek-logo",
+  "date": "2026-11-23",
+  "title": "Steadier hover cards",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "No more jumping title",
+      "text": "Resting the pointer on a poster opens its card with the title's logo already in place, instead of showing the name first and swapping in the logo a moment later."
+    }
+  ]
+},
+{
   "id": "2026-11-22-profile-customise",
   "date": "2026-11-22",
   "title": "Make your profile yours",

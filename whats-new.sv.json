@@ -1,4 +1,13 @@
 {
+  "2026-11-23-peek-logo": {
+    "title": "Stadigare kort när du hovrar",
+    "items": {
+      "No more jumping title": {
+        "title": "Titeln hoppar inte längre",
+        "text": "När du vilar pekaren på en affisch öppnas kortet med titelns logga redan på plats, i stället för att namnet visas först och byts mot loggan en stund senare."
+      }
+    }
+  },
   "2026-11-22-profile-customise": {
     "title": "Gör profilen till din",
     "items": {
