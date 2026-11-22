@@ -1,4 +1,13 @@
 {
+  "2026-11-22-you-revamp": {
+    "title": "En snyggare Du-flik",
+    "items": {
+      "You is easier to find your way around": {
+        "title": "Lättare att hitta i Du",
+        "text": "Du-fliken har nu tre tydliga delar. Ditt tittande kommer först: Historik, Betyg och Gillade som stora rutor som visar hur många du har, med Lilin Wrapped precis under. Sedan Personer (Vänner, med deras ansikten, och Ögonblick) och sist dina inställningar. Varje rad har en egen ikon, och dina siffror står på ditt kort högst upp."
+      }
+    }
+  },
   "2026-11-22-five-star-likes": {
     "title": "Gillningar betyder mer nu",
     "items": {

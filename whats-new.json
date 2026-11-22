@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-you-revamp",
+  "date": "2026-11-22",
+  "title": "A tidier You tab",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "You is easier to find your way around",
+      "text": "The You tab is now in three clear parts. Your watching comes first: History, Ratings and Liked as big tiles that show how many you have, with Lilin Wrapped right under them. Then People (Friends, with their faces, and Moments), and then your settings. Every row has its own icon, and your numbers sit on your card at the top."
+    }
+  ]
+},
+{
   "id": "2026-11-22-five-star-likes",
   "date": "2026-11-22",
   "title": "Likes mean more now",

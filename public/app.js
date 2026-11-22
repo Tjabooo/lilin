@@ -130,6 +130,10 @@ const ICONS = {
   // play first: the quiet mark on titles that play at once (they're on the server)
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h6M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01M18 15v5M15.5 17.5h5"/></svg>',
   smile: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2M9.2 9.6h.01M14.8 9.6h.01"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.5 2.7C19.5 15.4 12 20 12 20Z"/></svg>',
+  palette: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.3-1-1.6-1-2.6 0-.9.7-1.5 1.6-1.5h2.1a4 4 0 0 0 4-4c0-4.1-3.8-7.2-8.5-7.2Z"/><path d="M7.8 11.5h.01M10 7.8h.01M14.2 7.8h.01"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c.6 4.2 2.3 5.9 6.5 6.5-4.2.6-5.9 2.3-6.5 6.5-.6-4.2-2.3-5.9-6.5-6.5 4.2-.6 5.9-2.3 6.5-6.5ZM18.5 15.5c.3 1.8 1 2.5 2.8 2.8-1.8.3-2.5 1-2.8 2.8-.3-1.8-1-2.5-2.8-2.8 1.8-.3 2.5-1 2.8-2.8Z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M13.2 2.8 5.6 13.1h5.6l-1 8.1 7.7-10.4h-5.6z"/></svg>',
   magic: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M10 3.5c.5 3.6 2.4 5.5 6 6-3.6.5-5.5 2.4-6 6-.5-3.6-2.4-5.5-6-6 3.6-.5 5.5-2.4 6-6zM18 14c.25 1.8 1.2 2.75 3 3-1.8.25-2.75 1.2-3 3-.25-1.8-1.2-2.75-3-3 1.8-.25 2.75-1.2 3-3z"/></svg>',
 };
@@ -8988,7 +8992,7 @@ function youIdentity({ numbers = false } = {}) {
       h('button', { type: 'button', class: 'chip', onclick: (e) => profiles.openMine(e.currentTarget) }, T('View public page'), icon('chevron'))),
     stats);
 }
-function renderYouIdentity() { $('#you-id').replaceChildren(h('div', { class: 'set-stack' }, youIdentity())); }
+function renderYouIdentity() { $('#you-id').replaceChildren(h('div', { class: 'set-stack you-hero' }, youIdentity({ numbers: true }))); }
 
 // Waiting for you (For you in the code): 0-3 cards for what's waiting (requests first: they need an answer), each handled right there. Empty: gone.
 function forYouCards() {
@@ -9016,10 +9020,11 @@ function setYouDot(n) {
 }
 
 // One row of a list that opens something: a label, a quiet line under it, an optional count, and a chevron.
-function navRow({ label, meta, count, current, run, route, lead }) {
-  return h('button', { type: 'button', class: 'lrow', 'aria-current': current ? 'page' : null, 'data-route': route, onclick: run },
+function navRow({ label, meta, count, current, run, route, lead, trail, cls }) {
+  return h('button', { type: 'button', class: cls ? `lrow ${cls}` : 'lrow', 'aria-current': current ? 'page' : null, 'data-route': route, onclick: run },
     lead || null,
     h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, label), meta && h('span', { class: 'set-hint' }, meta)),
+    trail || null,
     count ? h('b', { class: 'tag' }, String(count)) : null,
     h('i', { class: 'lrow-chev', 'aria-hidden': 'true' }));
 }
@@ -9076,20 +9081,47 @@ function renderYouRows() {
   const label = (id) => (id === 'you/ratings' && restricted ? T('Ratings') : T(ROUTES[id].label));
   const season = state.status?.wrapped?.year;
   const year = season || new Date().getFullYear();
-  const wrapped = navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'), run: (e) => openWrapped(year, e.currentTarget) });
+  const wrapped = navRow({ label: T('Lilin Wrapped {0}', year), meta: season ? T('Your year on Lilin is here') : T('Your year in watching so far'),
+    cls: 'you-wrapped', lead: youIcon('sparkle'), run: (e) => openWrapped(year, e.currentTarget) });
   // Wide screens: the list starts with you, which opens Overview (phones have the full card above the list).
   const me = navRow({ label: state.me.email ? state.me.name : T('Home network'), meta: T('Overview'), current: state.route === 'you', run: () => setView('you'),
     lead: people.face(state.me, { size: 36 }) });
+  // Your watching: big tiles with their number (History, Ratings, Liked), Wrapped as a banner under them. The rest
+  // (People, Settings, Ideas): rows with an icon each, so a page is found by its picture before its name.
   const groups = YOU_GROUPS().map(([key, title]) => {
-    const rows = pages.filter((id) => ROUTES[id].group === key).map((id) => {
-      const sub = ROUTES[id].sub;
-      return navRow({ label: label(id), meta: youRowMeta(sub), route: id, current: state.route === id, run: () => setView(id),
-        count: sub === 'friends' && sharesSocial() ? friendsUI.incomingCount() : sub === 'moments' ? momentsUI.unseenCount() : sub === 'ideas' ? newIdeaAnswers().length : 0 });
-    });
-    if (key === 'watching') rows.push(wrapped);
-    return rows.length && h('section', { class: 'set-group' }, title && h('h3', { class: 'set-head' }, title), h('div', { class: 'set-stack' }, rows));
+    const ids = pages.filter((id) => ROUTES[id].group === key);
+    let body;
+    if (key === 'watching') {
+      const tiles = ids.map((id) => youTile(id, id === 'you/ratings' ? T('Ratings') : label(id))); // short names: three fit side by side
+      body = [tiles.length && h('div', { class: 'you-tiles', style: `--n:${tiles.length}` }, tiles), wrapped];
+    } else {
+      body = [h('div', { class: 'set-stack' }, ids.map((id) => {
+        const sub = ROUTES[id].sub;
+        const friends = sub === 'friends' && sharesSocial() ? friendsUI.friendList() : [];
+        return navRow({ label: label(id), meta: youRowMeta(sub), route: id, current: state.route === id, run: () => setView(id),
+          lead: youIcon(YOU_ICONS[sub] || 'chevron'),
+          trail: friends.length ? people.faces(friends, { size: 24, max: 3, cls: 'you-faces' }) : null,
+          count: sub === 'friends' && sharesSocial() ? friendsUI.incomingCount() : sub === 'moments' ? momentsUI.unseenCount() : sub === 'ideas' ? newIdeaAnswers().length : 0 });
+      }))];
+    }
+    return ids.length && h('section', { class: `set-group you-group you-group-${key}` }, title && h('h3', { class: 'set-head' }, title), ...body.filter(Boolean));
   });
   $('#you-rows').replaceChildren(h('div', { class: 'set-stack you-me' }, me), ...groups.filter(Boolean));
+}
+const YOU_ICONS = { history: 'clock', ratings: 'star', liked: 'heart', friends: 'friends', moments: 'camera', activity: 'bell', invite: 'send',
+  account: 'lock', look: 'palette', watching: 'play', devices: 'tv', 'download-settings': 'volume', ideas: 'bulb' };
+const youIcon = (name) => h('span', { class: 'you-icon', 'aria-hidden': 'true' }, icon(name));
+// One of Your watching's tiles: its icon, how many there are, its name. The number waits for your profile ('·').
+function youTile(id, label) {
+  const sub = ROUTES[id].sub;
+  const d = profiles.mineNow();
+  const st = d?.stats;
+  const n = !st ? null : sub === 'history' ? (st.films || 0) + (st.episodes || 0) : sub === 'ratings' ? Math.max(d.ratings?.total || 0, st.reviews || 0) : sub === 'liked' ? st.likes || 0 : null;
+  return h('button', { type: 'button', class: `you-tile you-tile-${sub}`, 'data-route': id, 'aria-current': state.route === id ? 'page' : null,
+    'aria-label': `${label}: ${youRowMeta(sub) || ''}`, onclick: () => setView(id) },
+  youIcon(YOU_ICONS[sub]),
+  h('b', { class: 'you-tile-num', 'aria-hidden': 'true' }, n == null ? '·' : n > 9999 ? `${Math.round(n / 1000)}k` : String(n)),
+  h('span', { class: 'set-label', 'aria-hidden': 'true' }, label));
 }
 // Search in You, like iOS Settings: finds a page ("Watching") or a setting inside one ("Subtitles"), each hit with
 // where it lives; opening one shows the page, scrolls to the setting and lights it up. Settings are read from the

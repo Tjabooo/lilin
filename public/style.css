@@ -2537,6 +2537,31 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .lrow-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .sr-row > .set-hint { margin-left: auto; }
 .lrow-chev { flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); transform: rotate(-45deg); }
+/* You's list, revamped: who you are on a lit card, Your watching as three tiles with their numbers and Wrapped as a
+   banner, then People and Settings as rows with an icon each. Watching and People carry the theme's light; Settings stay quiet. */
+.you-hero { background: radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--bulb) 16%, transparent), transparent 62%), var(--surface-1); }
+.you-hero .you-id .face { box-shadow: 0 0 0 3px var(--surface-1), 0 0 0 5px color-mix(in srgb, var(--bulb) 55%, transparent); }
+.you-hero .pf-stats { width: 100%; margin-top: 0; background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.you-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm); color: var(--text-2); background: var(--surface-2); }
+.you-icon svg { width: 18px; height: 18px; }
+.you-group-people .you-icon, .you-group-ideas .you-icon, .you-tile .you-icon { color: var(--bulb); background: color-mix(in srgb, var(--bulb) 15%, transparent); }
+.you-group-watching { display: grid; gap: var(--s3); }
+.you-group-watching > .set-head { margin-bottom: 0; }
+.you-tiles { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: var(--s3); }
+.you-tile { display: grid; grid-template-rows: auto 1fr auto; justify-items: start; gap: 4px; min-height: 124px; padding: 14px; text-align: left; color: inherit;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); transition: background-color var(--d-1), border-color var(--d-1), transform var(--d-1); }
+.you-tile:hover, .you-tile[aria-current="page"] { background: var(--surface-2); border-color: var(--hairline-2); }
+.you-tile:active { transform: scale(.97); }
+.you-tile-num { align-self: end; margin-top: 10px; font: 800 30px/1 var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.you-tile .set-label { font-size: 13px; line-height: 1.25; color: var(--text-2); }
+.lrow.you-wrapped { min-height: 64px; border: 1px solid color-mix(in srgb, var(--bulb) 32%, transparent); border-radius: var(--r-lg);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--bulb) 24%, var(--surface-1)), var(--surface-1) 72%); }
+.lrow.you-wrapped:hover { background: linear-gradient(110deg, color-mix(in srgb, var(--bulb) 32%, var(--surface-1)), var(--surface-2) 72%); }
+.you-wrapped .you-icon { color: #fff; background: var(--bulb); }
+.you-wrapped .set-label { font-family: var(--display); font-weight: 800; }
+.you-faces { --ring: var(--surface-1); margin-right: 2px; }
+.lrow:hover .you-faces { --ring: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) { .you-tile:active { transform: none; } }
 /* Groups of rows on one card, separated by hairlines; the heading above each card */
 .set-group { min-width: 0; scroll-margin-top: calc(var(--safe-top) + var(--head-h) + 16px); }
 .set-head { display: flex; align-items: center; gap: 8px; margin: 0 0 var(--s3); padding-left: 4px; font: 700 var(--t-h3)/1.3 var(--display); letter-spacing: -.01em; }
