@@ -725,31 +725,38 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   function editorNodes(ctx, draft, { repaint, redraw, save, body }) {
     const look = draft.look;
     const tab = draft.tab || 'profile';
-    // Drag the preview's banner picture up or down to set its focal point (the Position slider does the same).
+    // Drag anywhere on the preview card (the picture, the name, the face) to move the banner picture up or down and set
+    // its focal point; the Position slider does the same. A tap without movement changes nothing.
     const armDrag = (c) => {
       const box = c.querySelector('.pf-ed-banner');
       const img = box?.querySelector('img');
       if (!img) return;
-      box.classList.add('pf-ed-drag');
-      box.addEventListener('pointerdown', (e) => {
-        if (e.button) return;
+      // how far the picture can travel: its drawn height beyond the box (nothing to move when it's not taller)
+      const travelOf = () => (img.naturalHeight ? img.naturalHeight * (box.clientWidth / (img.naturalWidth || 1)) - box.clientHeight : 0);
+      const arm = () => { if (travelOf() >= 2 && !c.classList.contains('pf-ed-drag')) { c.classList.add('pf-ed-drag'); box.append(h('span', { class: 'pf-ed-drag-hint' }, T('Drag to move'))); } };
+      if (img.complete) requestAnimationFrame(arm); else img.addEventListener('load', arm, { once: true });
+      c.addEventListener('pointerdown', (e) => {
+        const travel = travelOf();
+        if (e.button || travel < 2) return;
         e.preventDefault();
         const startY = e.clientY;
         const start = Number.isFinite(Number(look.bannerY)) ? Number(look.bannerY) : 28;
-        // how far the picture can travel: its drawn height beyond the box
-        const travel = Math.max(1, (img.naturalHeight || 1) * (box.clientWidth / (img.naturalWidth || 1)) - box.clientHeight);
-        try { box.setPointerCapture(e.pointerId); } catch { /* fine without */ }
+        try { c.setPointerCapture(e.pointerId); } catch { /* fine without */ }
+        c.classList.add('pf-ed-dragging');
         const move = (ev) => {
           const y = Math.min(100, Math.max(0, Math.round(start - ((ev.clientY - startY) / travel) * 100)));
           look.bannerY = y;
-          for (const el of [c, ctx.page]) el.style.setProperty('--pf-banner-y', `${y}%`);
+          for (const el of [c, ctx.page]) el?.style.setProperty('--pf-banner-y', `${y}%`);
           const slider = body.querySelector('.pf-range');
           if (slider) slider.value = String(y);
         };
-        const up = () => { box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up); };
-        box.addEventListener('pointermove', move);
-        box.addEventListener('pointerup', up);
-        box.addEventListener('pointercancel', up);
+        const up = () => {
+          c.classList.remove('pf-ed-dragging');
+          c.removeEventListener('pointermove', move); c.removeEventListener('pointerup', up); c.removeEventListener('pointercancel', up);
+        };
+        c.addEventListener('pointermove', move);
+        c.addEventListener('pointerup', up);
+        c.addEventListener('pointercancel', up);
       });
     };
     let card = editorCard(ctx, draft);
@@ -818,7 +825,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           const focal = h('input', { type: 'range', class: 'pf-range', min: '0', max: '100', step: '1', value: String(Number.isFinite(Number(look.bannerY)) ? look.bannerY : 28), 'aria-label': T('Banner position') });
           focal.addEventListener('input', () => { look.bannerY = Number(focal.value); live(); });
           return block(T('Banner position'), h('div', { class: 'pf-range-row' }, h('span', { 'aria-hidden': 'true' }, T('Top')), focal, h('span', { 'aria-hidden': 'true' }, T('Bottom'))),
-            hint(T('Or drag the picture in the preview up and down.')));
+            hint(T('Or drag the preview card above up and down.')));
         })(),
         block(T('Background'), segmented([['glow', T('Glow')], ['image', T('Picture')], ['plain', T('Plain')], ['color', T('Colour')]], look.background, (v) => {
           if (v === 'color' && !look.pageColor) {

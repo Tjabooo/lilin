@@ -1,4 +1,13 @@
 {
+  "2026-11-23-banner-drag": {
+    "title": "Enklare att placera bannern",
+    "items": {
+      "Drag the whole preview": {
+        "title": "Dra i hela förhandsvisningen",
+        "text": "I Redigera profil kan du ta tag var som helst i förhandsvisningen överst (bilden, namnet eller ansiktet) och dra uppåt eller nedåt för att välja vilken del av bannern som syns."
+      }
+    }
+  },
   "2026-11-23-peek-logo": {
     "title": "Stadigare kort när du hovrar",
     "items": {

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-banner-drag",
+  "date": "2026-11-23",
+  "title": "Easier banner positioning",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Drag the whole preview",
+      "text": "In Edit profile, grab anywhere on the preview card at the top (picture, name or face) and drag up or down to choose which part of your banner shows."
+    }
+  ]
+},
+{
   "id": "2026-11-23-peek-logo",
   "date": "2026-11-23",
   "title": "Steadier hover cards",

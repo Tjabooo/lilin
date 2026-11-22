@@ -505,8 +505,15 @@
    moved for the viewer's theme (profile-colors.js), so the theme's own text stays readable; --pf-c1/--pf-c2 are the
    picked colours as they are, for the banner. Everything is scoped to the profile: the rest of the app keeps its theme. */
 .pf-banner img, .pf-ed-banner img { object-position: 50% var(--pf-banner-y, 28%); }
-.pf-ed-banner.pf-ed-drag { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
-.pf-ed-banner.pf-ed-drag:active { cursor: grabbing; }
+.pf-ed-card.pf-ed-drag { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.pf-ed-card.pf-ed-dragging { cursor: grabbing; }
+/* "Drag to move" sits in the banner's top corner: faint until the card is hovered, gone while dragging */
+.pf-ed-banner { position: relative; }
+.pf-ed-drag-hint { position: absolute; top: 8px; right: 8px; padding: 5px 9px; border-radius: 999px; font: 650 11px/1 var(--body);
+  color: #fff; background: rgb(0 0 0 / .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: .7; transition: opacity var(--d-1); pointer-events: none; }
+.pf-ed-card:hover .pf-ed-drag-hint { opacity: 1; }
+.pf-ed-dragging .pf-ed-drag-hint { opacity: 0; }
 
 .pf.pf-painted, .pf-ed-card.pf-painted {
   --velvet: var(--pf-page);
