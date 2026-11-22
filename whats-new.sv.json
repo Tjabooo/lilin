@@ -1,4 +1,13 @@
 {
+  "2026-11-23-diary-real-watches": {
+    "title": "En dagbok över det du faktiskt sett",
+    "items": {
+      "Peeking doesn't count": {
+        "title": "Att kika räknas inte",
+        "text": "Om du öppnar ett avsnitt eller en film i några sekunder för att titta runt hamnar den inte längre i din dagbok eller på din profil. Den dyker upp först när du faktiskt har sett en ordentlig del av den."
+      }
+    }
+  },
   "2026-11-23-banner-drag": {
     "title": "Enklare att placera bannern",
     "items": {

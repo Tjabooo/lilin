@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-diary-real-watches",
+  "date": "2026-11-23",
+  "title": "A diary of what you really watched",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Peeking doesn't count",
+      "text": "Opening an episode or film for a few seconds to look around no longer puts it in your diary or profile. It shows up once you've actually watched a real part of it."
+    }
+  ]
+},
+{
   "id": "2026-11-23-banner-drag",
   "date": "2026-11-23",
   "title": "Easier banner positioning",

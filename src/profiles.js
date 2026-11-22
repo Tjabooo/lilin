@@ -13,8 +13,8 @@
 // Restricted people (accounts.isRestricted) have no social features: their profile is locked for everyone else
 // and they can't open other people's. The shared Home network account has no profile at all.
 //
-// Activity comes from the watch log (social.js logWatch): a film counts once it was finished or played for 40
-// minutes that day, an episode once finished or played for 15. One diary line per title per day; a line is a
+// Activity comes from the watch log (social.js logWatch): a film counts once it was played for 40 minutes that day
+// (or finished after 15 minutes of play in all), an episode once played for 15 (or finished after 5). One diary line per title per day; a line is a
 // rewatch when the film (or one of the episodes) was already watched on an earlier day.
 // A linked Letterboxd account (letterboxd.js) adds its diary: films watched elsewhere, with Letterboxd's own rewatch
 // mark. They count in the diary and the film numbers, not in hours (Letterboxd doesn't know how long). Films its
@@ -58,6 +58,9 @@ const HEX = /^#[0-9a-f]{6}$/;
 const TMDB_IMAGE = /^https:\/\/image\.tmdb\.org\/t\/p\/(w\d+|original)\/[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$/;
 const FILM_SECONDS = 40 * 60;
 const EPISODE_SECONDS = 15 * 60;
+// finished (played to the end) counts with less, as long as this much of it was really played
+const FINISHED_FILM_SECONDS = 15 * 60;
+const FINISHED_EPISODE_SECONDS = 5 * 60;
 const DIARY_PAGE = 30;
 
 const db = () => database();
@@ -294,10 +297,14 @@ const snapshot = (key, c) => ({ key, id: Number(key.split(':')[1]), type: key.sp
 // ---------- what they watched ----------
 // Every qualifying watch, oldest first: { key, type, title, day, at, season, episode, rewatch, letterboxd }.
 function watches(userId) {
+  // Finishing only counts after a real part of it was played (that day or before): opening an episode near its end
+  // to look around marks it finished with seconds of play, and that isn't watching it.
   const rows = db().prepare(`SELECT title_key, title, day, ref, season, episode, finished, seconds, COALESCE(finished_at, last_at) AS at
-    FROM watch_log WHERE user_id = ? AND title_key IS NOT NULL
-      AND (finished = 1 OR seconds >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END)
-    ORDER BY at`).all(userId, FILM_SECONDS, EPISODE_SECONDS);
+    FROM watch_log w WHERE user_id = ? AND title_key IS NOT NULL
+      AND (seconds >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END
+        OR (finished = 1 AND (SELECT SUM(e.seconds) FROM watch_log e WHERE e.user_id = w.user_id AND e.ref = w.ref AND e.day <= w.day)
+          >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END))
+    ORDER BY at`).all(userId, FILM_SECONDS, EPISODE_SECONDS, FINISHED_FILM_SECONDS, FINISHED_EPISODE_SECONDS);
   for (const l of letterboxd.watchesOf(userId)) {
     if (!l.day) continue;
     // Letterboxd only has the day: noon that day keeps it in order next to what was watched here.

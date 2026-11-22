@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { cleanHandle, handleFromName, cleanLook, cleanSections, cleanBio, LOOK_DEFAULTS, SECTIONS } from '../src/profiles.js';
 
 test('usernames, looks and sections are cleaned', () => {
@@ -89,6 +90,13 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
     await request('/api/me/progress', { ref: 'm:film', time: null, duration: 6000, watched: 20, about: { title: 'Lost in Translation', titleKey: 'movie:153' } }, 'ebi@p.test');
     await request('/api/me/progress', { ref: 'e:ep1', time: null, duration: 1500, watched: 20, about: { title: 'Fleabag', titleKey: 'tv:67070', season: 1, episode: 2 } }, 'ebi@p.test');
     await request('/api/me/progress', { ref: 'm:half', time: 300, duration: 6000, watched: 20, about: { title: 'Half watched', titleKey: 'movie:999' } }, 'ebi@p.test');
+    // Opened an episode near its end just to look: finished after seconds of play isn't watching it.
+    await request('/api/me/progress', { ref: 'e:peek', time: null, duration: 1500, watched: 1, about: { title: 'One Piece', titleKey: 'tv:37854', season: 1, episode: 9 } }, 'ebi@p.test');
+    // The film and the episode were really played (the progress route caps each report at a few seconds).
+    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite');
+    const store = new DatabaseSync(path.join(app, '.lilin.db'));
+    store.prepare("UPDATE watch_log SET seconds = 1200 WHERE ref IN ('m:film', 'e:ep1')").run();
+    store.close();
     await request('/api/social/rate', { key: 'movie:153', value: 1, title: 'Lost in Translation' }, 'ebi@p.test');
 
     // Public: Bo sees it all apart from switched-off sections.
