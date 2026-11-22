@@ -999,3 +999,46 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   .segmented button:hover::before, .segmented button:hover + button::before { opacity: 0; }
   .segmented button:hover:not([aria-pressed="true"]):not([aria-checked="true"]) { background-color: color-mix(in srgb, var(--text) 4%, transparent); }
 }
+
+/* ================= the ⋯ on Continue watching: a readout over a numbered command list ================= */
+/* Was three stacked pills + a floating note + Cancel. Now: micro label, title, episode line in tracked caps, the
+   level meter with the time left, then full-width rows split by hairlines (index · glyph · words · chevron). Hover or
+   focus lights the panel tone and draws the accent notch on the left edge; the X and the backdrop close it. */
+.cm { padding-bottom: 4px; }
+.cm-kick { margin: 0 0 14px; }
+.picker h2.cm-title { font-size: clamp(24px, 20px + 1vw, 32px); line-height: 1.06; letter-spacing: -.02em; text-wrap: balance; }
+.cm-sub { margin: 9px 0 0; font: 700 11px/1.45 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--text-2);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cm-read { display: flex; align-items: center; gap: 12px; margin: 18px 0 20px; font: 700 10.5px/1 var(--body); letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cm-meter { position: relative; flex: 1; height: 7px; }
+.cm-meter::before, .cm-meter i { position: absolute; left: 0; top: 0; bottom: 0;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 4px); mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 4px); }
+.cm-meter::before { content: ""; right: 0; background: var(--hairline-2); }
+.cm-meter i { background: var(--ph-you); }
+.cm-list { border-top: 1px solid var(--hairline-2); }
+.cm-act { position: relative; display: grid; grid-template-columns: 20px 20px minmax(0, 1fr) 16px; align-items: center; column-gap: 14px;
+  width: 100%; min-height: 64px; margin: 0; padding: 12px 8px 12px 12px; border: 0; border-bottom: 1px solid var(--hairline-2); border-radius: 0;
+  background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--d-1); }
+.cm-act::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 2px; background: var(--ph-you);
+  transform: scaleY(0); transition: transform var(--d-2) var(--ease-out); }
+.cm-ix { font: 300 13px/1 var(--display); letter-spacing: .08em; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.cm-act > svg, .cm-go svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cm-act > svg { width: 19px; height: 19px; }
+.cm-txt { display: grid; gap: 3px; }
+.cm-txt b { font: 700 15.5px/1.25 var(--body); }
+.cm-txt small { font-size: 12.5px; line-height: 1.35; color: var(--text-2); }
+.cm-go { display: grid; place-items: center; color: var(--text-2); transition: transform var(--d-2) var(--ease-out), color var(--d-1); }
+.cm-go svg { width: 15px; height: 15px; }
+@media (hover: hover) {
+  .cm-act:hover { background: var(--ph-pnl2); }
+  .cm-act:hover::before { transform: scaleY(1); }
+  .cm-act:hover .cm-go { transform: translateX(3px); color: var(--text); }
+  .cm-act:hover .cm-ix { color: var(--ph-you); }
+}
+.cm-act:active { background: var(--ph-pnl2); }
+.cm-act:active::before { transform: scaleY(1); transition: none; }
+.cm-act:focus-visible { outline: none; background: var(--ph-pnl2); box-shadow: inset 0 0 0 2px var(--text); }
+.cm-act:focus-visible::before { transform: scaleY(1); }
+@media (prefers-reduced-motion: reduce) { .cm-act::before, .cm-go { transition: none; } }

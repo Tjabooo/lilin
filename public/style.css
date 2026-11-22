@@ -2907,10 +2907,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 }
 .continue-more svg { width: 18px; height: 18px; }
 .continue-more:active { transform: scale(.92); }
-.continue-actions .del-cancel { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.continue-actions .del-cancel svg { width: 18px; height: 18px; }
-.continue-actions .continue-keep { background: none; color: var(--dust); }
-.continue-note { margin: -4px 0 0; font-size: 13px; text-align: center; }
 
 /* Up next: the next episode's still beside the label and title (hidden in the short landscape layout). */
 .up-next-copy { display: flex; align-items: center; gap: 12px; }

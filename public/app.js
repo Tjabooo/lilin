@@ -124,6 +124,7 @@ const ICONS = {
   pencil: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
   globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5S9.6 5.9 12 3.5z"/></svg>',
   eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5C18 5.5 21.5 12 21.5 12a17 17 0 0 1-2.6 3.4M6.4 6.9C3.9 8.6 2.5 12 2.5 12S6 18.5 12 18.5c1.8 0 3.4-.6 4.7-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2M3.5 3.5l17 17"/></svg>',
   'eye-off': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.8A9.7 9.7 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.3 7.4A16.5 16.5 0 0 0 2.5 12S6 18.5 12 18.5a9.5 9.5 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3.5 3.5l17 17"/></svg>',
   lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg>',
   friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.7c1.6.7 2.6 2.4 2.9 4.8"/></svg>',
@@ -1942,15 +1943,25 @@ function openContinueMenu(f, progress, name, opener) {
       toast(T('Couldn’t save that. Try again.'));
     });
   });
-  $('#picker-body').replaceChildren(
-    h('h2', { id: 'picker-title' }, label),
-    h('p', { class: 'muted' }, progress ? T('{0} min left', Math.max(1, Math.ceil(((progress.duration || 0) - (progress.time || 0)) / 60))) : T('Up next')),
-    h('div', { class: 'del-actions continue-actions' },
-      h('button', { type: 'button', class: 'del-cancel', onclick: () => dismissTopOverlay().catch(() => {}).then(() => { f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); }) }, icon('info'), T('Details')),
-      h('button', { type: 'button', class: 'del-cancel', onclick: watched }, icon('check'), T('Mark as watched')),
-      h('button', { type: 'button', class: 'del-cancel', onclick: hide }, T('Remove from Continue watching')),
-      h('p', { class: 'muted continue-note' }, T('Removed on all your devices. Your place is kept: it comes back when you watch it again.')),
-      h('button', { type: 'button', class: 'del-cancel continue-keep', onclick: () => closeTopOverlay() }, T('Cancel'))));
+  // A readout (where you are) over a numbered command list, in the panel language of the rest of the skin.
+  const pct = progress?.duration ? Math.min(100, progress.time / progress.duration * 100) : 0;
+  const details = () => dismissTopOverlay().catch(() => {}).then(() => { f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); });
+  const act = (n, ic, text, note, onclick) => h('button', { type: 'button', class: 'cm-act', onclick },
+    h('span', { class: 'cm-ix', 'aria-hidden': 'true' }, n), icon(ic),
+    h('span', { class: 'cm-txt' }, h('b', {}, text), h('small', {}, note)),
+    h('span', { class: 'cm-go', 'aria-hidden': 'true' }, icon('chevron')));
+  const sub = [episodeLabel(f), f.season != null && f.episodeName].filter(Boolean).join(' · ');
+  $('#picker-body').replaceChildren(h('div', { class: 'cm' },
+    h('p', { class: 'ph-kick cm-kick' }, T('Continue watching')),
+    h('h2', { id: 'picker-title', class: 'cm-title', 'aria-label': label }, name),
+    sub && h('p', { class: 'cm-sub' }, sub),
+    h('div', { class: 'cm-read' },
+      progress && h('span', { class: 'cm-meter', 'aria-hidden': 'true' }, h('i', { style: `width:${pct}%` })),
+      h('span', {}, progress ? T('{0} min left', Math.max(1, Math.ceil(((progress.duration || 0) - (progress.time || 0)) / 60))) : T('Up next'))),
+    h('div', { class: 'cm-list' },
+      act('01', 'info', T('Details'), T('Open the title page'), details),
+      act('02', 'check', T('Mark as watched'), T('Counts as finished on all your devices'), watched),
+      act('03', 'eyeOff', T('Remove from Continue watching'), T('Hidden on all your devices. Your place is kept.'), hide))));
   pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => opener?.focus({ preventScroll: true })));
 }
 
