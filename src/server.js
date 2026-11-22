@@ -5144,7 +5144,8 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/activity') {
     if (!activity.isAdmin(req) && !user?.canSeeActivity) throw new HttpError(403, 'Only the server’s owner can see activity.');
-    return sendJson(res, 200, activity.report());
+    const sp = url.searchParams;
+    return sendJson(res, 200, activity.report({ limit: sp.get('limit'), user: sp.get('user') || null, q: sp.get('q') || '', since: sp.get('since') }));
   }
 
   if (p === '/api/status') {

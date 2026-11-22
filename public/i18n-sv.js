@@ -1228,6 +1228,8 @@ export default {
   "Hide": "Dölj",
   "Couldn’t get activity": "Kunde inte hämta aktivitet",
   "Nothing matches.": "Inget matchar.",
+  "Looking further back…": "Letar längre tillbaka…",
+  "Show earlier": "Visa tidigare",
   "Nothing has happened yet.": "Inget har hänt än.",
   "What happened": "Vad som hänt",
   "Location unavailable": "Plats saknas",

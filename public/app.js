@@ -9845,8 +9845,42 @@ function lastSeenText(ms) {
   return T('Seen {0}', fmtAgo(ms));
 }
 
+// The server keeps a year of activity; the page asks for a page at a time. One person, or a filter, is asked for
+// separately (state.activityView), so what they did a week ago shows even when the newest page has moved on.
+const ACTIVITY_PAGE = 300;
+const activityKey = () => {
+  const person = state.activityPerson || '', q = (pageFilters.activity || '').trim();
+  return person || q ? `${person}\n${q}` : '';
+};
+function activityUrl(limit, key = activityKey()) {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const [user, q] = key.split('\n');
+  return `/api/activity?${new URLSearchParams({ limit: String(limit), since: String(midnight.getTime()), ...(user ? { user } : {}), ...(q ? { q } : {}) })}`;
+}
 async function loadActivity() {
-  try { state.activity = await api('/api/activity'); state.activityError = null; } catch (err) { state.activityError = err.message; }
+  const key = activityKey();
+  const view = key && state.activityView?.key === key ? state.activityView : null;
+  const [main, picked] = await Promise.allSettled([api(activityUrl(state.activityLimit || ACTIVITY_PAGE, '')),
+    key ? api(activityUrl(view?.limit || ACTIVITY_PAGE, key)) : null]);
+  if (main.status === 'fulfilled') { state.activity = main.value; state.activityError = null; } else state.activityError = main.reason.message;
+  if (key && picked.status === 'fulfilled' && activityKey() === key) state.activityView = { key, limit: view?.limit || ACTIVITY_PAGE, ...picked.value };
+}
+let activityAsking = null;
+async function askActivityView(key, limit) {
+  if (activityAsking === `${key}|${limit}`) return;
+  activityAsking = `${key}|${limit}`;
+  try {
+    const r = await api(activityUrl(limit, key));
+    if (activityKey() === key) { state.activityView = { key, limit, ...r }; if (state.view === 'activity') renderActivity(); }
+  } catch (err) { toast(err.message); } finally { if (activityAsking === `${key}|${limit}`) activityAsking = null; }
+}
+async function showEarlierActivity(btn) {
+  btn.disabled = true;
+  const key = activityKey();
+  if (key) { await askActivityView(key, (state.activityView?.limit || ACTIVITY_PAGE) + ACTIVITY_PAGE); return; }
+  state.activityLimit = (state.activityLimit || ACTIVITY_PAGE) + ACTIVITY_PAGE;
+  await loadActivity();
+  if (state.view === 'activity') renderActivity();
 }
 
 // ---------- access: who may sign in (Zero Trust email list) + invite links ----------
@@ -10104,7 +10138,13 @@ function renderActivity() {
   const q = norm(pageFilters.activity);
   const filter = state.activityFilter || 'all';
   const all = state.activity.events;
-  const events = all.filter((e) => (filter === 'all' || kindOf(e.action)[0] === filter)
+  // One person or a filter: their own page from the server (older than the newest page); until it's here, what's loaded.
+  const key = activityKey();
+  const view = key && state.activityView?.key === key ? state.activityView : null;
+  if (key && !view) askActivityView(key, ACTIVITY_PAGE);
+  const asking = Boolean(key && !view);
+  const more = view ? view.more : !key && state.activity.more;
+  const events = (view ? view.events : all).filter((e) => (filter === 'all' || kindOf(e.action)[0] === filter)
     && (!state.activityPerson || e.user === state.activityPerson)
     && (!q || norm(`${e.user} ${personName(e)} ${e.subjectName || ''} ${e.detail} ${e.action} ${activityDevice(e)}`).includes(q)));
   const out = [...activitySummary(all)];
@@ -10122,8 +10162,9 @@ function renderActivity() {
       picked?.id && h('button', { type: 'button', class: 'chip act-profile-btn',
         onclick: (ev) => profiles.open({ id: picked.id, name: personName(picked), avatar: picked.avatar }, ev.currentTarget) }, T('Profile'))),
     segmented(ACTIVITY_FILTERS.map(([k, t]) => [k, T(t)]), filter, (k) => { state.activityFilter = k; renderActivity(); }, T('Show'))));
-  if (!events.length) out.push(h('p', { class: 'muted act-empty' }, q || filter !== 'all' || picked ? T('Nothing matches.') : T('Nothing has happened yet.')));
+  if (!events.length) out.push(h('p', { class: 'muted act-empty' }, asking ? T('Looking further back…') : q || filter !== 'all' || picked ? T('Nothing matches.') : T('Nothing has happened yet.')));
   for (const d of days) out.push(...foldGroup(d.key, 'p', 'activity-day', d.label, d.n, [d.list], Boolean(q)));
+  if (more) out.push(h('button', { type: 'button', class: 'load-more act-earlier', onclick: (ev) => showEarlierActivity(ev.currentTarget) }, T('Show earlier')));
   // Keep the people strip where it was: tapping someone far along it used to snap it back to the start.
   const stripX = body.querySelector('.act-people')?.scrollLeft || 0;
   body.replaceChildren(...out);
