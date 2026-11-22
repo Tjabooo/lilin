@@ -13,6 +13,7 @@ test('every exact POST route is on the POST allowlist', () => {
   const allowed = new Function('req', 'url', `return (${expr});`);
   const routes = [...new Set([...src.matchAll(/p === '(\/api\/[^']+)' && req\.method === 'POST'/g)].map((m) => m[1]))];
   assert.ok(routes.length > 5);
+  routes.push('/api/profiles/me/hidden'); // checks req.method inside its own block, so the pattern above misses it
   const missing = routes.filter((p) => allowed({ method: 'POST', headers: {} }, { pathname: p, searchParams: new URLSearchParams() }) !== true);
   assert.deepEqual(missing, []);
 });
