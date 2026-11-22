@@ -950,3 +950,26 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   background: linear-gradient(var(--ph-you), var(--ph-you)) left bottom / calc(100% - 6px) 2px no-repeat,
     linear-gradient(var(--ph-you), var(--ph-you)) right bottom / 4px 4px no-repeat; }
 .pf-ed-tabs.pf-ed-tabs button:focus-visible::before { border-radius: 0; }
+
+/* ---------- segmented switches: the frame draws itself in on hover (11-23) ----------
+   Four hairline edges grow out of the two cut corners (top + left from top-left, bottom + right from bottom-right)
+   and meet; the cut diagonals fade in with them. Hover = a faint frame, the current pick = the full one. */
+@property --seg-p { syntax: '<number>'; inherits: false; initial-value: 0; }
+@property --seg-line { syntax: '<color>'; inherits: false; initial-value: transparent; }
+.segmented button { --seg-p: 0; --seg-line: transparent;
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--seg-line) calc(50% - .5px), var(--seg-line) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--seg-line) calc(50% - .5px), var(--seg-line) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(var(--seg-line), var(--seg-line)), linear-gradient(var(--seg-line), var(--seg-line)),
+    linear-gradient(var(--seg-line), var(--seg-line)), linear-gradient(var(--seg-line), var(--seg-line));
+  background-position: left top, right bottom, left top, left top, right bottom, right bottom;
+  background-size: var(--c) var(--c), var(--c) var(--c),
+    calc(var(--seg-p) * 100%) 1px, 1px calc(var(--seg-p) * 100%), calc(var(--seg-p) * 100%) 1px, 1px calc(var(--seg-p) * 100%);
+  background-repeat: no-repeat;
+  transition: --seg-p .34s cubic-bezier(.2, .8, .2, 1), --seg-line .2s ease, color .2s ease; }
+.segmented button[aria-pressed="true"], .segmented [aria-checked="true"] { --seg-p: 1; --seg-line: color-mix(in srgb, var(--text) 55%, transparent); box-shadow: none; }
+@media (hover: hover) {
+  .segmented button:hover:not([aria-pressed="true"]):not([aria-checked="true"]) { --seg-p: 1; --seg-line: color-mix(in srgb, var(--text) 32%, transparent); color: var(--text); }
+}
+.segmented button:focus-visible:not([aria-pressed="true"]) { --seg-p: 1; --seg-line: color-mix(in srgb, var(--text) 32%, transparent); }
+@media (prefers-reduced-motion: reduce) { .segmented button { transition: --seg-line .2s ease, color .2s ease; } }
