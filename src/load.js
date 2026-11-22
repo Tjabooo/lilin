@@ -190,6 +190,9 @@ function streamView(s, now) {
 
 // Is anyone watching right now? (A stream counts until it has been quiet for STREAM_IDLE_MS.)
 export const watching = () => streams.size > 0;
+// Is this video being watched right now? Another copy of it next to it counts too (the H.264 browser copy, its source).
+const stemOf = (f) => String(f || '').replace(/\\/g, '/').replace(/\.[^./]+$/, '').toLowerCase();
+export const watchingFile = (f) => { const k = stemOf(f); return [...streams.values()].some((s) => stemOf(s.file) === k); };
 
 // ---------- jobs (ffmpeg and friends) ----------
 const base = (p) => (p ? path.basename(String(p)) : null);

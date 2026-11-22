@@ -2013,15 +2013,17 @@ async function upgradeSource(user, title, seasonNo) {
 // New download hash -> { title, season, by, old: [{ id, full, episodes }], at }. Saved across restarts.
 const UPGRADE_FILE = path.join(DATA_DIR, '.lilin-upgrades.json');
 const upgrades = new Map(Object.entries((() => { try { return JSON.parse(fs.readFileSync(UPGRADE_FILE, 'utf8')); } catch { return {}; } })()));
+for (const u of upgrades.values()) if (!u.total) Object.assign(u, { total: u.old.length, swapped: u.swapped || [] }); // saved before 2026-11-22
 const saveUpgrades = () => { try { fs.writeFileSync(UPGRADE_FILE, JSON.stringify(Object.fromEntries(upgrades))); } catch (e) { console.warn(`[upgrade] ${e.message}`); } };
 function registerUpgrade(hash, entry) {
   if (!hash || !entry.old.length) return;
-  upgrades.set(hash.toLowerCase(), { ...entry, at: Date.now() });
+  upgrades.set(hash.toLowerCase(), { ...entry, total: entry.old.length, swapped: [], at: Date.now() });
   saveUpgrades();
 }
 // Each old episode goes once its new one has finished: libraries and watch progress move to the new
-// file first, so nobody loses their place. Busy files (playing, converting, in a Watch Together room)
-// wait for the next round. Episodes the new download doesn't have keep their old file. If the new
+// file first, so nobody loses their place. Busy files (being watched, converting, in a Watch Together room)
+// wait for the next round. Whoever started the upgrade hears which episodes got sharper (a push per round),
+// and the season page shows how far it is (the transfer's `upgrade`). Episodes the new download doesn't have keep their old file. If the new
 // download is removed, the old episodes simply stay.
 let upgradeBusy = false;
 async function upgradeRound() {
@@ -2052,7 +2054,12 @@ async function upgradeRound() {
         if (samePath(target, old.full)) continue;
         if (!await replaceWithUpgrade(old, target)) left.push(old);
       }
+      const swappedNow = u.old.filter((o) => !left.includes(o) && o.swapped).flatMap((o) => o.episodes);
       if (left.length !== u.old.length) changed = true;
+      if (swappedNow.length) {
+        u.swapped = [...new Set([...(u.swapped || []), ...swappedNow])].sort((a, b) => a - b);
+        announceUpgrade(u, swappedNow, t, hash);
+      }
       if (left.length) u.old = left;
       else { upgrades.delete(hash); console.log(`[upgrade] ${label}: done, every old episode replaced`); }
     }
@@ -2063,21 +2070,36 @@ async function upgradeRound() {
     upgradeBusy = false;
   }
 }
+// Someone mid-episode keeps the copy they're on: it's swapped after they stop (2026-11-22, Rings of Power S02E03).
+const UPGRADE_PLAY_QUIET = 3 * 60 * 1000;
 async function replaceWithUpgrade(old, target) {
   if (!fileExists(old.full)) return true;
   const oldKey = accounts.mediaKey(old.full), newKey = accounts.mediaKey(target);
   if (converter.isBusy(old.full) || watchRooms.protects(oldKey)) return false;
+  if (load.watchingFile(old.full) || accounts.playedWithin(oldKey, UPGRADE_PLAY_QUIET)) return false;
   accounts.moveMedia(oldKey, newKey);
   try {
     await deleteMedia(old.id, 'file', { everyone: true });
     if (oldKey) accounts.markGone(oldKey);
     console.log(`[upgrade] replaced ${path.basename(old.full)} with ${path.basename(target)}`);
+    old.swapped = true;
     prepSeasonOf(target);
     return true;
   } catch (e) {
     console.warn(`[upgrade] ${path.basename(old.full)} kept for now: ${e.message}`);
     return false;
   }
+}
+const upgradeQuality = (name) => ((q) => (q === '2160p' ? '4K' : q))(parseName(String(name || ''), { file: false }).quality) || null;
+function announceUpgrade(u, episodes, t, hash) {
+  const show = pushTitle(u.title);
+  const code = (e) => `S${String(u.season).padStart(2, '0')}E${String(e).padStart(2, '0')}`;
+  const quality = upgradeQuality(t.name);
+  notify([u.by], 'download', {
+    title: episodes.length === 1 ? `${show} ${code(episodes[0])} is sharper now` : `${episodes.length} episodes of ${show} are sharper now`,
+    body: quality ? `Now in ${quality}. Your place is kept.` : 'Your place is kept.',
+    url: '/', tag: `upgrade-${hash}`,
+  });
 }
 setInterval(() => upgradeRound(), 30_000).unref();
 
@@ -2929,6 +2951,8 @@ async function listDownloads(user, all = false) {
     canPlayNow: streamable,
     packFiles, skippedFiles: packFiles - videos.length, dualAudio: isDualAudio(t.name),
     others: accounts.torrentWanters(t.hash).some((id) => id !== user.id),
+    // A season upgrade (Upgrade quality): how many of the old episodes are swapped for this download's so far.
+    upgrade: ((u) => (u ? { season: u.season, total: u.total || u.old.length, swapped: (u.swapped || []).length, quality: upgradeQuality(t.name) } : null))(upgrades.get(String(t.hash).toLowerCase())),
     libraryIds: [...new Set(safeFiles.map((f) => f.libraryId).filter(Boolean))],
     owner: all ? nameOf(owner) : undefined,
     mine: mates.includes(owner) || requested,

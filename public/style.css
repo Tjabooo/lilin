@@ -1102,6 +1102,8 @@ html.has-vt .view { animation: none; }
 .season-select { max-width: 280px; margin-bottom: var(--s3); }
 .season-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: var(--s2); }
 .season-head .muted, .season-pack { margin: 0; font-size: 14px; }
+.season-upgrade { margin: 4px 0 10px; font-size: 14px; line-height: 1.45; }
+.season-upgrade strong { color: var(--text, inherit); font-weight: 600; }
 /* Season actions: a chip row where there's room, the ⋯ menu on phones */
 .row-tools { display: flex; min-width: 0; }
 .row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

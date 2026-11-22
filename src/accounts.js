@@ -779,6 +779,11 @@ export function hideFromContinue(userId, key, at) {
     (SELECT key FROM continue_hidden WHERE user_id = ? ORDER BY at DESC LIMIT 500)`).run(userId, userId);
   return db.prepare('SELECT at FROM continue_hidden WHERE user_id = ? AND key = ?').get(userId, key).at;
 }
+// Has anyone's player reported a position on this video in the last `ms`? (Players save it every few seconds while playing.)
+export function playedWithin(key, ms) {
+  if (!key) return false;
+  return Boolean(db.prepare('SELECT 1 FROM progress WHERE ref = ? AND updated_at > ? LIMIT 1').get(`m:${key}`, Date.now() - ms));
+}
 export function saveProgress(userId, ref, time, duration) {
   ref = String(ref || '');
   if (!REF.test(ref)) throw httpError(400, 'Unknown video.');

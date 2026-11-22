@@ -2563,6 +2563,14 @@ function episodeList(c) {
       && forSeason.includes(d) && (d.episodes || []).every((ep) => ep.season == null || ep.season === n));
     const eligible = seasonFiles.filter(canExtend);
     const upgrade = t.id != null ? upgradeState(tvT, n) : null;
+    // Upgrade quality running: say how far it is, here where it was started (and after a reload, on any device).
+    const upgrading = s.transfers.find((d) => d.upgrade?.season === n);
+    const upgradeLine = upgrading && h('p', { class: 'muted season-upgrade', role: 'status' },
+      h('strong', {}, upgrading.upgrade.quality ? T('Upgrading to {0}', upgrading.upgrade.quality) : T('Upgrading quality')),
+      ' · ', T('{0} of {1} episodes swapped in', upgrading.upgrade.swapped, upgrading.upgrade.total),
+      !upgrading.done && Number.isFinite(upgrading.progress) && ` · ${T('{0}% downloaded', Math.floor(upgrading.progress * 100))}`,
+      !upgrading.done && upgrading.eta != null && ` · ${fmtEta(upgrading.eta)}`,
+      h('br'), T('Each episode switches to the sharper copy once it has downloaded and nobody is watching it. You get a notification.'));
     const packs = forSeason.filter((d) => !(d.episodes || []).some((ep) => ep.season === n));
     const complete = se.total && readyCount >= se.total;
     const tools = Boolean(state.status.admin); // the season's download tools are the owner's
@@ -2575,9 +2583,10 @@ function episodeList(c) {
         $('#sheet-body .dl-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }],
       tools && upgrade?.offered && !upgrade.started && [icon('upgrade'), upgradeLabel(upgrade), async () => {
+        toast(T('Looking for better quality…'));
         await upgradeState(tvT, n).run();
         const u = upgradeState(tvT, n);
-        if (u.failed || (u.text && !u.started)) toast(u.text);
+        if (u.text) toast(u.text);
       }],
       tools && eligible.length > 0 && [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
         async () => { await extendItems(eligible); updateOpenTitle(); }],
@@ -2593,7 +2602,8 @@ function episodeList(c) {
       picker,
       h('div', { class: 'season-head' }, h('p', { class: 'muted' }, summary), menu),
       seasonVersionPick(ready, () => draw()),
-      tools && packs.length > 0 && h('p', { class: 'muted season-pack' }, T('{0} pack', label(se)), ' · ', T('Episode availability is shown when individual files are verified.')),
+      upgradeLine,
+      tools && packs.some((d) => !d.upgrade) && h('p', { class: 'muted season-pack' }, T('{0} pack', label(se)), ' · ', T('Episode availability is shown when individual files are verified.')),
       h('ul', { class: 'episode-list', 'aria-live': 'polite' }, loading
         ? Array.from({ length: 3 }, () => h('li', { class: 'ep skeleton', 'aria-hidden': 'true' }, h('div', { class: 'wide-art' }), h('div', { class: 'ep-body' }, h('div', { class: 'bar' }), h('div', { class: 'bar' }))))
         : rows.length ? rows : [h('li', { class: 'muted' }, T('No episode details for this season yet.'))]));

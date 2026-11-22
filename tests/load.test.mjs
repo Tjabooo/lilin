@@ -125,3 +125,11 @@ test('a viewer is behind when the stream arrives slower than the file needs, not
   view = load.loadReport();
   assert.equal(view.streams[0].behind, false);
 });
+
+test('a video counts as watched while it or a copy of it next to it is being sent', () => {
+  const s = load.trackStream(req({}, '192.168.1.77'), { file: 'E:\\Media\\TV\\RoP S02\\RoP - S02E03.mp4', size: 1e9, label: 'RoP S02 E03' });
+  s.add(1000);
+  assert.equal(load.watchingFile('E:/Media/TV/RoP S02/RoP - S02E03.mkv'), true, 'the source next to the browser copy');
+  assert.equal(load.watchingFile('E:/Media/TV/RoP S02/RoP - S02E04.mp4'), false);
+  s.done();
+});
