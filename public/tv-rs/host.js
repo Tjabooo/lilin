@@ -376,7 +376,9 @@
       // 4 completed, 5 error, 6 prepared, 7 prepare failed, 8 seek done, 9 seek failed) ----
       av_ok: function () { return av ? 1 : 0; },
       av_open: guard(function (up, ul) {
-        if (!avObject) {
+        // Samsung's video plane needs this <object>; on LG (webOS) the shell plays in its own <video>, and the object
+        // would only show Chromium's "Couldn't load plugin" label over the picture.
+        if (!avObject && !/Web0S|webOS/i.test(navigator.userAgent || '')) {
           avObject = document.createElement('object');
           avObject.type = 'application/avplayer';
           avObject.style.cssText = 'position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:0;';
