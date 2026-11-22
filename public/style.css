@@ -337,10 +337,10 @@ body.searching .top-actions { flex: 1; margin-left: 0; }
 body:not(.searching) .search-cancel { display: none; }
 /* Search results (search.js): a layer under the header, over the page, which stays as it was. No blur. */
 .search-layer {
-  position: fixed; inset: calc(var(--safe-top) + var(--head-h)) 0 0; z-index: 29; overflow-y: auto; overscroll-behavior: contain;
+  position: fixed; inset: calc(var(--safe-top) + var(--head-h)) 0 0; z-index: 29; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   padding: var(--s4) var(--gutter) calc(var(--tabs-h) + var(--safe-bottom) + var(--s6)); background: var(--velvet);
 }
-.sr-body { display: grid; gap: var(--s6); max-width: var(--page-max); margin: 0 auto; }
+.sr-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s6); max-width: var(--page-max); margin: 0 auto; }
 .sr-head { margin: 0 0 var(--s3); font: 700 var(--t-h3)/1.3 var(--display); }
 .sr-chips, .sr-more { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .sr-recent { padding: 0; gap: 0; max-width: 100%; }
