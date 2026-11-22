@@ -1042,3 +1042,21 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .cm-act:focus-visible { outline: none; background: var(--ph-pnl2); box-shadow: inset 0 0 0 2px var(--text); }
 .cm-act:focus-visible::before { transform: scaleY(1); }
 @media (prefers-reduced-motion: reduce) { .cm-act::before, .cm-go { transition: none; } }
+
+/* ================= settings panels: no rounded cards (ebi 11-23) ================= */
+/* The grouped boxes on You pages and owner House pages (Language, Appearance, Account…) were still the old rounded
+   cards: they sit one level deeper (.set-group > .set-stack) than the 2e panel rule reaches. Now square with the
+   same cut as the buttons: top-left + bottom-right chamfer, hairline frame drawn in ::after so row fills can't cover
+   it. The theme tiles' little previews lose their radius too (the colour dot stays round). */
+:is(#you-page, #house-body) .set-group > .set-stack, :is(#you-page, #house-body) .set-card:not(.set-stack > *) {
+  --c: 14px; --bl: var(--hairline-2);
+  position: relative; border: 0; border-radius: 0;
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+:is(#you-page, #house-body) .set-group > .set-stack::after, :is(#you-page, #house-body) .set-card:not(.set-stack > *)::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)) left top / var(--c) var(--c) no-repeat,
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)) right bottom / var(--c) var(--c) no-repeat,
+    linear-gradient(var(--ph-you), var(--ph-you)) left calc(var(--c) + 4px) top 0 / 18px 1px no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl); }
+.swatch-preview, .swatch-preview i:not(.sw-dot) { border-radius: 0; }
