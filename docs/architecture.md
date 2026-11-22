@@ -85,6 +85,15 @@ A mood's titles are pooled once per language and kept for 6 hours: two pages of 
 
 The IDs are checked against TMDB by `TMDB_TOKEN=… node tools/vibes-check.mjs [mood …]`, which also lists what a mood finds, so a change can be judged by eye before it ships.
 
+## Quote search
+
+Search's **Lines** group (src/quote-search.js on the server, public/quote-search.js + quote-search.css on the page) finds the films and episodes on the server where a line is said.
+
+- **The index** is its own SQLite file, `CACHE_DIR/lines.db` (FTS5, `unicode61 remove_diacritics 2`): a `sources` row per video and language (which `.srt`, its size and modification time) and a `cues` row per subtitle line (start, end, text), with an external-content FTS table over the text. It's a cache: deleting it (or a new `VERSION` in the code) rebuilds it from the files. Languages: English, Swedish and every person's default subtitle and app language (a remux can carry twenty subtitle tracks). Per video and language it reads `<name>.<lang>.srt` (what the player shows, so the timing is the corrected one), else a full one like `.en.sdh.srt`, a forced or AI-made one only when that's all there is. English goes through the same OCR clean-up and stored proofreading as the player's subtitles. Lines that are only a sound (`[door slams]`, `♪`) are left out; a two-line subtitle split into two cues with the same timing is one line.
+- **Keeping up**: a background round 90 s after start and then every 15 minutes walks the server's library (one version per title, like LikLok), reads only subtitle files whose path, size or modification time changed, one at a time with 100 ms in between, and forgets videos and subtitles that are gone. A library that shrank to under half of what's indexed (a drive or qBittorrent away) forgets nothing that round.
+- **A search** reads up to 800 matching lines for the phrase (the last word as a prefix, so it finds while you type), then, when that found fewer than 20 videos, for all the words in any order. Each line is scored in JS: the exact phrase 3, the phrase with a half-typed last word 2.6, all the words 1.5, plus up to 0.6 for how much of the line the quote is, plus 0.4 / 0.2 for the viewer's subtitle language / app language. Each video keeps its best language; its score is its best line plus a little for saying it several times. Up to 20 videos, each with its best line, the lines just before and after (within 8 s), and up to 8 times it's said.
+- **On the page** the group sits above the titles when what's typed reads like a quote (two words or more and no title on the server by that name), below them otherwise, and isn't there when nothing matches. Three rows show; **Show N more** adds the rest. Each row has the frame (the Continue watching still, `/api/media/lib/<id>/still`, asked for once the row is on screen; the title's picture when there's none), the line with its neighbours, and **Also at** chips for the other times. A tap adds the video to your library if it isn't there (like LikLok's Keep watching) and opens the player 3 s before the line; search stays open underneath.
+
 ## Shows in the library
 
 Films and shows appear as poster cards, separated into Films and Shows inside each library section. Film posters, backdrops and descriptions come from TMDB, matched by title and year and cached in `.lilin-shows.json` (30 days for matches, one day for misses); unavailable artwork falls back to the title.
@@ -204,6 +213,7 @@ src/
   social.js, reviews.js thumbs, Popular, Wrapped, watch parties; stars + written reviews
   profiles.js, taste-match.js  profile pages; Taste match on a friend's profile
   match.js           Pick together (swipe to match)
+  quote-search.js    Quote search: the subtitle line index (CACHE_DIR/lines.db) and Search's Lines group
   setup/             wizard, detection, integrations, services, packages, backups
 public/              the web app (plain JavaScript and CSS, no build step)
 agents/              lilin-house reporter for Linux machines (bash + systemd units), lilin-scout idea scout (Python + Claude Code)
@@ -268,6 +278,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `POST` | `/api/watch/<token>/cancel` | Whoever planned a party ends it |
 | `GET` | `/api/trending`, `/api/search?q=` | TMDB titles |
 | `GET` | `/api/title/<movie\|tv>/<id>/details` | A title page's **More details** (src/details.js), asked only when someone opens it: crew groups (`people: [{ key, people: [{ id, name, jobs?, episodes? }] }]`), `facts` (studios, countries, languages, dates, money), `keywords`, `links`, and `music.albums` (soundtrack albums with tracks from Wikidata + MusicBrainz, cached in `CACHE_DIR/title-music.json`; `musicPending: true` while still being looked up). Season answers (`/api/tv/<id>/season/<n>`) give episodes a `credits` field (director, writers, guest stars) when TMDB has them |
+| `GET` | `/api/lines?q=` | Quote search (quote-search.js): films and episodes on the server where the line is said, best first: `results: [{ id, mediaKey, kind: film \| episode, title, show, showTitle, season, episode, episodeName, art, titleKey, lang, count, line: { at, end, text, before, after }, times }]` (seconds), and `indexing`. `/api/status` carries `lines: true` once the index has something in it; 404 with `QUOTE_SEARCH=off` |
 | `GET` | `/api/vibes` | Discover's moods (`vibes: [{ id, name, blurb, colors, glyph, types, seasonal }]`, in the viewer's language; empty without TMDB) |
 | `GET` | `/api/vibes/<id>` | One mood with its titles (`results`: TMDB cards with a `score`, best first; the page shuffles them) |
 | `GET` | `/api/library` | Your library (`items`, with `addedAt`), and what else is on the server (`server`) |

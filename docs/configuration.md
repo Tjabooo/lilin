@@ -105,6 +105,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | `SUBTITLE_LLM_PAUSE` | — | A command that exits 0 while the machine running the model is busy with something that matters more, checked before every chunk (e.g. `ssh desktop pgrep -x cs2` when the model runs on a gaming PC's graphics card). Proofreading waits, checking every 5 minutes. |
 | `SUBTITLE_LLM` | `on` | `off` pauses proofreading (fixes already made are still used only while it's on). |
 | `MAGIC_SEARCH` | `on` | MAGIc search (Search → "MAGIc search" on a description of three words or more, or when no title matches): finds films and shows from what someone remembers by searching Wikipedia's film and TV articles, scoring their opening sections against the description and matching them to TMDB through their Wikidata IDs. No language model, nothing to install; needs TMDB. A few seconds a search, one at a time, cached for a day. `off` hides it. |
+| `QUOTE_SEARCH` | `on` | Quote search (Search → **Lines**): every subtitle line saved beside the videos (English, Swedish and each person's default subtitle and app language) is indexed in `CACHE_DIR/lines.db`, so a line someone half remembers finds the films and episodes where it's said and plays from just before it. The index fills in the background (only changed subtitle files are read again, every 15 minutes) and can be deleted at any time; it is rebuilt. `off` hides it and stops the indexing. |
 
 ## Casting
 

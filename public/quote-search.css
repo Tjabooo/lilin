@@ -1,0 +1,38 @@
+/* lines: quote search's Lines group in the search layer (quote-search.js). Phones: the frame and the title side by
+   side, the line under them on a lit rule; wide screens: the frame on the left, everything else beside it. */
+.sr-lines:empty { display: none; }
+/* A quote finds no film by that name: "No matches" under a list of lines would be wrong. */
+.sr-body:has(.ql-list) .sr-titles > .empty-state { display: none; }
+.ql-list { margin: 0; padding: 0; list-style: none; }
+.ql-row { transition: background-color var(--d-1); }
+.ql-row:hover { background: var(--surface-2); }
+.ql-hit {
+  display: grid; grid-template-columns: 124px minmax(0, 1fr); grid-template-areas: "frame title" "quote quote";
+  align-items: center; gap: 10px var(--s3); width: 100%; padding: 12px 16px;
+  font: inherit; text-align: left; color: inherit; background: none; border: 0; cursor: pointer;
+}
+.ql-frame { grid-area: frame; position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; background: var(--surface-2); border-radius: var(--r-xs); }
+.ql-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ql-frame img.is-art { filter: saturate(.75) brightness(.8); }
+.ql-time {
+  position: absolute; right: 4px; bottom: 4px; padding: 1px 6px; border-radius: 4px;
+  font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--on-image); background: var(--glass-dark);
+}
+.ql-title { grid-area: title; display: grid; gap: 2px; min-width: 0; }
+.ql-title .set-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--text); }
+.ql-quote { grid-area: quote; display: grid; gap: 3px; min-width: 0; padding-left: 12px; border-left: 2px solid var(--bulb); }
+.ql-said { font-size: 16px; line-height: 1.4; color: var(--text); }
+.ql-around { overflow: hidden; font-size: 13px; line-height: 1.4; color: var(--text-2); white-space: nowrap; text-overflow: ellipsis; }
+.ql-mark { padding: 0 1px; color: inherit; background: var(--bulb-dim); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.ql-times { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 16px 12px; }
+.ql-times-label { margin-right: 2px; font-size: 12px; color: var(--text-2); }
+.ql-at {
+  min-height: 28px; padding: 2px 10px; border: 1px solid var(--hairline); border-radius: 999px;
+  font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text); background: var(--surface-1);
+}
+.ql-at:hover, .ql-at:focus-visible { border-color: var(--hairline-2); background: var(--surface-2); }
+.ql-more { margin-top: var(--s3); }
+@media (min-width: 700px) {
+  .ql-hit { grid-template-columns: 168px minmax(0, 1fr); grid-template-areas: "frame title" "frame quote"; align-items: start; row-gap: 8px; }
+  .ql-times { padding-left: calc(16px + 168px + var(--s3)); }
+}

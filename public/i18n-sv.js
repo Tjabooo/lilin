@@ -2809,4 +2809,9 @@ export default {
   "Tap for sound": "Tryck för ljud",
   "That’s every clip for now": "Det var alla klipp för nu",
   "Why this clip": "Varför det här klippet",
+  // lines: quote search
+  "Lines": "Repliker",
+  "Also at": "Även vid",
+  "Play {0} from {1}": "Spela {0} från {1}",
+  "said {0} times": "sägs {0} gånger",
 };

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-quote-search",
+  "date": "2026-11-22",
+  "title": "Find a film by a line from it",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Search for a line someone says",
+      "text": "Type a line you half remember in Search, like \"I drink your milkshake\" or \"pivot\", and a new Lines group shows the films and episodes on Lilin where it's said, with the picture from that moment and the lines around it. Tap one and it plays from a few seconds before the line. Handy for settling which episode a joke was in, or for showing someone that one scene."
+    }
+  ]
+},
+{
   "id": "2026-11-22-taste-match",
   "date": "2026-11-22",
   "title": "Taste match with friends",

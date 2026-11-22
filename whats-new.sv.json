@@ -1,4 +1,13 @@
 {
+  "2026-11-22-quote-search": {
+    "title": "Hitta en film på en replik",
+    "items": {
+      "Search for a line someone says": {
+        "title": "Sök på en replik",
+        "text": "Skriv en replik du nästan minns i Sök, som \"I drink your milkshake\" eller \"pivot\", så visar en ny grupp, Repliker, filmerna och avsnitten på Lilin där den sägs, med bilden från just det ögonblicket och replikerna runt omkring. Tryck på en så spelas den upp från några sekunder före repliken. Bra för att avgöra vilket avsnitt ett skämt var i, eller för att visa någon just den scenen."
+      }
+    }
+  },
   "2026-11-22-taste-match": {
     "title": "Smakmatch med vänner",
     "items": {

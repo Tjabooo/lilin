@@ -15,6 +15,9 @@ import * as subtitles from './subtitles.js';
 import { initSubfix, wordFiles, ordinaryWord, looksOcr, titleKeyOf } from './subfix.js';
 import { initProofread, setProofreadGuards } from './subllm.js';
 import { createMagicSearch } from './magic-search.js';
+import { createQuoteSearch } from './quote-search.js'; // lines: quote search over the subtitles on the server
+import { cleanSubtitle } from './subfix.js'; // lines: OCR'd English is tidied before it's indexed
+import { applyProofread } from './subllm.js'; // lines
 import * as subsync from './subsync.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
@@ -380,6 +383,25 @@ moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => con
 liklok.initLikLok({ cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, library: () => liveLibrary(),
   subtitleFor: (file) => subtitles.findSidecar(file, 'en') || subtitles.findSidecar(file, 'sv'),
   timesFor: (file) => ({ intro: storedIntro(file), recap: storedRecap(file) }) });
+// lines: quote search (quote-search.js). Every subtitle line beside the videos in an FTS5 index of its own
+// (CACHE_DIR/lines.db), in English, Swedish and everyone's subtitle and app language. QUOTE_SEARCH=off hides it.
+const quoteSearchOn = () => process.env.QUOTE_SEARCH !== 'off' && Boolean(MEDIA_DIR);
+function quoteLanguages() {
+  const langs = new Set(['en', 'sv']);
+  for (const { settings } of accounts.database().prepare('SELECT settings FROM users').all()) {
+    try { const s = JSON.parse(settings || '{}'); for (const l of [s.subLang, s.language]) if (l) langs.add(String(l).toLowerCase()); } catch { /* defaults */ }
+  }
+  return [...langs].filter((l) => subtitles.validLang(l));
+}
+const quotes = createQuoteSearch({ cacheDir: CACHE_DIR, library: () => liveLibrary(), languages: quoteLanguages,
+  clean: (text, srt, lang) => (lang === 'en' ? cleanSubtitle(applyProofread(srt, text).text, { lang }) : text),
+  log: (m) => console.log(`[lines] ${m}`) });
+if (quoteSearchOn()) quotes.start();
+let quoteLibrary = { at: 0, items: [] }; // searches run as you type: the library is looked at once a minute
+async function quoteItems() {
+  if (Date.now() - quoteLibrary.at > 60_000) quoteLibrary = { at: Date.now(), items: await liveLibrary() };
+  return quoteLibrary.items;
+}
 // pick: Pick together (match.js): everyone swipes the same posters; a title everyone says yes to is a match.
 const match = createMatch({
   tmdb: (endpoint, params, lang) => (TMDB_LANGUAGES[lang] ? tmdb(endpoint, params, TMDB_LANGUAGES[lang]) : tmdb(endpoint, params)),
@@ -5111,6 +5133,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, {
       search: Boolean(TMDB_TOKEN || TMDB_KEY), library: Boolean(MEDIA_DIR), downloads: Boolean(QBIT_URL),
       magic: magicOn(),
+      lines: quoteSearchOn() && quotes.ready(), // lines: quote search has something to find
       torrents: torrents.torrentsEnabled(),
       subtitles: subtitles.subtitlesConfigured(),
       casting: await castAllowed(req),
@@ -5320,6 +5343,16 @@ async function handleApi(req, res, url) {
       console.warn(`[magic-search] ${err.message}`);
       throw new HttpError(502, 'MAGIc search didn’t work this time. Try again in a moment.');
     }
+  }
+  // lines: films and episodes on the server where a line is said (quote-search.js), best first
+  if (p === '/api/lines') {
+    if (!quoteSearchOn()) throw new HttpError(404, 'Quote search is off on this server.');
+    const q = (url.searchParams.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    const langs = [...new Set([user?.settings?.subLang, currentLanguage(), 'en'].filter(Boolean))];
+    const results = quotes.search(q, { items: await quoteItems(), langs }).map((r) => ({ id: r.id, mediaKey: r.key, kind: r.kind,
+      title: r.title, show: r.show, showTitle: r.showTitle, season: r.season, episode: r.episode, episodeName: r.episodeName,
+      art: r.art, titleKey: r.titleKey, lang: r.lang, count: r.count, line: r.line, times: r.times }));
+    return sendJson(res, 200, { results, indexing: quotes.status().indexing });
   }
   // ---- documentaries ----
   if (p === '/api/docs/home') return sendJson(res, 200, withoutDisliked(user, await docs.home()));

@@ -6,13 +6,15 @@
 // MAGIc search: when the box holds a description rather than a title ("teacher makes meth with his student"),
 // a row offers to find it from that (/api/magic-search: Wikipedia's plot write-ups + TMDB, a few seconds). Only on a
 // tap: Wikipedia's API asks to be used gently, and a half-typed description finds nothing anyway.
+// Lines (lines: quote-search.js): films and episodes on the server where what you typed is said. Above the titles
+// when it reads like a quote (two words or more, no title on the server by that name), below them otherwise.
 import { matchPlaces, defaultPlaces, placeLabel } from './places.js';
 import { ROUTES } from './routes.js';
 
 const RECENT_KEY = 'lilin:recent-search';
 
 export function createSearch({ h, T, lang, api, input, layer, me, status, onLilin, openPlace, titleGrid, titleCard, carousel,
-  skeletonGrid, emptyState, notice, footer, onChange, findPeople = null, findChannels = null, icon, openTitle, poster }) {
+  skeletonGrid, emptyState, notice, footer, onChange, findPeople = null, findChannels = null, icon, openTitle, poster, lines = null }) {
   let ctrl = null, timer = 0, peopleCtrl = null, magicCtrl = null, magicTick = 0;
   let magic = null; // { q, slot }: the MAGIc row or its results, kept while the box says the same
   const recent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } };
@@ -31,7 +33,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     render(); onChange?.(true);
   }
   function close() {
-    clearTimeout(timer); ctrl?.abort(); peopleCtrl?.abort(); stopMagic(); magic = null;
+    clearTimeout(timer); ctrl?.abort(); peopleCtrl?.abort(); stopMagic(); magic = null; lines?.stop();
     if (!isOpen()) return;
     layer.hidden = true; layer.replaceChildren(); input.setAttribute('aria-expanded', 'false');
     onChange?.(false);
@@ -50,7 +52,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     const q = input.value.trim();
     clearTimeout(timer);
     if (!q) {
-      ctrl?.abort();
+      ctrl?.abort(); lines?.stop();
       const recents = recent();
       layer.replaceChildren(h('div', { class: 'sr-body' },
         recents.length > 0 && group(T('Recent searches'), chips(recents.map((r, i) => h('span', { class: 'chip sr-recent' },
@@ -71,6 +73,7 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
     const channels = findChannels?.(q) || [];
     const titles = h('div', { class: 'sr-titles' }, status().search ? skeletonGrid(6) : null);
     const folks = h('div', { class: 'sr-people' });
+    const said = h('div', { class: 'sr-lines' }), quoteFirst = q.split(' ').filter(Boolean).length >= 2 && !owned.length; // lines
     if (magic?.q !== q) { stopMagic(); magic = { q, slot: h('div', { class: 'sr-magic' }) }; if (describes(q)) offerMagic(q); }
     layer.replaceChildren(h('div', { class: 'sr-body' }, magic.slot,
       places.length > 0 && group(T('Go to'), h('div', { class: 'set-stack' }, places.map(placeRow))),
@@ -79,9 +82,15 @@ export function createSearch({ h, T, lang, api, input, layer, me, status, onLili
         h('span', { class: 'guide-number', 'aria-hidden': 'true' }, String(c.number)),
         h('span', { class: 'lrow-text' }, h('span', { class: 'set-label' }, c.name), c.now && h('span', { class: 'set-hint' }, T('Now: {0}', c.now))))))),
       folks,
+      quoteFirst && said,
       titles,
+      !quoteFirst && said,
       h('div', { class: 'sr-more' }, footer(q))));
-    timer = setTimeout(() => { if (status().search) findTitles(q, titles); if (findPeople && q.length >= 2) findSomeone(q, folks); }, 250);
+    timer = setTimeout(() => {
+      if (status().search) findTitles(q, titles);
+      if (findPeople && q.length >= 2) findSomeone(q, folks);
+      if (lines && status().lines) lines.find(q, said); else lines?.stop();
+    }, 250);
     if (!status().search && !places.length && !owned.length && !channels.length) titles.replaceChildren(emptyState(T('No matches for “{0}”', q), T('Check the spelling, or try the original title.')));
   }
 

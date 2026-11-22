@@ -41,6 +41,7 @@ import { createTitleDetails } from './details.js'; // details: More details at t
 import { createThemeMusic, themeUrl } from './theme-music.js'; // theme: theme music on show pages
 import { ROUTES, allowedRoute, tabsFor, pagesOf, resolve, linkRoute, startRoute } from './routes.js'; // the shell: tabs, addresses, Back
 import { createSearch } from './search.js'; // search: titles + Go to (places.js)
+import { createQuoteLines } from './quote-search.js'; // lines: quote search in the search layer
 import { titleModel } from './title-model.js'; // the one title page: its state, gold button, chips and ⋯ menu
 import { createCreditsCard } from './credits-card.js'; // the credits card: picture in the corner, song + Up next
 import { createDaypart } from './daypart.js'; // Discover by time of day: morning + late-night rows and look
@@ -11414,6 +11415,15 @@ const searchUi = createSearch({ h, T, lang, api, input, layer: $('#search-layer'
   onLilin: (q) => instantMatches(q).map(searchInstantRow),
   openPlace: (p) => openPlace(p), titleGrid, titleCard, carousel, skeletonGrid, emptyState, notice,
   icon, openTitle: (t, el) => openDetails(t, el), poster: (t) => t.poster && toneArt(t.poster, posterTone(t.poster)),
+  // lines: a quote's film or episode plays from just before the line (added to your library first, like LikLok's
+  // Keep watching); the search stays open under the player, so closing it goes back to the results.
+  lines: createQuoteLines({ h, T, api, fmtTime, remember: () => searchUi.remember(), play: async (r, at) => {
+    if (!state.library.some((f) => f.mediaKey && f.mediaKey === r.mediaKey)) {
+      try { await api('/api/library/add', jsonPost({ ids: [r.id] })); loadLibrary().catch(() => {}); } catch { /* still plays */ }
+    }
+    await openPlayer({ kind: 'lib', id: r.id, key: r.id, mediaKey: r.mediaKey, title: r.title, filmTitle: r.kind === 'film' ? r.title : undefined,
+      show: r.show, season: r.season, episode: r.episode, episodeName: r.episodeName, done: true }, { startAt: at });
+  } }),
   footer: (q) => [
     state.status.admin && state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => { searchUi.remember(); findTorrents(q, e.currentTarget); } },
       icon('search'), T('Search torrents for “{0}”', q)),
