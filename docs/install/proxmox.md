@@ -45,7 +45,7 @@ usermod -aG sudo lilin
 As the `lilin` user (`su - lilin`):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Tjabooo/lilin/v2.0.2/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/Tjabooo/lilin/v2.1.0/install.sh -o install.sh
 less install.sh
 sh install.sh
 ```

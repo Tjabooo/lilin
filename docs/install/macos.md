@@ -16,7 +16,7 @@ brew install --cask qbittorrent            # optional: downloads; enable its Web
 ## 2. Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Tjabooo/lilin/v2.0.2/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/Tjabooo/lilin/v2.1.0/install.sh -o install.sh
 less install.sh
 sh install.sh
 ```

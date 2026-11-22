@@ -74,7 +74,7 @@ function playbackHarness({ prepare, autoplayRejected = false, clock = null } = {
   const $ = (key) => { if (!nodes.has(key)) nodes.set(key, new Element()); return nodes.get(key); };
   const logs = [];
   const video = new Element();
-  const context = vm.createContext({ T: englishT, $, video, URL, h: (tag, props, ...kids) => ({ tag, props, text: kids.join('') }), titleKeyOf: () => null, AbortController, setTimeout: clock?.setTimeout || setTimeout, clearTimeout: clock?.clearTimeout || clearTimeout,
+  const context = vm.createContext({ T: englishT, $, video, URL, h: (tag, props, ...kids) => ({ tag, props, text: kids.join('') }), titleKeyOf: () => null, AbortController, setTimeout: clock?.setTimeout || ((fn, ms, ...args) => { const t = setTimeout(fn, ms, ...args); t.unref?.(); return t; }), clearTimeout: clock?.clearTimeout || clearTimeout,
     Date: clock?.Date || Date, location: { href: 'https://example.test/' },
     nextLibraryEpisode, isNextEpisodeTime, nextEpisodePromptAt, upNextShowing, AUTOPLAY_SECONDS, AUTOPLAY_CHAIN, autoplayNextOn: () => true, noteFinished() {}, rightNow: { played() {} },
     createCreditsCard: () => ({ sync() {}, leave() {} }), stage: new Element(), seekRow: new Element(), syncSettingsBtn() {}, invalidateLibraryProgress() {}, state: { library: [episode('one', 1), episode('two', 2, { still: 'https://image.test/two.jpg' })], libraryShows: [{ id: 'tv-123', title: 'Example Show', backdrop: 'https://image.test/show.jpg' }], progress: {}, view: 'library' },

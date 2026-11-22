@@ -4,6 +4,8 @@ All notable changes to Lilin. Versions follow [Semantic Versioning](https://semv
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-22
+
 ### Added
 
 - **Pick together.** Swipe to match on a film or show (`src/match.js`, `public/match.js`, `/api/match`): one person
