@@ -957,10 +957,11 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 
 /* ---------- segmented switches: the frame draws itself in on hover (11-23) ----------
    Four hairline edges grow out of the two cut corners (top + left from top-left, bottom + right from bottom-right)
-   and meet; the cut diagonals fade in with them. Hover = a faint frame, the current pick = the full one. */
+   and meet; the cut diagonals fade in with them. Hover = a faint frame, the current pick = the full one.
+   The :is() lifts it over style.css's pressed `background:` shorthand, which would wipe the edges. */
 @property --seg-p { syntax: '<number>'; inherits: false; initial-value: 0; }
 @property --seg-line { syntax: '<color>'; inherits: false; initial-value: transparent; }
-.segmented button { --seg-p: 0; --seg-line: transparent;
+.segmented button, .segmented button:is([aria-pressed], [aria-checked]) { --seg-p: 0; --seg-line: transparent;
   background-image:
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--seg-line) calc(50% - .5px), var(--seg-line) calc(50% + .5px), transparent calc(50% + 1px)),
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--seg-line) calc(50% - .5px), var(--seg-line) calc(50% + .5px), transparent calc(50% + 1px)),
@@ -977,3 +978,24 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 }
 .segmented button:focus-visible:not([aria-pressed="true"]) { --seg-p: 1; --seg-line: color-mix(in srgb, var(--text) 32%, transparent); }
 @media (prefers-reduced-motion: reduce) { .segmented button { transition: --seg-line .2s ease, color .2s ease; } }
+
+/* ---------- segmented switches read as one control (11-23, Oliver: "just plain text with spacing") ----------
+   The group sits in a cut-corner hairline track, options are split by short tick dividers (hidden next to the
+   picked or hovered one, whose own frame takes over), and the pick gets a faint cell fill under its frame. */
+.segmented { --c: 10px; position: relative; padding: 3px; gap: 2px;
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  background-color: color-mix(in srgb, var(--text) 3%, transparent);
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--hairline-2) calc(50% - .5px), var(--hairline-2) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--hairline-2) calc(50% - .5px), var(--hairline-2) calc(50% + .5px), transparent calc(50% + 1px));
+  background-position: left top, right bottom; background-size: var(--c) var(--c), var(--c) var(--c); background-repeat: no-repeat; }
+.segmented button { position: relative; background-color: transparent; transition: --seg-p .34s cubic-bezier(.2, .8, .2, 1), --seg-line .2s ease, color .2s ease, background-color .2s ease; }
+.segmented button + button::before { content: ""; position: absolute; left: 0; top: 32%; bottom: 32%; width: 1px; background: var(--hairline-2); pointer-events: none; transition: opacity .2s ease; }
+.segmented button:is([aria-pressed="true"], [aria-checked="true"])::before,
+.segmented button:is([aria-pressed="true"], [aria-checked="true"]) + button::before { opacity: 0; }
+.segmented button[aria-pressed="true"], .segmented [aria-checked="true"] { background-color: color-mix(in srgb, var(--text) 8%, transparent); }
+@media (hover: hover) {
+  .segmented button:hover::before, .segmented button:hover + button::before { opacity: 0; }
+  .segmented button:hover:not([aria-pressed="true"]):not([aria-checked="true"]) { background-color: color-mix(in srgb, var(--text) 4%, transparent); }
+}
