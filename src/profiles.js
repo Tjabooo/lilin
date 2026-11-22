@@ -27,8 +27,9 @@ import { listsOf } from './lists.js';
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
-export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'reviews', 'lists', 'liked', 'friends'];
-const NEW_AFTER = { lists: 'reviews' }; // sections that came later, and the one they follow
+export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'match', 'reviews', 'lists', 'liked', 'friends'];
+// sections that came later, and the one they follow (match: taste-match.js, only shown to friends)
+const NEW_AFTER = { lists: 'reviews', match: 'ratings' };
 const SECTIONS_OFF = new Set(); // every section starts on; empty ones hide themselves for visitors
 export const FONTS = ['display', 'condensed', 'light', 'serif', 'mono', 'rounded'];
 export const POSTERS = ['soft', 'square', 'round', 'polaroid'];

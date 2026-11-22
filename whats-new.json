@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-taste-match",
+  "date": "2026-11-22",
+  "title": "Taste match with friends",
+  "items": [
+    {
+      "kind": "new",
+      "title": "See how close your taste is to a friend's",
+      "text": "Open a friend's profile to see your Taste match, from Low to Super, worked out from the stars and thumbs you've both given the same films and shows (it needs 10 in common). Under it: what you both loved, where you split, and what they loved that you haven't seen yet. A thumbs down on its own still stays private. Only friends see it, and you can switch it off on your own profile under Edit profile."
+    }
+  ]
+},
+{
   "id": "2026-11-22-you-revamp",
   "date": "2026-11-22",
   "title": "A tidier You tab",

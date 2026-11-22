@@ -1,4 +1,13 @@
 {
+  "2026-11-22-taste-match": {
+    "title": "Smakmatch med vänner",
+    "items": {
+      "See how close your taste is to a friend's": {
+        "title": "Se hur lik din smak är en väns",
+        "text": "Öppna en väns profil för att se er Smakmatch, från Låg till Super, utifrån stjärnorna och tummarna ni båda har gett samma filmer och serier (det behövs 10 gemensamma). Under den: det ni båda älskade, där ni tycker olika och det de älskade som du inte har sett än. En tumme ner för sig själv är fortfarande privat. Bara vänner ser den, och du kan stänga av den på din egen profil under Redigera profil."
+      }
+    }
+  },
   "2026-11-22-you-revamp": {
     "title": "En snyggare Du-flik",
     "items": {

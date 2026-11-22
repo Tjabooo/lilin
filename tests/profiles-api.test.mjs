@@ -60,7 +60,7 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
     assert.equal(mine.person.handle, 'ebi');
     assert.equal(mine.me, true);
     assert.equal(mine.visibility, 'friends');
-    assert.equal(mine.sections.length, 8);
+    assert.equal(mine.sections.length, 9);
 
     // Bo isn't a friend: locked page with name and picture only.
     let seen = await request(`/api/profiles/${ebi.id}`, undefined, 'bo@p.test');

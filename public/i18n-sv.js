@@ -1,5 +1,15 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  // Taste match (taste-match.js)
+  "Taste match": "Smakmatch",
+  "Very high": "Mycket hög",
+  "Super": "Super",
+  "Not enough in common yet": "Inte tillräckligt gemensamt än",
+  "From {0} films and shows you’ve both rated": "Utifrån {0} filmer och serier ni båda har betygsatt",
+  "{0} of {1} rated by both of you so far": "{0} av {1} betygsatta av er båda hittills",
+  "You both loved": "Ni älskade båda",
+  "Where you split": "Där ni tycker olika",
+  "{0} loved, you haven’t seen": "{0} älskade, du har inte sett",
   // My list (was Save for later + Follow)
   "My list": "Min lista",
   "Add to My list": "Lägg till i Min lista",

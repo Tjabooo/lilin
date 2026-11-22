@@ -153,6 +153,12 @@ Push endpoints must belong to a known push service (Google FCM, Mozilla, Apple, 
 
 Settings → **Friends** (src/friends.js, public/friends.js; table `friend_links` in `.lilin.db`). People find each other by name (two letters or more), send a request, and become friends once the other person accepts; asking someone who already asked you accepts theirs. Declining, taking back a request and removing a friend are quiet (no notification). Restricted people (see Accounts) can't be found, can't ask or be asked, and their friendships are hidden while they're restricted (kept, so lifting it brings them back). The shared Home network account has no friends. Other code uses `areFriends(a, b)` and `friendIds(userId)`; Watch Together lists friends first among invitees.
 
+## Taste match
+
+A friend's profile has a **Taste match** section (src/taste-match.js, public/taste-match.js; profile section `match`, after Ratings). It compares the stars and thumbs both people gave the same films and shows (`reviews` and `ratings`, Letterboxd imports included). Every opinion becomes stars: stars as given, a like next to stars lifts them to at least 4, a like without stars counts as 4½ and a thumbs down without stars as 1½. The gaps between the two people's stars are averaged, leaning toward an ordinary gap of 1¼ stars as if four more titles were in common (so ten lucky likes don't make Super on their own), and the average becomes a word: up to ½ star apart Super, then Very high (0.7), High (0.95), Medium (1.3), else Low. Under 10 titles in common there's no level, only how many there are so far. Never a percentage.
+
+Under it: **You both loved** (both 4 stars or more, the highest first, up to 10), **Where you split** (2 stars or more apart, widest first, up to 6) and **<name> loved, you haven't seen** (their 4 stars or more that you haven't rated, started or logged on Letterboxd, up to 8). A thumbs down on its own is private in Lilin, so a split is only listed when the other person's side is stars or a like; the level counts those thumbs too (a word over ten or more titles, like the title averages). It's only there for friends who can see the profile in full: not for restricted people or the Home network account, not on your own page, and each person can switch the section off on their own profile, which hides their side from everyone else.
+
 ## Moments
 
 A moment is a piece of a film or episode (2 s to 3 min) someone cut in the player (src/moments.js, public/moments.js; tables `moments` and `moment_shares` in `.lilin.db`, files in `MOMENTS_DIR`). Not the owner's game Clips. In the player, **⋯ → Clip a moment** pauses and shows a zoomed strip of about six minutes around the current spot, with two handles (drag, or arrow keys; the picture follows), **Start here** / **End here** for the playhead, and **Preview**. In a Watch Together room the picture isn't moved; only the handles are. **Next** takes a note, whether to keep the subtitles that were on (the cues the player showed, saved as WebVTT beside the moment, not burned in), and which friends to send it to; **Copy link** makes the link only. You can clip what's in your library (the owner anything, room members the room's video).
@@ -196,6 +202,7 @@ src/
   notes*.js, note-share.js  Notes, attachments, OCR, shared previews
   house.js, load.js, screentime.js, clips.js, invites.js, activity.js, live.js, network.js
   social.js, reviews.js thumbs, Popular, Wrapped, watch parties; stars + written reviews
+  profiles.js, taste-match.js  profile pages; Taste match on a friend's profile
   match.js           Pick together (swipe to match)
   setup/             wizard, detection, integrations, services, packages, backups
 public/              the web app (plain JavaScript and CSS, no build step)
@@ -247,6 +254,7 @@ The web client uses a JSON API that can also be scripted. `<kind>` is `lib` for 
 | `GET` | `/api/friends` | Your friends, requests you got (`incoming`) and sent (`outgoing`) |
 | `GET` | `/api/friends/search?q=` | People to add by name (not restricted people), with `state`: `friend`, `sent`, `received` or `null` |
 | `POST` | `/api/friends/request`, `/api/friends/accept`, `/api/friends/remove` | `{ id }`: ask, accept, or decline / take back / remove |
+| `GET` | `/api/profiles/<id>`, `/api/profiles/@<handle>` | A profile (profiles.js). For a friend it also carries `match` (taste-match.js): `{ level: "low" \| "medium" \| "high" \| "veryHigh" \| "super" \| null, common, need, both, split, theirs }`, the lists `[{ key, title, card }]`, `split` with `mine` / `theirs` `{ stars, liked }` (`mine.disliked` too), `theirs` with `{ stars, liked }`; `null` when there's nothing to compare or it isn't shown |
 | `GET` | `/api/moments` | Moments you made (`mine`) and that friends sent you (`shared`, with `seen`) |
 | `POST` | `/api/moments` | `{ kind: "lib" \| "dl", id, start, end, note?, title?, label?, subtitles?: [{ start, end, text }], to?: [userId] }`: cut a moment (and send it); returns `{ moment, link, sent }` |
 | `POST` | `/api/moments/<id>/send`, `/delete`, `/seen` | Send to friends (`{ userIds }`), delete (yours: for everyone; sent to you: off your list), mark as watched |

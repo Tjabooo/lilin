@@ -13,12 +13,13 @@
 // app.js passes in its helpers; this file has no globals beyond the DOM.
 import { T, locale as appLocale } from './i18n.js';
 import { tintOf } from './people.js';
+import { createTasteMatch } from './taste-match.js'; // taste: Taste match on a friend's profile
 
 const ACCENTS = ['#F4C152', '#FF9B85', '#E9A0C4', '#C3ACF2', '#93D6BA', '#97C9F2', '#F5AE6B', '#FF8C1A', '#E5484D', '#7FD1FF', '#B8E986', '#EDE6DD'];
 const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
 const FONTS = [['display', T('Bold')], ['condensed', T('Tall')], ['light', T('Light')], ['serif', T('Serif')], ['mono', T('Mono')], ['rounded', T('Rounded')]];
 const POSTERS = [['soft', T('Soft')], ['square', T('Square')], ['round', T('Round')], ['polaroid', T('Polaroid')]];
-const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
+const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
   public: T('Everyone on this Lilin can see your profile.'),
@@ -245,6 +246,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return btn;
   }
 
+  const taste = createTasteMatch({ h, icon, people, me, posterButton, sectionBox, stars }); // taste
   const SECTION = {
     favorites(ctx, d) {
       const favs = d.favorites || [];
@@ -283,6 +285,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           h('div', { class: 'pf-avg' }, h('strong', {}, Number(r.average).toLocaleString(locale(), { maximumFractionDigits: 1 })), h('span', {}, '★'), likes != null && h('small', {}, `♥ ${likes}`)))
           : h('p', { class: 'pf-empty' }, T('Stars you give films and shows show up here.')));
     },
+    match: (ctx, d) => taste.section(ctx, d), // taste: friends only (taste-match.js)
     reviews(ctx, d) {
       const list = ctx.allReviews?.reviews || d.reviews?.reviews || [];
       if (!list.length) return d.me ? sectionBox('reviews', T('Reviews'), null, h('p', { class: 'pf-empty' }, T('Reviews you write show up here.'))) : null;

@@ -35,6 +35,7 @@ import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
+import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
 import * as lists from './lists.js'; // lists: shelves people put together and share (lists.js)
@@ -2152,12 +2153,13 @@ function startLetterboxdImport(user, buf) {
 async function profileView(viewer, target) {
   const v = profiles.view(viewer, target);
   if (v.locked) return v;
-  const [recent, reviewList, liked] = await Promise.all([withCards(v.recent), withCards(v.reviews.reviews), withCards(v.liked)]);
+  const [recent, reviewList, liked, match] = await Promise.all([withCards(v.recent), withCards(v.reviews.reviews), withCards(v.liked),
+    tasteMatch.forProfile(viewer, target, v, { withCards })]); // taste: Taste match on a friend's profile, else null
   const look = v.look;
   // The banner: a picked title's picture, else (auto) a favourite's or the last thing they watched.
   const auto = v.favorites.find((f) => f.backdrop)?.backdrop || recent.find((r) => r.card?.backdrop)?.card.backdrop || liked.find((r) => r.card?.backdrop)?.card.backdrop || null;
   const banner = look.banner === 'title' ? look.bannerImage : look.banner === 'auto' && auto ? auto.replace(/\/t\/p\/w\d+\//, '/t/p/w1280/') : null;
-  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card) };
+  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match };
 }
 
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());
