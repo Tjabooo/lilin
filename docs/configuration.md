@@ -154,6 +154,13 @@ that is a hard disk shared with downloads and conversions.
 Video is encoded with NVIDIA NVENC when ffmpeg has a working `h264_nvenc`, otherwise with libx264 on
 the CPU. See [hardware-acceleration.md](hardware-acceleration.md).
 
+## Clean-up
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `CLEANUP_MIN_AGE_DAYS` | `30` | A download is only cleaned up once it has been on the server this many days. |
+| `CLEANUP_IDLE_DAYS` | `30` | ...and only when nobody has watched it (or, for a show, any of its episodes) in this many days. `node src/cleanup.js` lists what would go; `--run` deletes it now. |
+
 ## Download to phone
 
 | Setting | Default | Purpose |

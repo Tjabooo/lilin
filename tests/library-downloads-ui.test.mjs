@@ -74,7 +74,6 @@ function harness() {
   const state={view:'library',sub:'downloads',status:{library:true,admin:true},library:[],libraryShows:[],downloads:[dl('new',{poster:'/poster.svg'})],libFilter:'all',progress:{},query:'',me:{settings:{}}};
   const context=vm.createContext({ T: englishT, state,document,filterField(){},pageFilters:{library:''},loadParties(){},newBadgeCount:()=>0,travelView:{items:[]},travelOrder:items=>items,travelRows:()=>[],matchMedia:()=>({matches:false}),canDownload:()=>true,emptyState:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},clearFilter(){},setView(){},rememberView(){},saveMe:async()=>{},rightNow:{mount:()=>new Element(),update(){}},loadRightNow(){},watchlistView:{render(){}},fmtBytes:n=>`${n} B`,timeLeft:()=>'1 day left',episodeLabel:()=>'',libraryShelf:()=>new Element(),libraryCard:()=>new Element(),findTorrents(){},openTransferDetails(){},icon:()=>new Element('span'),watch:{revision:0,items:[]},todayIso:()=>'2026-11-05',Node:Element,$,libraryUnion,libraryAvailability,filterLibrary,librarySignature:'start',libraryProgressRevision:0,libraryRenderPending:false,prefs:()=>({librarySort:'title'}),segmented:(options,value,onPick)=>{const el=new Element();options.forEach(([v,label])=>{const b=new Element('button');b.textContent=label;b.addEventListener('click',()=>onPick(v));el.append(b);});return el;},select:()=>new Element('select'),norm:s=>String(s||'').toLowerCase(),notice:(title,text)=>{const e=new Element();e.textContent=`${title} ${text}`;return e;},nextExpiry:()=>Infinity,libraryFile:f=>({...f,kind:'lib',key:f.id}),savedProgress:()=>null,partlyWatched:()=>false,upNextItems:()=>[],continueItems:()=>[],libraryEntries:()=>[],updateOpenTitle(){},renderConvertBanner(){},openFilm:(f)=>opened.push(['film',f.id]),openShow:id=>opened.push(['show',id]),transferNodes:new Set(),queueMicrotask:fn=>fn(),LIB_FILTERS:[['all','All'],['movie','Films'],['tv','Shows']],plural:(n,w)=>`${n} ${w}`,showSheet:()=>()=>{},pushOverlay(){},openTitle:()=>opened.push(['pending']),setTimeout,window:{},Date });
   vm.runInContext(between('function h(', 'const ICONS ='),context);
-  Object.assign(context, { canExtend:()=>true, extendDays:()=>7, extendItems:async()=>{}, rules:{} });
   vm.runInContext(between('let libraryUI = null;', '// ---------- shows ----------'),context);
   return {state,nodes,opened,$,context,run:code=>vm.runInContext(code,context)};
 }
@@ -90,12 +89,6 @@ test('a finished download leaves the rows; a torrent outage shows its notice', (
   h.state.library=[film];h.state.downloads=[dl('new',{done:true,ready:true,progress:1})];h.state.downloadsError='Torrent service down';h.run('renderLibrary()');
   assert.equal(h.$('#library-body').querySelectorAll('.rn-open').filter((b)=>/Download new|new/.test(b.textContent)).length,0);
   assert.match(h.$('#library-body').textContent,/Torrent service down/);
-});
-test('Leaving soon lists what the automatic delete takes within two days, with Keep', () => {
-  const h=harness();h.context.nextExpiry=(files)=>Math.min(...files.map((f)=>f.expiresAt??Infinity));
-  h.state.downloads=[];h.state.library=[{...film,expiresAt:Date.now()+5*3600e3}];h.run('renderLibrary()');
-  const section=h.$('#library-body').querySelectorAll('.dl-section').find((x)=>x.attrs['aria-label']==='Leaving soon');
-  assert.equal(section.hidden,false);assert.match(section.textContent,/Keep 7 more days/);
 });
 test('pause failures retain a local error and retryable controls while pending poll cannot hide action state', async () => {
   let reject,observed;const pending=new Promise((_,r)=>{reject=r;});const d=dl('one');const context=vm.createContext({ T: englishT,document:{activeElement:null,body:{}},state:{downloads:[d]},api:()=>pending,jsonPost:body=>body,patchTransferNodes(){observed=vm.runInContext("transferOperations.get('one')?.label",context);},patchUnifiedLibrary(){},isPaused:()=>false});

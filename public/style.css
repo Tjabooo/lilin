@@ -2502,20 +2502,6 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* Torrent search: whole season, episode by episode */
 
-/* ---------- accounts: countdown, keeping longer ---------- */
-.expiry { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.expiry::before {
-  content: ""; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--dust); opacity: 0.7;
-}
-.expiry.is-soon { color: var(--alert); font-weight: 600; }
-.expiry.is-soon::before { background: var(--alert); opacity: 1; }
-.keep-btn {
-  padding: 0; font-size: 13px; font-weight: 700; color: var(--bulb);
-  background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--bulb-dim);
-}
-.keep-btn:disabled { opacity: 0.5; }
-
 /* Shown when the Cloudflare sign-in has run out */
 .signed-out {
   position: fixed; left: 50%; top: calc(var(--safe-top) + 12px); z-index: 90;
@@ -2717,7 +2703,7 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 
 /* Recommended season selector and the safe missing-only alternative. */
 
-/* House › Downloads (the owner's): rows, Leaving soon, the line about what's here. */
+/* House › Downloads (the owner's): rows and the line about what's here. */
 .library-source-notice { padding: 12px 14px; border: 1px solid var(--hairline-2); border-radius: var(--r-md); color: var(--text-2); font-size: 13px; }
 .library-foot { margin-top: var(--s7); font-size: 13px; color: var(--text-2); }
 .library-foot p { margin: 0 0 6px; }

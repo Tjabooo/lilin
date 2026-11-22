@@ -42,7 +42,7 @@ test('owners rename access-list accounts, including future visitors, without cha
   try {
     await start();
     const before = (await request('/api/me', { theme: { preset: 'forest' } }, 'member@names.test')).me;
-    await request(`/api/admin/users/${before.id}`, { canDownload: false, keep: true });
+    await request(`/api/admin/users/${before.id}`, { canDownload: false });
     for (const email of ['member@names.test', '']) await request('/api/access/rename', rename('Denied'), email, 403);
     for (const name of ['', ' ', 'x'.repeat(41), 'two\nlines', 123]) await request('/api/access/rename', rename(name), undefined, 400);
     await request('/api/access/rename', null, undefined, 400);
@@ -50,7 +50,7 @@ test('owners rename access-list accounts, including future visitors, without cha
     await request('/api/access/rename', rename('Unknown', 'outsider', 'outsider@names.test'), undefined, 404);
     const renamed = (await request('/api/access/rename', rename('  Captain <Dad & Co>  '))).user;
     assert.equal(renamed.name, 'Captain <Dad & Co>'); assert.equal(renamed.id, before.id); assert.equal(renamed.email, before.email);
-    assert.equal(renamed.canDownload, false); assert.equal(renamed.keep, true); assert.deepEqual(renamed.settings, before.settings);
+    assert.equal(renamed.canDownload, false); assert.deepEqual(renamed.settings, before.settings);
     await request('/api/access/rename', rename('Stale name'), undefined, 409);
     assert.equal((await request('/api/access')).names['member@names.test'], renamed.name);
     assert.equal((await request('/api/activity')).people.find((p) => p.user === before.email).name, renamed.name);

@@ -234,7 +234,7 @@ const state = {
   dlScope: 'mine',  // the owner can switch Downloads to everyone's
   server: [],       // videos on the server that aren't in this person's library
   me: null,         // who's signed in, with their settings (accounts.js)
-  rules: null,      // the server's auto-delete rules
+  rules: null,      // the server's rules (owner settings)
   progress: {},     // where this person stopped watching, from any device
   hidden: {},       // taken out of Continue watching: title key → when (server time), from any device
   libFilter: 'all',
@@ -615,37 +615,6 @@ function markShowSeen(tmdbId) {
   item.newEpisodes = [];
   watch.revision++;
   api('/api/watchlist/seen', jsonPost({ tmdbId })).catch(() => {});
-}
-
-// ---------- auto-delete countdown ----------
-// Videos in your library are deleted a set time after they finish downloading (the owner's setting,
-// 7 days unless changed). The countdown shows on each one, with a button to keep it longer.
-function timeLeft(ms) {
-  const hours = (ms - Date.now()) / 3600000;
-  if (hours <= 0) return T('Deleting soon');
-  if (hours < 1) return T('Deleted within the hour');
-  if (hours < 48) return T('{0} h left', Math.floor(hours));
-  return T('{0} days left', Math.round(hours / 24));
-}
-const canExtend = (f) => f.expiresAt != null && (!state.rules?.maxExtensions || (f.extensions || 0) < state.rules.maxExtensions);
-const extendDays = () => state.rules?.extendDays || 7;
-
-// Pushes back when these library videos are deleted. Returns the updated items (or [] on failure).
-async function extendItems(files) {
-  try {
-    const { entries } = await api('/api/library/extend', jsonPost({ ids: [...new Set(allVersions(files).map((f) => f.id || f.key))] }));
-    const byKey = new Map(entries.map((e) => [e.key, e]));
-    for (const f of state.library) {
-      const e = byKey.get(f.mediaKey);
-      if (e) Object.assign(f, { expiresAt: e.expiresAt, extensions: e.extensions });
-      for (const v of f.versions || []) { const ve = byKey.get(v.mediaKey); if (ve) Object.assign(v, { expiresAt: ve.expiresAt, extensions: ve.extensions }); }
-    }
-    if (state.view === 'library') renderLibrary();
-    return files.map((f) => state.library.find((x) => x.mediaKey === f.mediaKey)).filter(Boolean);
-  } catch (err) {
-    toast(err.message);
-    return [];
-  }
 }
 
 // A small menu behind a ⋯ button (a <details>, so it works without script tricks); closes on outside clicks and Escape.
@@ -1553,7 +1522,7 @@ const rnData = { parties: null, partiesAt: 0, wrapped: undefined };
 function rightNowContext() {
   const jobs = state.convert?.active || (state.convert?.current ? [state.convert.current] : []);
   return {
-    now: Date.now(), locale, owner: Boolean(state.status?.admin), entries: unifiedLibrary(), keep: Boolean(state.me?.keep), canExtend, extendDays: extendDays(),
+    now: Date.now(), locale, owner: Boolean(state.status?.admin), entries: unifiedLibrary(),
     parties: (rnData.parties || []).map((p) => ({ token: p.token, startsAt: p.startsAt, started: p.started, mine: p.mine, host: p.host,
       title: partyTitle(p.media), poster: state.library.find((f) => f.id === p.media?.id)?.poster })),
     played: (f) => Boolean(savedProgress(libraryFile(f))),
@@ -1585,7 +1554,6 @@ async function runRightNow(a, opener) {
   if (a.do === 'title') return openUnifiedTitle(a.entry, opener);
   if (a.do === 'wrapped') return openWrapped(a.year, opener);
   if (a.do === 'travel') return openTravelList(opener);
-  if (a.do === 'keep') { opener.disabled = true; await extendItems(a.files); return rightNow.update(); }
   if (a.do === 'play') {
     const e = a.entry;
     e.files.forEach(rightNow.played);
@@ -1722,7 +1690,7 @@ const libraryMates = () => (state.me?.sharedWith || []).map((m) => m.name);
 
 // ---- House › Downloads (owners): there is no Library tab any more (play first) ----
 // The old Library view (#view-library) draws the owner's Downloads page: transfers that need a look and the ones on
-// their way, Leaving soon (what the automatic delete takes next, with Keep), copies for this phone and the rule.
+// their way, copies for this phone and the clean-up rule.
 // Rows are kept between renders, so polling never steals focus.
 function renderLibrary() {
   libraryRenderPending = false;
@@ -1736,33 +1704,16 @@ function renderLibrary() {
   updateOpenTitle();
 }
 
-// "214 titles · 1.2 TB · Next to go: Dune, 13 h left" and the deletion rule.
+// "214 titles · 1.2 TB" and the cleanup rule.
 function libraryFoot(all) {
-  const mine = state.library, r = state.rules || {};
-  const next = mine.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
-  const line = [plural(all.filter((e) => e.files.length).length, 'title'), fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0)),
-    next && T('Next to go: {0}, {1}', [next.filmTitle || next.title, episodeLabel(next)].filter(Boolean).join(' '), timeLeft(next.expiresAt))].filter(Boolean).join(' · ');
+  const mine = state.library;
+  const line = [plural(all.filter((e) => e.files.length).length, 'title'), fmtBytes(mine.reduce((n, f) => n + (f.size || 0), 0))].join(' · ');
   return [h('p', {}, line),
-    h('p', { class: 'muted' }, state.me?.keep ? T('The owner has set your videos to stay until you delete them.')
-      : r.retentionDays
-        ? T('Videos are deleted {0} after they finish, to keep space free. Press Play and they come back. Keep holds on to one longer{1}.', plural(r.retentionDays, 'day'), r.maxExtensions ? T(' (up to {0} per video)', plural(r.maxExtensions, 'time')) : '')
-        : T('Nothing is deleted automatically.'))];
-}
-// Leaving soon: titles the automatic delete takes within two days, soonest first, each with Keep.
-function leavingRow(e) {
-  const files = e.files.filter((f) => f.expiresAt != null);
-  const at = Math.min(...files.map((f) => f.expiresAt));
-  const eligible = files.filter(canExtend);
-  return h('li', { class: 'rn-row' },
-    h('button', { type: 'button', class: 'rn-open', onclick: (ev) => openUnifiedTitle(e, ev.currentTarget) },
-      e.poster ? h('img', { class: 'rn-thumb', src: e.poster, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'rn-thumb rn-icon' }, icon('clock')),
-      h('span', { class: 'rn-text' }, h('strong', { class: 'rn-title' }, e.name), h('span', { class: 'rn-sub' }, timeLeft(at)))),
-    eligible.length > 0 && h('button', { type: 'button', class: 'chip rn-chip', onclick: async (ev) => { ev.currentTarget.disabled = true; await extendItems(eligible); renderLibrary(); } },
-      T('Keep {0} more days', extendDays())));
+    h('p', { class: 'muted' }, T('Downloads older than a month that nobody has watched in 30 days are deleted, to keep space free. Press Play and they come back.'))];
 }
 
 // ---- Downloads: everything about transfers, in one place ----
-// Preparing playback, Needs attention and On the way (one row per title, ⋯ = its transfers), Leaving soon, then
+// Preparing playback, Needs attention and On the way (one row per title, ⋯ = its transfers), then
 // On this phone and the line about what's here.
 const touchDevice = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
 function renderLibraryDownloads(all) {
@@ -1771,12 +1722,12 @@ function renderLibraryDownloads(all) {
       state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => findTorrents('', e.currentTarget) }, icon('search'), T('Find torrents')),
       state.me?.isOwner && h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails(null, e.currentTarget) }, T('All server downloads')));
     const section = (title, cls = 'rn-list') => { const list = h('ul', { class: cls }); return { list, node: h('section', { class: 'shelf dl-section', 'aria-label': title, hidden: true }, h('h3', { class: 'lib-subhead' }, title), list) }; };
-    libraryUI.dl = { attention: section(T('Needs attention')), onway: section(T('On the way')), leaving: section(T('Leaving soon')), phone: section(T('On this phone'), 'rows travel-list'),
+    libraryUI.dl = { attention: section(T('Needs attention')), onway: section(T('On the way')), phone: section(T('On this phone'), 'rows travel-list'),
       rows: new Map(), notices: h('div'), empty: h('div'), foot: h('div', { class: 'library-foot' }) };
     const d = libraryUI.dl;
     libraryUI.content.append(...[actions.childElementCount && actions,
       h('section', { class: 'shelf dl-section' }, h('div', { class: 'dl convert-banner', id: 'convert-banner', hidden: true })),
-      d.attention.node, d.onway.node, d.empty, d.leaving.node, d.phone.node, d.notices, d.foot].filter(Boolean));
+      d.attention.node, d.onway.node, d.empty, d.phone.node, d.notices, d.foot].filter(Boolean));
   }
   const d = libraryUI.dl;
   const attention = all.filter((e) => e.attention), onway = all.filter((e) => !e.attention && (e.active.length || e.preparing));
@@ -1798,13 +1749,9 @@ function renderLibraryDownloads(all) {
     d.empty.dataset.key = emptyKey;
     d.empty.replaceChildren(busy ? '' : emptyState(T('Nothing on its way'), T('Everything people press Play on that isn’t here yet shows here while it downloads.')));
   }
-  const soon = all.filter((e) => e.files.some((f) => f.expiresAt != null && f.expiresAt - Date.now() < 48 * 3600000))
-    .sort((a, b) => nextExpiry(a.files) - nextExpiry(b.files));
-  const leavingKey = JSON.stringify(soon.map((e) => [e.key, nextExpiry(e.files), e.files.map((f) => f.extensions || 0)]));
-  if (d.leaving.key !== leavingKey) {
-    d.leaving.key = leavingKey;
-    d.leaving.list.replaceChildren(...soon.map(leavingRow));
-    d.leaving.node.hidden = !soon.length;
+  const footKey = JSON.stringify([all.filter((e) => e.files.length).length, state.library.reduce((n, f) => n + (f.size || 0), 0)]);
+  if (d.foot.dataset.key !== footKey) {
+    d.foot.dataset.key = footKey;
     d.foot.replaceChildren(...libraryFoot(all));
   }
   const copies = travelOrder(travelView.items);
@@ -1860,7 +1807,6 @@ const seasonName = (n) => (n === 0 ? T('Specials') : T('Season {0}', n));
 
 // Library cards share the same identity as playback, including old browser resume points.
 const libraryFile = (f) => ({ ...f, kind: 'lib', key: f.id, done: true });
-const nextExpiry = (files) => Math.min(...files.map((f) => f.expiresAt ?? Infinity));
 const partlyWatched = (p) => p?.duration > 0 && p.time / p.duration > 0.01 && p.time / p.duration < 0.95;
 
 function libraryEntries(items) {
@@ -2299,7 +2245,6 @@ function titleContext(ref) {
   const file = () => { const r = stateOf().ready; return r.find((f) => f.kind === 'lib' && !f.converting) || r.find((f) => f.kind === 'lib') || null; };
   const showId = tv ? entry?.show?.id ?? null : null;
   const up = showId ? nextUp(showId) : null;
-  const next = nextExpiry(libFiles);
   const f0 = file();
   const facts = {
     type: tv ? 'tv' : 'movie', mine: mine.length, preparing: mine.length > 0 && mine.every((f) => f.converting),
@@ -2308,15 +2253,14 @@ function titleContext(ref) {
     transfers: s.active.length, playNow: s.active.length === 1 && Boolean(playNowFile(s.active[0])),
     canGet: canGet(), tmdb: t.id != null, search: Boolean(state.status.search),
     unreleased: tv ? cardUnreleased(t) : titleView.release.get(t.id) ?? cardUnreleased(t),
-    leaving: next - Date.now() < 3 * 86400000, expires: Number.isFinite(next), keep: libFiles.some(canExtend),
     owner: Boolean(state.me?.isOwner), admin: Boolean(state.status.admin), ambiguous: Boolean(film?.movieAmbiguous), anime: true, // Dubbed shows once the server says it's anime
     versions: tv ? 0 : (f0?.versions?.length || 0),
   };
   const model = titleModel(facts);
   const key = JSON.stringify([ref.t ? `${t.type}:${t.id}` : ref.fileId || ref.showId, model.state, model.primary, model.secondary, model.more,
-    libFiles.map((f) => [f.id, f.converting, f.expiresAt, f.mediaKey]), s.transfers.map((d) => [d.hash, d.done, d.season,
+    libFiles.map((f) => [f.id, f.converting, f.mediaKey]), s.transfers.map((d) => [d.hash, d.done, d.season,
       (d.episodes || []).map((ep) => [ep.season, ep.episode, ep.available, ep.started, ep.libraryId])]), facts.onServer]);
-  return { ref, t, tv, entry, film, entryNow, stateOf, file, up, showId, next, facts, model, key };
+  return { ref, t, tv, entry, film, entryNow, stateOf, file, up, showId, facts, model, key };
 }
 // A title page follows along from any tab (renderLibrary and patchUnifiedLibrary call this).
 function updateOpenTitle() {
@@ -2352,11 +2296,6 @@ const TITLE_ACTIONS = {
     if (ps) { ps.open = true; renderTitle(); }
     $('#sheet-body .dl-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }],
-  keep: (c) => {
-    const eligible = c.stateOf().ready.filter((f) => f.kind === 'lib' && canExtend(f));
-    return [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
-      async () => { await extendItems(eligible); updateOpenTitle(); }];
-  },
   getVersion: (c) => [icon('plus'), T('Get another version'), () => c.fa?.revealAdvanced()],
   advanced: (c) => [icon('search'), T('Advanced options'), () => c.fa?.revealAdvanced()],
   identify: (c) => c.file() && [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
@@ -2381,28 +2320,17 @@ function showPlayButton(c, lead) {
   return titleChip('play', lead, 'play', label, (e) => (x.f ? openPlayer(libraryFile(x.f)) : playTitle(x, e.currentTarget)));
 }
 // One line under the facts. Members: whether it plays at once (the lightning mark), is getting ready, or starts in
-// about a minute; the owner also sees the copy (format, size), the automatic delete and a quiet Keep.
+// about a minute; the owner also sees the copy (format, size).
 function titleStateLine(c) {
   const { model, tv, t } = c, s = c.stateOf();
   const tools = Boolean(state.status.admin);
-  const libFiles = s.ready.filter((f) => f.kind === 'lib' && (!tv || f.season != null));
-  const eligible = libFiles.filter(canExtend);
-  const keep = tools && model.inline.includes('keep') && h('button', { type: 'button', class: 'keep-btn', 'data-act': 'keep', onclick: async (e) => {
-    e.currentTarget.disabled = true;
-    await extendItems(eligible);
-    updateOpenTitle();
-  } }, eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()));
-  const soonest = tools && libFiles.filter((f) => f.expiresAt != null).sort((a, b) => a.expiresAt - b.expiresAt)[0];
-  const expiry = soonest && h('span', { class: `expiry${model.state === 'leavingSoon' ? ' is-soon' : ''}` },
-    tv && libFiles.length > 1 ? T('Next to go: {0} · {1}', episodeLabel(soonest) || soonest.title, timeLeft(soonest.expiresAt)) : timeLeft(soonest.expiresAt));
   const f = c.file();
   const instant = h('span', { class: 'instant-mark has-words' }, icon('bolt'), h('span', {}, T('Plays instantly')));
   let parts = [];
   if (model.state === 'preparing') parts = [T('Preparing playback. It plays here as soon as the MP4 copy is ready.')];
-  else if (model.state === 'ready' || model.state === 'leavingSoon') {
+  else if (model.state === 'ready') {
     parts = tv ? [instant, !c.up && !model.primary && T('You’re all caught up.')]
       : [instant, tools && !(f?.versions?.length > 1) && f?.format?.toUpperCase(), tools && !(f?.versions?.length > 1) && f && fmtBytes(f.size)];
-    parts.push(expiry, keep);
   } else if (model.state === 'onServer') {
     parts = tv ? [instant, T('{0} here', plural(c.facts.onServer, 'episode'))] : [instant];
   } else if (model.state === 'onItsWay') parts = [T('Getting it ready')];
@@ -2561,7 +2489,6 @@ function episodeList(c) {
     const readyCount = episodeCount(ready);
     const leaving = s.transfers.filter((d) => d.mine !== false && !d.done && d.others !== undefined
       && forSeason.includes(d) && (d.episodes || []).every((ep) => ep.season == null || ep.season === n));
-    const eligible = seasonFiles.filter(canExtend);
     const upgrade = t.id != null ? upgradeState(tvT, n) : null;
     // Upgrade quality running: say how far it is, here where it was started (and after a reload, on any device).
     const upgrading = s.transfers.find((d) => d.upgrade?.season === n);
@@ -2588,8 +2515,6 @@ function episodeList(c) {
         const u = upgradeState(tvT, n);
         if (u.text) toast(u.text);
       }],
-      tools && eligible.length > 0 && [icon('clock'), eligible.length > 1 ? T('Keep all {0} · {1} more days', eligible.length, extendDays()) : T('Keep {0} more days', extendDays()),
-        async () => { await extendItems(eligible); updateOpenTitle(); }],
       ready.length > 0 && [icon('phone'), T('Season to phone'), (o) => openTravelSeason(ready, `${t.title} · ${label(se)}`, o)],
       ...(tools ? packs : []).map((d) => [icon('download'), T('Season pack details'), (o) => openTransferDetails({ ...(c.entryNow() || { key: `title:${t.title}`, name: t.title }), transfers: [d] }, o)]),
       tools && list.length > 1 && (seasonFiles.length > 0 || leaving.length > 0) && [icon('trash'), T('Delete season'),
@@ -2643,11 +2568,10 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
       h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': f.converting ? T('{0}: getting ready to play', name) : T('Play {0}', name),
         'aria-disabled': f.converting ? 'true' : null, onclick: () => (f.converting ? toast(T('Almost ready. It can be played in a moment.')) : openPlayer(file)) }, art),
       body([done && watchedMark(), !f.converting && pct <= 1 && !done && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
-        tools && f.versions?.length > 1 && f.versionLabel, tools && f.expiresAt != null && h('span', { class: `expiry${f.expiresAt - Date.now() < 86400000 ? ' is-soon' : ''}` }, timeLeft(f.expiresAt))]),
+        tools && f.versions?.length > 1 && f.versionLabel]),
       rowMenu(T('More for {0}', name), [
         [icon('tv'), T('Play on TV'), (o) => openPicker(file, o)],
         [icon('phone'), T('Download to phone'), (o) => openTravel(file, o)],
-        tools && canExtend(f) && [icon('clock'), T('Keep {0} more days', extendDays()), async () => { await extendItems([f]); updateOpenTitle(); }],
         tools && [icon('trash'), T('Delete'), (o) => openDelete(file, o), 'is-danger'],
       ]));
   }
@@ -8638,7 +8562,7 @@ function renderView() {
 
 // ---------- settings ----------
 // Everyone: name, colours (a preset or their own four), and how Lilin behaves for them. The owner
-// also gets the server's rules (auto-delete) and the people who use it. Changes save straight away.
+// also gets the server's rules and the people who use it. Changes save straight away.
 let saveMeTimer = null;
 // Profile pictures: yours (person = state.me) or, for the owner, anyone's in People (person.id).
 function editPicture({ person, opener, over = false, done = null }) {
@@ -8877,7 +8801,6 @@ function select(options, value, onChange, label) {
   el.addEventListener('change', () => onChange(el.value));
   return el;
 }
-const days = (n) => (n ? plural(n, 'day') : T('Never'));
 
 function themeSwatch(key, t, selected, onPick) {
   return h('button', {
@@ -9865,16 +9788,11 @@ function signOutRow() {
   return settingsRow(T('Sign out'), T('Signs this browser out of Lilin.'), out);
 }
 
-// House → Server rules: how long downloads stay, and what new people get.
+// House → Server rules: what new people get (the clean-up rule is fixed, see src/cleanup.js).
 function ownerSettings() {
   const r = state.rules || {};
   const out = [h('h3', { class: 'set-head' }, T('Server rules'))];
-  out.push(settingsRow(T('Delete downloads after'), T('Counted from when each download finishes, per person. A video someone else still has stays.'),
-    select([0, 1, 3, 7, 14, 30].map((n) => [n, days(n)]), r.retentionDays ?? 7, (v) => saveRules({ retentionDays: Number(v) }), T('Delete downloads after'))));
-  out.push(settingsRow(T('“Keep longer” adds'), null,
-    select([1, 3, 7, 14, 30].map((n) => [n, plural(n, 'day')]), r.extendDays ?? 7, (v) => saveRules({ extendDays: Number(v) }), T('Keep longer adds'))));
-  out.push(settingsRow(T('Times a video can be kept longer'), null,
-    select([[0, T('No limit')], [1, T('Once')], [2, T('Twice')], [3, T('3 times')], [5, T('5 times')], [10, T('10 times')]], r.maxExtensions ?? 0, (v) => saveRules({ maxExtensions: Number(v) }), T('Times a video can be kept longer'))));
+  out.push(settingsRow(T('Clean-up'), T('Downloads older than a month that nobody has watched in 30 days are deleted. A show stays while anyone watches any of it.'), null));
   out.push(settingsRow(T('New people can download'), T('Otherwise they can only add what’s already on the server, until you allow them below.'),
     toggle(r.membersCanDownload !== false, (on) => saveRules({ membersCanDownload: on }), T('New people can download'))));
   out.push(settingsRow(T('Colours for new people'), T('Until they pick their own.'),
@@ -9940,8 +9858,6 @@ function peopleSettings() {
             if (u.isOwner) { input.checked = true; toast(T('The owner can always see activity')); return; }
             await personUpdate(u, { canSeeActivity: on });
           }, T('{0} can see activity', u.name))),
-        h('label', { class: 'person-toggle' }, T('Never auto-delete'),
-          toggle(u.keep, (on) => personUpdate(u, { keep: on }), T('Never auto-delete {0}’s videos', u.name))),
         h('label', { class: 'person-toggle person-library' }, T('Library'), libraryShareSelect(u)))))));
     // On the access list, but no account yet: they haven't signed in.
     const known = new Set(state.people.map((u) => String(u.email || '').toLowerCase()));
@@ -10012,8 +9928,9 @@ const ACTIVITY_TEXT = {
   restart: (d) => T('restarted {0}', d),
   add: (d) => T('added {0} to their library', d),
   remove: (d) => T('removed {0} from their library', d),
-  extend: (d) => T('kept {0} longer', d),
+  extend: (d) => T('kept {0} longer', d), // old log lines, from before Keep longer was removed
   expire: (d) => T('auto-deleted {0}', d),
+  cleanup: (d) => T('cleaned up {0} (nobody watched it in 30 days)', d),
   upgrade: (d) => T('upgraded the quality of {0}', d),
   blocked: (d) => T('tried to download {0}, which was blocked', d),
   slow: (d) => T('swapped out {0}, which downloaded too slowly to watch while downloading', d),
@@ -10152,12 +10069,12 @@ const ACTIVITY_KIND = {
   play: ['watch', 'play'], cast: ['watch', 'tv'], stop: ['watch', 'pause'], watch: ['watch', 'party'], subtitles: ['watch', 'info'],
   download: ['download', 'download'], pause: ['download', 'pause'], resume: ['download', 'download'], upgrade: ['download', 'upgrade'],
   blocked: ['download', 'close'], slow: ['download', 'convert'], travel: ['download', 'phone'],
-  add: ['library', 'plus'], remove: ['library', 'trash'], delete: ['library', 'trash'], extend: ['library', 'clock'], expire: ['library', 'clock'],
+  add: ['library', 'plus'], remove: ['library', 'trash'], delete: ['library', 'trash'], extend: ['library', 'clock'], expire: ['library', 'clock'], cleanup: ['library', 'trash'],
 };
 const ACTIVITY_FILTERS = [['all', 'All'], ['watch', 'Watching'], ['download', 'Downloads'], ['library', 'Library'], ['other', 'Other']];
 const kindOf = (action) => ACTIVITY_KIND[action] || ['other', action === 'settings' ? 'rules' : action === 'wake' || action === 'restart' ? 'server' : action === 'share' || action === 'trim' ? 'share' : 'me'];
 const SESSION_GAP = 60 * 60000; // events further apart than this start a new card
-const SYSTEM_USER = 'Lilin';    // auto-deletes and other things the server does by itself
+const SYSTEM_USER = 'Lilin';    // clean-ups and other things the server does by itself
 
 // "House S04 E08" → { show: 'House', season: 4, ep: 8 }
 function episodeOf(title) {
@@ -10589,7 +10506,7 @@ function renderHouseHub(body) {
   const newIdeas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : 0;
   const tools = [
     ...['house/activity', 'house/notes', 'house/clips', 'house/people', 'house/ideas'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
-    { route: 'house/downloads', line: stuck ? T('Needs attention') : active ? T('Downloading · {0}', plural(active, 'download')) : T('What’s downloading, and what leaves soon'),
+    { route: 'house/downloads', line: stuck ? T('Needs attention') : active ? T('Downloading · {0}', plural(active, 'download')) : T('What’s downloading, and what needs a look'),
       count: stuck, run: () => setView('house/downloads') },
     { label: T('Your channels'), line: T('What plays on Live'), run: (e) => PLACE_ACTIONS.channels(e.currentTarget) },
     ...['house/rules', 'house/screen-time'].filter((id) => allowedRoute(id, state.me, state.status)).map((id) => ({ route: id, run: () => setView(id) })),
@@ -10600,7 +10517,7 @@ function renderHouseHub(body) {
     'house/clips': state.clips?.clips ? plural(state.clips.clips.length, 'clip') : T('Clips from your desktop, ready to trim and share'),
     'house/people': T('Who uses Lilin and what they may do'),
     'house/ideas': newIdeas ? T('{0} new', newIdeas) : T('Ideas and bugs people sent you'),
-    'house/rules': T('Auto-delete, keeping longer, new people'),
+    'house/rules': T('Clean-up, new people'),
     'house/screen-time': T('Time on your devices'),
   };
   const counts = { 'house/ideas': newIdeas };

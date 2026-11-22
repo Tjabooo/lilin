@@ -1,7 +1,7 @@
 // Right now: up to three short rows of what's time-bound for you (a party about to start, what just became ready,
 // a Play that's still getting ready, Wrapped, copies for this phone). It sits under Discover's billboard, above the
 // type chips (never filtered by them). Each row links to the item's own home; its one quiet chip does the thing.
-// Play first: downloads are the owner's business, so titles about to be deleted, downloads that need a look and
+// Play first: downloads are the owner's business, so downloads that need a look and
 // transfer percentages are owner rows (ctx.owner); members see their own starts as "Getting it ready".
 // rightNowRows() is pure (tests/right-now.test.mjs); app.js hands in the data and runs the actions.
 import { T } from './i18n.js';
@@ -10,13 +10,12 @@ const HOUR = 3600000;
 export const HIDDEN_KEY = 'lilin.rn.hidden';
 export const PLAYED_KEY = 'lilin.rn.played';
 // Highest first; a kind collapses into one summary row when several things share it.
-export const KINDS = ['party', 'leaving', 'attention', 'preparing', 'ready', 'wrapped', 'phone', 'onway'];
+export const KINDS = ['party', 'attention', 'preparing', 'ready', 'wrapped', 'phone', 'onway'];
 const pct = (p) => `${Math.floor(Math.max(0, Math.min(1, p)) * 100)} %`;
 const names = (list) => list.slice(0, 2).map((e) => e.name).join(' · ') + (list.length > 2 ? ` · +${list.length - 2}` : '');
-const dayDiff = (a, b) => Math.round((new Date(a).setHours(12, 0, 0, 0) - new Date(b).setHours(12, 0, 0, 0)) / 86400000);
 
-// ctx: { now, owner, parties: [{ token, startsAt, started, title, poster }], entries (libraryUnion), keep (me.keep),
-// canExtend(f), played(f), travel (phone copies), touch, wrapped: { year, again } | null, convert, hidden: { id: at } }
+// ctx: { now, owner, parties: [{ token, startsAt, started, title, poster }], entries (libraryUnion),
+// played(f), travel (phone copies), touch, wrapped: { year, again } | null, convert, hidden: { id: at } }
 export function rightNowRows(ctx, max = 3) {
   const now = ctx.now ?? Date.now(), hidden = ctx.hidden || {}, entries = ctx.entries || [];
   const out = [];
@@ -36,24 +35,6 @@ export function rightNowRows(ctx, max = 3) {
 
   const owner = Boolean(ctx.owner);
   const downloads = owner ? { do: 'route', to: 'house/downloads' } : null;
-  if (owner && !ctx.keep) {
-    const leaving = entries.map((e) => ({ e, files: e.files.filter((f) => f.expiresAt != null && f.expiresAt - now < 48 * HOUR) }))
-      .filter((x) => x.files.length).sort((a, b) => Math.min(...a.files.map((f) => f.expiresAt)) - Math.min(...b.files.map((f) => f.expiresAt)));
-    const eligible = leaving.flatMap((x) => x.files.filter((f) => ctx.canExtend?.(f)));
-    const days = ctx.extendDays || 7;
-    if (leaving.length === 1) {
-      const { e, files } = leaving[0], at = Math.min(...files.map((f) => f.expiresAt)), d = dayDiff(at, now);
-      const sub = at - now < HOUR ? T('Leaves within the hour') : d <= 0 ? T('Leaves today') : d === 1 ? T('Leaves tomorrow') : T('Leaves in 2 days');
-      add({ id: `leaving:${e.key}`, kind: 'leaving', title: e.name, sub, thumb: e.poster, entry: e,
-        chip: eligible.length ? { label: T('Keep {0} more days', days), aria: T('Keep {0} {1} more days', e.name, days), act: { do: 'keep', files: eligible } } : null,
-        open: { do: 'title', entry: e } });
-    } else if (leaving.length) {
-      add({ id: 'leaving:many', kind: 'leaving', title: T('{0} titles leave within 2 days', leaving.length), sub: names(leaving.map((x) => x.e)), icon: 'clock',
-        chip: eligible.length ? { label: T('Keep all {0} more days', days), aria: T('Keep all {0} titles {1} more days', leaving.length, days), act: { do: 'keep', files: eligible } } : null,
-        open: downloads });
-    }
-  }
-
   const attention = owner ? entries.filter((e) => e.attention) : [];
   if (attention.length) add({ id: 'attention', kind: 'attention', title: attention.length === 1 ? T('1 download needs a look') : T('{0} downloads need a look', attention.length),
     sub: names(attention), icon: 'info', alert: true, chip: { label: T('See'), aria: T('See downloads that need a look'), act: downloads },

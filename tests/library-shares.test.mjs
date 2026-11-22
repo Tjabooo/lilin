@@ -7,10 +7,9 @@ import * as accounts from '../src/accounts.js';
 
 const visit = (email) => accounts.userFor({ headers: email ? { 'cf-access-authenticated-user-email': email } : {} });
 
-test('shared libraries: one merged library for the group, removals and keep-longer act on all', () => {
+test('shared libraries: one merged library for the group, removals act on all', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-shares-'));
   accounts.initAccounts({ dataDir: dir, adminEmails: ['owner@example.test'], mediaDir: null });
-  accounts.updateServerSettings({ retentionDays: 7 });
   const owner = visit('owner@example.test');
   const home = visit(null); // the "Home network" account
   const dad = visit('dad@example.test');
@@ -41,11 +40,6 @@ test('shared libraries: one merged library for the group, removals and keep-long
   assert.equal(accounts.hasEntry(dad.id, 'films/dune'), false);
   assert.ok(accounts.hasEntry(owner.id, 'films/dune'));
 
-  // keep longer moves the countdown for everyone in the group
-  const before = accounts.libraryOf(home.id).get('tv/show/s01e01').expiresAt;
-  const kept = accounts.extend(dad.id, 'tv/show/s01e01');
-  assert.ok(kept.expiresAt > before);
-  assert.equal(accounts.libraryOf(mum.id).get('tv/show/s01e01').expiresAt, kept.expiresAt);
 
   // the last removal frees the file
   assert.equal(accounts.removeEntry(dad.id, 'tv/show/s01e01'), true);

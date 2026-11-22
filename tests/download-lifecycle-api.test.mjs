@@ -135,7 +135,7 @@ test('partial packs claim only ready selected episodes, preserve identity/dates,
   const final = await request('/api/library');
   assert.deepEqual(final.items.map((v) => v.episode).sort(), [1, 2]);
   const retained = final.items.find((v) => v.episode === 1);
-  assert.equal(retained.addedAt, before.addedAt); assert.equal(retained.expiresAt, before.expiresAt);
+  assert.equal(retained.addedAt, before.addedAt);
   assert.deepEqual((await request('/api/library', undefined, 'other@test.local')).items.map((v) => v.episode).sort(), [1, 2]);
   const ownerView = (await request('/api/downloads?all=1', undefined, 'owner@test.local')).items[0];
   assert.deepEqual(ownerView.libraryIds, [], 'all-downloads view does not expose another viewer’s library membership');

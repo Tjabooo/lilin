@@ -8,18 +8,18 @@ const NOW = Date.UTC(2026, 10, 17, 12);
 const H = 3600000;
 const film = (id, extra = {}) => ({ id, mediaKey: `k-${id}`, title: `Film ${id}`, tmdbId: Number(id.replace(/\D/g, '')) || 1, addedAt: NOW - 72 * H, ...extra });
 const dl = (hash, extra = {}) => ({ hash, name: 'release', canonicalTitle: `Download ${hash}`, mediaType: 'movie', tmdbId: 900 + hash.length, progress: 0.4, size: 100, mine: true, done: false, state: 'downloading', ...extra });
-const ctx = (extra = {}) => ({ now: NOW, owner: true, entries: [], parties: [], travel: [], hidden: {}, canExtend: () => true, played: () => false, ...extra });
+const ctx = (extra = {}) => ({ now: NOW, owner: true, entries: [], parties: [], travel: [], hidden: {}, played: () => false, ...extra });
 
 test('nothing time-bound: no rows, so the strip stays absent', () => {
   assert.deepEqual(rightNowRows(ctx({ entries: libraryUnion([film('f1')]) })), []);
 });
 
 test('rows come in priority order and at most three show', () => {
-  const entries = libraryUnion([film('f1', { expiresAt: NOW + 20 * H }), film('f2', { addedAt: NOW - H })], [], [dl('a'), dl('bb', { state: 'error' })]);
+  const entries = libraryUnion([film('f1'), film('f2', { addedAt: NOW - H })], [], [dl('a'), dl('bb', { state: 'error' })]);
   const rows = rightNowRows(ctx({ entries, parties: [{ token: 't', startsAt: NOW + 2 * H, title: 'The Odyssey', mine: true }], wrapped: { year: 2026 } }));
-  assert.deepEqual(rows.map((r) => r.kind), ['party', 'leaving', 'attention']);
+  assert.deepEqual(rows.map((r) => r.kind), ['party', 'attention', 'ready']);
   const all = rightNowRows(ctx({ entries, parties: [{ token: 't', startsAt: NOW + 2 * H, title: 'The Odyssey' }], wrapped: { year: 2026 } }), 10);
-  assert.deepEqual(all.map((r) => r.kind), ['party', 'leaving', 'attention', 'ready', 'wrapped', 'onway']);
+  assert.deepEqual(all.map((r) => r.kind), ['party', 'attention', 'ready', 'wrapped', 'onway']);
   for (const r of all) assert.ok(KINDS.includes(r.kind));
 });
 
@@ -29,23 +29,6 @@ test('a party shows from 12 hours before it starts, and while it runs', () => {
   const [row] = rightNowRows(ctx({ parties: [later, soon] }));
   assert.equal(row.id, 'party:soon'); assert.equal(row.chip.act.do, 'join'); assert.equal(row.open.to, 'live');
   assert.equal(rightNowRows(ctx({ parties: [{ token: 'on', startsAt: NOW - H, started: true, title: 'On' }] }))[0].chip.act.token, 'on');
-});
-
-test('kinds of the same type collapse into one summary row', () => {
-  const entries = libraryUnion([film('f1', { expiresAt: NOW + 10 * H }), film('f2', { expiresAt: NOW + 30 * H }), film('f3', { expiresAt: NOW + 90 * H })]);
-  const [row, ...rest] = rightNowRows(ctx({ entries }));
-  assert.equal(rest.length, 0);
-  assert.equal(row.id, 'leaving:many'); assert.match(row.title, /^2 titles leave/);
-  assert.deepEqual(row.open, { do: 'route', to: 'house/downloads' });
-  assert.equal(row.chip.act.files.length, 2);
-  const one = rightNowRows(ctx({ entries: libraryUnion([film('f1', { expiresAt: NOW + 10 * H })]) }))[0];
-  assert.equal(one.chip.act.do, 'keep'); assert.equal(one.open.do, 'title');
-});
-
-test('Keep only when the rules allow it, and never for people whose videos are kept', () => {
-  const entries = libraryUnion([film('f1', { expiresAt: NOW + 10 * H })]);
-  assert.equal(rightNowRows(ctx({ entries, canExtend: () => false }))[0].chip, null);
-  assert.deepEqual(rightNowRows(ctx({ entries, keep: true })), []);
 });
 
 test('ready: arrived in the last day and not played yet; one ✕ hides it on this device', () => {
@@ -58,7 +41,7 @@ test('ready: arrived in the last day and not played yet; one ✕ hides it on thi
 });
 
 test('only ready, Wrapped and phone rows can be dismissed; the rest resolve themselves', () => {
-  const entries = libraryUnion([film('f1', { expiresAt: NOW + 5 * H })], [], [dl('a'), dl('bb', { state: 'error' })]);
+  const entries = libraryUnion([film('f1')], [], [dl('a'), dl('bb', { state: 'error' })]);
   const rows = rightNowRows(ctx({ entries, wrapped: { year: 2026 }, touch: true, travel: [{ id: 'x', quality: 'small', state: 'ready', url: '/t/x', title: 'X' }] }), 10);
   assert.deepEqual(rows.filter((r) => r.dismiss).map((r) => r.kind), ['wrapped', 'phone']);
 });
@@ -77,9 +60,9 @@ test('downloads (owners): attention links to House › Downloads; the rest is on
 });
 
 test('members (play first): no downloads, no deletes; their own starts say Getting it ready and Play', () => {
-  const entries = libraryUnion([film('f1', { expiresAt: NOW + 10 * H })], [], [dl('a', { progress: 0.64 }), dl('bb', { state: 'missingFiles' })]);
+  const entries = libraryUnion([film('f1')], [], [dl('a', { progress: 0.64 }), dl('bb', { state: 'missingFiles' })]);
   const rows = rightNowRows(ctx({ owner: false, entries }), 10);
-  assert.ok(!rows.some((r) => ['leaving', 'attention'].includes(r.kind)), rows.map((r) => r.kind).join());
+  assert.ok(!rows.some((r) => r.kind === 'attention'), rows.map((r) => r.kind).join());
   const onway = rows.find((r) => r.kind === 'onway');
   assert.equal(onway.title, 'Getting 2 titles ready'); assert.equal(onway.progress, undefined);
   assert.ok(!JSON.stringify(rows).includes('downloads'), 'no row points at downloads');

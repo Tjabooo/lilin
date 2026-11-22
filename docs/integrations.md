@@ -27,7 +27,7 @@ Sweden's public service broadcaster has a large, free catalogue of documentaries
 
 - **Discover → Documentaries** and search show SVT's titles. **Add** saves them to the media folder (`TV/<title>/Season 01/…`, `Movies/<title>/…`) as H.264/AAC MP4 with Swedish subtitles as `.sv.srt`, without re-encoding, so they play everywhere the library does. Pause, resume and remove work as for torrents.
 - **Smart Download** takes a title from SVT Play first when it's originally in Swedish and SVT has exactly that title, and otherwise when no torrent can be found.
-- Videos SVT marks as copy protected and live broadcasts are refused. Saved copies follow your library's auto-delete rules like everything else; what you may keep and share is up to you and your local law.
+- Videos SVT marks as copy protected and live broadcasts are refused. Saved copies follow the library clean-up like everything else; what you may keep and share is up to you and your local law.
 
 Lilin reads SVT's public pages, which can change without notice. If they do, its rows disappear and `[svt]` lines appear in the log; the rest of Lilin carries on.
 

@@ -5,8 +5,8 @@
 //
 // Stored in SQLite (.lilin.db, Node's built-in node:sqlite, so still no dependencies):
 //   users     one row per person, with their settings as JSON
-//   library   what's in each person's library: a video (by media key), when it was added and when
-//             it gets deleted (expires_at; null = kept)
+//   library   what's in each person's library: a video (by media key) and when it was added
+//             (expires_at, extensions and users.keep are left over from the old countdown; unused)
 //   torrents  who started each download, so its files land in their library when it finishes
 //   media     videos Lilin tracks; one that nobody has in their library any more is deleted
 //   progress  where each person stopped watching, so it resumes on any of their devices
@@ -15,8 +15,8 @@
 //             (see social.js; watch_log keeps watch time after progress rows are deleted)
 //
 // Shared libraries (library_shares): people the owner puts in one group see and manage one library
-// together. Rows stay per person (who added it, their countdown); every read merges the group's rows,
-// and removing or keeping longer acts on the whole group. Watch progress stays personal.
+// together. Rows stay per person (who added it); every read merges the group's rows,
+// and removing acts on the whole group. Watch progress stays personal.
 //
 // A video is one file on disk however many people have it: "Add to my library" adds a row, never a
 // copy. Its media key is its path inside MEDIA_DIR without the extension, lower case, so the MP4
@@ -31,19 +31,13 @@ process.emitWarning = (w, ...rest) => (/SQLite/.test(String(w?.message || w)) ? 
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite');
 process.emitWarning = emitWarning;
 
-const DAY = 86400000;
 const HOME = 'home';
 
 // Server-wide rules, changed by the owner in Settings.
 const SERVER_DEFAULTS = {
-  retentionDays: 7,        // downloads are deleted this many days after they finish (0 = never)
-  extendDays: 7,           // "Keep longer" adds this many days
-  maxExtensions: 0,        // times one video can be extended (0 = no limit)
   membersCanDownload: true, // new people may start downloads
   defaultTheme: 'lilin',
 };
-const RETENTION_CHOICES = [0, 1, 3, 7, 14, 30];
-const EXTEND_CHOICES = [1, 3, 7, 14, 30];
 
 // Per-person preferences (Settings tab).
 const USER_DEFAULTS = { theme: null, language: '', subLang: '', quality: 'all', downloadProfile: '', maxSize: 0, audioLang: '', dubbed: [], startView: 'discover', librarySort: 'watched', seenUpdate: '', skipIntro: 'button',
@@ -54,7 +48,7 @@ const DOWNLOAD_PROFILES = ['save', 'balanced', 'best'];
 const MAX_SIZES = [0, 1, 2, 4, 8, 15, 30, 60]; // GB per film or episode; 0 = no limit
 const QUALITIES = ['all', '2160p', '1440p', '1080p', '720p'];
 const START_VIEWS = ['discover', 'live', 'library', 'downloads', 'you']; // 'downloads' = Library › Downloads (older choice)
-const LIBRARY_SORTS = ['watched', 'newest', 'expiring', 'title']; // watched = Recently watched (the default)
+const LIBRARY_SORTS = ['watched', 'newest', 'title']; // watched = Recently watched (the default)
 const SKIP_INTRO = ['button', 'auto']; // Skip intro: offer a button, or skip on its own
 const HEX = /^#[0-9a-f]{6}$/i;
 const THEME_KEYS = ['bg', 'surface', 'text', 'accent'];
@@ -206,27 +200,12 @@ export const setMigrated = () => metaSet('migrated', '1');
 export function serverSettings() {
   let saved = {};
   try { saved = JSON.parse(metaGet('settings') || '{}'); } catch { /* defaults */ }
+  delete saved.retentionDays; delete saved.extendDays; delete saved.maxExtensions; // the old countdown's
   return { ...SERVER_DEFAULTS, ...saved };
 }
 
 export function updateServerSettings(patch) {
-  const before = serverSettings();
-  const next = { ...before };
-  if ('retentionDays' in patch) {
-    const v = Number(patch.retentionDays);
-    if (!RETENTION_CHOICES.includes(v)) throw httpError(400, 'Pick one of the listed periods.');
-    next.retentionDays = v;
-  }
-  if ('extendDays' in patch) {
-    const v = Number(patch.extendDays);
-    if (!EXTEND_CHOICES.includes(v)) throw httpError(400, 'Pick one of the listed periods.');
-    next.extendDays = v;
-  }
-  if ('maxExtensions' in patch) {
-    const v = Number(patch.maxExtensions);
-    if (!Number.isInteger(v) || v < 0 || v > 20) throw httpError(400, 'Extensions must be between 0 (no limit) and 20.');
-    next.maxExtensions = v;
-  }
+  const next = serverSettings();
   if ('membersCanDownload' in patch) next.membersCanDownload = Boolean(patch.membersCanDownload);
   // Live TV's name (empty: LIVE_TV_NAME from .env, else "Lilin TV").
   if ('liveName' in patch) {
@@ -239,14 +218,9 @@ export function updateServerSettings(patch) {
     next.defaultTheme = patch.defaultTheme;
   }
   metaSet('settings', JSON.stringify(next));
-  // Turning auto-delete back on: nothing is deleted straight away because of dates set long ago.
-  if (!before.retentionDays && next.retentionDays) {
-    db.prepare('UPDATE library SET expires_at = ? WHERE expires_at IS NOT NULL AND expires_at < ?')
-      .run(Date.now() + next.retentionDays * DAY, Date.now() + DAY);
-  }
   return next;
 }
-export const choices = () => ({ retention: RETENTION_CHOICES, extend: EXTEND_CHOICES });
+export const choices = () => ({});
 
 // ---------- users ----------
 const emailOf = (req) => String(req.headers['cf-access-authenticated-user-email'] || '').trim().toLowerCase() || HOME;
@@ -338,7 +312,6 @@ function rowToUser(r) {
     canSeeActivity: isOwner || Boolean(r.can_see_activity),
     // Notes: owners only, and only those in NOTES_EMAILS when it is set
     canSeeNotes: isOwner && (!notesEmails.length || notesEmails.includes(r.email)),
-    keep: Boolean(r.keep),
     settings: { ...USER_DEFAULTS, ...settings },
     createdAt: r.created_at,
     lastSeen: r.last_seen,
@@ -443,7 +416,7 @@ function cleanTheme(t) {
 
 // What the browser gets about the person signed in.
 export function publicUser(u) {
-  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), canSeeActivity: u.canSeeActivity, canSeeNotes: Boolean(u.canSeeNotes), keep: u.keep, settings: u.settings,
+  return { id: u.id, email: u.email === HOME ? null : u.email, name: u.name, avatar: u.avatar, isOwner: u.isOwner, canDownload: u.canDownload, canInvite: u.canInvite, restricted: Boolean(u.restricted), canSeeActivity: u.canSeeActivity, canSeeNotes: Boolean(u.canSeeNotes), settings: u.settings,
     sharedWith: libraryMates(u.id).filter((id) => id !== u.id).map((id) => userById(id)).filter(Boolean).map((m) => ({ id: m.id, name: m.name, avatar: m.avatar })) };
 }
 
@@ -480,13 +453,6 @@ export function updateUser(id, patch) {
     db.prepare('UPDATE users SET can_see_activity = ? WHERE id = ?').run(patch.canSeeActivity ? 1 : 0, id);
   }
   if ('libraryWith' in patch) shareLibrary(id, patch.libraryWith == null || patch.libraryWith === '' ? null : Number(patch.libraryWith));
-  if ('keep' in patch) {
-    db.prepare('UPDATE users SET keep = ? WHERE id = ?').run(patch.keep ? 1 : 0, id);
-    // Exempt: everything they have stays. No longer exempt: their videos start a fresh countdown.
-    const days = serverSettings().retentionDays;
-    if (patch.keep) db.prepare('UPDATE library SET expires_at = NULL WHERE user_id = ?').run(id);
-    else if (days) db.prepare("UPDATE library SET expires_at = ? WHERE user_id = ? AND expires_at IS NULL AND source != 'existing'").run(Date.now() + days * DAY, id);
-  }
   return userById(id);
 }
 
@@ -507,13 +473,7 @@ function track(key) {
 }
 
 // ---------- library entries ----------
-function expiryFor(userId) {
-  const days = serverSettings().retentionDays;
-  const u = userById(userId);
-  return !days || u?.keep ? null : Date.now() + days * DAY;
-}
-
-const rowToEntry = (r) => ({ key: r.media_key, source: r.source, addedAt: r.added_at, expiresAt: r.expires_at, extensions: r.extensions });
+const rowToEntry = (r) => ({ key: r.media_key, source: r.source, addedAt: r.added_at });
 
 // ---------- shared libraries ----------
 // Everyone whose library this person sees (themselves included).
@@ -550,19 +510,14 @@ export function shareLibrary(userId, withId) {
   return libraryMates(userId);
 }
 
-// One video seen by a whole group: kept forever if anyone keeps it, else the latest countdown.
+// One video seen by a whole group: the first time anyone in it added it.
 function mergeEntries(rows) {
   const out = new Map();
   for (const r of rows) {
     const e = rowToEntry(r);
     const had = out.get(e.key);
     if (!had) { out.set(e.key, e); continue; }
-    const later = had.expiresAt != null && (e.expiresAt == null || e.expiresAt > had.expiresAt);
-    out.set(e.key, {
-      ...(later ? e : had),
-      addedAt: Math.min(had.addedAt, e.addedAt),
-      extensions: Math.max(had.extensions, e.extensions),
-    });
+    out.set(e.key, { ...had, addedAt: Math.min(had.addedAt, e.addedAt), source: had.source === 'existing' ? had.source : e.source });
   }
   return out;
 }
@@ -601,14 +556,13 @@ export function holders(key) {
 export const heldOutside = (key, userId) => holders(key).some((id) => !sameLibrary(id, userId));
 
 // source: 'download' (they downloaded it), 'added' (added from the server), 'existing' (on the server
-// before accounts, or copied in by hand: kept, no countdown). Adding what's already there does nothing.
+// before accounts, or copied in by hand: the clean-up never deletes those). Adding what's already there does nothing.
 export function addEntry(userId, key, source) {
   if (!userId || !key) return false;
   track(key);
   if (hasEntry(userId, key)) return false; // already in their (shared) library
-  const expires = source === 'existing' ? null : expiryFor(userId);
-  return db.prepare('INSERT OR IGNORE INTO library (user_id, media_key, source, added_at, expires_at) VALUES (?, ?, ?, ?, ?)')
-    .run(userId, key, source, Date.now(), expires).changes > 0;
+  return db.prepare('INSERT OR IGNORE INTO library (user_id, media_key, source, added_at) VALUES (?, ?, ?, ?)')
+    .run(userId, key, source, Date.now()).changes > 0;
 }
 
 // Returns true when nobody has the video any more (the caller deletes the file).
@@ -622,7 +576,7 @@ export function removeAll(key) {
   db.prepare('DELETE FROM library WHERE media_key = ?').run(key);
 }
 // A video replaced by a better copy (Upgrade quality): everyone who had the old one has the new one,
-// with the same countdown and the same place in it. Returns the number of libraries moved.
+// with the same date added and the same place in it. Returns the number of libraries moved.
 export function moveMedia(oldKey, newKey) {
   if (!oldKey || !newKey || oldKey === newKey) return 0;
   track(newKey);
@@ -633,34 +587,20 @@ export function moveMedia(oldKey, newKey) {
   return moved;
 }
 
-export function extend(userId, key) {
-  const ids = libraryMates(userId);
-  const r = libraryOf(userId).get(key);
-  if (!r) throw httpError(404, 'That isn’t in your library.');
-  if (r.expiresAt == null) return r;
-  const { extendDays, maxExtensions } = serverSettings();
-  if (maxExtensions && r.extensions >= maxExtensions) {
-    throw httpError(409, `This has already been kept longer ${maxExtensions === 1 ? 'once' : `${maxExtensions} times`}, the most the server allows.`);
+// What the clean-up (cleanup.js) needs: every video in a library, when it first arrived and whether it was
+// copied in by hand, and when anyone last watched each video (a saved position or a day of watch time).
+export function cleanupFacts() {
+  const videos = db.prepare(`SELECT l.media_key AS key, MIN(MIN(l.added_at), COALESCE(MIN(m.first_seen), MIN(l.added_at))) AS addedAt,
+      MAX(l.source = 'existing') AS existing FROM library l LEFT JOIN media m ON m.key = l.media_key GROUP BY l.media_key`).all()
+    .map((r) => ({ key: r.key, addedAt: Number(r.addedAt), existing: Boolean(r.existing) }));
+  const watched = new Map();
+  const saw = (ref, at) => { const key = ref.slice(2); if (at > (watched.get(key) || 0)) watched.set(key, at); };
+  for (const r of db.prepare("SELECT ref, MAX(updated_at) AS at FROM progress WHERE ref LIKE 'm:%' GROUP BY ref").all()) saw(r.ref, Number(r.at));
+  for (const r of db.prepare("SELECT ref, MAX(day) AS day FROM watch_log WHERE ref LIKE 'm:%' GROUP BY ref").all()) {
+    const end = new Date(`${r.day}T23:59:59`).getTime(); // the end of that (local) day
+    if (Number.isFinite(end)) saw(r.ref, end);
   }
-  const expires = Math.max(r.expiresAt, Date.now()) + extendDays * DAY;
-  // Every countdown in the group moves, so the merged entry shows the same date for everyone.
-  db.prepare(`UPDATE library SET expires_at = ?, extensions = ? WHERE media_key = ? AND expires_at IS NOT NULL AND user_id IN (${matesSql(ids)})`)
-    .run(expires, r.extensions + 1, key, ...ids);
-  return { ...r, expiresAt: expires, extensions: r.extensions + 1 };
-}
-
-// Removes library entries whose time is up. Returns the keys nobody has any more, marked for deletion.
-export function expireDue() {
-  if (!serverSettings().retentionDays) return [];
-  const due = db.prepare('SELECT user_id, media_key FROM library WHERE expires_at IS NOT NULL AND expires_at <= ?').all(Date.now());
-  const orphaned = new Set();
-  for (const r of due) {
-    // only this row: someone in a shared library may still have their own, later countdown
-    db.prepare('DELETE FROM library WHERE user_id = ? AND media_key = ?').run(r.user_id, r.media_key);
-    if (!holders(r.media_key).length) orphaned.add(r.media_key);
-  }
-  for (const key of orphaned) markDeleting(key);
-  return [...orphaned];
+  return { videos, watched };
 }
 
 // Videos waiting to be deleted (a delete can fail while the file is playing; it's retried).

@@ -12,19 +12,18 @@ const ROLES = {
   restricted: { canGet: false, search: true, owner: false, admin: false },
 };
 const base = { mine: 0, preparing: false, play: null, onServer: 0, transfers: 0, playNow: false, tmdb: true, unreleased: false,
-  leaving: false, keep: false, expires: false, ambiguous: false, anime: false, versions: 0 };
+  ambiguous: false, anime: false, versions: 0 };
 // One fixture per state, for films and shows.
 const FIXTURES = {
   notOnLilin: {},
   onServer: { onServer: 3 },
   onItsWay: { transfers: 1, playNow: true },
   onItsWayNoStream: { transfers: 1 },
-  preparing: { mine: 1, preparing: true, expires: true, keep: true },
-  ready: { mine: 2, play: 'resume', expires: true, keep: true, versions: 2, anime: true, ambiguous: true },
+  preparing: { mine: 1, preparing: true },
+  ready: { mine: 2, play: 'resume', versions: 2, anime: true, ambiguous: true },
   readyStart: { mine: 1, play: 'start' },
   caughtUp: { mine: 4, play: null },
   caughtUpMore: { mine: 4, play: null, onServer: 2 },
-  leavingSoon: { mine: 1, play: 'play', leaving: true, expires: true, keep: true },
   unreleased: { unreleased: true },
   anime: { anime: true },
 };
@@ -44,10 +43,9 @@ test('every state has at most one primary (gold) button, and it is never repeate
   }
 });
 
-test('states follow the title: yours, preparing, leaving soon, on its way, on the server, coming soon, not here', () => {
+test('states follow the title: yours, preparing, on its way, on the server, coming soon, not here', () => {
   assert.equal(pageState({ ...base, mine: 1 }), 'ready');
   assert.equal(pageState({ ...base, mine: 1, preparing: true }), 'preparing');
-  assert.equal(pageState({ ...base, mine: 1, leaving: true }), 'leavingSoon');
   assert.equal(pageState({ ...base, transfers: 1, onServer: 2 }), 'onItsWay');
   assert.equal(pageState({ ...base, onServer: 2, unreleased: true }), 'onServer');
   assert.equal(pageState({ ...base, unreleased: true }), 'unreleased');
@@ -57,7 +55,6 @@ test('states follow the title: yours, preparing, leaving soon, on its way, on th
 test('Play is the gold button wherever something plays now or can start playing', () => {
   const m = (type, f, r = ROLES.dl) => titleModel({ ...base, ...r, ...f, type });
   assert.equal(m('movie', FIXTURES.ready).primary, 'resume');
-  assert.equal(m('movie', FIXTURES.leavingSoon).primary, 'play');
   assert.equal(m('movie', FIXTURES.preparing).primary, null, 'Preparing playback… is not lit');
   assert.equal(m('movie', FIXTURES.onItsWay).primary, 'play', 'getting ready: Play opens it');
   assert.equal(m('movie', FIXTURES.onItsWayNoStream).primary, 'play');
@@ -83,11 +80,11 @@ test('nothing lost: every action is reachable in some state, the download tools 
   for (const id of ['play', 'resume', 'save', 'trailer', 'rate', 'review', 'playOnTv', 'toPhone', 'versions', 'episodes', 'identityNote']) {
     assert.ok(everyone.has(id), `${id} is reachable`);
   }
-  for (const id of ['download', 'moreEpisodes', 'addSeason', 'delete', 'keep', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
+  for (const id of ['download', 'moreEpisodes', 'addSeason', 'delete', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
 });
 
-test('members never meet a download tool: no Add, Download, Keep, Delete or transfer details', () => {
-  const tools = ['download', 'add', 'addAll', 'addPlay', 'playNow', 'moreEpisodes', 'addSeason', 'advanced', 'getVersion', 'details', 'keep', 'delete', 'identify'];
+test('members never meet a download tool: no Add, Download, Delete or transfer details', () => {
+  const tools = ['download', 'add', 'addAll', 'addPlay', 'playNow', 'moreEpisodes', 'addSeason', 'advanced', 'getVersion', 'details', 'delete', 'identify'];
   for (const { role, type, name, model } of all) {
     if (role === 'owner') continue;
     for (const id of [model.primary, ...model.secondary, ...model.more, ...model.inline]) assert.ok(!tools.includes(id), `${role} ${type} ${name}: ${id}`);

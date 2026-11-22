@@ -44,7 +44,7 @@ Docker, and installs as a web app on your phone's home screen.
 - **Notifications** on phones and computers (Web Push, nothing to sign up for): new titles, new
   episodes and Watch Together invites, each switchable.
 - **Personal accounts** through Cloudflare Access: everyone gets their own library, progress and
-  settings; files exist once on disk and auto-delete when nobody keeps them.
+  settings; files exist once on disk, and downloads nobody has watched for a month are cleaned up.
 - **For the owner**: Activity, a House dashboard for the server and home machines, game Clips with
   share links and a lossless trimmer (`node setup.js clipper` installs
   [Clipper](https://github.com/Tjabooo/clipper) to record them), and a shared Notes inbox with image

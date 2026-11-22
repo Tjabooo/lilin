@@ -70,9 +70,8 @@ test('film identification API requires owner access and changes only the selecte
     const identified = await request('/api/library');
     assert.equal(identified.items.find((f) => f.id === one.id).tmdbId, movies[1].id);
     assert.equal(identified.items.find((f) => f.id === two.id).movieAmbiguous, true);
-    const before = identified.items.find((f) => f.id === one.id).expiresAt;
-    const extended = await request('/api/library/extend', { ids: [one.id] });
-    assert.equal(extended.entries[0].expiresAt, before + 7 * 86400000);
+    assert.equal(identified.items.find((f) => f.id === one.id).expiresAt, undefined, 'no countdown any more');
+    await request('/api/library/extend', { ids: [one.id] }, undefined, 405);
     assert.equal((await request('/api/library', undefined, 'member@test.local')).items.length, 0);
     await request('/api/downloads/add', { link: `magnet:?xt=urn:btih:${'a'.repeat(40)}`, name: 'Verity.2026.1080p', movieId: movies[0].id });
     assert.match(lastTorrentForm, /name="savepath"/);

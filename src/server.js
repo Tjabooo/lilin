@@ -68,6 +68,7 @@ import { fakeRelease } from './fake-release.js';
 import { mainVideo, otherFilm } from './same-name-film.js';
 import { isDualAudio, PLAY_MARGIN } from './recommend.js';
 import * as accounts from './accounts.js';
+import * as cleanup from './cleanup.js';
 import * as live from './live.js';
 import { NotesStore } from './notes.js';
 import { NotesUploads, mediaType } from './notes-media.js';
@@ -1376,11 +1377,10 @@ async function libraryView(user) {
     shows.filmInfo(items.map((i) => ({ ...i, mediaKey: accounts.mediaKey(i.full) })), tmdbOn ? tmdb : null),
   ]);
   if (tmdbOn) learnAnime(showList);
-  // `items` is this person's library, with when each video gets deleted. `server` is everything
+  // `items` is this person's library, with when each video was added. `server` is everything
   // else on the server (no word on whose it is), so search can offer to add it instead of downloading
   // it again.
   const mine = accounts.libraryOf(user.id);
-  const autoDelete = accounts.serverSettings().retentionDays > 0;
   const own = [];
   const server = [];
   for (const { full, ...rest } of items) {
@@ -1398,8 +1398,6 @@ async function libraryView(user) {
       convertPercent: Boolean(converting) && converting === full ? convertPercentOf(full) : null,
       source: entry.source,
       addedAt: entry.addedAt,
-      expiresAt: autoDelete ? entry.expiresAt : null,
-      extensions: entry.extensions,
     });
   }
   const myShows = new Set([...own, ...server].map((i) => i.show).filter(Boolean));
@@ -4713,9 +4711,9 @@ async function handleApi(req, res, url) {
     }
     if (p === '/api/admin/settings') {
       if (req.method === 'POST') {
-        const next = accounts.updateServerSettings(await readJson(req));
-        activity.record(req, 'settings', `auto-delete ${next.retentionDays ? `after ${next.retentionDays} days` : 'off'}`, { quietMs: 60000 });
-        lastExpiry = 0; // run the auto-delete check on the next round
+        const patch = await readJson(req);
+        const next = accounts.updateServerSettings(patch);
+        activity.record(req, 'settings', Object.keys(patch || {}).join(', ') || 'saved', { quietMs: 60000 });
         return sendJson(res, 200, { settings: next, choices: accounts.choices() });
       }
       return sendJson(res, 200, { settings: accounts.serverSettings(), choices: accounts.choices() });
@@ -4746,7 +4744,6 @@ async function handleApi(req, res, url) {
       if ('canInvite' in body) activity.record(req, 'permission', `${u.name} ${body.canInvite ? 'can' : 'can’t'} invite people`);
       if ('restricted' in body) activity.record(req, 'permission', `${u.name} ${body.restricted ? 'is restricted' : 'is no longer restricted'}`); // friends
       if ('canSeeActivity' in body) activity.record(req, 'permission', `${u.name} ${body.canSeeActivity ? 'can' : 'can’t'} see activity`);
-      if ('keep' in body) activity.record(req, 'permission', `${u.name}’s videos ${body.keep ? 'are never auto-deleted' : 'are auto-deleted again'}`);
       if ('libraryWith' in body) {
         const mates = accounts.libraryMates(u.id).filter((id) => id !== u.id).map((id) => accounts.userById(id)?.name).filter(Boolean);
         activity.record(req, 'permission', mates.length ? `${u.name} shares a library with ${mates.join(', ')}` : `${u.name} has their own library again`);
@@ -5406,14 +5403,6 @@ async function handleApi(req, res, url) {
     }
     if (added) activity.record(req, 'add', ids.length === 1 ? titleOf(librarySource(ids[0])) : `${added} videos`, { quietMs: 60000 });
     return sendJson(res, 200, { added });
-  }
-  // "Keep longer": push back when videos in your library are deleted.
-  if (p === '/api/library/extend' && req.method === 'POST') {
-    const ids = [].concat((await readJson(req)).ids || []).map(String).slice(0, 500);
-    const entries = ids.map((id) => accounts.extend(user.id, accounts.mediaKey(librarySource(id))));
-    const days = accounts.serverSettings().extendDays;
-    activity.record(req, 'extend', `${ids.length === 1 ? titleOf(librarySource(ids[0])) : `${ids.length} videos`} by ${days} days`, { quietMs: 60000 });
-    return sendJson(res, 200, { entries });
   }
   if ((p === '/api/downloads/add' || p === '/api/downloads/smart') && !user.canDownload) {
     throw new HttpError(403, 'The server’s owner hasn’t turned on downloads for you. Ask them, or add things that are already on the server.');
@@ -6196,7 +6185,7 @@ async function handleRequest(req, res) {
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/letterboxd(?:\/sync|\/import)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
-        || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/extend|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
+        || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
         || /^\/api\/admin\/notes(?:\/import|\/\d+(?:\/(?:trash|restore|share|unshare))?)?$/.test(url.pathname)
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
@@ -6673,7 +6662,7 @@ async function stopSeeding() {
 // Finished downloads go into the library of whoever started them (the torrent's lilin-u<id> tag, or
 // the infohash recorded when it was added). Torrents added straight in qBittorrent belong to the owner.
 // Videos that turn up in MEDIA_DIR any other way (copied in by hand, or there before accounts
-// existed) go into the owner's library as kept, so nothing that was already there gets auto-deleted.
+// existed) go into the owner's library as 'existing', so the clean-up never deletes what was already there.
 let completedClaims = null;
 function claimCompletedTorrents(torrents) {
   if (!MEDIA_DIR) return Promise.resolve();
@@ -6864,44 +6853,53 @@ async function claimFiles() {
   if (first) accounts.setMigrated();
 }
 
-// ---------- auto-delete ----------
-// Each video in someone's library has a date it goes (the owner sets how long, 7 days by default;
-// "Keep longer" pushes it back). When that passes it leaves their library, and once it's in nobody's
-// library the file is deleted. A delete that fails (the file is playing) is tried again next round.
+// ---------- clean-up ----------
+// Once an hour cleanup.js picks the downloads older than a month that nobody has watched in 30 days (shows as a
+// whole) and takes them out of every library; then the files go. A delete that fails (the file is playing) is
+// tried again next round. Live TV picks that are done (tv-picks.js forget) go through the same queue.
 const SYSTEM = { headers: { 'user-agent': 'Lilin' } }; // stands in for a request in the activity log
-async function expireLibrary() {
+const cleanedUp = new Set(); // keys the clean-up took, so the log says why they went
+let lastSweep = 0;
+async function cleanupLibrary() {
   if (!MEDIA_DIR) return;
-  const orphaned = accounts.expireDue();
+  if (Date.now() - lastSweep > 60 * 60 * 1000) {
+    lastSweep = Date.now();
+    const stale = cleanup.sweep(accounts, { run: true });
+    for (const v of stale) cleanedUp.add(v.key);
+    if (stale.length) {
+      console.log(`[cleanup] ${stale.length} video${stale.length === 1 ? '' : 's'} nobody has watched in ${cleanup.rules().idleDays} days`);
+      invalidateLibrary();
+    }
+  }
   const pending = accounts.pendingDeletes();
   if (!pending.length) return;
-  if (orphaned.length) invalidateLibrary();
   await scanLibrary();
   const byKey = new Map();
   for (const i of [...(libraryCache.all || []), ...(libraryCache.items || [])]) byKey.set(accounts.mediaKey(i.full), i); // the listed copy wins
   for (const key of pending) {
     const item = byKey.get(key);
-    if (!item) { accounts.markGone(key); continue; }
+    if (!item) { accounts.markGone(key); cleanedUp.delete(key); continue; }
     try {
       await deleteMedia(item.id, 'file');
       accounts.markGone(key);
-      activity.record(SYSTEM, 'expire', titleOf(item.full), { user: 'Lilin' });
+      activity.record(SYSTEM, cleanedUp.delete(key) ? 'cleanup' : 'expire', titleOf(item.full), { user: 'Lilin' });
     } catch (e) {
-      console.warn(`[library] couldn’t auto-delete ${item.file}: ${e.message} Trying again later.`);
+      console.warn(`[library] couldn’t delete ${item.file}: ${e.message} Trying again later.`);
     }
   }
 }
 
 let libraryBusy = false;
-let lastExpiry = 0;
+let lastCleanup = 0;
 async function libraryRound() {
   if (libraryBusy) return;
   libraryBusy = true;
   try {
     await claimFiles().catch((e) => console.warn(`[accounts] ${e.message}`));
     await stopSeeding();
-    if (Date.now() - lastExpiry > 10 * 60 * 1000) {
-      lastExpiry = Date.now();
-      await expireLibrary().catch((e) => console.warn(`[library] auto-delete: ${e.message}`));
+    if (Date.now() - lastCleanup > 10 * 60 * 1000) {
+      lastCleanup = Date.now();
+      await cleanupLibrary().catch((e) => console.warn(`[cleanup] ${e.message}`));
     }
   } finally {
     libraryBusy = false;

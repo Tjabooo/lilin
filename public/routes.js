@@ -44,7 +44,7 @@ export const ROUTES = {
   // House: the owner's tools, one tile each (the machines page used to be called House).
   house: { view: 'house', tab: 'house', label: 'House', allowed: owner },
   'house/machines': { view: 'house', tab: 'house', sub: 'machines', group: 'tools', label: 'Machines' },
-  // Transfers are the owner's business: what's downloading, what needs a look, what leaves soon, copies for phones.
+  // Transfers are the owner's business: what's downloading, what needs a look, copies for phones.
   // It draws in the old Library view (#view-library), so its polling and live updates carry on as they were.
   'house/downloads': { view: 'library', tab: 'house', sub: 'downloads', group: 'tools', label: 'Downloads' },
   'house/activity': { view: 'activity', tab: 'house', sub: 'activity', group: 'tools', label: 'Activity' },
