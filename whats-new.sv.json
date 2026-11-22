@@ -1,4 +1,13 @@
 {
+  "2026-11-22-review-read-more": {
+    "title": "Långa recensioner öppnas på plats",
+    "items": {
+      "Read more on long reviews": {
+        "title": "Läs mer på långa recensioner",
+        "text": "En recension som är för lång för att få plats på en titelsida eller en profil slutar nu med Läs mer. Tryck för att läsa hela där du är, och Visa mindre för att fälla ihop den igen."
+      }
+    }
+  },
   "2026-11-22-tv-reviews": {
     "title": "Recensioner på tv:n",
     "items": {

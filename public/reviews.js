@@ -29,6 +29,21 @@ export function summaryText({ average, ratings = 0, count = 0 }) {
   return parts.join(' · ');
 }
 
+// A clamped review gets a "Read more" link, shown only when the text really is cut off (checked again
+// whenever its size changes, e.g. when a spoiler is revealed or the window is resized).
+export function readMore(h, textEl, cls = 'clamp') {
+  const btn = h('button', { type: 'button', class: 'review-link review-more', hidden: true, 'aria-expanded': 'false' }, T('Read more'));
+  btn.onclick = () => {
+    const open = textEl.classList.toggle(cls) === false;
+    btn.textContent = open ? T('Show less') : T('Read more');
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  const check = () => { if (textEl.classList.contains(cls)) btn.hidden = textEl.hidden || textEl.scrollHeight <= textEl.clientHeight + 1; };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(check).observe(textEl);
+  else requestAnimationFrame(check);
+  return btn;
+}
+
 export function createReviews({ h, api, jsonPost, toast, people, me = () => null, sheet, openProfile = null }) {
   const face = (p, opts) => people?.face(p, opts) || null;
   const blocked = () => Boolean(me()?.restricted);
@@ -220,6 +235,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
       e.currentTarget.remove(); textEl.hidden = false;
     } }, h('strong', {}, T('Contains spoilers')), h('span', {}, T('Tap to show')));
     if (hide) textEl.hidden = true;
+    const more = !full && readMore(h, textEl);
     const meta = [r.stars && starRow(r.stars), h('time', { datetime: new Date(r.created).toISOString() }, reviewDate(r.created)),
       r.edited && h('span', {}, T('edited')), r.spoiler && r.mine && h('span', {}, T('marked as a spoiler'))].filter(Boolean);
     const actions = full && (r.mine || r.canRemove) && h('div', { class: 'review-actions' },
@@ -242,7 +258,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
       h('div', { class: 'review-body' },
         h('div', { class: 'review-who' }, toProfile ? h('button', { type: 'button', class: 'review-name-btn', onclick: toProfile }, h('strong', {}, r.mine ? T('You') : r.name)) : h('strong', {}, r.mine ? T('You') : r.name), r.friend && h('span', { class: 'review-friend' }, T('Friend'))),
         h('div', { class: 'review-meta' }, ...meta.flatMap((m, i) => (i ? [h('span', { class: 'dot', 'aria-hidden': 'true' }, '·'), m] : [m]))),
-        reveal, textEl, actions));
+        reveal, textEl, more, actions));
   }
 
   const summary = (data) => {

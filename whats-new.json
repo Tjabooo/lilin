@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-review-read-more",
+  "date": "2026-11-22",
+  "title": "Long reviews open in place",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Read more on long reviews",
+      "text": "A review too long to fit on a title page or a profile now ends with Read more. Tap it to read the whole thing right there, and Show less to fold it back."
+    }
+  ]
+},
+{
   "id": "2026-11-22-tv-reviews",
   "date": "2026-11-22",
   "title": "Reviews on the TV",

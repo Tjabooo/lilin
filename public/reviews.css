@@ -29,6 +29,8 @@
   background: none; border: 0; text-decoration: underline; text-decoration-color: var(--hairline-2); text-underline-offset: 3px;
 }
 .review-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.review-more { display: block; margin-top: 2px; min-height: 28px; }
+.review-more[hidden] { display: none; }
 .review-link.armed, .chip.armed { color: var(--alert); }
 
 /* One review */

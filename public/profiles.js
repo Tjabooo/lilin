@@ -13,6 +13,7 @@
 // app.js passes in its helpers; this file has no globals beyond the DOM.
 import { T, locale as appLocale } from './i18n.js';
 import { tintOf } from './people.js';
+import { readMore } from './reviews.js';
 import { createTasteMatch } from './taste-match.js'; // taste: Taste match on a friend's profile
 
 const ACCENTS = ['#F4C152', '#FF9B85', '#E9A0C4', '#C3ACF2', '#93D6BA', '#97C9F2', '#F5AE6B', '#FF8C1A', '#E5484D', '#7FD1FF', '#B8E986', '#EDE6DD'];
@@ -344,7 +345,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   };
 
   function reviewCard(ctx, r) {
-    const text = h('p', { class: 'pf-review-text' }, r.text);
+    const text = h('p', { class: 'pf-review-text clamp' }, r.text);
     const hide = r.spoiler && !ctx.data.me;
     if (hide) text.hidden = true;
     return h('li', { class: 'pf-review' },
@@ -353,7 +354,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         h('div', { class: 'pf-review-title' }, h('strong', {}, r.card?.title || r.title || ''), r.card?.year && h('span', { class: 'muted' }, ` ${r.card.year}`)),
         h('div', { class: 'pf-review-meta' }, stars(r.stars), h('time', { datetime: new Date(r.created).toISOString() }, new Date(r.created).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }))),
         hide && h('button', { type: 'button', class: 'review-spoiler', onclick: (e) => { e.currentTarget.remove(); text.hidden = false; } }, h('strong', {}, T('Contains spoilers')), h('span', {}, T('Tap to show'))),
-        text));
+        text, readMore(h, text)));
   }
 
   async function loadReviews(ctx, btn) {

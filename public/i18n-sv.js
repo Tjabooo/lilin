@@ -1359,6 +1359,7 @@ export default {
   "Most used by": "Mest använt av",
   "Nothing used yet.": "Inget använt än.",
   "Show less": "Visa mindre",
+  "Read more": "Läs mer",
   "Show {0} more": "Visa {0} till",
   "Screen time": "Skärmtid",
   "Nothing yet today on this device.": "Inget än idag på den här enheten.",
