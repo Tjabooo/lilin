@@ -43,3 +43,24 @@ test('a blank TMDB duplicate of a real film is hidden', () => {
   ]]);
   assert.deepEqual(out.map((x) => x.id), [1479, 9]);
 });
+
+test('a famous title beats obscure exact-name matches', () => {
+  const out = mergeCatalogueResults('endgame', [[
+    { id: 1, media_type: 'tv', name: 'The Endgame', first_air_date: '2022-02-21', vote_count: 130, popularity: 6 },
+    { id: 2, media_type: 'movie', title: 'Endgame', release_date: '1983-01-01', vote_count: 59, popularity: 2 },
+    { id: 3, media_type: 'movie', title: 'Endgame', release_date: '2015-01-01', vote_count: 9, popularity: 1 },
+    { id: 299534, media_type: 'movie', title: 'Avengers: Endgame', release_date: '2019-04-24', vote_count: 29481, popularity: 74 },
+    { id: 4, media_type: 'movie', title: 'Highlander: Endgame', release_date: '2000-09-01', vote_count: 491, popularity: 3 },
+  ]]);
+  assert.equal(out[0].id, 299534);
+  assert.deepEqual(out.slice(1, 3).map((x) => x.id), [1, 2]);
+});
+
+test('an exact well-known name still wins over a sequel', () => {
+  const out = mergeCatalogueResults('dune', [[
+    { id: 10, media_type: 'tv', name: 'Dune: Prophecy', first_air_date: '2024-11-17', vote_count: 690, popularity: 28 },
+    { id: 11, media_type: 'movie', title: 'Dune: Part Two', release_date: '2024-02-27', vote_count: 9037, popularity: 52 },
+    { id: 438631, media_type: 'movie', title: 'Dune', release_date: '2021-09-15', vote_count: 16023, popularity: 44 },
+  ]]);
+  assert.equal(out[0].id, 438631);
+});

@@ -1,4 +1,13 @@
 {
+  "2026-11-22-search-popular": {
+    "title": "Sök hittar den du menar",
+    "items": {
+      "Well-known titles come first in search": {
+        "title": "Kända titlar kommer först i sökningen",
+        "text": "Sökningen väger nu in hur känd en film eller serie är, inte bara om namnet stämmer exakt. Skriv endgame så får du Avengers: Endgame först i stället för en rad bortglömda filmer som råkar heta Endgame. Lägg till ett år (som Endgame 2015) när du vill ha en viss."
+      }
+    }
+  },
   "2026-11-22-hide-from-profile": {
     "title": "Håll en titel borta från din profil",
     "items": {

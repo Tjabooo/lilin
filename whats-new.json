@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-search-popular",
+  "date": "2026-11-22",
+  "title": "Search finds the one you mean",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Well-known titles come first in search",
+      "text": "Search now weighs how well known a film or show is, not just whether the name matches exactly. Type endgame and you get Avengers: Endgame first instead of a row of forgotten films that happen to be called Endgame. Add a year (like Endgame 2015) when you want a specific one."
+    }
+  ]
+},
+{
   "id": "2026-11-22-hide-from-profile",
   "date": "2026-11-22",
   "title": "Keep a title off your profile",
