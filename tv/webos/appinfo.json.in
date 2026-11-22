@@ -1,0 +1,13 @@
+{
+  "id": "app.lilin.tv",
+  "version": "@VERSION@",
+  "vendor": "Lilin",
+  "type": "web",
+  "main": "index.html",
+  "title": "Lilin",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "bgColor": "#140A14"
+}
