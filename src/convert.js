@@ -739,9 +739,19 @@ const lastLine = (s) => {
   return lines.reverse().find((l) => /error|invalid|cannot|could not|not supported|no such|denied/i.test(l)) || lines[0] || '';
 };
 
+// Callers asking about the same file at once share one ffprobe run: on a busy hard drive a single
+// probe can take seconds, and every page or player asking again used to start another one.
+// Each caller still gets its own parsed copy.
+const probing = new Map();
 async function probe(file) {
-  const out = await run(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', file]);
-  return JSON.parse(out);
+  const key = String(file);
+  let pending = probing.get(key);
+  if (!pending) {
+    pending = run(FFPROBE, ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', file])
+      .finally(() => probing.delete(key));
+    probing.set(key, pending);
+  }
+  return JSON.parse(await pending);
 }
 
 // Room reserved at the start of the MP4 for its index (moov), so ffmpeg writes the index there when
