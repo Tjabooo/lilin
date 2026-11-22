@@ -122,7 +122,10 @@ body.liklok-on { overflow: hidden; }
 
 /* Phones and tablets held upright: the header steps aside, the clip sits above the middle, captions under it. */
 @media (max-width: 899px) {
-  body.liklok-on .top { display: none; }
+  /* The header steps aside, but the tab bar lives inside it (fixed at the bottom on phones): only its other parts go. */
+  body.liklok-on .top { pointer-events: none; }
+  body.liklok-on .top::before, body.liklok-on .top::after, body.liklok-on .top-inner > :not(.tabs) { display: none; }
+  body.liklok-on .top .tabs { pointer-events: auto; }
   .lk-feed { top: 0; }
   .lk-brand { display: block; top: calc(var(--safe-top) + 16px); }
   .lk-sound-chip { top: calc(var(--safe-top) + 10px); }
