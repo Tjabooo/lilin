@@ -8,6 +8,8 @@
 
 A self-hosted media server for your home, made for phones first. Point it at your films and shows
 and watch them in the browser, on your phone or on the TV, with subtitles that fit.
+Think of it as a lighter, phone-first alternative to Plex, Jellyfin or Emby for a small circle
+of friends and family, with Watch Together, DLNA/AirPlay casting and TV apps built in.
 
 Lilin is one Node.js process with no npm dependencies. It runs on Windows, Linux, macOS and in
 Docker, and installs as a web app on your phone's home screen.
