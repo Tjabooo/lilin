@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-no-squash",
+  "date": "2026-11-22",
+  "title": "Pages open cleanly",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "No squashed pages",
+      "text": "Opening a page for the first time, like Activity or Game clips under House, no longer shows it squashed for a moment. Pages now simply fade in."
+    }
+  ]
+},
+{
   "id": "2026-11-22-stay-for-the-credits",
   "date": "2026-11-22",
   "title": "Stay for the scene after the credits",
