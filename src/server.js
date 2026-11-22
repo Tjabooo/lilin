@@ -2183,13 +2183,13 @@ function startLetterboxdImport(user, buf) {
 async function profileView(viewer, target) {
   const v = profiles.view(viewer, target);
   if (v.locked) return v;
-  const [recent, reviewList, liked, match] = await Promise.all([withCards(v.recent), withCards(v.reviews.reviews), withCards(v.liked),
-    tasteMatch.forProfile(viewer, target, v, { withCards })]); // taste: Taste match on a friend's profile, else null
+  const [recent, reviewList, liked, match, hidden] = await Promise.all([withCards(v.recent), withCards(v.reviews.reviews), withCards(v.liked),
+    tasteMatch.forProfile(viewer, target, v, { withCards }), withCards(v.hidden || [])]); // taste: Taste match on a friend's profile, else null
   const look = v.look;
   // The banner: a picked title's picture, else (auto) a favourite's or the last thing they watched.
   const auto = v.favorites.find((f) => f.backdrop)?.backdrop || recent.find((r) => r.card?.backdrop)?.card.backdrop || liked.find((r) => r.card?.backdrop)?.card.backdrop || null;
   const banner = look.banner === 'title' ? look.bannerImage : look.banner === 'auto' && auto ? auto.replace(/\/t\/p\/w\d+\//, '/t/p/w1280/') : null;
-  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match };
+  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match, hidden, hiddenKeys: (v.hidden || []).map((x) => x.key) };
 }
 
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());

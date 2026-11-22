@@ -2835,4 +2835,7 @@ export default {
   "Show on my profile": "Visa på min profil",
   "Hidden from your profile. Friends won’t see it there.": "Dold från din profil. Vänner ser den inte där.",
   "Back on your profile": "Tillbaka på din profil",
+  "Hidden from your profile. Only you see it here.": "Dold från din profil. Bara du ser den här.",
+  "Hidden from others": "Dolt för andra",
+  "Only you see these on your profile. To show one again, open it and pick Show on my profile in ⋯.": "Bara du ser dessa på din profil. Vill du visa en igen, öppna den och välj Visa på min profil i ⋯.",
 };

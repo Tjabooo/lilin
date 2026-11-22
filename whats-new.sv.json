@@ -4,7 +4,7 @@
     "items": {
       "Hide a film or show from your profile": {
         "title": "Dölj en film eller serie från din profil",
-        "text": "Öppna ⋯-menyn på en films eller series sida och välj Dölj från min profil. Då ser andra den inte på din profil: inte i Senaste aktivitet, din dagbok, Gillade, Recensioner eller Smakmatch, och ditt ansikte syns inte bland dem som gillade den. Du ser fortfarande allt, och den räknas fortfarande i din egen historik. Välj Visa på min profil för att ta tillbaka den."
+        "text": "Öppna ⋯-menyn på en films eller series sida och välj Dölj från min profil. Då ser andra den inte på din profil: inte i Senaste aktivitet, din dagbok, Gillade, Recensioner eller Smakmatch, och ditt ansikte syns inte bland dem som gillade den. Du ser fortfarande allt, och den räknas fortfarande i din egen historik: på din egen profil är dolda titlar bleka med ett ögonmärke, och hyllan Dolt för andra längst ner visar alla. Välj Visa på min profil för att ta tillbaka en."
       }
     }
   },

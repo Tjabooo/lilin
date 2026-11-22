@@ -24,7 +24,7 @@ import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey } from './social.js';
 import * as letterboxd from './letterboxd.js';
 import { listsOf } from './lists.js';
-import { hiddenKeys, NOT_HIDDEN, ensureTable as ensureHidden } from './profile-hidden.js'; // hide from profile
+import { hiddenKeys, hiddenList, NOT_HIDDEN, ensureTable as ensureHidden } from './profile-hidden.js'; // hide from profile
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
@@ -383,6 +383,8 @@ export function view(viewer, target) {
     liked: on('liked') ? likedBy(target.id, 12, 0, !self) : [],
     friends: on('friends') ? friendsOf(target.id) : [],
     lists: on('lists') ? listsOf(target.id, { self }) : [],
+    // Only on their own view: what they keep off the profile (marked on their posters, and its own shelf).
+    hidden: self ? hiddenList(target.id) : [],
     // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.
     letterboxd: !lb.linked ? (self ? { linked: false } : null) : self ? lb : { linked: true, username: lb.username, url: lb.url },
   };

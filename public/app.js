@@ -2357,6 +2357,7 @@ function profileHideItem(t) {
       const r = await api('/api/profiles/me/hidden', jsonPost({ key, hidden: want }));
       profileHidden.set(key, Boolean(r.hidden));
       paint();
+      profiles.refreshMine(); // your own profile's marks and Hidden shelf catch up
       toast(r.hidden ? T('Hidden from your profile. Friends won’t see it there.') : T('Back on your profile'));
     } catch (e) { toast(e.message || T('That didn’t work. Try again.')); }
   }];

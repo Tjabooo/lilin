@@ -39,6 +39,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     || Boolean(document.querySelector('.pf.pf-nested.open'));
 
   // ---------- opening ----------
+  const openPages = new Set(); // profile pages on screen (refreshMine redraws your own)
   // target: { id } or { handle } (a person from anywhere: { id, name, avatar } shows their face while it loads).
   function open(target, opener) {
     if (!target || (!target.id && !target.handle)) return;
@@ -47,6 +48,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const ctx = { page, nested, data: null, target, draft: null, diary: null, allReviews: null, likedAll: null };
     page.append(skeleton(target, ctx));
     document.body.append(page);
+    openPages.add(ctx);
     // The bar turns to glass (and shows the @username) once the banner has scrolled away.
     let frame = 0;
     page.addEventListener('scroll', () => {
@@ -57,6 +59,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const hashBefore = location.hash;
     overlay.push(() => {
       ctx.closed = true;
+      openPages.delete(ctx);
       page.classList.remove('open');
       setTimeout(() => page.remove(), 320);
       if (location.hash.startsWith('#@') && hashBefore !== location.hash) history.replaceState(history.state, '', `${location.pathname}${location.search}${hashBefore.startsWith('#@') ? '' : hashBefore}`);
@@ -224,7 +227,15 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       if (node) out.push(node);
     }
     if (!out.length && !d.me) out.push(h('p', { class: 'pf-empty pf-quiet' }, T('Nothing here yet.')));
+    if (d.me && d.hidden?.length) out.push(hiddenShelf(ctx, d)); // hide from my profile
     return out;
+  }
+
+  // Your own profile only: everything you keep off it, so you know what others don't see. A title's ⋯ menu brings it back.
+  function hiddenShelf(ctx, d) {
+    return sectionBox('hidden', T('Hidden from others'), h('span', { class: 'pf-sec-note' }, String(d.hidden.length)),
+      h('p', { class: 'pf-hidden-note' }, icon('eye-off'), h('span', {}, T('Only you see these on your profile. To show one again, open it and pick Show on my profile in ⋯.'))),
+      h('ul', { class: 'pf-strip' }, d.hidden.map((x) => h('li', {}, posterButton(ctx, x.card, x, { size: 'w185', hid: true })))));
   }
 
   const sectionBox = (id, title, extra, ...kids) => h('section', { class: `pf-sec pf-sec-${id}`, 'aria-label': title },
@@ -237,10 +248,17 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return h('span', { class: cls, role: 'img', 'aria-label': label }, '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : ''));
   }
 
-  function posterButton(ctx, card, fallback, { size = 'w342', label } = {}) {
+  // Hide from my profile: on your own profile, titles others don't see carry an eye mark.
+  const isHiddenKey = (ctx, key) => Boolean(key && ctx?.data?.me && ctx.data.hiddenKeys?.includes(key));
+  const HIDDEN_TIP = T('Hidden from your profile. Only you see it here.');
+  const hiddenMark = (ctx, key) => isHiddenKey(ctx, key) && h('span', { class: 'pf-hidden-mark', role: 'img', 'aria-label': HIDDEN_TIP, title: HIDDEN_TIP }, icon('eye-off'));
+
+  function posterButton(ctx, card, fallback, { size = 'w342', label, hid = false } = {}) {
     const title = card?.title || fallback?.title || '';
-    const btn = h('button', { type: 'button', class: 'pf-poster', 'aria-label': label || title, title },
-      card?.poster ? h('img', { src: small(card.poster, size), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-poster-title' }, title));
+    const hidden = hid && isHiddenKey(ctx, fallback?.key);
+    const btn = h('button', { type: 'button', class: `pf-poster${hidden ? ' is-hidden-title' : ''}`, 'aria-label': hidden ? `${label || title}, ${HIDDEN_TIP}` : label || title, title },
+      card?.poster ? h('img', { src: small(card.poster, size), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-poster-title' }, title),
+      hidden && h('span', { class: 'pf-hidden-badge', 'aria-hidden': 'true' }, icon('eye-off')));
     if (card?.id != null) btn.addEventListener('click', () => openTitle(card, btn, ctx.nested));
     else btn.disabled = true;
     return btn;
@@ -263,7 +281,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       const list = d.recent || [];
       if (!list.length) return d.me ? sectionBox('recent', T('Recent activity'), null, h('p', { class: 'pf-empty' }, T('Films and episodes you watch show up here.'))) : null;
       const items = list.slice(0, 4).map((e) => h('li', {},
-        posterButton(ctx, e.card, e, { label: `${e.card?.title || e.title}${e.type === 'tv' ? ` · ${episodesText(e.episodes)}` : ''}` }),
+        posterButton(ctx, e.card, e, { hid: true, label: `${e.card?.title || e.title}${e.type === 'tv' ? ` · ${episodesText(e.episodes)}` : ''}` }),
         h('div', { class: 'pf-under' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
           e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
               e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB'),
@@ -306,7 +324,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           h('button', { type: 'button', class: 'pf-more pf-less', onclick: () => { ctx.likedAll = null; paint(ctx); ctx.page.querySelector('.pf-sec-liked')?.scrollIntoView({ block: 'nearest' }); } }, h('span', {}, T('Show less')), icon('chevron'))]
         : [hasMore && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadLiked(ctx, e.currentTarget) }, h('span', {}, total ? T('See all {0} likes', total) : T('See all')), icon('chevron'))];
       return sectionBox('liked', T('Liked'), h('span', { class: 'pf-sec-note' }, total > list.length ? T('{0} in all', total) : null),
-        h('ul', { class: `pf-strip${all ? ' pf-strip-all' : ''}` }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185' })))), ...tail);
+        h('ul', { class: `pf-strip${all ? ' pf-strip-all' : ''}` }, list.map((l) => h('li', {}, posterButton(ctx, l.card, l, { size: 'w185', hid: true })))), ...tail);
     },
     // lists (lists.js): their shelves, each a fan of posters; yours end with New list.
     lists(ctx, d) {
@@ -330,7 +348,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const hide = r.spoiler && !ctx.data.me;
     if (hide) text.hidden = true;
     return h('li', { class: 'pf-review' },
-      h('div', { class: 'pf-review-poster' }, posterButton(ctx, r.card, r, { size: 'w185' })),
+      h('div', { class: 'pf-review-poster' }, posterButton(ctx, r.card, r, { size: 'w185', hid: true })),
       h('div', { class: 'pf-review-body' },
         h('div', { class: 'pf-review-title' }, h('strong', {}, r.card?.title || r.title || ''), r.card?.year && h('span', { class: 'muted' }, ` ${r.card.year}`)),
         h('div', { class: 'pf-review-meta' }, stars(r.stars), h('time', { datetime: new Date(r.created).toISOString() }, new Date(r.created).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }))),
@@ -398,7 +416,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const range = a[0] === z[0] ? T('S{0} E{1}–{2}', a[0], a[1], z[1]) : `${T('S{0} E{1}', a[0], a[1])} – ${T('S{0} E{1}', z[0], z[1])}`;
     return `${T('{0} episodes', eps.length)} · ${range}`;
   }
-  const entryMarks = (e) => h('span', { class: 'pf-entry-marks' }, stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
+  const entryMarks = (e, ctx = null) => h('span', { class: 'pf-entry-marks' }, ctx && hiddenMark(ctx, e.key), stars(e.stars), e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
     e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
     e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB'));
 
@@ -432,7 +450,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             h('span', { class: 'pf-entry-text' },
               h('strong', {}, card?.title || e.title),
               eps.length ? h('small', {}, several ? `${episodeSpan(eps)} · ${T('{0} days', lines.length)}` : episodesText(eps)) : null),
-            entryMarks(e));
+            entryMarks(e, ctx));
           const li = h('li', { class: several ? 'pf-show-run' : '' }, row);
           if (several) {
             li.append(h('button', { type: 'button', class: 'pf-run-toggle', 'aria-expanded': String(open), 'aria-label': open ? T('Hide days') : T('Show days'),
@@ -469,7 +487,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         h('span', { class: 'pf-stub-text' },
           h('span', { class: 'pf-stub-kicker', 'aria-hidden': 'true' }, e.rewatch ? T('Admit one · again') : T('Admit one')),
           h('strong', { class: 'pf-stub-title' }, title),
-          h('span', { class: 'pf-stub-marks' }, card?.year ? h('span', { class: 'pf-stub-year' }, String(card.year)) : null, stars(e.stars),
+          h('span', { class: 'pf-stub-marks' }, card?.year ? h('span', { class: 'pf-stub-year' }, String(card.year)) : null, hiddenMark(ctx, e.key), stars(e.stars),
             e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
             e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
             e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')))),
@@ -849,6 +867,12 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   }
   const mineNow = () => own.data;
   const forgetMine = () => { own.at = 0; };
+  // Something on your profile changed elsewhere (Hide from my profile on a title page): drop the copy and redraw
+  // your own page if it's open under the title (not while you're editing it).
+  function refreshMine() {
+    forgetMine();
+    for (const ctx of openPages) if (ctx.data?.me && !ctx.draft) load(ctx);
+  }
   const numbers = (d = own.data) => (d?.stats ? statsRow(d.stats) : null);
 
   // The latest few things you watched, as diary lines (You's Overview). more: opens History.
@@ -897,5 +921,5 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     } catch (err) { toast(err.message); if (btn) btn.disabled = false; else ctx.likedAll = { liked: [], more: false }; }
   }
 
-  return { open, openMine, fromHash, mine, mineNow, forgetMine, numbers, recentLines, privateList, titleSearch };
+  return { open, openMine, fromHash, mine, mineNow, forgetMine, refreshMine, numbers, recentLines, privateList, titleSearch };
 }

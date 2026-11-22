@@ -24,6 +24,8 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 // Every title key this person hides, as a Set.
 export const hiddenKeys = (userId) => new Set(db().prepare('SELECT title_key FROM profile_hidden WHERE user_id = ?').all(userId).map((r) => r.title_key));
 export const isHidden = (userId, key) => Boolean(db().prepare('SELECT 1 FROM profile_hidden WHERE user_id = ? AND title_key = ?').get(userId, key));
+// Their hidden titles, newest first (their own profile's Hidden from others shelf).
+export const hiddenList = (userId, limit = 60) => db().prepare('SELECT title_key AS key FROM profile_hidden WHERE user_id = ? ORDER BY created_at DESC LIMIT ?').all(userId, limit);
 // The people who hide this title (title page faces leave them out).
 export const hiddenBy = (key) => new Set(db().prepare('SELECT user_id FROM profile_hidden WHERE title_key = ?').all(key).map((r) => r.user_id));
 

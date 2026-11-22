@@ -55,6 +55,8 @@ test('a hidden title leaves recent, diary, liked, reviews and the title page fac
   assert.deepEqual(own.recent.map((r) => r.key), ['movie:2', 'movie:1'], 'she still sees everything');
   assert.equal(own.liked.length, 2);
   assert.equal(own.reviews.reviews.length, 1);
+  assert.deepEqual(own.hidden.map((x) => x.key), ['movie:2'], 'her own view lists what she hides');
+  assert.deepEqual(theirs.hidden, [], 'nobody else gets the list');
 
   const page = social.ratingFor(ben.id, 'movie:2', () => 'Anna');
   assert.deepEqual(page.likedBy, [], 'no face on the title page');
