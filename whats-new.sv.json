@@ -4,7 +4,7 @@
     "items": {
       "Only 5 stars counts as a like": {
         "title": "Bara 5 stjärnor räknas som gilla",
-        "text": "Stjärnor på en film eller serie ger bara tumme upp när det är fulla 5 stjärnor. 2,5 till 4,5 stjärnor lämnar tummarna ifred, och 0,5 till 2 är fortfarande tumme ner. Gillningar som 3,5 till 4,5 stjärnor gav tidigare har tagits bort (stjärnorna finns kvar), så din lista Gillade visar det du verkligen älskade. Gillningar från Letterboxd ligger kvar."
+        "text": "Stjärnor på en film eller serie ger bara tumme upp när det är fulla 5 stjärnor. Med 2,5 till 4,5 stjärnor kan du fortfarande gilla själv; bara 0,5 till 2 stjärnor och gilla går inte ihop (det är tumme ner). Gillningar som 3,5 till 4,5 stjärnor gav tidigare har tagits bort (stjärnorna finns kvar), så din lista Gillade visar det du verkligen älskade. Gillningar från Letterboxd ligger kvar."
       }
     }
   },

@@ -36,6 +36,17 @@ test('reviews: stars set the thumb and the thumb clears stars that disagree', ()
   assert.equal(reviews.onThumb(anna.id, 'movie:603', 1), false);
   assert.equal(reviews.onThumb(anna.id, 'movie:603', -1), true);
   assert.deepEqual([reviews.reviewOf(anna.id, 'movie:603').stars, reviews.reviewOf(anna.id, 'movie:603').text], [null, 'Better the second time.']);
+  // A like and 2½-4½ stars live side by side; a like on ½-2 stars clears them.
+  reviews.save(anna.id, 'movie:604', { stars: 4, thumb: 1 });
+  assert.equal(social.ratingFor(anna.id, 'movie:604', nameOf).mine, 1, '4 stars + a like');
+  reviews.save(anna.id, 'movie:604', { stars: 3.5, text: 'Edited.' });
+  assert.equal(social.ratingFor(anna.id, 'movie:604', nameOf).mine, 1, 'new 2½-4½ stars keep the like');
+  assert.equal(reviews.onThumb(anna.id, 'movie:604', 0), false, 'unliking keeps 3½ stars');
+  reviews.save(anna.id, 'movie:604', { stars: 2 });
+  assert.equal(social.ratingFor(anna.id, 'movie:604', nameOf).mine, -1);
+  assert.equal(reviews.onThumb(anna.id, 'movie:604', 1), true, 'a like on 2 stars clears them');
+  reviews.save(anna.id, 'movie:605', { stars: 1, thumb: 1 });
+  assert.equal(social.ratingFor(anna.id, 'movie:605', nameOf).mine, -1, 'no like with 1 star');
   // Stars without text go away entirely when the thumb is cleared.
   reviews.save(anna.id, 'tv:1399', { stars: 5 });
   reviews.onThumb(anna.id, 'tv:1399', 0);

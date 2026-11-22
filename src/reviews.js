@@ -5,9 +5,11 @@
 //
 // Stars live next to the thumbs (social.js `ratings`), which stay the one quick rating. The two always
 // agree, so Popular, "Liked by", Discover's hidden dislikes, Live TV picks and Wrapped keep working:
-//   - giving stars sets the thumb: 5 stars = thumbs up, ½-2 stars = thumbs down, 2½-4½ stars = no thumb
-//     (only a full 5 counts as a like, so likes stay meaningful; until 2026-11-22 3½ and up did);
-//   - tapping a thumb the stars disagree with (or clearing the thumb) clears the stars, never the text.
+//   - giving stars sets the thumb: 5 stars = thumbs up, ½-2 stars = thumbs down; 2½-4½ stars give no thumb
+//     of their own but keep a like you gave (and drop a thumbs down). Only a full 5 likes by itself, so likes
+//     stay meaningful; until 2026-11-22 3½ and up did;
+//   - tapping a thumb the stars disagree with (a like on ½-2, a thumbs down on 2½ and up, no thumb on 5)
+//     clears the stars, never the text.
 // Privacy: stars without text are only counted in the title's average (shown once two or more people
 // gave stars); a written review shows its writer's name, picture and stars to everyone. A thumbs down
 // on its own stays private, as before.
@@ -104,6 +106,9 @@ export const cleanText = (s) => String(s ?? '').replace(/\r\n?/g, '\n').replace(
 
 // The thumb a number of stars stands for: 1 up, -1 down, 0 none.
 export const thumbFor = (stars) => (stars >= 5 ? 1 : stars <= 2 ? -1 : 0);
+// Whether a thumb fits with these stars, and the thumb that's left after picking them.
+export const agrees = (stars, thumb) => (stars >= 5 ? thumb === 1 : stars <= 2 ? thumb === -1 : thumb !== -1);
+export const thumbAfter = (stars, thumb) => (agrees(stars, thumb) ? thumb : thumbFor(stars));
 
 const starsOf = (v) => {
   if (v == null || v === '' || v === 0 || v === '0') return null;
@@ -124,8 +129,8 @@ export const resetLimits = () => writes.clear(); // tests
 export const reviewOf = (userId, key) => db().prepare('SELECT * FROM reviews WHERE user_id = ? AND title_key = ?').get(userId, key) || null;
 
 // Saves this person's stars, text and spoiler mark for a title (the whole review: missing fields
-// mean none). `thumb` (1, -1, 0) is the thumb picked in the same sheet; it only counts without stars,
-// since stars decide the thumb. Nothing left (no stars, no text) removes the review. Returns the thumb
+// mean none). `thumb` (1, -1, 0) is the thumb picked in the same sheet; with stars it only counts when it
+// agrees with them (see agrees). Nothing left (no stars, no text) removes the review. Returns the thumb
 // that was set, or null when the thumbs were left alone.
 export function save(userId, key, body = {}, now = Date.now()) {
   if (!social.validTitleKey(key)) throw fail(400, 'Which film or show?');
@@ -141,7 +146,9 @@ export function save(userId, key, body = {}, now = Date.now()) {
     const today = db().prepare("SELECT COUNT(*) AS n FROM reviews WHERE user_id = ? AND text != '' AND created_at > ?").get(userId, now - DAY).n;
     if (today >= NEW_PER_DAY) throw fail(429, 'That’s enough reviews for one day. Write the rest tomorrow.');
   }
-  const thumb = stars != null ? thumbFor(stars) : [1, -1, 0].includes(Number(body.thumb)) && body.thumb !== null && body.thumb !== '' ? Number(body.thumb) : null;
+  const picked = [1, -1, 0].includes(Number(body.thumb)) && body.thumb !== null && body.thumb !== '' ? Number(body.thumb) : null;
+  const current = db().prepare('SELECT value FROM ratings WHERE user_id = ? AND title_key = ?').get(userId, key)?.value ?? 0;
+  const thumb = stars == null ? picked : picked != null && agrees(stars, picked) ? picked : thumbAfter(stars, current);
   db().exec('BEGIN');
   try {
     if (stars == null && !text) db().prepare('DELETE FROM reviews WHERE user_id = ? AND title_key = ?').run(userId, key);
@@ -162,7 +169,7 @@ export function save(userId, key, body = {}, now = Date.now()) {
 // text stays. Returns true when something changed.
 export function onThumb(userId, key, value) {
   const r = social.validTitleKey(key) && reviewOf(userId, key);
-  if (!r || r.stars == null || thumbFor(r.stars) === Number(value)) return false;
+  if (!r || r.stars == null || agrees(r.stars, Number(value))) return false;
   if (r.text) db().prepare('UPDATE reviews SET stars = NULL, updated_at = ? WHERE user_id = ? AND title_key = ?').run(Date.now(), userId, key);
   else db().prepare('DELETE FROM reviews WHERE user_id = ? AND title_key = ?').run(userId, key);
   return true;

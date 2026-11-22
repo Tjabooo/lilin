@@ -1752,6 +1752,7 @@ export default {
   "marked as a spoiler": "markerad som spoiler",
   "No reviews yet": "Inga recensioner än",
   "no thumb either way": "ingen tumme åt något håll",
+  "a like is up to you": "gilla om du vill",
   "No written reviews yet.": "Inga skrivna recensioner än.",
   "Optional. Tap a star again to clear it.": "Valfritt. Tryck på en stjärna igen för att ta bort den.",
   "Rate and review": "Betygsätt och recensera",
