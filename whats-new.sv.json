@@ -1,4 +1,13 @@
 {
+  "2026-11-22-five-star-likes": {
+    "title": "Gillningar betyder mer nu",
+    "items": {
+      "Only 5 stars counts as a like": {
+        "title": "Bara 5 stjärnor räknas som gilla",
+        "text": "Stjärnor på en film eller serie ger bara tumme upp när det är fulla 5 stjärnor. 2,5 till 4,5 stjärnor lämnar tummarna ifred, och 0,5 till 2 är fortfarande tumme ner. Gillningar som 3,5 till 4,5 stjärnor gav tidigare har tagits bort (stjärnorna finns kvar), så din Gillat-lista visar det du verkligen älskade. Gillningar från Letterboxd ligger kvar."
+      }
+    }
+  },
   "2026-11-22-no-starved-packs": {
     "title": "Skarpare säsongsnedladdningar",
     "items": {

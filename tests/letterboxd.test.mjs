@@ -61,7 +61,7 @@ test('letterboxd: a feed fills the diary, stars and thumbs, never over Lilin’s
   assert.equal(reviews.reviewOf(anna.id, 'movie:603').text, 'Mine.', 'own review kept');
   assert.equal(reviews.reviewOf(anna.id, 'movie:603').stars, 1);
   const thumbs = Object.fromEntries(accounts.database().prepare('SELECT title_key, value FROM ratings WHERE user_id = ?').all(anna.id).map((r) => [r.title_key, r.value]));
-  assert.equal(thumbs['movie:949'], 1);
+  assert.equal(thumbs['movie:949'], undefined, '3½ stars alone is no like (only 5 is)');
   assert.equal(thumbs['movie:348'], 1, 'a heart without stars is a thumbs up');
   assert.equal(thumbs['movie:603'], -1, 'own 1-star thumb kept');
   const d = profiles.diary(anna.id);

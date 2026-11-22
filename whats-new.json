@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-five-star-likes",
+  "date": "2026-11-22",
+  "title": "Likes mean more now",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Only 5 stars counts as a like",
+      "text": "Giving a film or show stars only adds a thumbs up when it's a full 5 stars. 2½ to 4½ stars leaves the thumbs alone, and ½ to 2 is still a thumbs down. Likes that 3½ to 4½ stars gave earlier have been taken back (your stars stay), so your Liked list shows what you really loved. Likes from Letterboxd stay as they are."
+    }
+  ]
+},
+{
   "id": "2026-11-22-no-starved-packs",
   "date": "2026-11-22",
   "title": "Sharper whole-season downloads",

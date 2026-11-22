@@ -332,7 +332,7 @@ function feedKeyFor(userId, { title, year }) {
 
 // Letterboxd's stars as they are (Lilin has half stars too), just kept in range.
 export const starsFor = (r) => (r == null ? null : Math.min(5, Math.max(0.5, Math.round(r * 2) / 2)));
-const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0); // reviews.js thumbFor
+const thumbFor = (stars) => (stars >= 5 ? 1 : stars <= 2 ? -1 : 0); // reviews.js thumbFor
 
 // Per title, the newest rating, like and review from Letterboxd go into Lilin's own reviews and thumbs,
 // where the person hasn't put their own (see the top of this file).
@@ -360,7 +360,7 @@ function applyReviews(userId, now) {
     for (const [key, p] of per) {
       const stars = starsFor(p.rating);
       const text = p.review;
-      const thumb = stars ? thumbFor(stars) : p.liked ? 1 : 0;
+      const thumb = p.liked ? 1 : stars ? thumbFor(stars) : 0; // a Letterboxd heart is a like whatever the stars
       const before = wrote.get(key);
       const review = db().prepare('SELECT stars, text FROM reviews WHERE user_id = ? AND title_key = ?').get(userId, key);
       const ours = !review || (before && review.stars === before.stars && review.text === before.text);

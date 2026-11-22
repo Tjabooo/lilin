@@ -5,7 +5,8 @@
 //
 // Stars live next to the thumbs (social.js `ratings`), which stay the one quick rating. The two always
 // agree, so Popular, "Liked by", Discover's hidden dislikes, Live TV picks and Wrapped keep working:
-//   - giving stars sets the thumb: 3½-5 stars = thumbs up, ½-2 stars = thumbs down, 2½-3 stars = no thumb;
+//   - giving stars sets the thumb: 5 stars = thumbs up, ½-2 stars = thumbs down, 2½-4½ stars = no thumb
+//     (only a full 5 counts as a like, so likes stay meaningful; until 2026-11-22 3½ and up did);
 //   - tapping a thumb the stars disagree with (or clearing the thumb) clears the stars, never the text.
 // Privacy: stars without text are only counted in the title's average (shown once two or more people
 // gave stars); a written review shows its writer's name, picture and stars to everyone. A thumbs down
@@ -46,6 +47,24 @@ export function initReviews() {
     CREATE INDEX IF NOT EXISTS reviews_title ON reviews(title_key);
   `);
   halfStars();
+  onlyFiveLikes();
+}
+
+// Once: likes that 3½-4½ stars gave before only 5 stars counted are taken back (the stars stay). Likes that
+// came over from Letterboxd (letterboxd.js letterboxd_wrote / a Letterboxd heart) are kept.
+function onlyFiveLikes() {
+  const done = db().prepare("SELECT value FROM meta WHERE key = 'reviews_only_five_likes'").get();
+  if (done) return;
+  const lb = (t) => db().prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
+  const keep = [lb('letterboxd_wrote') && 'NOT EXISTS (SELECT 1 FROM letterboxd_wrote w WHERE w.user_id = r.user_id AND w.title_key = r.title_key AND w.thumb = 1)',
+    lb('letterboxd_log') && 'NOT EXISTS (SELECT 1 FROM letterboxd_log l WHERE l.user_id = r.user_id AND l.title_key = r.title_key AND l.liked = 1)'].filter(Boolean);
+  db().exec('BEGIN');
+  try {
+    db().prepare(`DELETE FROM ratings AS r WHERE r.value = 1 AND EXISTS (SELECT 1 FROM reviews v WHERE v.user_id = r.user_id
+      AND v.title_key = r.title_key AND v.stars IS NOT NULL AND v.stars < 5)${keep.map((k) => ` AND ${k}`).join('')}`).run();
+    db().prepare("INSERT INTO meta (key, value) VALUES ('reviews_only_five_likes', '1')").run();
+    db().exec('COMMIT');
+  } catch (err) { db().exec('ROLLBACK'); throw err; }
 }
 
 // Reviews made before half stars allowed whole stars only (CHECK 1-5): SQLite can't change a CHECK, so the
@@ -84,7 +103,7 @@ export const cleanText = (s) => String(s ?? '').replace(/\r\n?/g, '\n').replace(
   .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 
 // The thumb a number of stars stands for: 1 up, -1 down, 0 none.
-export const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0);
+export const thumbFor = (stars) => (stars >= 5 ? 1 : stars <= 2 ? -1 : 0);
 
 const starsOf = (v) => {
   if (v == null || v === '' || v === 0 || v === '0') return null;

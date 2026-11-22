@@ -1,12 +1,12 @@
 // Reviews in the web app: the "Review" button beside the thumbs, the Rate sheet (thumbs + optional
 // stars + optional review), the quiet Reviews section on a title page and the full list behind
-// "See all". The server (src/reviews.js) keeps stars and thumbs in agreement: 3½-5 stars = thumbs up,
-// ½-2 = thumbs down, 2½-3 = no thumb. Stars go in halves: tap the left half of a star for a half. Review text is always put on the page as text, never as HTML.
+// "See all". The server (src/reviews.js) keeps stars and thumbs in agreement: 5 stars = thumbs up,
+// ½-2 = thumbs down, 2½-4½ = no thumb. Stars go in halves: tap the left half of a star for a half. Review text is always put on the page as text, never as HTML.
 // app.js passes in its helpers; restricted people get neither the button nor the section.
 import { T, locale } from './i18n.js';
 
 export const MAX_TEXT = 2000;
-export const thumbFor = (stars) => (stars >= 3.5 ? 1 : stars <= 2 ? -1 : 0);
+export const thumbFor = (stars) => (stars >= 5 ? 1 : stars <= 2 ? -1 : 0);
 // "3.5" in English, "3,5" in Swedish; whole stars without a decimal.
 export const starsNumber = (n) => Number(n).toLocaleString(locale, { maximumFractionDigits: 1 });
 export const starsLabel = (n) => (n === 1 ? T('1 star') : T('{0} stars', starsNumber(n)));
@@ -147,7 +147,7 @@ export function createReviews({ h, api, jsonPost, toast, people, me = () => null
         b.classList.toggle('on', i + 1 <= stars);
         b.classList.toggle('half', i + 0.5 === stars);
       });
-      starHint.textContent = stars ? `${starsLabel(stars)} · ${stars >= 3.5 ? T('counts as a thumbs up') : stars <= 2 ? T('counts as a thumbs down') : T('no thumb either way')}`
+      starHint.textContent = stars ? `${starsLabel(stars)} · ${stars >= 5 ? T('counts as a thumbs up') : stars <= 2 ? T('counts as a thumbs down') : T('no thumb either way')}`
         : T('Optional. Tap the left half of a star for a half star.');
       const words = text.value.trim();
       spoiler.hidden = !words;

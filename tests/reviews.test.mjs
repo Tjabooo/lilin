@@ -24,7 +24,7 @@ test('reviews: stars set the thumb and the thumb clears stars that disagree', ()
   const { anna, nameOf } = setup();
   const thumb = () => social.ratingFor(anna.id, 'movie:603', nameOf).mine;
   assert.equal(reviews.save(anna.id, 'movie:603', { stars: 5, title: 'The Matrix' }), 1);
-  assert.equal(thumb(), 1, '4-5 stars = thumbs up');
+  assert.equal(thumb(), 1, '5 stars = thumbs up');
   reviews.save(anna.id, 'movie:603', { stars: 2 });
   assert.equal(thumb(), -1, '1-2 stars = thumbs down');
   assert.ok(social.dislikedKeys(anna.id).has('movie:603'));
@@ -32,7 +32,7 @@ test('reviews: stars set the thumb and the thumb clears stars that disagree', ()
   assert.equal(thumb(), 0, '3 stars = no thumb');
 
   // A thumb that agrees leaves the stars alone; one that disagrees clears them, never the text.
-  reviews.save(anna.id, 'movie:603', { stars: 4, text: 'Better the second time.' });
+  reviews.save(anna.id, 'movie:603', { stars: 5, text: 'Better the second time.' });
   assert.equal(reviews.onThumb(anna.id, 'movie:603', 1), false);
   assert.equal(reviews.onThumb(anna.id, 'movie:603', -1), true);
   assert.deepEqual([reviews.reviewOf(anna.id, 'movie:603').stars, reviews.reviewOf(anna.id, 'movie:603').text], [null, 'Better the second time.']);
@@ -123,7 +123,11 @@ test('reviews: half stars, and an old whole-star table is rebuilt for them', () 
   const thumb = () => social.ratingFor(anna.id, 'movie:603', nameOf).mine;
   reviews.save(anna.id, 'movie:603', { stars: 3.5 });
   assert.equal(reviews.reviewOf(anna.id, 'movie:603').stars, 3.5);
-  assert.equal(thumb(), 1, '3½ stars = thumbs up');
+  assert.equal(thumb(), 0, '3½ stars = no thumb (only 5 is a like)');
+  reviews.save(anna.id, 'movie:603', { stars: 4.5 });
+  assert.equal(thumb(), 0, '4½ stars = no thumb');
+  reviews.save(anna.id, 'movie:603', { stars: 5 });
+  assert.equal(thumb(), 1, '5 stars = thumbs up');
   reviews.save(anna.id, 'movie:603', { stars: 0.5 });
   assert.equal(thumb(), -1);
   reviews.save(anna.id, 'movie:603', { stars: 2.5 });
@@ -138,4 +142,21 @@ test('reviews: half stars, and an old whole-star table is rebuilt for them', () 
   assert.equal(reviews.reviewOf(anna.id, 'movie:1').text, 'Old.', 'kept through the rebuild');
   reviews.save(anna.id, 'movie:1', { stars: 4.5, text: 'Old.' });
   assert.equal(reviews.reviewOf(anna.id, 'movie:1').stars, 4.5);
+});
+
+test('reviews: likes that 3½-4½ stars gave before are taken back once, Letterboxd ones stay', () => {
+  const { anna, nameOf } = setup();
+  const db = accounts.database();
+  const put = (key, stars) => {
+    db.prepare('INSERT INTO reviews (user_id, title_key, stars, text, spoiler, title, created_at, updated_at) VALUES (?, ?, ?, \'\', 0, \'\', 1, 1)').run(anna.id, key, stars);
+    db.prepare('INSERT INTO ratings (user_id, title_key, value, title, updated_at) VALUES (?, ?, 1, \'\', 1)').run(anna.id, key);
+  };
+  put('movie:1', 4); put('movie:2', 5); put('movie:3', 3.5);
+  db.exec(`CREATE TABLE IF NOT EXISTS letterboxd_wrote (user_id INTEGER, title_key TEXT, stars INTEGER, text TEXT NOT NULL DEFAULT '', thumb INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, title_key));
+    INSERT INTO letterboxd_wrote VALUES (${anna.id}, 'movie:3', 3.5, '', 1);
+    DELETE FROM meta WHERE key = 'reviews_only_five_likes';`);
+  reviews.initReviews();
+  const mine = (key) => social.ratingFor(anna.id, key, nameOf).mine;
+  assert.deepEqual([mine('movie:1'), mine('movie:2'), mine('movie:3')], [0, 1, 1]);
+  assert.equal(reviews.reviewOf(anna.id, 'movie:1').stars, 4, 'the stars stay');
 });
