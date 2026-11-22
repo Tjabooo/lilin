@@ -26,9 +26,16 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       # ffmpeg/Tesseract-dependent tests skip themselves elsewhere; Linux runs them.
+      # ffmpeg 9.0 like the production server: Ubuntu's apt ffmpeg (6.1) shifts extracted
+      # subtitle timestamps (+128 ms) and lines audio up differently, which breaks the sync tests.
       - name: Install ffmpeg and Tesseract (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg tesseract-ocr
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
+          curl -fsSL -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz
+          mkdir -p /opt/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /opt/ffmpeg --strip-components=1
+          echo /opt/ffmpeg/bin >> "$GITHUB_PATH"
+          /opt/ffmpeg/bin/ffmpeg -version | head -1
       - run: npm test
         timeout-minutes: 10
       - name: Setup, start, health check and clean stop
