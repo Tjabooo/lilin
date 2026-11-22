@@ -17,6 +17,29 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
   // the card on screen with nothing left to close it.)
   let gen = 0;
 
+  // Title logos, fetched and decoded while the pointer rests (or the finger presses), so the card opens
+  // with the logo already in place. One that isn't ready by then is left out: the text title stays
+  // rather than jumping to a logo mid-open.
+  const LOGO_WAIT_MS = 250;
+  const logos = new Map();
+  const logoKey = (t) => (t.id && ['movie', 'tv'].includes(t.type) ? `${t.type}:${t.id}` : null);
+  function warmLogo(t) {
+    const key = logoKey(t);
+    if (!key) return Promise.resolve();
+    let entry = logos.get(key);
+    if (!entry) {
+      entry = { img: null };
+      entry.ready = pageInfo(t.type, t.id).then((page) => {
+        if (!page?.logo?.url) return;
+        const img = h('img', { class: 'peek-logo', src: page.logo.url, alt: '', decoding: 'async' });
+        return img.decode().then(() => { entry.img = img; }, () => {}); // a broken logo: text title
+      }).catch(() => { logos.delete(key); });
+      logos.set(key, entry);
+    }
+    return entry.ready;
+  }
+  const logoOrTimeout = (t) => Promise.race([warmLogo(t), new Promise((r) => setTimeout(r, LOGO_WAIT_MS))]);
+
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hoverable = () => matchMedia('(hover: hover) and (pointer: fine) and (min-width: 900px)').matches;
 
@@ -38,11 +61,8 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
     ];
     panel.replaceChildren(...body);
     panel.setAttribute('aria-labelledby', 'peek-title');
-    if (t.id && ['movie', 'tv'].includes(t.type)) pageInfo(t.type, t.id).then((page) => {
-      if (!page?.logo || panel.hidden || panel._t !== t) return;
-      const logo = h('img', { class: 'peek-logo', src: page.logo.url, alt: t.title, decoding: 'async' });
-      logo.addEventListener('load', () => title.replaceChildren(logo), { once: true });
-    }).catch(() => {});
+    const logo = logos.get(logoKey(t));
+    if (logo?.img) { logo.img.alt = t.title; title.replaceChildren(logo.img); }
     panel._t = t;
   }
 
@@ -77,7 +97,7 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
     else panel.setAttribute('aria-modal', 'false');
   }
   function hide(instant = false) {
-    clearTimeout(hoverTimer);
+    clearTimeout(hoverTimer); hoverTimer = null;
     if (panel.hidden) return;
     const g = ++gen;
     panel.classList.remove('open'); shade.classList.remove('open');
@@ -92,14 +112,17 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
     if (e.pointerType !== 'mouse' || !hoverable()) return;
     const c = e.target.closest?.('.title-card');
     if (!c?._title || c === card) return;
-    clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(() => { if (!document.hidden && c.matches(':hover')) { if (card) hide(); show(c, 'hover'); } }, HOVER_MS);
+    clearTimeout(hoverTimer); hoverTimer = null;
+    warmLogo(c._title);
+    const timer = hoverTimer = setTimeout(() => logoOrTimeout(c._title).then(() => {
+      if (timer === hoverTimer && !document.hidden && c.matches(':hover')) { if (card) hide(); show(c, 'hover'); }
+    }), HOVER_MS);
   });
   document.addEventListener('pointerout', (e) => {
     if (e.pointerType !== 'mouse') return;
     const to = e.relatedTarget;
     const c = e.target.closest?.('.title-card');
-    if (c && !c.contains(to) && !panel.contains(to)) clearTimeout(hoverTimer);
+    if (c && !c.contains(to) && !panel.contains(to)) { clearTimeout(hoverTimer); hoverTimer = null; }
     if (mode === 'hover' && !panel.contains(to) && !card?.contains(to)) hide();
   });
   panel.addEventListener('pointerleave', (e) => { if (mode === 'hover' && !card?.contains(e.relatedTarget)) hide(); });
@@ -107,7 +130,7 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
   window.addEventListener('scroll', (e) => {
     if (e.target?.closest?.('.billboard')) return;
     if (mode !== 'press') hide();
-    clearTimeout(hoverTimer);
+    clearTimeout(hoverTimer); hoverTimer = null;
   }, { passive: true, capture: true });
   // Leaving the tab or window ends a hover peek at once: the pointer's way out isn't always reported.
   document.addEventListener('visibilitychange', () => { if (document.hidden && mode !== 'press') hide(true); });
@@ -120,6 +143,7 @@ export function createPeek({ h, icon, pageInfo, openDetails, quickAction, owners
     const c = e.target.closest?.('.title-card');
     if (!c?._title) return;
     pressStart = { x: e.clientX, y: e.clientY };
+    warmLogo(c._title);
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
       pressStart = null;
