@@ -904,7 +904,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   .cc-nudge-buttons button, .edit-chip, .continue-more, .st-pill, .wr-chip, .watch-start, .room-pill, .reaction-btn, .live-more, .live-pill,
   .hs-nudge-actions button, .note-action, .note-reminder-toggle, .note-reminder-chip, .note-more, .note-viewer-close, .moment-close,
   .compose-star, .md-service-btn, .pf-gradbtn, .pf-choice, .theme-btn, .lk-rail-btn .lk-ico, .lk-sound-chip, .quality-rail button,
-  .skel-btn, .swatch, .pf-ed-tabs button, .review-link) {
+  .skel-btn, .swatch, .review-link) {
   --c: 8px; --bl: var(--hairline-2); --hl: color-mix(in srgb, var(--text) 70%, transparent);
   border-radius: 0 !important; border-color: transparent !important;
   clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
@@ -940,3 +940,13 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .segmented, .set-control > .segmented { border-radius: 0; }
 .row-menu-item, .fold-btn { border-radius: 0; }
 .quality-rail { border-radius: 0; }
+
+/* edit-profile tabs: words, not buttons (the 2h sweep framed them flush to the text). Same language as the main tabs:
+   a ticked hairline along the row, the current one underlined by an accent bar with a square end-notch */
+.pf-ed-tabs.pf-ed-tabs { gap: 26px; border-bottom: 0;
+  background: linear-gradient(var(--hairline-2), var(--hairline-2)) left bottom / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--hairline-2) 0 1px, transparent 1px 12px) left bottom / 100% 4px no-repeat, var(--surface-1); }
+.pf-ed-tabs.pf-ed-tabs button[aria-selected="true"]::after { bottom: 0; height: 4px; border-radius: 0;
+  background: linear-gradient(var(--ph-you), var(--ph-you)) left bottom / calc(100% - 6px) 2px no-repeat,
+    linear-gradient(var(--ph-you), var(--ph-you)) right bottom / 4px 4px no-repeat; }
+.pf-ed-tabs.pf-ed-tabs button:focus-visible::before { border-radius: 0; }
