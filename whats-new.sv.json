@@ -1,4 +1,13 @@
 {
+  "2026-11-22-smoother-tabs": {
+    "title": "Lugnare Upptäck och Live",
+    "items": {
+      "No more flicker when you switch tabs": {
+        "title": "Inget mer flimmer när du byter flik",
+        "text": "När du går tillbaka till Upptäck blinkar inte längre filmens namn i vanlig text en kort stund innan loggan dyker upp, och första gången du öppnar Live visas sidan inte längre ihoptryckt innan den lägger sig."
+      }
+    }
+  },
   "2026-11-22-liklok": {
     "title": "LikLok: scrolla klipp, hitta nästa serie",
     "items": {

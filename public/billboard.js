@@ -8,6 +8,9 @@ import { fitTrailer, HD_HINT } from './trailer-size.js';
 
 const ADVANCE_MS = 9000;
 const TRAILER_AFTER_MS = 4500;
+// title → TMDB logo (or null when it has none), kept for the page's life so going back to Discover
+// shows the logo at once instead of the text title first.
+const logoCache = new Map();
 
 export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, quickAction, ownershipBadge, metaFor, bigArt }) {
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -33,7 +36,13 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
       quick?.stale?.().then((gone) => { if (gone && slide._primary === primary) { primary.remove(); slide._primary = null; } });
       const more = h('button', { type: 'button', class: 'btn-glass', onclick: (e) => { stopTrailer(); openDetails(t, e.currentTarget); } },
         icon('info'), h('span', {}, T('More info')));
-      const title = h('h3', { class: 'bb-title' }, t.title);
+      const logoKey = t.id && ['movie', 'tv'].includes(t.type) ? `${t.type}:${t.id}` : null;
+      const known = logoKey && logoCache.get(logoKey);
+      const logoImg = (logo) => h('img', { class: `bb-logo${logo.aspect > 3.2 ? ' is-wide' : ''}`, src: logo.url, alt: t.title, decoding: 'async' });
+      // A logo we've already seen goes straight in; otherwise the text stays invisible (space kept) until we
+      // know whether there's a logo, so the display-font title doesn't flash for a frame before the art.
+      const title = h('h3', { class: known ? 'bb-title' : (logoKey && !logoCache.has(logoKey) ? 'bb-title is-pending' : 'bb-title') },
+        known ? logoImg(known) : t.title);
       const art = bigArt(t.backdrop);
       const img = h('img', { class: 'bb-img', src: art, alt: '', decoding: 'async', ...(i === 0 ? { fetchpriority: 'high' } : { loading: 'lazy' }) });
       img.addEventListener('load', () => img.classList.add('is-loaded'), { once: true });
@@ -50,11 +59,17 @@ export function createBillboard({ h, icon, cachedFor, pageInfo, openDetails, qui
       slide._quick = quick;
       slide._primary = primary;
       // Logo art in place of the title text, when TMDB has one (the heading keeps the name as alt text).
-      if (t.id && ['movie', 'tv'].includes(t.type)) pageInfo(t.type, t.id).then((page) => {
-        if (!page?.logo || !slide.isConnected) return;
-        const logo = h('img', { class: `bb-logo${page.logo.aspect > 3.2 ? ' is-wide' : ''}`, src: page.logo.url, alt: t.title, decoding: 'async' });
-        logo.addEventListener('load', () => title.replaceChildren(logo), { once: true });
-      }).catch(() => {});
+      if (logoKey && !logoCache.has(logoKey)) {
+        const reveal = () => title.classList.remove('is-pending');
+        const giveUp = setTimeout(reveal, 1200);
+        pageInfo(t.type, t.id).then((page) => {
+          logoCache.set(logoKey, page?.logo || null);
+          if (!page?.logo) { clearTimeout(giveUp); reveal(); return; }
+          const logo = logoImg(page.logo);
+          logo.addEventListener('load', () => { clearTimeout(giveUp); title.replaceChildren(logo); reveal(); }, { once: true });
+          logo.addEventListener('error', () => { clearTimeout(giveUp); logoCache.set(logoKey, null); reveal(); }, { once: true });
+        }).catch(() => { clearTimeout(giveUp); reveal(); });
+      }
       return slide;
     });
     track.append(...slideEls);

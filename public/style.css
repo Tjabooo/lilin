@@ -693,6 +693,7 @@ main {
   text-wrap: balance; text-shadow: 0 2px 30px rgb(0 0 0 / .45);
   max-width: 14ch;
 }
+.bb-title.is-pending { color: transparent; text-shadow: none; }
 .bb-logo { display: block; width: auto; height: auto; max-width: min(80vw, 340px); max-height: clamp(84px, 12vw + 40px, 190px); object-fit: contain; filter: drop-shadow(0 2px 20px rgb(0 0 0 / .5)); }
 .bb-logo.is-wide { max-width: min(88vw, 520px); }
 .bb-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; margin: var(--s3) 0 0; font-size: var(--t-small); font-weight: 600; color: rgb(255 255 255 / .86); text-shadow: 0 1px 8px rgb(0 0 0 / .5); }
@@ -798,6 +799,10 @@ main { view-transition-name: main; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 ::view-transition-old(main) { animation: var(--d-2) var(--ease-out) both vt-out; }
 ::view-transition-new(main) { animation: var(--d-3) var(--ease-out) both vt-in; }
+/* the two snapshots keep their real size, pinned to the top: when a view fills in during the change (Live's
+   guide arriving), the browser would otherwise stretch the old-size picture into the new box and squash it */
+::view-transition-group(main) { animation: none; overflow: clip; }
+::view-transition-old(main), ::view-transition-new(main) { width: 100%; height: 100%; object-fit: none; object-position: 50% 0; }
 @keyframes vt-out { to { opacity: 0; } }
 @keyframes vt-in { from { opacity: 0; transform: translateY(10px); } }
 html.has-vt .view { animation: none; }

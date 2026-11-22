@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-smoother-tabs",
+  "date": "2026-11-22",
+  "title": "Smoother Discover and Live",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "No more flicker when you switch tabs",
+      "text": "Going back to Discover no longer flashes the film's name in plain text for a split second before its logo appears, and opening Live for the first time no longer shows the page squashed before it settles."
+    }
+  ]
+},
+{
   "id": "2026-11-22-liklok",
   "date": "2026-11-22",
   "title": "LikLok: scroll clips, find your next show",

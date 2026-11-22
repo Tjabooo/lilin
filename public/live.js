@@ -43,7 +43,11 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
   function render(body) {
     clearInterval(state.nowTimer);
     const heading = document.getElementById('live-heading');
-    if (heading) heading.replaceChildren(h('span', { class: 'live-mark', 'aria-hidden': 'true' }), displayName());
+    // The channel's own name only once it's known: no generic "Lilin TV" for a frame before it.
+    if (heading) {
+      heading.replaceChildren(h('span', { class: 'live-mark', 'aria-hidden': 'true' }), displayName());
+      heading.style.visibility = state.guide || state.error ? '' : 'hidden';
+    }
     const list = channels();
     // Watch with someone (app.js): Pick together and planned parties, above the channels.
     const top = together();
