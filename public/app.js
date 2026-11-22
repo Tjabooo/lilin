@@ -48,6 +48,7 @@ import { createDaypart } from './daypart.js'; // Discover by time of day: mornin
 import { createHoliday, tiltForYou } from './holiday.js'; // holidays: a row near the top + For you leans toward it
 import { createChannelStatic, STATIC_MIN_MS } from './channel-static.js'; // Live TV: grain + corner number on a channel switch
 import { createPauseScreen } from './pause-screen.js'; // the pause screen: logo + synopsis after a few seconds paused
+import { createStay } from './stinger.js'; // stinger: a scene during or after a film's credits (page, pause, credits card, room)
 import { createGettingReady } from './getting-ready.js';
 import { createNotices } from './notices.js'; // owner popups: shown once on the next open, OK to carry on // play first: the player's Getting it ready screen
 
@@ -2417,6 +2418,7 @@ function renderTitle() {
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
         : T('Several films match this filename. The server’s owner can identify this file.')),
       t.overview && h('p', { class: 'overview' }, t.overview),
+      !tv && stayCredits.pageNote(t.id), // stinger: "Scene after the credits"
       tv && episodeList(c),
       !tv && reactions,
       reviews.section(rateKey, t.title), // reviews
@@ -4807,6 +4809,7 @@ function renderParty() {
   statusEl.dataset.tone = tone;
   const title = current ? [current.filmTitle || current.title, episodeLabel(current)].filter(Boolean).join(' · ') : '';
   if ($('#watch-title').textContent !== title) $('#watch-title').textContent = title;
+  stayCredits.room(); // stinger: "Stay: there's a scene after the credits" under the status
   renderRoster(room);
   $('#watch-hint').textContent = party.isHost ? T('You have the remote: everyone follows your play, pause and seeking.')
     : T('{0} has the remote: play, pause and seeking follow them.', host);
@@ -7098,6 +7101,9 @@ controlsEl.addEventListener('pointerleave', () => { overControls = false; });
 video.addEventListener('play', showPlayerUi);
 video.addEventListener('pause', showPlayerUi);
 // Paused for a few seconds: the picture dims and the title's logo, episode and synopsis show (pause-screen.js).
+// stinger: films with a scene during or after the credits (stinger.js); Watch Together's line and banner too.
+const stayCredits = createStay({ h, video, stage, pageInfo, current: () => current, inParty: () => Boolean(party && !party.state.live),
+  searchOn: () => Boolean(state.status?.search) });
 const pauseScreen = createPauseScreen({ h, playerEl, stage, video,
   canRest: () => Boolean(current?.ready) && !menuOpen() && seeking == null && !gettingReady.active() && !playerEl.classList.contains('has-up-next') && !playerEl.classList.contains('is-credits') && !inPip(),
   info: pauseInfo,
@@ -7105,9 +7111,10 @@ const pauseScreen = createPauseScreen({ h, playerEl, stage, video,
 async function pauseInfo(s) {
   const show = s.show != null ? state.libraryShows.find((x) => x.id === s.show) : null;
   const type = show ? 'tv' : 'movie', id = show ? show.tmdbId : s.tmdbId;
-  let synopsis = show ? '' : s.overview || '', logo = null;
+  let synopsis = show ? '' : s.overview || '', logo = null, stayNote = null;
   if (id && state.status.search) {
     const page = await pageInfo(type, id).catch(() => null);
+    if (!show) stayNote = stayCredits.pauseLine(page?.stinger); // stinger
     if (page?.logo?.url) {
       const big = innerWidth * (devicePixelRatio || 1) > 900;
       const tone = await logoTone(page.logo.url).catch(() => null);
@@ -7119,7 +7126,7 @@ async function pauseInfo(s) {
     } else if (!show && !synopsis) synopsis = state.library.find((f) => f.id === s.id)?.overview || '';
   }
   return { kicker: T('You’re watching'), name: show?.title || s.filmTitle || s.title || '', episode: show ? playerEpisodeText(s) : '',
-    synopsis: synopsis || show?.overview || '', logo };
+    synopsis: synopsis || show?.overview || '', logo, stay: stayNote };
 }
 
 // Mouse: click to play or pause, double-click for fullscreen. Touch: a tap shows or hides the
@@ -7842,6 +7849,7 @@ async function loadPlayerMedia(f, opts = {}) {
   syncSettingsBtn();
   setPlayerTitle(f);
   pauseScreen.load(f.live || !['lib', 'part'].includes(f.kind) ? null : session); // the pause screen's title
+  stayCredits.load(session, () => updateUpNext()); // stinger: session.stinger for the credits card and Watch Together
   momentsUI.sync(); // friends: the Clip a moment button for library videos
   ghostsUI.sync(); // ghost reactions on this film or episode
   playerEl.classList.toggle('is-clip', plainMedia(f));
@@ -8205,7 +8213,7 @@ function creditsState(session, next, externalPlayer, nextEp = null) {
   const show = session.show != null ? state.libraryShows.find((x) => x.id === session.show) : null;
   const ref = !state.status?.search ? null : show?.tmdbId ? { type: 'tv', id: show.tmdbId }
     : !show && session.season == null && session.tmdbId ? { type: 'movie', id: session.tmdbId } : null;
-  return { rolling, next, nextEp: next ? nextEp : null, ref, title: show?.title || session.filmTitle || session.title || '' };
+  return { rolling, next, nextEp: next ? nextEp : null, ref, title: show?.title || session.filmTitle || session.title || '', stinger: session.stinger || null };
 }
 
 // Counts real seconds while the credits play (or after the end); a pause during the credits pauses it.

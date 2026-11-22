@@ -1,5 +1,13 @@
 {
-  "2026-11-22-new-episodes": {
+  "2026-11-22-stay-for-the-credits": {
+    "title": "Stanna kvar för scenen efter eftertexterna",
+    "items": {
+      "Know when there's a scene after the credits": {
+        "title": "Se när det kommer en scen efter eftertexterna",
+        "text": "Filmer med en scen under eller efter eftertexterna säger det nu: en liten rad på filmens sida och när du pausar, och när eftertexterna börjar säger slutkortet \"Stanna kvar: det kommer en scen efter eftertexterna\" innan bilden blir stor igen. I Titta tillsammans ser alla i rummet det också, så ingen går för tidigt. Filmer utan raden kan ändå ha en scen: Lilin säger det bara när den vet."
+      }
+    }
+  },  "2026-11-22-new-episodes": {
     "title": "Nya avsnitt som precis kommit ut",
     "items": {
       "New episodes this week shows what actually aired": {

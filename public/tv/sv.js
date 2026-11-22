@@ -232,4 +232,10 @@ window.LilinTvStrings = {
   'OK again removes': 'OK igen tar bort',
   'New profiles on this TV: {0}': 'Nya profiler på den här TV:n: {0}',
   'Switch profile': 'Byt profil',
+  'Scenes during and after the credits': 'Scener under och efter eftertexterna',
+  'Scene during the credits': 'Scen under eftertexterna',
+  'Scene after the credits': 'Scen efter eftertexterna',
+  'Stay: there are scenes during and after the credits': 'Stanna kvar: det kommer scener under och efter eftertexterna',
+  'Stay: there’s a scene during the credits': 'Stanna kvar: det kommer en scen under eftertexterna',
+  'Stay: there’s a scene after the credits': 'Stanna kvar: det kommer en scen efter eftertexterna',
 };

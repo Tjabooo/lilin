@@ -12,6 +12,7 @@ pub mod img;
 pub mod logic;
 pub mod platform;
 pub mod screens;
+pub mod stinger;
 pub mod text;
 pub mod theme;
 pub mod ui;

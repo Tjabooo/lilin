@@ -251,6 +251,8 @@ pub struct Player {
     logo: String,
     /// The title's big textless backdrop (title page), behind the credits card.
     backdrop: String,
+    /// A scene during or after the credits (crate::stinger, from the title page): the pause screen and credits card say so.
+    stinger: u8,
     asked_page: bool,
     // Android (ExoPlayer) rebuffers and retries by itself, so reopening only throws its buffer away. There the
     // original file plays until the line proves too slow for it (a slow first load, a long or repeated stall, or
@@ -357,6 +359,7 @@ impl Player {
             rest_since: 0.0,
             logo: String::new(),
             backdrop: String::new(),
+            stinger: crate::stinger::NONE,
             asked_page: false,
             exo: crate::platform::android(),
             adaptive: false,
@@ -529,6 +532,7 @@ impl Player {
         let Some(at) = self.credits_at else { return false };
         !self.closed && !self.ended && !self.dismissed && !self.credits_dismissed && self.menu.is_none() && self.seek_target.is_none()
             && at > 0.0 && self.time >= at && logic::next_prompt_at(self.duration, self.credits_at).is_some()
+            && !crate::stinger::put_away(self.stinger, self.next.is_some(), at, self.time)
     }
     fn sync_credits(&mut self, cx: &mut Cx) {
         let on = self.credits_rolling();
@@ -835,7 +839,7 @@ impl Player {
         let t = self.seek_target.unwrap_or(self.time);
         let pos = if self.osd_on { logic::fmt_time(t) } else { String::new() };
         let sub = if self.cues.is_empty() { String::new() } else { logic::cue_text(&self.cues, self.time) };
-        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}|{}|{}", pos, sub, self.skip_on() as u8 + self.recap_on() as u8, self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on, self.credits_on, self.song.is_some())
+        alloc::format!("{}|{}|{}|{}|{}|{:?}|{}|{}|{}", pos, sub, self.skip_on() as u8 + self.recap_on() as u8, self.up_next_on(), self.playing, self.auto_left.map(|x| libm::ceil(x) as i64), self.osd_on, self.credits_on, self.song.is_some() as u8 + 2 * self.stinger)
     }
 }
 
@@ -874,6 +878,13 @@ impl Screen for Player {
             if self.duration > 0.0 {
                 let left = logic::minutes_left(&serde_json::json!({ "time": self.time, "duration": self.duration }));
                 cx.tx.draw(&mut cx.g, body(30.0, 400), &left, x, y, ui::dust());
+                y += 50.0;
+            }
+            // A scene during or after the credits: one quiet line, the bulb's mark in front.
+            let note = crate::stinger::scene_note(self.stinger);
+            if !note.is_empty() {
+                cx.g.round(rect(x, y + 9.0, 4.0, 22.0), 2.0, ui::bulb());
+                cx.tx.draw(&mut cx.g, body(28.0, 700), note, x + 20.0, y, ui::paper().alpha(0.86));
             }
             return;
         }
@@ -1017,6 +1028,16 @@ impl Screen for Player {
                     cx.tx.draw_fit(&mut cx.g, display(52.0, 700), &name, x, y, 760.0, ui::paper());
                     y += display(52.0, 700).line() + 26.0;
                 }
+            }
+            // A scene during or after the credits: what the card is there to say, in the bulb's light.
+            let stay = crate::stinger::stay_line(self.stinger);
+            if !stay.is_empty() {
+                let sf = body(30.0, 700);
+                let r = rect(x, y, (cx.tx.width(sf, stay) + 64.0).min(760.0), 72.0);
+                cx.g.round(r, 20.0, hexa(0x1C1018, 0.82).mix(ui::bulb(), 0.16));
+                cx.g.ring(r, 20.0, 2.0, ui::bulb().alpha(0.5));
+                cx.tx.draw_fit(&mut cx.g, sf, stay, x + 32.0, y + (72.0 - sf.line()) / 2.0, 760.0 - 64.0, ui::paper());
+                y += 72.0 + 30.0;
             }
             if let Some((why, title, by)) = self.song.clone() {
                 cx.g.round(rect(x, y, 4.0, 118.0), 2.0, ui::bulb());
@@ -1378,6 +1399,11 @@ impl Screen for Player {
                 }
                 if let Some(b) = res.json.get("page").map(|p| s(p, "backdrop")).filter(|b| !b.is_empty()) {
                     self.backdrop = ui::tmdb_size(b, "w1280");
+                }
+                // Films only (a show's keywords aren't about one episode); the server says null for shows anyway.
+                if !crate::util::has(&self.f, "season") {
+                    self.stinger = crate::stinger::kind(res.json.get("page").map(|p| s(p, "stinger")).unwrap_or(""));
+                    cx.redraw();
                 }
             }
             SUB_STATE => {

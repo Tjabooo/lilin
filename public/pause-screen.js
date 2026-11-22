@@ -29,7 +29,8 @@ export function createPauseScreen({ h, playerEl, stage, video, canRest, info, on
       h('p', { class: 'pause-kicker' }, d.kicker),
       logo,
       d.episode && h('p', { class: 'pause-episode' }, d.episode),
-      d.synopsis && h('p', { class: 'pause-synopsis' }, clip(d.synopsis)));
+      d.synopsis && h('p', { class: 'pause-synopsis' }, clip(d.synopsis)),
+      d.stay || null); // stinger: "Scene after the credits" (a Node from stinger.js)
   }
 
   function rest() {

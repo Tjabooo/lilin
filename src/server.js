@@ -39,6 +39,7 @@ import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
+import { titleStinger } from './stinger.js'; // stinger: a scene during or after a film's credits
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
 import * as reviews from './reviews.js'; // reviews: stars + written reviews (reviews.js)
 import * as lists from './lists.js'; // lists: shelves people put together and share (lists.js)
@@ -872,6 +873,7 @@ export function titlePage(type, d) {
     status: d.status || null,
     // Films: whether a proper copy can be had yet (watchlist.js filmOut); the page says Coming soon until then.
     release: type === 'movie' ? filmOut(d) : null,
+    stinger: titleStinger(type, d), // stinger: 'during' | 'after' | 'both' | null (TMDB keywords, src/stinger.js)
     cast: (credits?.cast || []).filter((c) => c.name && c.id).slice(0, 50).map((c) => ({
       id: c.id, name: c.name,
       character: c.character || c.roles?.[0]?.character || '',
@@ -914,7 +916,7 @@ function withoutDisliked(user, data) {
 function titlePageData(type, id) {
   const lang = TMDB_LANG.split('-')[0];
   return cachedTmdb(`/${type}/${id}`, {
-    append_to_response: type === 'tv' ? 'images,aggregate_credits,recommendations,content_ratings' : 'images,credits,recommendations,release_dates',
+    append_to_response: type === 'tv' ? 'images,aggregate_credits,recommendations,content_ratings' : 'images,credits,recommendations,release_dates,keywords', // keywords: stinger
     include_image_language: [...new Set(['en', lang, 'null'])].join(','),
   }, 12 * 3600 * 1000);
 }

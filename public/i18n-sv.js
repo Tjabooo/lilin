@@ -2821,4 +2821,11 @@ export default {
   "Show all {0}": "Visa alla {0}",
   "Your own channels": "Dina egna kanaler",
   "New ones arrive every few hours, mostly for the channels with the least on them; the oldest nobody kept make room.": "Nya kommer med några timmars mellanrum, mest till kanalerna som har minst; de äldsta som ingen sparat får ge plats.",
+  // stinger: a scene during or after a film's credits
+  "Scenes during and after the credits": "Scener under och efter eftertexterna",
+  "Scene during the credits": "Scen under eftertexterna",
+  "Scene after the credits": "Scen efter eftertexterna",
+  "Stay: there are scenes during and after the credits": "Stanna kvar: det kommer scener under och efter eftertexterna",
+  "Stay: there’s a scene during the credits": "Stanna kvar: det kommer en scen under eftertexterna",
+  "Stay: there’s a scene after the credits": "Stanna kvar: det kommer en scen efter eftertexterna",
 };

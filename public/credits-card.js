@@ -12,6 +12,7 @@
 import { T } from './i18n.js';
 import { SERVICES, songQuery } from './details.js';
 import { creditsSong } from './credits-song.js';
+import { stayLine, stayIcon, cardPutAway } from './stinger.js'; // stinger: "Stay: there's a scene after the credits"
 
 export { creditsSong };
 
@@ -46,6 +47,8 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
   const find = h('a', { class: 'crd-find', target: '_blank', rel: 'noopener noreferrer' });
   const song = h('div', { class: 'crd-song', hidden: true }, svg(NOTE, 'crd-note'), h('div', { class: 'crd-song-text' }, why, track, by), find);
   const name = h('p', { class: 'crd-name' });
+  const stayText = h('span', {});
+  const stay = h('p', { class: 'crd-stay', hidden: true }, stayIcon(h), stayText); // stinger
   const logo = h('img', { class: 'crd-logo', alt: '', decoding: 'async', hidden: true });
   const bgImg = h('img', { alt: '', decoding: 'async' });
   const bg = h('div', { class: 'crd-bg', 'aria-hidden': 'true' }, bgImg);
@@ -55,7 +58,7 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
   const slot = h('div', { class: 'crd-next' });
   const back = h('button', { type: 'button', class: 'crd-back' }, T('Back to the picture'));
   const card = h('aside', { class: 'credits-card', 'aria-label': T('End credits'), hidden: true },
-    h('p', { class: 'crd-kicker' }, T('End credits')), logo, name, song, slot, back);
+    h('p', { class: 'crd-kicker' }, T('End credits')), logo, name, stay, song, slot, back);
   playerEl.append(card);
   stage.prepend(bg);
   // The synopsis sits inside Up next, between its title and buttons; CSS shows it only while Up next is in the card.
@@ -169,10 +172,14 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
 
   // Called with Up next's state. rolling: the credits are playing (or the file ended right after them).
   // next: whether Up next is showing; nextEp: the episode it offers. ref: { type, id } of the title (TMDB) or null;
-  // title: its name.
-  function sync(s, { rolling, next, nextEp, ref, title }) {
+  // title: its name. stinger: 'during' | 'after' | 'both' | null, a scene in or after the credits (stinger.js).
+  function sync(s, { rolling, next, nextEp, ref, title, stinger = null }) {
     if (s !== session) { session = s; song.hidden = true; delete song.dataset.ref; if (on) leave(); }
     if (!s || !rolling || s.creditsDismissed) { leave(); return; }
+    // stinger: the picture comes back full size by itself, so the scene isn't watched in the corner.
+    if (cardPutAway({ kind: stinger, next, creditsAt: s.creditsAt, time: video.currentTime })) { leave(); return; }
+    stayText.textContent = stayLine(stinger);
+    stay.hidden = !stinger;
     name.textContent = title || '';
     logo.alt = title || '';
     paintLook(ref);
@@ -184,11 +191,11 @@ export function createCreditsCard({ h, api, playerEl, stage, video, upNextEl, ga
         if (session !== s) return;
         s.creditsSong = creditsSong(music?.albums, { type: ref.type });
         paintSong(s.creditsSong, ref);
-        sync(s, { rolling: s.creditsRolling, next: s.creditsNext, nextEp: s.creditsNextEp, ref, title });
+        sync(s, { rolling: s.creditsRolling, next: s.creditsNext, nextEp: s.creditsNextEp, ref, title, stinger: s.creditsStinger });
       });
     }
-    s.creditsRolling = rolling; s.creditsNext = next; s.creditsNextEp = nextEp;
-    const worth = next || Boolean(s.creditsSong);
+    s.creditsRolling = rolling; s.creditsNext = next; s.creditsNextEp = nextEp; s.creditsStinger = stinger;
+    const worth = next || Boolean(s.creditsSong) || Boolean(stinger);
     if (!worth) { leave(); return; }
     back.hidden = false;
     if (!on) enter();

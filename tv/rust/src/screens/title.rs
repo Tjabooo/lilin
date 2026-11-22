@@ -59,6 +59,8 @@ pub struct TitleScreen {
     similar: Vec<browse::Card>,
     facts: Vec<String>,
     tagline: String,
+    /// A film's scene during or after the credits (crate::stinger): one quiet line under the facts.
+    stinger: u8,
     zone: Zone,
     ci: usize,
     mi: usize,
@@ -176,6 +178,7 @@ impl TitleScreen {
             similar: Vec::new(),
             facts: Vec::new(),
             tagline: String::new(),
+            stinger: crate::stinger::NONE,
             zone: Zone::Hero,
             ci: 0,
             mi: 0,
@@ -449,6 +452,12 @@ impl Screen for TitleScreen {
         ui::meta_dot(cx, x + 1.0, y + 14.0);
         cx.tx.draw_fit(&mut cx.g, body(27.0, 700), &parts.join("  ·  "), x + 26.0, y, 1300.0, ui::paper().alpha(0.88));
         y += 58.0;
+        let note = crate::stinger::scene_note(self.stinger);
+        if !note.is_empty() {
+            cx.g.round(rect(x + 1.0, y + 7.0, 4.0, 20.0), 2.0, ui::bulb());
+            cx.tx.draw_fit(&mut cx.g, body(26.0, 700), note, x + 26.0, y, 1100.0, ui::dust());
+            y += 48.0;
+        }
         if !self.tagline.is_empty() {
             let tl = self.tagline.clone();
             cx.tx.draw_fit(&mut cx.g, body(28.0, 700), &tl, x, y, 1100.0, ui::bulb().mix(ui::paper(), 0.35));
@@ -730,6 +739,7 @@ impl Screen for TitleScreen {
                     self.logo = String::from(u);
                 }
                 self.tagline = String::from(s(p, "tagline"));
+                self.stinger = if self.tv { crate::stinger::NONE } else { crate::stinger::kind(s(p, "stinger")) };
                 self.facts.clear();
                 if let Some(m) = f(p, "runtime").filter(|m| *m > 0.0) {
                     let m = m as i64;

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-stay-for-the-credits",
+  "date": "2026-11-22",
+  "title": "Stay for the scene after the credits",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Know when there's a scene after the credits",
+      "text": "Films with a scene during or after the credits now say so: a small line on the film's page and when you pause, and when the credits start the end card says \"Stay: there's a scene after the credits\" before the picture comes back full size. In Watch Together everyone in the room sees it too, so nobody leaves too early. Films without the note may still have one: Lilin only says it when it knows."
+    }
+  ]
+},
+{
   "id": "2026-11-22-new-episodes",
   "date": "2026-11-22",
   "title": "New episodes that just came out",
