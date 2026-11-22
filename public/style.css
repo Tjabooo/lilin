@@ -2519,7 +2519,9 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 @media (max-width: 899px) { #view-you.on-page #you-list, #view-you:not(.on-page) #you-page, #you-rows > .you-me { display: none; } }
 @media (min-width: 900px) {
   #you-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--s7); align-items: start; }
-  #you-list { position: sticky; top: calc(var(--safe-top) + var(--head-h) + var(--s5)); max-height: calc(100dvh - var(--head-h) - 64px); overflow-y: auto; }
+  #you-list { position: sticky; top: calc(var(--safe-top) + var(--head-h) + var(--s5)); max-height: calc(100dvh - var(--head-h) - 64px); overflow-y: auto;
+    /* the scrollbar gets its own lane in the column gap instead of sitting on the cards (ebi) */
+    margin-right: -20px; padding-right: 10px; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
   #you-id, #you-foryou, .you-back { display: none; }
 }
 /* You: who you are, For you, your own lists (profiles.js) */
