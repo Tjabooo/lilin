@@ -72,6 +72,7 @@ export function titleModel(x) {
     menu('delete', tools && (owned || x.transfers > 0));
   }
   menu('details', tools && x.transfers > 0);
+  menu('profileHide', x.profile && x.tmdb); // hide from profile: keep it off your profile for other people
 
   const inline = [];
   if (x.tmdb && x.search) inline.push('trailer'); // on the hero, when TMDB has one

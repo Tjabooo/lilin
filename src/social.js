@@ -8,6 +8,7 @@
 // Together room is also credited to each pair of people in it (watch_company).
 import { tr } from './i18n.js';
 import { database } from './accounts.js';
+import { hiddenBy } from './profile-hidden.js'; // hide from profile: no face on the title page
 
 const TITLE_KEY = /^(movie|tv):\d{1,9}$/;
 const REF = /^[a-z]:[^\u0000-\u001f]{1,400}$/i;
@@ -74,7 +75,8 @@ export function ratingFor(userId, key, nameOf, avatarOf = () => null, sight = {}
   if (!validTitleKey(key)) throw fail(400, 'Which film or show?');
   const rows = db().prepare('SELECT user_id, value FROM ratings WHERE title_key = ? ORDER BY updated_at DESC').all(key);
   const mine = rows.find((r) => r.user_id === userId)?.value || 0;
-  const others = sight.blind ? [] : rows.filter((r) => r.value === 1 && r.user_id !== userId && !sight.hide?.has(r.user_id));
+  const hid = sight.blind ? null : hiddenBy(key); // people who keep this title off their profile
+  const others = sight.blind ? [] : rows.filter((r) => r.value === 1 && r.user_id !== userId && !sight.hide?.has(r.user_id) && !hid.has(r.user_id));
   const likedBy = others.map((r) => nameOf(r.user_id));
   const people = others.slice(0, 5).map((r, i) => ({ name: likedBy[i], avatar: avatarOf(r.user_id) }));
   return { key, mine, likedBy, people, likes: rows.filter((r) => r.value === 1).length };

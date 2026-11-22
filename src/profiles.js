@@ -24,6 +24,7 @@ import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey } from './social.js';
 import * as letterboxd from './letterboxd.js';
 import { listsOf } from './lists.js';
+import { hiddenKeys, NOT_HIDDEN, ensureTable as ensureHidden } from './profile-hidden.js'; // hide from profile
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
@@ -67,6 +68,7 @@ export function initProfiles() {
       updated_at INTEGER
     );
   `);
+  ensureHidden();
 }
 
 // ---------- cleaning what people type ----------
@@ -250,7 +252,8 @@ function watches(userId) {
 // Diary lines, newest first: one per title per day. { key, type, title, day, at, episodes: [[s, e]], rewatch,
 // stars, liked, letterboxd }. offset/limit page through them; more says whether there are older ones.
 // type: 'movie' or 'tv' keeps only films or only shows (film stub numbers still count every film).
-export function diary(userId, { offset = 0, limit = DIARY_PAGE, type = null } = {}) {
+// hide: title keys left out (what they keep off their profile, for everyone but themselves).
+export function diary(userId, { offset = 0, limit = DIARY_PAGE, type = null, hide = null } = {}) {
   const lines = new Map();
   for (const w of watches(userId)) {
     const id = `${w.key}|${w.day}`;
@@ -262,7 +265,7 @@ export function diary(userId, { offset = 0, limit = DIARY_PAGE, type = null } = 
     if (!w.letterboxd) l.letterboxd = false; // watched here too that day: it's a Lilin line
     if (w.type === 'tv' && w.season != null && w.episode != null && !l.episodes.some(([s, e]) => s === w.season && e === w.episode)) l.episodes.push([w.season, w.episode]);
   }
-  const all = [...lines.values()].sort((a, b) => b.at - a.at);
+  const all = [...lines.values()].filter((l) => !hide?.has(l.key)).sort((a, b) => b.at - a.at);
   // Ticket stubs: every film line gets its number, counting from the first film ever watched (No. 1).
   let films = all.filter((l) => l.type === 'movie').length;
   for (const l of all) if (l.type === 'movie') l.stub = films--;
@@ -291,12 +294,12 @@ function starsFor(userId, keys) {
 const likedSet = (userId) => new Set(db().prepare('SELECT title_key FROM ratings WHERE user_id = ? AND value = 1').all(userId).map((r) => r.title_key));
 
 // Recently watched titles for the profile's row: the newest line of each title, newest first.
-export function recent(userId, limit = 8) {
+export function recent(userId, limit = 8, hide = null) {
   const seen = new Set();
   const out = [];
   let offset = 0;
   for (;;) {
-    const { entries, more } = diary(userId, { offset, limit: 60 });
+    const { entries, more } = diary(userId, { offset, limit: 60, hide });
     for (const e of entries) {
       if (seen.has(e.key)) continue;
       seen.add(e.key);
@@ -336,17 +339,18 @@ export function ratings(userId) {
 }
 
 // Their written reviews, newest first.
-export function reviewsBy(userId, { offset = 0, limit = 3 } = {}) {
-  const rows = db().prepare("SELECT title_key, stars, text, spoiler, title, created_at FROM reviews WHERE user_id = ? AND text != '' ORDER BY created_at DESC LIMIT ? OFFSET ?")
-    .all(userId, Math.min(40, limit) + 1, Math.max(0, offset));
+// others: someone else is looking, so titles they hide from their profile stay out.
+export function reviewsBy(userId, { offset = 0, limit = 3, others = false } = {}) {
+  const rows = db().prepare(`SELECT title_key, stars, text, spoiler, title, created_at FROM reviews WHERE user_id = ? AND text != ''${others ? ` AND ${NOT_HIDDEN}` : ''} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...(others ? [userId, userId] : [userId]), Math.min(40, limit) + 1, Math.max(0, offset));
   const more = rows.length > limit;
   return { reviews: rows.slice(0, limit).map((r) => ({ key: r.title_key, stars: r.stars, text: r.text, spoiler: Boolean(r.spoiler), title: r.title, created: r.created_at })), more };
 }
 
 // Titles they gave a thumbs up, newest first (offset: the next page, for You → Liked).
-export function likedBy(userId, limit = 12, offset = 0) {
-  return db().prepare('SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1 ORDER BY updated_at DESC, rowid DESC LIMIT ? OFFSET ?')
-    .all(userId, limit, Math.max(0, Number(offset) || 0));
+export function likedBy(userId, limit = 12, offset = 0, others = false) {
+  return db().prepare(`SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1${others ? ` AND ${NOT_HIDDEN}` : ''} ORDER BY updated_at DESC, rowid DESC LIMIT ? OFFSET ?`)
+    .all(...(others ? [userId, userId] : [userId]), limit, Math.max(0, Number(offset) || 0));
 }
 
 // Their friends (faces on the profile), never restricted people.
@@ -365,17 +369,18 @@ export function view(viewer, target) {
   if (sight === 'locked') return { person, me: false, locked: true, visibility: p.visibility, friend, look: p.look, sections: [] };
   const on = (id) => self || p.sections.some((s) => s.id === id && s.on);
   const lb = letterboxd.status(target.id);
+  const hide = self ? null : hiddenKeys(target.id); // what they keep off their profile
   return {
     person: { ...person, pronouns: p.pronouns, bio: p.bio, since: target.createdAt },
     me: self, locked: false, visibility: p.visibility, friend,
     // an owner looking at a page that isn't shared with them (private, or friends-only and not friends)
     ownerPeek: !self && Boolean(viewer?.isOwner) && p.visibility !== 'public' && !(p.visibility === 'friends' && areFriends(viewer.id, target.id)), look: p.look, sections: p.sections,
     favorites: on('favorites') ? p.favorites : [],
-    recent: on('recent') ? recent(target.id, 8) : [],
+    recent: on('recent') ? recent(target.id, 8, hide) : [],
     stats: on('stats') ? stats(target.id) : null,
     ratings: on('ratings') ? ratings(target.id) : null,
-    reviews: on('reviews') ? reviewsBy(target.id) : { reviews: [], more: false },
-    liked: on('liked') ? likedBy(target.id) : [],
+    reviews: on('reviews') ? reviewsBy(target.id, { others: !self }) : { reviews: [], more: false },
+    liked: on('liked') ? likedBy(target.id, 12, 0, !self) : [],
     friends: on('friends') ? friendsOf(target.id) : [],
     lists: on('lists') ? listsOf(target.id, { self }) : [],
     // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.

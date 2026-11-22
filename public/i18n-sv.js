@@ -2828,4 +2828,9 @@ export default {
   "Stay: there are scenes during and after the credits": "Stanna kvar: det kommer scener under och efter eftertexterna",
   "Stay: there’s a scene during the credits": "Stanna kvar: det kommer en scen under eftertexterna",
   "Stay: there’s a scene after the credits": "Stanna kvar: det kommer en scen efter eftertexterna",
+  // hide from profile
+  "Hide from my profile": "Dölj från min profil",
+  "Show on my profile": "Visa på min profil",
+  "Hidden from your profile. Friends won’t see it there.": "Dold från din profil. Vänner ser den inte där.",
+  "Back on your profile": "Tillbaka på din profil",
 };

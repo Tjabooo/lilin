@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-hide-from-profile",
+  "date": "2026-11-22",
+  "title": "Keep a title off your profile",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Hide a film or show from your profile",
+      "text": "On a film or show's page, open the ⋯ menu and pick Hide from my profile. Other people then won't see it on your profile: not in Recent activity, your diary, Liked, Reviews or Taste match, and your face isn't shown among the people who liked it. You still see everything, and it still counts in your own history. Pick Show on my profile to bring it back."
+    }
+  ]
+},
+{
   "id": "2026-11-22-no-squash",
   "date": "2026-11-22",
   "title": "Pages open cleanly",

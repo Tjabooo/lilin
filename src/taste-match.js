@@ -18,6 +18,7 @@ import { database, isRestricted } from './accounts.js';
 import { areFriends } from './friends.js';
 import { validTitleKey } from './social.js';
 import * as letterboxd from './letterboxd.js';
+import { hiddenKeys } from './profile-hidden.js'; // hide from profile
 
 export const MIN_COMMON = 10;
 export const LEVELS = ['low', 'medium', 'high', 'veryHigh', 'super'];
@@ -83,6 +84,7 @@ function seenBy(userId) {
 export function compare(viewerId, friendId) {
   const mine = opinionsOf(viewerId);
   const theirs = opinionsOf(friendId);
+  for (const key of hiddenKeys(friendId)) theirs.delete(key); // kept off their profile: not compared or listed
   const gaps = [];
   const both = [];
   const split = [];

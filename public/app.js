@@ -123,6 +123,8 @@ const ICONS = {
   // profiles
   pencil: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
   globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.3 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.3-3.5-8.5S9.6 5.9 12 3.5z"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  'eye-off': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 5.8A9.7 9.7 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.3 7.4A16.5 16.5 0 0 0 2.5 12S6 18.5 12 18.5a9.5 9.5 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3.5 3.5l17 17"/></svg>',
   lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg>',
   friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.7c1.6.7 2.6 2.4 2.9 4.8"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
@@ -2281,6 +2283,7 @@ function titleContext(ref) {
     transfers: s.active.length, playNow: s.active.length === 1 && Boolean(playNowFile(s.active[0])),
     canGet: canGet(), tmdb: t.id != null, search: Boolean(state.status.search),
     unreleased: tv ? cardUnreleased(t) : titleView.release.get(t.id) ?? cardUnreleased(t),
+    profile: Boolean(state.me?.email && !state.me.restricted), // hide from profile: only people with a profile
     owner: Boolean(state.me?.isOwner), admin: Boolean(state.status.admin), ambiguous: Boolean(film?.movieAmbiguous), anime: true, // Dubbed shows once the server says it's anime
     versions: tv ? 0 : (f0?.versions?.length || 0),
   };
@@ -2331,8 +2334,33 @@ const TITLE_ACTIONS = {
     return [icon('trash'), files.length ? T('Delete show') : T('Stop downloading'),
       (o) => openDeleteMany({ files, transfers: leaving, what: T('this show'), label: c.t.title, onDone: closeTopOverlay }, o), 'is-danger'];
   },
+  profileHide: (c) => profileHideItem(c.t),
   details: (c) => [icon('download'), T('Download details'), (o) => openTransferDetails(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title, transfers: c.stateOf().transfers }, o)],
 };
+// Hide from my profile (src/profile-hidden.js): the ⋯ item says which way it switches once the server answers.
+const profileHidden = new Map(); // title key → hidden (true/false), fetched once per title
+function profileHideItem(t) {
+  const key = titleKeyOf(t);
+  if (!key) return null;
+  const lead = h('span', { class: 'profile-hide-icon' });
+  const label = h('span', {});
+  const paint = () => {
+    const hidden = profileHidden.get(key) === true;
+    lead.replaceChildren(icon(hidden ? 'eye' : 'eye-off'));
+    label.textContent = hidden ? T('Show on my profile') : T('Hide from my profile');
+  };
+  paint();
+  if (!profileHidden.has(key)) api(`/api/profiles/me/hidden?key=${encodeURIComponent(key)}`).then((r) => { profileHidden.set(key, Boolean(r.hidden)); paint(); }).catch(() => {});
+  return [lead, label, async () => {
+    const want = profileHidden.get(key) !== true;
+    try {
+      const r = await api('/api/profiles/me/hidden', jsonPost({ key, hidden: want }));
+      profileHidden.set(key, Boolean(r.hidden));
+      paint();
+      toast(r.hidden ? T('Hidden from your profile. Friends won’t see it there.') : T('Back on your profile'));
+    } catch (e) { toast(e.message || T('That didn’t work. Try again.')); }
+  }];
+}
 // The show's Play: carry on where you left off, else the next episode (or the first), here or fetched.
 function showPlayButton(c, lead) {
   const x = c.t.id != null ? showNextTarget(c.t, c.up) : c.up && !c.up.f.converting ? { t: c.t, season: c.up.f.season, episode: c.up.f.episode, kind: c.up.kind, f: c.up.f, progress: c.up.progress } : null;

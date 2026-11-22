@@ -37,6 +37,7 @@ import * as ideas from './ideas.js';
 import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
+import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
 import { titleStinger } from './stinger.js'; // stinger: a scene during or after a film's credits
@@ -4927,6 +4928,16 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, await profileView(user, user));
       }
       if (p === '/api/profiles/me') return sendJson(res, 200, await profileView(user, user));
+      // Hide from my profile (profile-hidden.js): GET ?key= says whether a title is hidden, POST { key, hidden } switches it.
+      if (p === '/api/profiles/me/hidden') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        if (req.method === 'POST') {
+          const body = await readJson(req, 4 * 1024);
+          return sendJson(res, 200, { key: body.key, hidden: profileHidden.setHidden(user.id, String(body.key || ''), Boolean(body.hidden)) });
+        }
+        const key = String(url.searchParams.get('key') || '');
+        return sendJson(res, 200, { key, hidden: profileHidden.isHidden(user.id, key) });
+      }
       // Letterboxd (letterboxd.js): { username } links and reads the feed now, { username: '' } unlinks, /sync reads it
       // again, /import takes the export zip (runs in the background; GET /import says how far it got).
       if (p.startsWith('/api/profiles/me/letterboxd')) {
@@ -4968,16 +4979,16 @@ async function handleApi(req, res, url) {
         const offset = Number(url.searchParams.get('offset')) || 0;
         if (m[3] === 'diary') {
           if (!shown('recent')) throw new HttpError(403, 'This diary is private.');
-          const d = profiles.diary(target.id, { offset, type: url.searchParams.get('type') });
+          const d = profiles.diary(target.id, { offset, type: url.searchParams.get('type'), hide: sight === 'self' ? null : profileHidden.hiddenKeys(target.id) });
           return sendJson(res, 200, { ...d, entries: await withCards(d.entries) });
         }
         if (m[3] === 'liked') { // You → Liked: 24 at a time
           if (!shown('liked')) throw new HttpError(403, 'These likes are private.');
-          const page = profiles.likedBy(target.id, 25, offset);
+          const page = profiles.likedBy(target.id, 25, offset, sight !== 'self');
           return sendJson(res, 200, { liked: await withCards(page.slice(0, 24)), more: page.length > 24 });
         }
         if (!shown('reviews')) throw new HttpError(403, 'These reviews are private.');
-        const r = profiles.reviewsBy(target.id, { offset, limit: 20 });
+        const r = profiles.reviewsBy(target.id, { offset, limit: 20, others: sight !== 'self' });
         return sendJson(res, 200, { ...r, reviews: await withCards(r.reviews) });
       }
     } catch (e) { if (e instanceof HttpError || !e.status) throw e; throw new HttpError(e.status, e.message); }
