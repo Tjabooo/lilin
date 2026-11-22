@@ -498,3 +498,73 @@
   .pf-stub-day { font-size: 26px; }
 }
 .pf-editor .pf-fav-edit .pf-slot { border: 1.5px dashed var(--line); background: transparent; color: var(--text-3); }
+
+/* ---------- banner focal point, page colours, status, numbers, pinned review ----------
+   --pf-banner-y: where the banner picture sits (Look → Banner position, or drag it in the editor's card).
+   Look → Background → Colour: --pf-page (and --pf-page2 with Gradient on) are the picked colours with their lightness
+   moved for the viewer's theme (profile-colors.js), so the theme's own text stays readable; --pf-c1/--pf-c2 are the
+   picked colours as they are, for the banner. Everything is scoped to the profile: the rest of the app keeps its theme. */
+.pf-banner img, .pf-ed-banner img { object-position: 50% var(--pf-banner-y, 28%); }
+.pf-ed-banner.pf-ed-drag { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.pf-ed-banner.pf-ed-drag:active { cursor: grabbing; }
+
+.pf.pf-painted, .pf-ed-card.pf-painted {
+  --velvet: var(--pf-page);
+  --curtain: color-mix(in srgb, var(--paper) 6%, var(--pf-page));
+  --seat: color-mix(in srgb, var(--paper) 11%, var(--pf-page));
+  --line: color-mix(in srgb, var(--paper) 20%, var(--pf-page));
+  --surface-1: var(--curtain);
+  --surface-2: var(--seat);
+  --surface-glass: color-mix(in srgb, var(--pf-page) 76%, transparent);
+  --text-3: color-mix(in srgb, var(--dust) 75%, var(--pf-page));
+}
+.pf.pf-bg-color { background: var(--pf-page); }
+.pf.pf-bg-color.pf-paint-grad { background: linear-gradient(172deg, var(--pf-page) 0%, var(--pf-page2) 100%) local, var(--pf-page); }
+.pf-ed-card.pf-painted { background: var(--pf-page); }
+.pf-ed-card.pf-paint-grad { background: linear-gradient(160deg, var(--pf-page), var(--pf-page2)); }
+/* the banner without a picture: the picked colours as they are (Gradient on), or nothing at all (one solid colour) */
+.pf-grad-page { background: radial-gradient(75% 135% at 16% 0%, var(--pf-c1) 0%, transparent 64%), radial-gradient(65% 125% at 88% 6%, var(--pf-c2) 0%, transparent 60%); }
+.pf-banner.pf-grad-page { -webkit-mask-image: linear-gradient(to bottom, #000 22%, transparent 78%); mask-image: linear-gradient(to bottom, #000 22%, transparent 78%); }
+.pf-banner.pf-banner-flat { height: calc(var(--pf-bar) + 36px); margin-bottom: 0; background: none; }
+.pf-banner.pf-banner-flat::after { display: none; }
+@media (min-width: 900px) { .pf-banner.pf-banner-flat { margin-bottom: 0; } }
+.pf-ed-banner.pf-banner-flat { height: 44px; background: none; }
+.pf-ed-banner.pf-banner-flat + .pf-ed-who { margin-top: -20px; }
+
+/* the status line under the name */
+.pf-status { display: inline-flex; align-items: center; gap: 8px; max-width: min(100%, 34em); margin: 12px 0 0; padding: 6px 13px 6px 11px;
+  border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--text); text-align: left; overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--pf-accent) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pf-accent) 34%, transparent); }
+.pf-status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pf-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-accent) 22%, transparent); }
+.pf-ed-status { margin: 12px 16px 0; padding: 4px 11px 4px 9px; font-size: 12.5px; }
+
+/* the pinned review */
+.pf-pin-note { display: inline-grid; color: var(--pf-accent); }
+.pf-pin-note svg { width: 16px; height: 16px; }
+.pf-sec-pinned .pf-review { padding: 14px; border: 0; border-radius: var(--r-md); background: color-mix(in srgb, var(--pf-accent) 7%, var(--surface-1));
+  box-shadow: inset 3px 0 0 var(--pf-accent); }
+
+/* editor: page colours, the Gradient switch, banner position, upload, numbers, pinned review */
+.pf-paint-edit { display: grid; gap: 16px; margin-top: 4px; }
+.pf-ed-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--hairline); }
+.pf-ed-switch-text { display: grid; gap: 2px; min-width: 0; }
+.pf-ed-switch-text strong { font-size: 15px; }
+.pf-ed-switch-text span { font-size: 13px; color: var(--text-2); }
+.pf-range-row { display: flex; align-items: center; gap: 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.pf-range { flex: 1; min-width: 0; height: 32px; accent-color: var(--bulb); }
+.pf-upload { display: grid; gap: 6px; }
+.pf-upload .chip { min-height: 44px; }
+.pf-stat-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-stat-pick { min-height: 40px; }
+.pf-stat-pick svg { width: 15px; height: 15px; }
+.pf-pins { display: grid; gap: 8px; }
+.pf-pin-opt { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px 8px 8px;
+  font: inherit; color: var(--text); text-align: left; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-md); cursor: pointer; }
+.pf-pin-opt[aria-checked="true"] { border-color: var(--paper); box-shadow: inset 0 0 0 1px var(--paper); }
+.pf-pin-opt img, .pf-pin-blank { display: grid; place-items: center; width: 40px; height: 60px; object-fit: cover; border-radius: 6px; background: var(--surface-1); color: var(--text-2); }
+.pf-pin-blank { height: 40px; }
+.pf-pin-blank svg { width: 16px; height: 16px; }
+.pf-pin-text { display: grid; gap: 2px; min-width: 0; }
+.pf-pin-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-pin-text span { overflow: hidden; font-size: 13px; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; }

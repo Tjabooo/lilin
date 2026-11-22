@@ -15,9 +15,19 @@ import { T, locale as appLocale } from './i18n.js';
 import { tintOf } from './people.js';
 import { readMore } from './reviews.js';
 import { createTasteMatch } from './taste-match.js'; // taste: Taste match on a friend's profile
+import { profilePaint, partnerOf } from './profile-colors.js'; // profile colours: readable on any theme
 
 const ACCENTS = ['#F4C152', '#FF9B85', '#E9A0C4', '#C3ACF2', '#93D6BA', '#97C9F2', '#F5AE6B', '#FF8C1A', '#E5484D', '#7FD1FF', '#B8E986', '#EDE6DD'];
 const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
+// page colours (Look → Background → Colour): picked to still be themselves once darkened (or lightened) for the text
+const PAGE_COLORS = ['#ff4d1f', '#e5484d', '#ff6f91', '#d946ef', '#8b5cf6', '#4f6bff', '#0ea5e9', '#14b8a6', '#22c55e', '#a3e635', '#f5a524', '#94a3b8'];
+const STAT_KEYS = ['films', 'filmsThisYear', 'shows', 'episodes', 'hours', 'reviews', 'likes'];
+const STATS_DEFAULT = ['films', 'filmsThisYear', 'episodes', 'hours'];
+const STAT_NAMES = { films: T('Films'), filmsThisYear: T('This year'), shows: T('Shows'), episodes: T('Episodes'), hours: T('Hours'), reviews: T('Reviews'), likes: T('Likes') };
+const MAX_STATUS = 80;
+const BANNER_MAX = 8 * 1024 * 1024;
+const HEX = /^#[0-9a-f]{6}$/;
+const hexOnly = (c) => (HEX.test(String(c || '')) ? c : null); // the only colours that go into a style attribute
 const FONTS = [['display', T('Bold')], ['condensed', T('Tall')], ['light', T('Light')], ['serif', T('Serif')], ['mono', T('Mono')], ['rounded', T('Rounded')]];
 const POSTERS = [['soft', T('Soft')], ['square', T('Square')], ['round', T('Round')], ['polaroid', T('Polaroid')]];
 const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
@@ -107,20 +117,22 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (ctx.repaint) { ctx.repaint(); return; } // one of You's own lists (privateList)
     const d = ctx.draft ? previewOf(ctx.data, ctx.draft) : ctx.data;
     const look = d.look || {};
-    const accent = look.accent || tintOf(d.person.name);
+    const paint = paintOf(look, look.accent || tintOf(d.person.name));
     const page = ctx.page;
     page.className = ['pf', 'open', ctx.nested && 'pf-nested', `pf-font-${look.font || 'display'}`, `pf-posters-${look.posters || 'soft'}`,
-      `pf-bg-${look.background || 'glow'}`, `pf-align-${look.align || 'center'}`, d.locked && 'pf-locked', ctx.scrolled && 'scrolled'].filter(Boolean).join(' ');
-    page.style.setProperty('--pf-accent', accent);
+      `pf-bg-${paint ? 'color' : look.background === 'color' ? 'glow' : look.background || 'glow'}`, `pf-align-${look.align || 'center'}`, paint && 'pf-painted', paint?.page2 && 'pf-paint-grad',
+      d.locked && 'pf-locked', ctx.scrolled && 'scrolled'].filter(Boolean).join(' ');
+    paintVars(page, look, paint, d.person.name);
     page.setAttribute('aria-label', T('{0}’s profile', d.person.name));
     const scrollTop = page.scrollTop;
     const banner = bannerOf(d);
     page.replaceChildren(...[ // filter: replaceChildren writes null/false out as text
       topBar(ctx, d),
       look.background === 'image' && banner ? h('div', { class: 'pf-wash', 'aria-hidden': 'true' }, h('img', { src: small(banner, 'w300'), alt: '', decoding: 'async' })) : null,
-      h('div', { class: `pf-banner${banner ? '' : ` pf-grad pf-grad-${look.banner === 'gradient' ? look.gradient : 'ember'}`}${look.banner === 'none' ? ' pf-banner-none' : ''}`, 'aria-hidden': 'true' },
+      h('div', { class: `pf-banner${bannerClass(look, banner, paint)}`, 'aria-hidden': 'true' },
         banner && look.banner !== 'none' && h('img', { src: banner, alt: '', decoding: 'async' })),
       head(ctx, d),
+      !d.locked && d.pinned && pinnedBox(ctx, d),
       ...(d.locked ? [lockedNote(ctx, d)] : sections(ctx, d)),
       !d.locked && d.person.since && h('p', { class: 'pf-since' }, T('On Lilin since {0}', new Date(d.person.since).toLocaleDateString(locale(), { month: 'long', year: 'numeric' })))].filter(Boolean));
     page.scrollTop = scrollTop;
@@ -131,6 +143,38 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (look.banner === 'none' || look.banner === 'gradient') return null;
     if (d.locked) return null;
     return d.banner || null;
+  }
+  // The banner's look when there's no picture: page colours (gradient) or nothing (solid), else a preset gradient.
+  function bannerClass(look, banner, paint) {
+    if (look.banner === 'none') return ' pf-banner-none';
+    if (banner) return '';
+    if (paint) return paint.page2 ? ' pf-grad pf-grad-page' : ' pf-grad pf-banner-flat';
+    return ` pf-grad pf-grad-${look.banner === 'gradient' ? look.gradient : 'ember'}`;
+  }
+
+  // ---------- colours ----------
+  // The viewer's theme decides which way a picked page colour moves (profile-colors.js), so read it each time.
+  function paintOf(look, accent) {
+    if (look?.background !== 'color') return null;
+    const root = getComputedStyle(document.documentElement);
+    return profilePaint(look, { text: root.getPropertyValue('--paper'), text2: root.getPropertyValue('--dust') }, accent);
+  }
+  // Scoped to the profile page (or the editor's card): the accent, the page colours, the banner's focal point.
+  function paintVars(el, look, paint, name) {
+    const set = (k, v) => (v ? el.style.setProperty(k, v) : el.style.removeProperty(k));
+    set('--pf-accent', hexOnly(paint?.accent) || look.accent || tintOf(name));
+    set('--pf-page', hexOnly(paint?.page));
+    set('--pf-page2', hexOnly(paint?.page2));
+    set('--pf-c1', paint ? hexOnly(look.pageColor) : null);
+    set('--pf-c2', paint ? hexOnly(look.pageGradient !== false && look.pageColor2) || hexOnly(look.pageColor) : null);
+    const y = Number(look.bannerY);
+    set('--pf-banner-y', Number.isFinite(y) ? `${Math.min(100, Math.max(0, Math.round(y)))}%` : null);
+  }
+
+  // The review they pinned, above everything else.
+  function pinnedBox(ctx, d) {
+    return sectionBox('pinned', T('Pinned review'), h('span', { class: 'pf-sec-note pf-pin-note', 'aria-hidden': 'true' }, icon('bookmark')),
+      h('ul', { class: 'pf-reviews' }, reviewCard(ctx, d.pinned)));
   }
 
   function skeleton(t, ctx) {
@@ -172,11 +216,12 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         : h('div', { class: 'pf-face' }, people.face(p, { size: 104 })),
       h('h2', { class: 'pf-name' }, p.name),
       h('div', { class: 'pf-sub' }, ...sub.flatMap((x, i) => (i ? [h('span', { class: 'pf-dot', 'aria-hidden': 'true' }, '·'), x] : [x]))),
+      !d.locked && p.status?.text && h('p', { class: 'pf-status' }, h('span', { class: 'pf-status-dot', 'aria-hidden': 'true' }), h('span', { class: 'sr-only' }, `${T('Status')}: `), p.status.text),
       !d.locked && p.bio && h('p', { class: 'pf-bio' }, p.bio),
       actions(ctx, d),
       d.ownerPeek && h('p', { class: 'pf-vis pf-owner-peek', title: T('Owners can see every profile.') }, icon('lock'),
         d.visibility === 'friends' ? T('Friends only · you see it as an owner') : T('Private · you see it as an owner')),
-      !d.locked && on(d, 'stats') && d.stats && statsRow(d.stats));
+      !d.locked && on(d, 'stats') && d.stats && statsRow(d.stats, d.statKeys));
   }
 
   function actions(ctx, d) {
@@ -206,9 +251,13 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     } catch (err) { toast(err.message); btn.disabled = false; }
   }
 
-  function statsRow(s) {
-    const tiles = [[s.films, s.films === 1 ? T('Film') : T('Films')], [s.filmsThisYear, T('This year')], [s.episodes, s.episodes === 1 ? T('Episode') : T('Episodes')], [s.hours, s.hours === 1 ? T('Hour') : T('Hours')]];
-    return h('dl', { class: 'pf-stats' }, tiles.map(([n, label]) => h('div', { class: 'pf-stat' }, h('dt', {}, label), h('dd', {}, Number(n || 0).toLocaleString(locale())))));
+  // keys: which numbers they chose to show (Edit profile → Page → Numbers), up to four.
+  function statsRow(s, keys = STATS_DEFAULT) {
+    const one = { films: T('Film'), shows: T('Show'), episodes: T('Episode'), hours: T('Hour'), reviews: T('Review'), likes: T('Like') };
+    const list = (keys?.length ? keys : STATS_DEFAULT).filter((k) => STAT_KEYS.includes(k)).slice(0, 4);
+    const tiles = list.map((k) => [s[k], s[k] === 1 && one[k] ? one[k] : STAT_NAMES[k]]);
+    return h('dl', { class: 'pf-stats', style: `grid-template-columns:repeat(${tiles.length},minmax(0,1fr))` },
+      tiles.map(([n, label]) => h('div', { class: 'pf-stat' }, h('dt', {}, label), h('dd', {}, Number(n || 0).toLocaleString(locale())))));
   }
 
   function lockedNote(ctx, d) {
@@ -537,7 +586,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       name: d.person.name || '', handle: d.person.handle, pronouns: d.person.pronouns || '', bio: d.person.bio || '', visibility: d.visibility,
       favorites: (d.favorites || []).map((f) => ({ ...f })), look: { ...d.look }, bannerCard: null, sections: d.sections.map((s) => ({ ...s })),
       tab: TAB_OF[focus] || 'profile',
+      status: d.person.status?.text || '', statusClear: d.person.status?.clear || d.extras?.status?.clear || 'never',
+      stats: [...(d.statKeys || STATS_DEFAULT)], pinned: d.pinned?.key || null, pinnedReview: d.pinned || null, myReviews: null,
     };
+    const statusBefore = `${ctx.draft.status}|${ctx.draft.statusClear}`;
     let saved = false;
     const draft = ctx.draft;
     const repaint = () => paint(ctx);
@@ -551,7 +603,11 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         const payload = { handle: draft.handle, pronouns: draft.pronouns, bio: draft.bio, visibility: draft.visibility,
           favorites: draft.favorites.map(keyOf), sections: draft.sections,
           look: { accent: draft.look.accent, banner: draft.look.banner, gradient: draft.look.gradient, bannerKey: draft.look.bannerKey, font: draft.look.font,
-            posters: draft.look.posters, background: draft.look.background, align: draft.look.align } };
+            posters: draft.look.posters, background: draft.look.background, align: draft.look.align, bannerY: draft.look.bannerY,
+            pageColor: draft.look.pageColor, pageColor2: draft.look.pageColor2, pageGradient: draft.look.pageGradient !== false },
+          stats: draft.stats, pinned: draft.pinned };
+        // the status only goes along when it changed (sending it again would restart its "clear after")
+        if (`${draft.status.trim()}|${draft.statusClear}` !== statusBefore) payload.status = { text: draft.status.trim(), clear: draft.statusClear };
         ctx.data = await api('/api/profiles/me', jsonPost(payload));
         own.data = ctx.data; own.at = Date.now();
         mineChanged();
@@ -651,23 +707,55 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const look = d.look || {};
     const banner = bannerOf(d);
     const p = d.person;
-    const bannerClass = look.banner === 'none' ? ' pf-ed-banner-none' : banner ? '' : ` pf-grad pf-grad-${look.banner === 'gradient' ? look.gradient : 'ember'}`;
-    return h('div', { class: `pf-ed-card pf-font-${look.font || 'display'}`, style: `--pf-accent:${look.accent || tintOf(p.name)}`, 'aria-hidden': 'true' },
-      h('div', { class: `pf-ed-banner${bannerClass}` }, banner && look.banner !== 'none' && h('img', { src: small(banner, 'w780'), alt: '', decoding: 'async' })),
+    const paint = paintOf(look, look.accent || tintOf(p.name));
+    const cls = look.banner === 'none' ? ' pf-ed-banner-none' : bannerClass(look, banner, paint);
+    const card = h('div', { class: `pf-ed-card pf-font-${look.font || 'display'}${paint ? ' pf-painted' : ''}${paint?.page2 ? ' pf-paint-grad' : ''}`, 'aria-hidden': 'true' },
+      h('div', { class: `pf-ed-banner${cls}` }, banner && look.banner !== 'none' && h('img', { src: small(banner, 'w780'), alt: '', decoding: 'async', draggable: 'false' })),
       h('div', { class: 'pf-ed-who' },
         h('div', { class: 'pf-ed-face' }, people.face(p, { size: 64 })),
         h('div', { class: 'pf-ed-names' },
           h('p', { class: 'pf-name pf-ed-name' }, p.name),
           h('p', { class: 'pf-ed-sub' }, `@${p.handle}`, p.pronouns && h('span', {}, ` · ${p.pronouns}`)))),
+      p.status?.text && h('p', { class: 'pf-status pf-ed-status' }, h('span', { class: 'pf-status-dot' }), p.status.text),
       p.bio && h('p', { class: 'pf-ed-bio' }, p.bio));
+    paintVars(card, look, paint, p.name);
+    return card;
   }
 
   function editorNodes(ctx, draft, { repaint, redraw, save, body }) {
     const look = draft.look;
     const tab = draft.tab || 'profile';
+    // Drag the preview's banner picture up or down to set its focal point (the Position slider does the same).
+    const armDrag = (c) => {
+      const box = c.querySelector('.pf-ed-banner');
+      const img = box?.querySelector('img');
+      if (!img) return;
+      box.classList.add('pf-ed-drag');
+      box.addEventListener('pointerdown', (e) => {
+        if (e.button) return;
+        e.preventDefault();
+        const startY = e.clientY;
+        const start = Number.isFinite(Number(look.bannerY)) ? Number(look.bannerY) : 28;
+        // how far the picture can travel: its drawn height beyond the box
+        const travel = Math.max(1, (img.naturalHeight || 1) * (box.clientWidth / (img.naturalWidth || 1)) - box.clientHeight);
+        try { box.setPointerCapture(e.pointerId); } catch { /* fine without */ }
+        const move = (ev) => {
+          const y = Math.min(100, Math.max(0, Math.round(start - ((ev.clientY - startY) / travel) * 100)));
+          look.bannerY = y;
+          for (const el of [c, ctx.page]) el.style.setProperty('--pf-banner-y', `${y}%`);
+          const slider = body.querySelector('.pf-range');
+          if (slider) slider.value = String(y);
+        };
+        const up = () => { box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up); };
+        box.addEventListener('pointermove', move);
+        box.addEventListener('pointerup', up);
+        box.addEventListener('pointercancel', up);
+      });
+    };
     let card = editorCard(ctx, draft);
+    armDrag(card);
     // typing updates the card and the page without a redraw (that would take the focus out of the field)
-    const live = () => { repaint(); const next = editorCard(ctx, draft); card.replaceWith(next); card = next; };
+    const live = () => { repaint(); const next = editorCard(ctx, draft); card.replaceWith(next); card = next; armDrag(card); };
     const setLook = (patch) => { Object.assign(look, patch); repaint(); redraw(); };
     const hint = (...text) => h('p', { class: 'pf-ed-hint' }, ...text);
     const row = (label, input, { extra = null, note = null } = {}) => h('label', { class: 'pf-ed-row' },
@@ -688,20 +776,27 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         const counted = () => { count.textContent = `${bio.value.length}/${MAX_BIO}`; };
         bio.addEventListener('input', () => { draft.bio = bio.value; counted(); live(); });
         counted();
+        const statusCount = h('span', { class: 'pf-count' });
+        const status = h('input', { type: 'text', class: 'pf-ed-input', value: draft.status, maxlength: String(MAX_STATUS), placeholder: T('e.g. Rewatching Twin Peaks'), enterkeyhint: 'done' });
+        const statusCounted = () => { statusCount.textContent = `${status.value.length}/${MAX_STATUS}`; };
+        status.addEventListener('input', () => { draft.status = status.value; statusCounted(); live(); });
+        statusCounted();
         const avatar = ctx.data.person.avatar;
         return [
           h('div', { class: 'pf-ed-group' },
             row(T('Name'), name, { note: T('Shown everywhere in Lilin.') }),
             row(T('Username'), h('span', { class: 'pf-ed-at' }, h('span', { 'aria-hidden': 'true' }, '@'), handle), { note: T('3 to 20 letters, numbers, dots or underscores.') }),
             row(T('Pronouns'), pronouns),
+            row(T('Status'), status, { extra: statusCount, note: T('A line under your name: what you’re watching, or anything.') }),
             row(T('Bio'), bio, { extra: count })),
+          block(T('Clear the status'), segmented([['never', T('Never')], ['day', T('After a day')], ['week', T('After a week')]], draft.statusClear, (v) => { draft.statusClear = v; redraw(); })),
           hint(T('Tap your picture on your profile to change it.'),
             avatar && removePicture && h('button', { type: 'button', class: 'pf-pic-remove',
               onclick: async (e) => { e.currentTarget.disabled = true; await removePicture(); ctx.data.person.avatar = null; repaint(); redraw(); } }, T('Remove picture'))),
           titled(T('Letterboxd'), letterboxdEditor(ctx, { repaint, redraw })),
         ];
       },
-      favorites: () => [favoritesEditor(draft, { repaint, redraw })],
+      favorites: () => [favoritesEditor(draft, { repaint, redraw }), titled(T('Pinned review'), pinnedEditor(ctx, draft, { repaint, redraw }))],
       look: () => [
         block(T('Accent'), h('div', { class: 'pf-swatches' },
           h('button', { type: 'button', class: 'pf-swatch pf-swatch-auto', 'aria-pressed': String(!look.accent), 'aria-label': T('From your picture colour'), title: T('Automatic'), style: `--c:${tintOf(me()?.name)}`, onclick: () => setLook({ accent: null }) }, 'A'),
@@ -713,11 +808,24 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             return h('label', { class: `pf-swatch pf-swatch-custom${look.accent && !ACCENTS.some((c) => c.toLowerCase() === look.accent) ? ' on' : ''}`, title: T('Pick any colour') }, custom, icon('plus'));
           })())),
         block(T('Banner'),
-          segmented([['auto', T('Auto')], ['title', T('A title')], ['gradient', T('Colour')], ['none', T('None')]], look.banner, (v) => setLook({ banner: v })),
+          segmented([['auto', T('Auto')], ['title', T('A title')], ['upload', T('Upload')], ['gradient', T('Colour')], ['none', T('None')]], look.banner, (v) => setLook({ banner: v })),
           look.banner === 'auto' && hint(T('A picture from your first favourite, or from what you watched last.')),
-          look.banner === 'gradient' && h('div', { class: 'pf-grads' }, GRADIENTS.map((g) => h('button', { type: 'button', class: `pf-gradbtn pf-grad pf-grad-${g}`, 'aria-pressed': String(look.gradient === g), 'aria-label': g, onclick: () => setLook({ gradient: g }) }))),
-          look.banner === 'title' && bannerPicker(draft, { repaint, redraw })),
-        block(T('Background'), segmented([['glow', T('Glow')], ['image', T('Picture')], ['plain', T('Plain')]], look.background, (v) => setLook({ background: v }))),
+          look.banner === 'gradient' && look.background === 'color' && hint(look.pageGradient !== false ? T('Uses your page colours.') : T('One solid colour: the banner is your page colour.')),
+          look.banner === 'gradient' && look.background !== 'color' && h('div', { class: 'pf-grads' }, GRADIENTS.map((g) => h('button', { type: 'button', class: `pf-gradbtn pf-grad pf-grad-${g}`, 'aria-pressed': String(look.gradient === g), 'aria-label': g, onclick: () => setLook({ gradient: g }) }))),
+          look.banner === 'title' && bannerPicker(draft, { repaint, redraw }),
+          look.banner === 'upload' && uploadPicker(ctx, draft, { repaint, redraw })),
+        bannerOf(previewOf(ctx.data, draft)) && (() => {
+          const focal = h('input', { type: 'range', class: 'pf-range', min: '0', max: '100', step: '1', value: String(Number.isFinite(Number(look.bannerY)) ? look.bannerY : 28), 'aria-label': T('Banner position') });
+          focal.addEventListener('input', () => { look.bannerY = Number(focal.value); live(); });
+          return block(T('Banner position'), h('div', { class: 'pf-range-row' }, h('span', { 'aria-hidden': 'true' }, T('Top')), focal, h('span', { 'aria-hidden': 'true' }, T('Bottom'))),
+            hint(T('Or drag the picture in the preview up and down.')));
+        })(),
+        block(T('Background'), segmented([['glow', T('Glow')], ['image', T('Picture')], ['plain', T('Plain')], ['color', T('Colour')]], look.background, (v) => {
+          if (v === 'color' && !look.pageColor) {
+            const base = String(look.accent || tintOf(me()?.name)).toLowerCase();
+            setLook({ background: v, pageColor: base, pageColor2: look.pageColor2 || partnerOf(base) });
+          } else setLook({ background: v });
+        }), look.background === 'color' && pageColorEditor(look, { setLook, live, redraw, hint, block })),
         block(T('Name'), h('div', { class: 'pf-choices' }, FONTS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-font-${k}`, 'aria-pressed': String(look.font === k), onclick: () => setLook({ font: k }) },
           h('span', { class: 'pf-choice-sample pf-name-sample' }, 'Aa'), h('span', {}, label))))),
         block(T('Posters'), h('div', { class: 'pf-choices' }, POSTERS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-posters-${k}`, 'aria-pressed': String(look.posters === k), onclick: () => setLook({ posters: k }) },
@@ -737,6 +845,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             h('span', { class: 'pf-order-name' }, SECTION_NAMES[s.id]),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} up', SECTION_NAMES[s.id]), disabled: i === 0, onclick: () => { move(draft.sections, i, -1); repaint(); redraw(); } }, icon('up')),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', SECTION_NAMES[s.id]), disabled: i === draft.sections.length - 1, onclick: () => { move(draft.sections, i, 1); repaint(); redraw(); } }, icon('down')))))),
+        titled(T('Numbers'),
+          hint(T('Pick up to four to show under your name.')),
+          h('div', { class: 'pf-stat-picks', role: 'group', 'aria-label': T('Numbers') }, STAT_KEYS.map((k) => {
+            const picked = draft.stats.includes(k);
+            return h('button', { type: 'button', class: 'chip pf-stat-pick', 'aria-pressed': String(picked), disabled: picked ? draft.stats.length === 1 : draft.stats.length >= 4,
+              onclick: () => { draft.stats = picked ? draft.stats.filter((x) => x !== k) : STAT_KEYS.filter((x) => x === k || draft.stats.includes(x)); repaint(); redraw(); } },
+            picked && icon('check'), STAT_NAMES[k]);
+          }))),
       ],
     };
 
@@ -775,6 +891,93 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   function segmented(options, value, onPick) {
     return h('div', { class: 'segmented pf-seg', role: 'group' },
       options.map(([key, text]) => h('button', { type: 'button', 'aria-pressed': String(key === value), onclick: () => onPick(key) }, text)));
+  }
+
+  // Look → Background → Colour: the page colour, the Gradient switch and the second colour.
+  function pageColorEditor(look, { setLook, live, redraw, hint, block }) {
+    const swatches = (key) => h('div', { class: 'pf-swatches' },
+      ...PAGE_COLORS.map((c) => h('button', { type: 'button', class: 'pf-swatch', 'aria-pressed': String(look[key] === c), 'aria-label': c, style: `--c:${c}`, onclick: () => setLook({ [key]: c }) })),
+      (() => {
+        const custom = h('input', { type: 'color', class: 'pf-color', value: hexOnly(look[key]) || '#8b5cf6', 'aria-label': T('Pick any colour') });
+        custom.addEventListener('input', () => { look[key] = custom.value.toLowerCase(); live(); });
+        custom.addEventListener('change', () => redraw());
+        return h('label', { class: `pf-swatch pf-swatch-custom${look[key] && !PAGE_COLORS.includes(look[key]) ? ' on' : ''}`, title: T('Pick any colour') }, custom, icon('plus'));
+      })());
+    const grad = look.pageGradient !== false;
+    return h('div', { class: 'pf-paint-edit' },
+      block(grad ? T('First colour') : T('Page colour'), swatches('pageColor')),
+      h('div', { class: 'pf-ed-switch-row' },
+        h('span', { class: 'pf-ed-switch-text', id: 'pf-grad-label' }, h('strong', {}, T('Gradient')), h('span', {}, grad ? T('Two colours, blending down the page') : T('Off: one solid colour everywhere'))),
+        h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(grad), 'aria-labelledby': 'pf-grad-label',
+          onclick: () => setLook({ pageGradient: !grad, pageColor2: look.pageColor2 || partnerOf(look.pageColor) }) }, h('span', {}))),
+      grad && block(T('Second colour'), swatches('pageColor2')),
+      hint(T('Lilin adjusts the shade so text stays readable, in light and dark themes.')));
+  }
+
+  // Look → Banner → Upload: your own picture. It's uploaded (and re-encoded on the server) right away; Save makes it
+  // the banner. The browser shrinks big photos first, which also turns them the right way up.
+  function uploadPicker(ctx, draft, { repaint, redraw }) {
+    const has = Boolean(ctx.data.uploadUrl);
+    const progress = h('p', { class: 'set-hint pf-lb-progress', role: 'status' });
+    const file = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/*', hidden: true });
+    const choose = h('button', { type: 'button', class: 'chip', onclick: () => file.click() }, icon(has ? 'pencil' : 'plus'), has ? T('Change picture') : T('Choose a picture'));
+    const done = (data) => {
+      ctx.data = data; own.data = data; own.at = Date.now(); mineChanged();
+      draft.look.upload = data.look.upload;
+      if (!data.look.upload && draft.look.banner === 'upload') draft.look.banner = 'auto';
+      repaint(); redraw();
+    };
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      file.value = '';
+      if (!f) return;
+      choose.disabled = true;
+      progress.textContent = T('Uploading…');
+      try {
+        const blob = await shrinkForUpload(f);
+        if (blob.size > BANNER_MAX) throw new Error(T('That picture is too large. Keep it under 8 MB.'));
+        done(await api('/api/profiles/me/banner', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream' } }));
+      } catch (err) { toast(err.message); choose.disabled = false; progress.textContent = ''; }
+    });
+    const remove = has && h('button', { type: 'button', class: 'pf-pic-remove', onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      try { done(await api('/api/profiles/me/banner', { method: 'POST', body: new Blob([]), headers: { 'Content-Type': 'application/octet-stream' } })); } catch (err) { toast(err.message); e.currentTarget.disabled = false; }
+    } }, T('Remove banner'));
+    return h('div', { class: 'pf-upload' }, h('div', { class: 'pf-lb-row' }, choose, remove, file), progress,
+      h('p', { class: 'pf-ed-hint' }, T('JPEG, PNG or WebP, up to 8 MB. Only people who can see your profile see it.')));
+  }
+  async function shrinkForUpload(f) {
+    try {
+      const bmp = await createImageBitmap(f); // turned the right way up (EXIF) by the browser
+      const scale = Math.min(1, 2400 / bmp.width, 4000 / bmp.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bmp.width * scale));
+      canvas.height = Math.max(1, Math.round(bmp.height * scale));
+      canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      bmp.close?.();
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.92));
+      if (blob?.size) return blob;
+    } catch { /* the server takes the file as it is */ }
+    return f;
+  }
+
+  // Favourites → Pinned review: one of your reviews at the top of your profile.
+  function pinnedEditor(ctx, draft, { repaint, redraw }) {
+    if (draft.myReviews == null) {
+      draft.myReviews = 'loading';
+      api(`/api/profiles/${ctx.data.person.id}/reviews`).then((r) => { draft.myReviews = r.reviews || []; }, () => { draft.myReviews = []; }).then(() => { if (ctx.draft === draft) redraw(); });
+    }
+    if (draft.myReviews === 'loading') return h('p', { class: 'set-hint' }, T('Loading…'));
+    if (!draft.myReviews.length && !draft.pinnedReview) return h('p', { class: 'set-hint' }, T('Write a review on a film or show, then pin it here.'));
+    const list = [...draft.myReviews];
+    if (draft.pinnedReview && !list.some((r) => r.key === draft.pinnedReview.key)) list.unshift(draft.pinnedReview);
+    const pick = (r) => { draft.pinned = r ? r.key : null; draft.pinnedReview = r; repaint(); redraw(); };
+    const opt = (r) => h('button', { type: 'button', role: 'radio', class: 'pf-pin-opt', 'aria-checked': String(r ? draft.pinned === r.key : !draft.pinned), onclick: () => pick(r) },
+      r ? (r.card?.poster ? h('img', { src: small(r.card.poster, 'w92'), alt: '', loading: 'lazy' }) : h('span', { class: 'pf-pin-blank' })) : h('span', { class: 'pf-pin-blank' }, icon('close')),
+      h('span', { class: 'pf-pin-text' }, h('strong', {}, r ? r.card?.title || r.title || '' : T('No pinned review')), r && h('span', {}, r.text)),
+      r && stars(r.stars));
+    return h('div', {}, h('p', { class: 'set-hint' }, T('It shows above everything else on your profile.')),
+      h('div', { class: 'pf-pins', role: 'radiogroup', 'aria-label': T('Pinned review') }, opt(null), ...list.map(opt)));
   }
 
   function favoritesEditor(draft, { repaint, redraw }) {
@@ -849,12 +1052,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const look = { ...draft.look };
     let banner = data.banner;
     if (look.banner === 'title') banner = draft.bannerCard?.backdrop ? big(draft.bannerCard.backdrop) : data.look.banner === 'title' && data.look.bannerKey === look.bannerKey ? data.banner : null;
+    else if (look.banner === 'upload') banner = data.uploadUrl || null;
     else if (look.banner === 'auto') {
       const auto = draft.favorites.find((f) => f.backdrop)?.backdrop || data.recent?.find((r) => r.card?.backdrop)?.card.backdrop || data.liked?.find((r) => r.card?.backdrop)?.card.backdrop;
       banner = auto ? big(auto) : null;
     }
-    return { ...data, person: { ...data.person, name: draft.name.trim() || data.person.name, handle: draft.handle || data.person.handle, pronouns: draft.pronouns.trim(), bio: draft.bio.trim() },
-      visibility: draft.visibility, look, sections: draft.sections, favorites: draft.favorites, banner };
+    const status = draft.status.trim() ? { text: draft.status.trim().slice(0, MAX_STATUS), clear: draft.statusClear } : null;
+    return { ...data, person: { ...data.person, name: draft.name.trim() || data.person.name, handle: draft.handle || data.person.handle, pronouns: draft.pronouns.trim(), bio: draft.bio.trim(), status },
+      visibility: draft.visibility, look, sections: draft.sections, favorites: draft.favorites, banner, statKeys: draft.stats, pinned: draft.pinned ? draft.pinnedReview : null };
   }
 
   // ---------- You: your own numbers and lists, privately ----------
@@ -874,7 +1079,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     forgetMine();
     for (const ctx of openPages) if (ctx.data?.me && !ctx.draft) load(ctx);
   }
-  const numbers = (d = own.data) => (d?.stats ? statsRow(d.stats) : null);
+  const numbers = (d = own.data) => (d?.stats ? statsRow(d.stats, d.statKeys) : null);
 
   // The latest few things you watched, as diary lines (You's Overview). more: opens History.
   function recentLines(d = own.data, limit = 5) {

@@ -1,7 +1,7 @@
 // Profiles: everyone gets a page of their own, a bit like Letterboxd. A username (@handle), their picture and name
 // (accounts.js), pronouns, a short bio, four favourite films or shows, and what they've watched lately, with their
-// stars, likes, reviews and friends. The look is theirs to pick: accent colour, banner, name font, poster shape,
-// background, and which sections show in which order.
+// stars, likes, reviews and friends. The look is theirs to pick: accent colour, banner (a title, their own upload, a gradient), page colours, name font, poster shape,
+// background, which sections show in which order, and extras: a status line, which four numbers show, one pinned review.
 //
 // Most people will never open the editor, so an untouched profile still has to look like something: a handle is
 // made from the name on first view, the banner comes from a favourite or the last thing they watched, and the
@@ -34,11 +34,21 @@ const NEW_AFTER = { lists: 'reviews', match: 'ratings' };
 const SECTIONS_OFF = new Set(); // every section starts on; empty ones hide themselves for visitors
 export const FONTS = ['display', 'condensed', 'light', 'serif', 'mono', 'rounded'];
 export const POSTERS = ['soft', 'square', 'round', 'polaroid'];
-export const BANNERS = ['auto', 'title', 'gradient', 'none'];
+export const BANNERS = ['auto', 'title', 'upload', 'gradient', 'none'];
 export const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
-export const BACKGROUNDS = ['glow', 'image', 'plain'];
+export const BACKGROUNDS = ['glow', 'image', 'plain', 'color'];
 export const ALIGNS = ['center', 'left'];
-export const LOOK_DEFAULTS = { accent: null, banner: 'auto', gradient: 'ember', bannerKey: null, bannerImage: null, font: 'display', posters: 'soft', background: 'glow', align: 'center' };
+// bannerY: the banner picture's focal point (0 = its top, 100 = its bottom). upload: when they last uploaded a banner
+// of their own (profile-banner.js; set by the upload route, never by the editor). background 'color': the page is
+// pageColor, or a gradient from pageColor to pageColor2 when pageGradient is on (the browser keeps the text readable).
+export const LOOK_DEFAULTS = { accent: null, banner: 'auto', gradient: 'ember', bannerKey: null, bannerImage: null, font: 'display', posters: 'soft', background: 'glow', align: 'center',
+  bannerY: 28, upload: null, pageColor: null, pageColor2: null, pageGradient: true };
+// Extras: a short status line (cleared after a day or a week if they like), which four numbers show, one pinned review.
+export const STATS = ['films', 'filmsThisYear', 'shows', 'episodes', 'hours', 'reviews', 'likes'];
+export const STATS_DEFAULT = ['films', 'filmsThisYear', 'episodes', 'hours'];
+export const MAX_STATS = 4;
+export const MAX_STATUS = 80;
+export const STATUS_CLEAR = { never: null, day: 86400_000, week: 7 * 86400_000 };
 export const MAX_BIO = 300;
 export const MAX_PRONOUNS = 24;
 export const MAX_FAVORITES = 4;
@@ -68,6 +78,7 @@ export function initProfiles() {
       updated_at INTEGER
     );
   `);
+  if (!db().prepare('PRAGMA table_info(profiles)').all().some((c) => c.name === 'extras')) db().exec(`ALTER TABLE profiles ADD COLUMN extras TEXT NOT NULL DEFAULT '{}'`);
   ensureHidden();
 }
 
@@ -102,10 +113,41 @@ export function cleanLook(raw = {}, old = LOOK_DEFAULTS) {
     background: pick('background', BACKGROUNDS), align: pick('align', ALIGNS),
     bannerKey: 'bannerKey' in raw ? (validTitleKey(raw.bannerKey) ? raw.bannerKey : null) : old.bannerKey ?? null,
     bannerImage: old.bannerImage ?? null,
+    bannerY: 'bannerY' in raw ? (Number.isFinite(Number(raw.bannerY)) && raw.bannerY !== null && raw.bannerY !== '' ? Math.min(100, Math.max(0, Math.round(Number(raw.bannerY)))) : LOOK_DEFAULTS.bannerY) : old.bannerY ?? LOOK_DEFAULTS.bannerY,
+    upload: Number.isSafeInteger(old.upload) && old.upload > 0 ? old.upload : null,
+    pageColor: hexOr(raw, 'pageColor', old), pageColor2: hexOr(raw, 'pageColor2', old),
+    pageGradient: 'pageGradient' in raw ? raw.pageGradient !== false : old.pageGradient !== false,
   };
   if (look.banner === 'title' && !look.bannerKey) look.banner = 'auto';
+  if (look.banner === 'upload' && !look.upload) look.banner = 'auto';
+  if (look.background === 'color' && !look.pageColor) look.background = LOOK_DEFAULTS.background;
   return look;
 }
+// A colour is "#rrggbb" in lower case or nothing: no names, no rgb(), nothing that could carry CSS.
+const hexOr = (raw, k, old) => (k in raw ? (HEX.test(String(raw[k] || '').toLowerCase()) ? String(raw[k]).toLowerCase() : null) : old[k] ?? null);
+
+// The extras, cleaned. raw.status: { text, clear: 'never'|'day'|'week' } (or a plain string); raw.stats: up to four of
+// STATS; raw.pinned: a title key (save() checks it's one of their reviews). now dates a status that clears itself.
+export function cleanExtras(raw = {}, old = {}, now = Date.now()) {
+  const out = { status: old.status ?? null, stats: Array.isArray(old.stats) ? old.stats : null, pinned: old.pinned ?? null };
+  if ('status' in raw) {
+    const st = raw.status && typeof raw.status === 'object' ? raw.status : { text: raw.status };
+    const text = line(st.text, MAX_STATUS + 1);
+    if (text.length > MAX_STATUS) throw fail(400, `Keep the status under ${MAX_STATUS} characters.`);
+    const clear = Object.hasOwn(STATUS_CLEAR, st.clear) ? st.clear : 'never';
+    out.status = text ? { text, clear, until: STATUS_CLEAR[clear] ? now + STATUS_CLEAR[clear] : null } : null;
+  }
+  if ('stats' in raw) {
+    const picked = [...new Set((Array.isArray(raw.stats) ? raw.stats : []).filter((k) => STATS.includes(k)))];
+    if (picked.length > MAX_STATS) throw fail(400, 'Pick up to four numbers.');
+    out.stats = picked.length ? STATS.filter((k) => picked.includes(k)) : null; // shown in a fixed order; none = the usual four
+  }
+  if ('pinned' in raw) out.pinned = raw.pinned ? (validTitleKey(raw.pinned) ? raw.pinned : undefined) : null;
+  if (out.pinned === undefined) throw fail(400, 'Pin one of your own reviews.');
+  return out;
+}
+// A status that hasn't cleared itself yet, or null.
+export const liveStatus = (status, now = Date.now()) => (status?.text && (!status.until || status.until > now) ? status : null);
 
 // Sections in the order given, each on or off; unknown ones dropped, missing ones added at the end.
 export function cleanSections(raw) {
@@ -143,10 +185,33 @@ export function profileOf(user) {
     userId: r.user_id, handle: r.handle, pronouns: r.pronouns, bio: r.bio,
     visibility: VISIBILITY.includes(r.visibility) ? r.visibility : 'friends',
     favorites: parse(r.favorites, []).filter((f) => validTitleKey(f?.key)).slice(0, MAX_FAVORITES),
-    look: { ...LOOK_DEFAULTS, ...cleanLook(parse(r.look, {}), LOOK_DEFAULTS), bannerImage: parse(r.look, {}).bannerImage || null },
+    look: lookOf(r),
     sections: cleanSections(parse(r.sections, [])),
+    extras: extrasOf(r),
     updatedAt: r.updated_at,
   };
+}
+// The stored look, cleaned again on the way out (so an old or hand-edited row can't carry anything odd).
+function lookOf(r) {
+  const stored = parse(r.look, {});
+  const kept = { ...LOOK_DEFAULTS, bannerImage: TMDB_IMAGE.test(String(stored.bannerImage || '')) ? stored.bannerImage : null, upload: stored.upload };
+  return { ...LOOK_DEFAULTS, ...cleanLook(stored && typeof stored === 'object' ? stored : {}, kept) };
+}
+function extrasOf(r) {
+  const stored = parse(r.extras, {});
+  const e = stored && typeof stored === 'object' ? stored : {};
+  const status = e.status?.text ? { text: line(e.status.text, MAX_STATUS), clear: Object.hasOwn(STATUS_CLEAR, e.status.clear) ? e.status.clear : 'never', until: Number.isSafeInteger(e.status.until) ? e.status.until : null } : null;
+  const stats = Array.isArray(e.stats) ? STATS.filter((k) => e.stats.includes(k)).slice(0, MAX_STATS) : [];
+  return { status, stats: stats.length ? stats : null, pinned: validTitleKey(e.pinned) ? e.pinned : null };
+}
+
+// A new uploaded banner (version = its upload time) or none (null). Removing it moves an uploaded banner back to auto.
+export function setUpload(user, version, now = Date.now()) {
+  const old = profileOf(user);
+  const look = { ...old.look, upload: version || null };
+  if (!look.upload && look.banner === 'upload') look.banner = 'auto';
+  db().prepare('UPDATE profiles SET look = ?, updated_at = ? WHERE user_id = ?').run(JSON.stringify(look), now, user.id);
+  return profileOf(user);
 }
 
 export function idForHandle(handle) {
@@ -216,8 +281,11 @@ export async function save(user, body = {}, { resolve, now = Date.now() } = {}) 
     next.look = look;
   }
   if ('sections' in body) next.sections = cleanSections(body.sections);
-  db().prepare(`UPDATE profiles SET handle = ?, pronouns = ?, bio = ?, visibility = ?, favorites = ?, look = ?, sections = ?, updated_at = ? WHERE user_id = ?`)
-    .run(next.handle, next.pronouns, next.bio, next.visibility, JSON.stringify(next.favorites), JSON.stringify(next.look), JSON.stringify(next.sections), now, user.id);
+  next.extras = cleanExtras(body, old.extras, now);
+  if (next.extras.pinned && next.extras.pinned !== old.extras.pinned
+    && !db().prepare("SELECT 1 FROM reviews WHERE user_id = ? AND title_key = ? AND text != ''").get(user.id, next.extras.pinned)) throw fail(400, 'Pin one of your own reviews.');
+  db().prepare(`UPDATE profiles SET handle = ?, pronouns = ?, bio = ?, visibility = ?, favorites = ?, look = ?, sections = ?, extras = ?, updated_at = ? WHERE user_id = ?`)
+    .run(next.handle, next.pronouns, next.bio, next.visibility, JSON.stringify(next.favorites), JSON.stringify(next.look), JSON.stringify(next.sections), JSON.stringify(next.extras), now, user.id);
   return profileOf(user);
 }
 const img = (u) => (TMDB_IMAGE.test(String(u || '')) ? u : null);
@@ -347,6 +415,14 @@ export function reviewsBy(userId, { offset = 0, limit = 3, others = false } = {}
   return { reviews: rows.slice(0, limit).map((r) => ({ key: r.title_key, stars: r.stars, text: r.text, spoiler: Boolean(r.spoiler), title: r.title, created: r.created_at })), more };
 }
 
+// The review they pinned to the top of their profile, while it still exists and has words. Pinned is an explicit pick
+// (like favourites), so hide from profile doesn't remove it.
+export function pinnedReview(userId, key) {
+  if (!key) return null;
+  const r = db().prepare("SELECT title_key, stars, text, spoiler, title, created_at FROM reviews WHERE user_id = ? AND title_key = ? AND text != ''").get(userId, key);
+  return r ? { key: r.title_key, stars: r.stars, text: r.text, spoiler: Boolean(r.spoiler), title: r.title, created: r.created_at } : null;
+}
+
 // Titles they gave a thumbs up, newest first (offset: the next page, for You → Liked).
 export function likedBy(userId, limit = 12, offset = 0, others = false) {
   return db().prepare(`SELECT title_key AS key, title FROM ratings WHERE user_id = ? AND value = 1${others ? ` AND ${NOT_HIDDEN}` : ''} ORDER BY updated_at DESC, rowid DESC LIMIT ? OFFSET ?`)
@@ -366,12 +442,17 @@ export function view(viewer, target) {
   const self = sight === 'self';
   const person = { id: target.id, name: target.name, avatar: target.avatar, handle: p.handle };
   const friend = self ? null : isRestricted(viewer) || isRestricted(target) ? 'unavailable' : stateBetween(viewer.id, target.id);
-  if (sight === 'locked') return { person, me: false, locked: true, visibility: p.visibility, friend, look: p.look, sections: [] };
+  // Locked: colours and fonts only. No uploaded banner (the picture is theirs to share), no status.
+  if (sight === 'locked') return { person, me: false, locked: true, visibility: p.visibility, friend, look: { ...p.look, upload: null, banner: p.look.banner === 'upload' ? 'gradient' : p.look.banner }, sections: [] };
   const on = (id) => self || p.sections.some((s) => s.id === id && s.on);
   const lb = letterboxd.status(target.id);
   const hide = self ? null : hiddenKeys(target.id); // what they keep off their profile
   return {
-    person: { ...person, pronouns: p.pronouns, bio: p.bio, since: target.createdAt },
+    person: { ...person, pronouns: p.pronouns, bio: p.bio, since: target.createdAt, status: liveStatus(p.extras.status) },
+    statKeys: p.extras.stats || STATS_DEFAULT,
+    pinned: pinnedReview(target.id, p.extras.pinned),
+    // the editor needs the saved status as typed (and when it clears); others only see a live one
+    extras: self ? p.extras : undefined,
     me: self, locked: false, visibility: p.visibility, friend,
     // an owner looking at a page that isn't shared with them (private, or friends-only and not friends)
     ownerPeek: !self && Boolean(viewer?.isOwner) && p.visibility !== 'public' && !(p.visibility === 'friends' && areFriends(viewer.id, target.id)), look: p.look, sections: p.sections,

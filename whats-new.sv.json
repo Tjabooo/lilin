@@ -1,4 +1,21 @@
 {
+  "2026-11-22-profile-customise": {
+    "title": "Gör profilen till din",
+    "items": {
+      "Your own banner picture": {
+        "title": "Din egen bannerbild",
+        "text": "Redigera profil → Utseende → Banner → Egen lägger valfritt foto överst på din profil. Dra bilden i förhandsvisningen (eller använd reglaget) för att välja vilken del som syns. Bara de som kan se din profil ser den."
+      },
+      "Profile colours": {
+        "title": "Profilfärger",
+        "text": "Utseende → Bakgrund → Färg målar hela din profilsida i en färg du väljer. Slå på Toning för att låta två färger tona ner över sidan, eller av för en och samma färg. Lilin justerar nyansen så att texten är lätt att läsa, i både ljust och mörkt tema."
+      },
+      "A status, a pinned review and your numbers": {
+        "title": "En status, en fäst recension och dina siffror",
+        "text": "Lägg till en kort status under ditt namn (den kan rensa sig själv efter en dag eller en vecka), fäst en av dina recensioner överst på profilen och välj vilka siffror som visas under ditt namn (filmer, serier, timmar, recensioner, gilla-markeringar med mera)."
+      }
+    }
+  },
   "2026-11-22-review-read-more": {
     "title": "Långa recensioner öppnas på plats",
     "items": {

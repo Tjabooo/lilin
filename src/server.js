@@ -37,6 +37,7 @@ import * as ideas from './ideas.js';
 import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
+import * as profileBanner from './profile-banner.js'; // profiles: banners people upload
 import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
@@ -371,6 +372,7 @@ ideas.initIdeas({ dataDir: DATA_DIR });
 notices.initNotices({ dataDir: DATA_DIR });
 friends.initFriends(); // friends: friend_links in .lilin.db
 profiles.initProfiles(); // profiles: profiles in .lilin.db
+profileBanner.initBanners({ dataDir: DATA_DIR }); // profiles: uploaded banners in .lilin-banners
 letterboxd.initLetterboxd(); // letterboxd: linked accounts and what was imported from them
 // Linked Letterboxd feeds are read again every few hours (letterboxd.SYNC_EVERY); checked every 20 minutes.
 setInterval(() => letterboxd.syncRound().catch((e) => console.log(`[letterboxd] ${e.message || e}`)), 20 * 60 * 1000).unref();
@@ -2188,8 +2190,12 @@ async function profileView(viewer, target) {
   const look = v.look;
   // The banner: a picked title's picture, else (auto) a favourite's or the last thing they watched.
   const auto = v.favorites.find((f) => f.backdrop)?.backdrop || recent.find((r) => r.card?.backdrop)?.card.backdrop || liked.find((r) => r.card?.backdrop)?.card.backdrop || null;
-  const banner = look.banner === 'title' ? look.bannerImage : look.banner === 'auto' && auto ? auto.replace(/\/t\/p\/w\d+\//, '/t/p/w1280/') : null;
-  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match, hidden, hiddenKeys: (v.hidden || []).map((x) => x.key) };
+  const banner = look.banner === 'title' ? look.bannerImage : look.banner === 'upload' ? profileBanner.bannerUrl(target.id, look.upload)
+    : look.banner === 'auto' && auto ? auto.replace(/\/t\/p\/w\d+\//, '/t/p/w1280/') : null;
+  const [pinned] = v.pinned ? await withCards([v.pinned]) : [null];
+  return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match, hidden, hiddenKeys: (v.hidden || []).map((x) => x.key), pinned,
+    // the editor shows your uploaded banner even while the banner is set to something else
+    uploadUrl: v.me ? profileBanner.bannerUrl(target.id, look.upload) : undefined };
 }
 
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());
@@ -4928,6 +4934,21 @@ async function handleApi(req, res, url) {
         return sendJson(res, 200, await profileView(user, user));
       }
       if (p === '/api/profiles/me') return sendJson(res, 200, await profileView(user, user));
+      // An uploaded banner (profile-banner.js): POST the picture's bytes to set it, an empty POST removes it. Re-encoded
+      // here (no metadata survives), at most UPLOADS_PER_HOUR a person.
+      if (p === '/api/profiles/me/banner' && req.method === 'POST') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        const body = await readRaw(req, profileBanner.BANNER_MAX, 'That picture is too large. Keep it under 8 MB.');
+        if (!body.length) {
+          profileBanner.removeBanner(user.id);
+          profiles.setUpload(user, null);
+          return sendJson(res, 200, await profileView(user, user));
+        }
+        profileBanner.checkImage(body); // a wrong file says so before it counts against the limit
+        if (!profileBanner.allowUpload(user.id)) throw Object.assign(new HttpError(429, 'That’s a lot of banners. Try again in an hour.'), { retryAfter: 3600 });
+        profiles.setUpload(user, await profileBanner.saveBanner(user.id, body));
+        return sendJson(res, 200, await profileView(user, user));
+      }
       // Hide from my profile (profile-hidden.js): GET ?key= says whether a title is hidden, POST { key, hidden } switches it.
       if (p === '/api/profiles/me/hidden') {
         if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
@@ -4969,12 +4990,20 @@ async function handleApi(req, res, url) {
         if (p === '/api/profiles/me/letterboxd/import' && req.method === 'GET') return sendJson(res, 200, letterboxdImports.get(user.id) || { state: 'none' });
         throw new HttpError(404, 'Not found.');
       }
-      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked))?$/)) && req.method === 'GET') {
+      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked|banner))?$/)) && req.method === 'GET') {
         const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
         const target = id ? accounts.userById(id) : null;
         if (!target) throw new HttpError(404, 'No such profile.');
         if (!m[3]) return sendJson(res, 200, await profileView(user, target));
         const sight = profiles.access(user, target);
+        // Their uploaded banner: only for people who can see the whole profile, and only while it's the banner in use.
+        if (m[3] === 'banner') {
+          const found = (sight === 'self' || (sight === 'full' && profiles.profileOf(target).look.banner === 'upload')) && profileBanner.bannerFile(target.id);
+          if (!found) throw new HttpError(404, 'No banner.');
+          res.writeHead(200, { 'Content-Type': found.type, 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline',
+            'Cache-Control': url.searchParams.has('v') ? 'private, max-age=31536000, immutable' : 'private, no-cache' });
+          return res.end(await fs.promises.readFile(found.file));
+        }
         const shown = (section) => sight === 'self' || (sight === 'full' && profiles.profileOf(target).sections.some((s) => s.id === section && s.on));
         const offset = Number(url.searchParams.get('offset')) || 0;
         if (m[3] === 'diary') {
@@ -6249,7 +6278,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|letterboxd(?:\/sync|\/import)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

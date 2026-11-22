@@ -796,5 +796,17 @@
  "{0} episodes of {1} are sharper now": "{0} avsnitt av {1} är skarpare nu",
  "Now in {0}. Your place is kept.": "Nu i {0}. Du fortsätter där du slutade.",
  "Your place is kept.": "Du fortsätter där du slutade.",
- "Quote search is off on this server.": "Repliksök är avstängt på den här servern."
+ "Quote search is off on this server.": "Repliksök är avstängt på den här servern.",
+ "That’s a lot of banners. Try again in an hour.": "Det var många banners. Försök igen om en timme.",
+ "No banner.": "Ingen banner.",
+ "Pick a picture first.": "Välj en bild först.",
+ "That picture is too large. Keep it under 8 MB.": "Bilden är för stor. Håll den under 8 MB.",
+ "That picture couldn’t be read. Try another one.": "Bilden gick inte att läsa. Prova en annan.",
+ "Moving pictures can’t be banners. Use a still one.": "Rörliga bilder kan inte vara banners. Använd en stillbild.",
+ "That picture has too many pixels. Use a smaller one.": "Bilden har för många pixlar. Använd en mindre.",
+ "That picture is too small for a banner.": "Bilden är för liten för en banner.",
+ "Banners aren’t set up.": "Banners är inte inställda.",
+ "Keep the status under 80 characters.": "Håll statusen under 80 tecken.",
+ "Pick up to four numbers.": "Välj upp till fyra siffror.",
+ "Pin one of your own reviews.": "Fäst en av dina egna recensioner."
 }

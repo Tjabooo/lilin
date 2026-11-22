@@ -1,5 +1,27 @@
 [
 {
+  "id": "2026-11-22-profile-customise",
+  "date": "2026-11-22",
+  "title": "Make your profile yours",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Your own banner picture",
+      "text": "Edit profile → Look → Banner → Upload puts any photo of yours at the top of your profile. Drag it in the preview (or use the slider) to choose which part shows. Only people who can see your profile see it."
+    },
+    {
+      "kind": "new",
+      "title": "Profile colours",
+      "text": "Look → Background → Colour paints your whole profile page in a colour you pick. Turn Gradient on to blend two colours down the page, or off for one solid colour. Lilin adjusts the shade so the text stays easy to read, in light and dark themes."
+    },
+    {
+      "kind": "new",
+      "title": "A status, a pinned review and your numbers",
+      "text": "Add a short status under your name (it can clear itself after a day or a week), pin one of your reviews to the top of your profile, and pick which numbers show under your name (films, shows, hours, reviews, likes and more)."
+    }
+  ]
+},
+{
   "id": "2026-11-22-review-read-more",
   "date": "2026-11-22",
   "title": "Long reviews open in place",
