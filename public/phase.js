@@ -147,7 +147,7 @@ const wordmarkHTML = () => `<span class="ph-lw">${WM.map(([x0, x1, ps, dot, core
     ps.map((d) => `<path d="${d}"/>`).join('')}${dot ? `<path class="dot-${core}" d="${dot}"/>` : ''}</svg></span>`).join('')}</span>`;
 
 /* ================= stacked names, fitted to the column ================= */
-const ARTICLES = /^(the|a|an|den|det|en|ett|de|le|la|les|el|los|die|der|das)$/i;
+const ARTICLES = /^(the|a|an|den|det|en|ett)$/i;
 function splitName(title) {
   const text = String(title || '').replace(/\s+/g, ' ').trim();
   const at = text.search(/[:：]\s|\s[–—-]\s/);
@@ -225,7 +225,7 @@ function fit(box, { max = 110, min = 26, maxH = 220, S = 0.78 } = {}) {
   return true;
 }
 // A1 THE PRESS: the word lands too wide (cropped by the column), squeezed to its width in 3 steps on twos (126 ms)
-function press(m, box, at = 0, k = 1.28) {
+function press(m, box, at = 0, k = 1.08) {
   if (!box) return;
   $$('.ln', box).forEach((ln, i) => {
     cutOn(m, ln, at + (ln.classList.contains('sub') || ln.classList.contains('sm') ? F : 0));
@@ -510,7 +510,8 @@ let sheetSeen = null;
 function enhanceSheet(sheet) {
   const content = $('.sheet-content', sheet), h2 = content && $('h2#sheet-title', content);
   if (!h2) return null;
-  const text = $('img.page-logo', h2)?.alt || h2.textContent.trim();
+  const text = ($('img.page-logo', h2)?.alt || $(':scope > .ph-sr', h2)?.textContent
+    || [...h2.childNodes].filter((n) => !(n.nodeType === 1 && n.classList.contains('ph-name'))).map((n) => n.textContent).join('')).trim();
   if (!text) return null;
   let box = $('.ph-name', h2);
   if (!box || box.dataset.for !== text) {
@@ -635,7 +636,7 @@ function watchSheet() {
     const open = sheet.classList.contains('open') && !sheet.hidden;
     if (!open) { sheetSeen = null; return; }
     const h2 = $('h2#sheet-title', sheet);
-    const id = h2 && ($('img.page-logo', h2)?.alt || h2.textContent.trim());
+    const id = h2 && ($('img.page-logo', h2)?.alt || $(':scope > .ph-sr', h2)?.textContent || [...h2.childNodes].filter((n) => !(n.nodeType === 1 && n.classList.contains('ph-name'))).map((n) => n.textContent).join('').trim());
     if (!id || sheetSeen === id) return;
     if (!$('.sheet-content .facts, .sheet-content .title-bar', sheet)) return; // still the skeleton
     sheetSeen = id;
