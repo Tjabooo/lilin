@@ -134,6 +134,8 @@ that is a hard disk shared with downloads and conversions.
 | `LILIN_PRIORITY` | `above_normal` | CPU priority of the Lilin process: `above_normal`, `normal` or `high`. On Windows its I/O and memory priority are always set to normal, also when it runs as a scheduled task (whose default is low I/O priority, which made streams stall behind downloads). |
 | `BACKGROUND_PRIORITY` | `below_normal` | CPU priority of background jobs (conversions, browser copies, timeline previews, credits, subtitle sync, clip and note copies, OCR): `below_normal`, `idle` or `normal`. |
 | `BACKGROUND_IO` | `normal` | Windows: I/O and memory priority of those jobs: `normal`, `low` or `very_low`. `low` makes their disk reads wait for a stream's and their cached pages leave RAM first, but slows a conversion 3–4x while anyone watches; try it only if streams still stall during background work. |
+| `BACKGROUND_SERIAL_DRIVES` | empty (off) | Windows drive letters (e.g. `E` or `E,F`) of hard drives where conversions take turns instead of all reading at once. Several conversions on one hard drive spend their time seeking between files (5 readers together got ~70 MB/s from a disk that streams 200+ MB/s to one). A copy someone is waiting to play skips the queue; players, timeline previews and credits never wait. Leave SSDs out. |
+| `BACKGROUND_READS_PER_DRIVE` | `1` | How many conversions may read one of those drives at once. |
 | `QBIT_PLAYBACK_LIMITS` | `on` | While anyone is streaming, switch qBittorrent to its alternative speed limits (set them in qBittorrent: Options → Speed). Lilin turns them off again afterwards, unless they were already on. |
 | `PLAYBACK_IDLE_SECONDS` | `60` | How long after the last stream downloads go back to full speed. |
 

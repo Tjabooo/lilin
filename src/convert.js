@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { trackChild } from './load.js';
 import { background, pauseProcess } from './priority.js';
 import { GB, freeBytes, pickEvictions, sameDrive } from './disk-space.js';
+import { diskSlot, diskSlotNow } from './disk-slots.js';
 
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE || 'ffprobe';
@@ -1403,10 +1404,14 @@ async function runJob(lane, job, adopted = null) {
       catch (e) { console.warn(`[convert] couldn’t delete ${path.basename(job.file)}: ${e.message}`); }
       return;
     }
-    if (adopted) await adoptRun(job, slot, adopted);
-    else {
+    if (adopted) {
+      const release = diskSlotNow(job.file); // already reading the drive: counts toward its turn
+      try { await adoptRun(job, slot, adopted); } finally { release(); }
+    } else {
       await makeRoom(job);
-      await convert(job, slot);
+      // On a queued hard drive, wait for a turn (disk-slots.js). A copy someone is waiting to play goes now.
+      const release = job.force ? () => {} : await diskSlot(job.file);
+      try { await convert(job, slot); } finally { release(); }
     }
     status.done += 1;
     console.log(`[convert] done: ${path.basename(job.file)}${job.h264 ? ' (H.264 browser copy)' : job.fix ? ' (browser copy)' : ''}`);
