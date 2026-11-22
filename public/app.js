@@ -9053,8 +9053,9 @@ function renderYouPage() {
   if (!sub || !YOU_PAGES[sub]) { page.replaceChildren(...youOverview()); return; }
   const title = sub === 'ratings' && state.me.restricted ? T('Ratings') : T(ROUTES[`you/${sub}`].label);
   const nodes = YOU_PAGES[sub]().filter(Boolean);
-  page.replaceChildren(h('button', { type: 'button', class: 'back-link you-back', onclick: goUp }, `‹ ${T('You')}`),
-    h('h3', { class: 'you-page-title' }, title),
+  page.replaceChildren(h('div', { class: 'you-page-head' },
+    h('button', { type: 'button', class: 'back-link you-back', onclick: goUp }, T('You')),
+    h('h3', { class: 'you-page-title' }, title)),
     ...(nodes.length ? settingsGroups(nodes, title) : [h('p', { class: 'muted' }, T('Nothing here yet.'))]));
   if (ideasView.jump) { ideasView.jump = false; requestAnimationFrame(() => $('#idea-box')?.scrollIntoView({ block: 'start' })); }
 }

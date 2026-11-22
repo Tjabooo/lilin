@@ -2519,6 +2519,15 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 /* ---------- you (was Settings): the list of your pages; wide screens show it beside the open page ---------- */
 #you-list, #you-rows, #you-page { display: grid; gap: var(--s6); align-content: start; min-width: 0; max-width: 780px; }
 .you-page-title { margin: 0; font: 800 var(--t-h2)/1.2 var(--display); letter-spacing: -.015em; }
+/* An open page on phones: a small back link right above the page's big title, in place of the You heading (Oliver) */
+.you-page-head { display: grid; justify-items: start; gap: 2px; }
+.you-back { gap: 6px; margin-left: -2px; color: var(--bulb); }
+.you-back::before { content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+@media (max-width: 899px) {
+  #view-you.on-page > .view-heading { display: none; }
+  #view-you.on-page .you-page-head { margin-top: var(--s2); }
+  #view-you.on-page .you-page-title { font: 800 var(--t-h1)/1.08 var(--display); letter-spacing: -0.025em; }
+}
 @media (max-width: 899px) { #view-you.on-page #you-list, #view-you:not(.on-page) #you-page, #you-rows > .you-me { display: none; } }
 @media (min-width: 900px) {
   #you-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--s7); align-items: start; }
