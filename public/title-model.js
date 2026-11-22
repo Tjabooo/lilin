@@ -69,7 +69,6 @@ export function titleModel(x) {
     menu('advanced', tools && getMore && state !== 'unreleased' && state !== 'onServer');
   }
   if (tv) {
-    menu('moreEpisodes', tools && getMore && state !== 'unreleased'); // the season panel: a whole season, a quality
     menu('delete', tools && (owned || x.transfers > 0));
   }
   menu('details', tools && x.transfers > 0);

@@ -11,30 +11,24 @@ const ui = between('// ---------- Download: you choose what', '// ---------- cas
 
 test('title sheets offer Play / Download, never a release list, quality rail or second search', () => {
   assert.match(page, /filmActions\(t, \{ stateOf: c\.stateOf \}\)/);
-  assert.match(page, /showDownload\(t, \{ season: [\s\S]*?, onAdded: \(\) => updateOpenTitle\(\)/);
+  assert.doesNotMatch(app, /function showDownload\(|showPanels|T\('Add Season \{0\}'|T\('Download a season'\)/, 'no season download panel: you press an episode');
   assert.doesNotMatch(app, /seasonStrip|bestDownload|getSeason\(|Get only missing episodes|Find another release|api\/torrents\/recommend|api\/downloads\/season/);
   assert.equal((app.match(/openTorrents\(/g) || []).length, 2, 'only the Find torrents sheet itself and its button');
 });
 
-test('a film downloads with one press; a show uses the minimal season panel', () => {
+test('a film downloads with one press', () => {
   assert.match(ui, /get\.addEventListener\('click', async \(\) => \{[\s\S]*?return start\(\);/);
   assert.match(ui, /runDownloadCommand\(body\(\)\)/);
   assert.match(ui, /api\('\/api\/downloads\/smart', jsonPost\(\{ \.\.\.body, screen: screenClass\(\) \}\)\)/, 'every download says what screen it is for');
-  for (const text of ['\'Season\'', 'Lilin picks a good copy of the season and skips episodes you already have.',
-    'Add Season', 'Advanced options', 'This season is ready to watch', 'The rest are on their way', 'Retry unavailable']) assert.ok(ui.includes(text), text);
   assert.doesNotMatch(ui, /Balanced · 1080p|savedProfile|downloadProfile/, 'no Quality setting: the screen decides');
-  assert.match(ui, /'aria-expanded': String\(ps\.open\), 'aria-controls': panelId/);
-  assert.match(ui, /if \(e\.detail === 0\) seasonSel\.focus\(\)/, 'keyboard opens straight onto Season');
 });
 
 test('a show someone else already has joins your library in one press, every season, in batches the API accepts', () => {
-  assert.match(ui, /const extra = serverOnlyEpisodes\(titleState\(t\)\);\s+if \(extra\.length\) return addEverything\(extra\);\s+ps\.open = !ps\.open;/, 'adds before any panel opens');
   assert.match(ui, /function serverOnlyEpisodes\(s, season = null\)/);
   assert.match(ui, /const ADD_BATCH = 400;/);
   assert.match(ui, /files\.slice\(i, i \+ ADD_BATCH\)/);
   assert.match(page, /tools && serverOnly\.length > 0 && \[icon\('plus'\), T\('Add season'\), async \(\) => \{ try \{ await addFromServer\(serverOnly\); \}/, 'the owner’s season ⋯ adds what’s here in the same batches');
   assert.match(app, /try \{ await addIds\(files\); \}/);
-  assert.match(ui, /addingAll \? T\('Adding…'\)/);
 });
 
 test('manual releases and an exact resolution only appear inside Advanced options', () => {
@@ -69,7 +63,6 @@ test('no Dubbed choice anywhere: the dub is fetched and added to the episode by 
 });
 
 test('Upgrade quality sits with the season and in the player, not in the add panel', () => {
-  assert.doesNotMatch(between('function showDownload(', '// Upgrade quality: the season is here'), /Upgrade quality|upgrade: true/);
   assert.match(page, /upgradeState\(tvT, n\)\.run\(\)/, 'Upgrade quality is in the season’s ⋯');
   const menu = between('function renderQualityMenu() {', '// Another version of what');
   assert.match(menu, /qualityBtn\.hidden = !stream && !vers && !upgrade/, 'the menu opens for the upgrade alone');

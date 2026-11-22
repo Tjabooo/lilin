@@ -2295,11 +2295,6 @@ const TITLE_ACTIONS = {
   toPhone: (c) => c.file() && [icon('phone'), T('To phone'), (o) => openTravel(c.file(), o)],
   // The owner's tools (title-model.js: admin).
   download: (c) => c.fa && [icon('download'), T('Download without playing'), () => c.fa.download()],
-  moreEpisodes: (c) => c.tvd && [icon('download'), T('Download a season'), () => {
-    const ps = showPanels.get(c.t.id);
-    if (ps) { ps.open = true; renderTitle(); }
-    $('#sheet-body .dl-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }],
   getVersion: (c) => [icon('plus'), T('Get another version'), () => c.fa?.revealAdvanced()],
   advanced: (c) => [icon('search'), T('Advanced options'), () => c.fa?.revealAdvanced()],
   identify: (c) => c.file() && [icon('pencil'), T('Identify film'), (o) => openFilmIdentity(c.file(), o)],
@@ -2357,10 +2352,6 @@ function renderTitle() {
   titleView.showId = c.showId;
   // The parts with buttons of their own: films' Play / Add pair, shows' download panel, My list.
   if (!tv) c.fa = filmActions(t, { stateOf: c.stateOf });
-  // The season panel (a whole season, a quality) is the owner's: everyone else presses an episode.
-  if (tv && canGet() && t.id != null && state.status.admin) {
-    c.tvd = showDownload(t, { season: titleView.season.get(`tv:${t.id}`) ?? null, onAdded: () => updateOpenTitle(), lead: false });
-  }
   if (state.status.search && t.id != null) c.watch = watchBox(t, { lead: lead('save') ? 'save' : null });
   const bar = h('div', { class: 'title-bar' });
   if (c.fa) bar.append(c.fa.play);
@@ -2398,7 +2389,7 @@ function renderTitle() {
       c.watch,
       tv && reactions, // shows: up top, not below a long episode list
       c.fa, versions || null,
-      c.tvd?.panel, tv && state.status.admin && transferSummary(() => c.stateOf().transfers, t.title, { lead: () => false }),
+      tv && state.status.admin && transferSummary(() => c.stateOf().transfers, t.title, { lead: () => false }),
       model.inline.includes('identityNote') && h('p', { class: 'identity-note' }, state.me?.isOwner
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
         : T('Several films match this filename. The server’s owner can identify this file.')),
@@ -2454,8 +2445,6 @@ function episodeList(c) {
     const se = seasons.get(n);
     const pick = (x) => {
       titleView.season.set(skey, x);
-      const ps = showPanels.get(t.id);
-      if (ps && !ps.touched) ps.season = x; // the download panel opens on the season you're looking at
       draw();
     };
     const label = (x) => localSeasonName(x.name, x.number);
@@ -2507,12 +2496,6 @@ function episodeList(c) {
     const tools = Boolean(state.status.admin); // the season's download tools are the owner's
     const seasonItems = [
       tools && serverOnly.length > 0 && [icon('plus'), T('Add season'), async () => { try { await addFromServer(serverOnly); } catch (err) { toast(err.message); } }],
-      tools && !serverOnly.length && !complete && !se.upcoming && c.tvd && [icon('download'), T('Add Season {0}', n), () => {
-        const ps = showPanels.get(t.id);
-        Object.assign(ps, { season: n, touched: true, open: true });
-        renderTitle();
-        $('#sheet-body .dl-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }],
       tools && upgrade?.offered && !upgrade.started && [icon('upgrade'), upgradeLabel(upgrade), async () => {
         toast(T('Looking for better quality…'));
         await upgradeState(tvT, n).run();
@@ -3643,193 +3626,6 @@ function filmActions(t, { stateOf = () => titleState(t) } = {}) {
   commandViews.add(root);
   root._update();
   return root;
-}
-
-// Shows: when someone else already has episodes here that you don't, one press adds all of them.
-// Otherwise the button opens the panel; the season and quality chosen stay while it's open.
-// Long seasons (Black Clover's 170, One Piece's 197) can download a range of episodes instead.
-const showPanels = new Map(); // tmdb id -> { open, season, profile, exact, last: { [season]: command key }, ranges: { [season]: { on, from, to } } }
-const RANGE_FROM = 40; // episodes in a season before the panel offers a range
-// lead: the toggle is the title page's gold button (it turns quiet while its panel is open: Add Season is then).
-function showDownload(t, { season = null, onAdded = null, lead = false } = {}) {
-  let ps = showPanels.get(t.id);
-  if (!ps) { ps = { open: false, season, exact: '', last: {}, ranges: {} }; showPanels.set(t.id, ps); }
-  else if (season != null && !ps.touched) ps.season = season;
-  const panelId = `dl-panel-${t.id}`;
-  const toggle = h('button', { type: 'button', class: 'play-btn action-btn stroke-icon title-add', 'data-act': 'download', 'aria-expanded': String(ps.open), 'aria-controls': panelId }, icon('plus'), h('span', {}, T('Add to library')));
-  const paintToggle = () => { const lit = lead && !ps.open; toggle.classList.toggle('play-btn', lit); toggle.classList.toggle('action-btn', lit); toggle.classList.toggle('chip', !lit); };
-  const seasonSel = h('select', { class: 'sub-select', id: `${panelId}-season`, disabled: true }, h('option', {}, T('Loading seasons…')));
-  const avail = h('p', { class: 'dl-avail' });
-  const note = h('p', { class: 'dl-note' });
-  // Episodes: the whole season, or a range of it ("150 to 200") when the season is long.
-  const scopeSel = h('select', { class: 'sub-select', id: `${panelId}-scope` },
-    h('option', { value: 'all' }, T('Whole season')), h('option', { value: 'range' }, T('Choose a range')));
-  const numInput = (id, label) => h('input', { type: 'number', class: 'dl-num', id, inputmode: 'numeric', step: '1', 'aria-label': label });
-  const fromIn = numInput(`${panelId}-from`, T('First episode')), toIn = numInput(`${panelId}-to`, T('Last episode'));
-  const rangeRow = h('div', { class: 'dl-field dl-range' }, h('label', { for: fromIn.id }, T('From – to')),
-    h('div', { class: 'dl-range-boxes' }, fromIn, h('span', { class: 'dl-range-dash', 'aria-hidden': 'true' }, '–'), toIn));
-  const scopeField = h('div', { class: 'dl-field dl-scope' }, h('label', { for: scopeSel.id }, T('Episodes')), scopeSel);
-  const submit = h('button', { type: 'button', class: `${lead ? 'play-btn' : 'chip'} dl-submit` }, h('span', {}, T('Add Season')));
-  const quiet = h('p', { class: 'dl-quiet' });
-  const status = h('p', { class: 'dl-status', role: 'status' });
-  const retry = h('button', { type: 'button', class: 'chip dl-retry' });
-  const panel = h('div', { class: 'dl-panel', id: panelId, hidden: !ps.open },
-    h('div', { class: 'dl-fields' },
-      h('div', { class: 'dl-field' }, h('label', { for: seasonSel.id }, T('Season')), seasonSel),
-      scopeField, rangeRow),
-    note, avail, submit, quiet, h('div', { class: 'dl-result' }, status, retry),
-    advancedOptions(`tv-${t.id}`, {
-      exact: ps.exact, onExact: (v) => { ps.exact = v; },
-      browse: () => ({ query: `${t.title} S${pad2(ps.season || 1)}`, type: 'tv', tvId: t.id, canonicalTitle: t.title, strict: true }),
-    }));
-  let seasons = null;
-  const load = () => {
-    if (seasons || !t.id) return;
-    seasons = [];
-    tvSeasons(t.id).then((list) => {
-      seasons = list;
-      const s = titleState(t), have = (n) => episodeCount([...s.ready, ...s.onServer].filter((f) => f.season === n && f.episode != null));
-      seasonSel.replaceChildren(...list.map((se) => h('option', { value: String(se.number), disabled: se.upcoming && !have(se.number) ? true : null },
-        `${se.name}${se.upcoming && !have(se.number) ? T(' · Not released') : ''}`)));
-      const extra = new Set(serverOnlyEpisodes(s).map((f) => f.season)); // seasons someone else has here
-      const pick = list.find((se) => se.number === ps.season) || list.find((se) => extra.has(se.number))
-        || list.find((se) => !se.upcoming && !(se.episodes && have(se.number) >= se.episodes)) || list.find((se) => !se.upcoming) || list[0];
-      if (pick) { ps.season = pick.number; seasonSel.value = String(pick.number); }
-      seasonSel.disabled = false;
-      panel._update();
-    }).catch((err) => { seasons = null; seasonSel.replaceChildren(h('option', {}, T('Seasons unavailable'))); status.textContent = err.message; });
-  };
-  let addingAll = false;
-  const addEverything = async (files) => {
-    addingAll = true; ps.open = false; panel.hidden = true; panel._update();
-    try {
-      await addFromServer(files);
-      if (toggle.isConnected && onAdded) { // the sheet's episode list changed; keep its place and the button's focus
-        const top = $('#sheet').scrollTop;
-        onAdded();
-        $('#sheet').scrollTop = top;
-        $(`#sheet-body [aria-controls="${panelId}"]`)?.focus({ preventScroll: true });
-      }
-    } catch (err) { toast(err.message); } finally { addingAll = false; panel._update(); }
-  };
-  toggle.addEventListener('click', (e) => {
-    if (addingAll) return;
-    const extra = serverOnlyEpisodes(titleState(t));
-    if (extra.length) return addEverything(extra);
-    ps.open = !ps.open;
-    paintToggle();
-    toggle.setAttribute('aria-expanded', String(ps.open));
-    panel.hidden = !ps.open;
-    if (ps.open) { load(); if (e.detail === 0) seasonSel.focus(); } // keyboard: straight to Season
-  });
-  seasonSel.addEventListener('change', () => { ps.season = Number(seasonSel.value); ps.touched = true; addError = ''; panel._update(); });
-  // The season's range state, its TMDB numbering (first..last) and the episodes it asks for.
-  const seasonInfo = () => seasons?.find((x) => x.number === ps.season) || null;
-  const longSeason = () => (seasonInfo()?.episodes || 0) >= RANGE_FROM;
-  const bounds = () => { const se = seasonInfo(), first = se?.first || 1; return { first, last: first + (se?.episodes || 1) - 1 }; };
-  const rangeOf = () => {
-    const { first, last } = bounds();
-    return (ps.ranges[ps.season] ||= { on: false, from: first, to: Math.min(last, first + 49) });
-  };
-  const rangeList = () => {
-    const r = rangeOf(), { first, last } = bounds();
-    const from = Math.max(first, Math.min(r.from, r.to)), to = Math.min(last, Math.max(r.from, r.to));
-    return Number.isInteger(from) && Number.isInteger(to) && from <= to ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [];
-  };
-  const ranged = () => longSeason() && rangeOf().on;
-  scopeSel.addEventListener('change', () => { rangeOf().on = scopeSel.value === 'range'; panel._update(); if (rangeOf().on) fromIn.focus(); });
-  for (const [input, k] of [[fromIn, 'from'], [toIn, 'to']]) {
-    input.addEventListener('input', () => { const v = Number(input.value); if (Number.isInteger(v)) { rangeOf()[k] = v; panel._update(); } });
-    input.addEventListener('change', () => { input.value = String(rangeOf()[k]); }); // an empty box goes back to the last number
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit.click(); });
-  }
-  const body = (episodes = null, range = false) => ({ type: 'tv', tmdbId: t.id, season: ps.season,
-    ...(ps.exact ? { quality: ps.exact } : {}), ...(episodes?.length ? { episodes } : {}), ...(range ? { range: true } : {}) });
-  const run = (episodes, range = false) => {
-    if (submit.getAttribute('aria-disabled') === 'true' || !ps.season) return;
-    const b = body(episodes, range);
-    ps.last[ps.season] = commandKey(b);
-    runDownloadCommand(b);
-  };
-  let adding = false, addError = '';
-  submit.addEventListener('click', async () => {
-    addError = '';
-    if (!submit._add) return ranged() ? (rangeList().length ? run(rangeList(), true) : null) : run(null);
-    if (submit.getAttribute('aria-disabled') === 'true') return;
-    adding = true; panel._update();
-    try { await addFromServer(submit._add); } catch (err) { addError = err.message; } finally { adding = false; panel._update(); }
-  });
-  retry.addEventListener('click', () => run(retry._episodes));
-  panel._update = () => {
-    const n = ps.season, se = seasons?.find((x) => x.number === n);
-    const cmd = downloadCommands.get(ps.last[n]);
-    // Episode range: offered for long seasons; the boxes keep to the season's numbers.
-    const canRange = longSeason() && !submit._add;
-    scopeField.hidden = !canRange;
-    const useRange = canRange && rangeOf().on;
-    rangeRow.hidden = !useRange;
-    const picked = useRange ? rangeList() : null;
-    if (canRange) {
-      const r = rangeOf(), { first, last } = bounds();
-      scopeSel.value = r.on ? 'range' : 'all';
-      for (const [input, v] of [[fromIn, r.from], [toIn, r.to]]) {
-        input.min = String(first); input.max = String(last);
-        if (document.activeElement !== input) input.value = String(v);
-      }
-    }
-    const full = titleState(t), s = full;
-    const ready = new Set(s.ready.filter((f) => f.season === n && f.episode != null).map((f) => f.episode));
-    const server = new Set(s.onServer.filter((f) => f.season === n && f.episode != null && !ready.has(f.episode)).map((f) => f.episode));
-    const downloading = new Set(s.active.flatMap((d) => (d.episodes || []).filter((ep) => ep.season === n && !ep.available).map((ep) => ep.episode)).filter((e) => !ready.has(e)));
-    const packBusy = s.active.some((d) => d.season === n && !(d.episodes || []).length);
-    const total = se?.episodes || null;
-    const parts = [ready.size && (total ? T('{0} of {1} episodes ready', ready.size, total) : T('{0} ready', plural(ready.size, 'episode'))),
-      downloading.size ? T('{0} on the way', downloading.size) : packBusy && T('Season on its way'),
-      server.size && T('{0} ready to add', server.size)].filter(Boolean);
-    avail.textContent = parts.join(' · ');
-    avail.hidden = !parts.length;
-    const complete = total && ready.size >= total;
-    // Everything still missing is on the server under someone else (or already downloading): just add it.
-    const addOnly = !complete && server.size > 0 && (total ? ready.size + server.size + downloading.size >= total : !canGet());
-    const covered = total && ready.size + server.size + downloading.size >= total && !complete && downloading.size > 0 && !addOnly;
-    const locked = Boolean(cmd?.busy);
-    submit._add = addOnly && !locked ? serverOnlyEpisodes(s, n).filter((f) => server.has(f.episode)) : null;
-    submit.hidden = Boolean(complete || covered) && !locked;
-    quiet.textContent = complete ? T('This season is ready to watch') : covered ? T('The rest are on their way') : '';
-    quiet.hidden = !submit.hidden;
-    const rangeText = picked?.length ? (picked.length === 1 ? T('Add Episode {0}', picked[0]) : T('Add Episodes {0}–{1}', picked[0], picked.at(-1))) : T('Choose episodes');
-    submit.firstChild.textContent = locked ? commandStep(cmd) : submit._add ? (adding ? T('Adding…') : T('Add Season {0} to library', n))
-      : useRange ? rangeText : (n == null ? T('Add season') : T('Add Season {0}', n));
-    submit.setAttribute('aria-disabled', String(locked || adding || !n || Boolean(useRange && !picked.length)));
-    note.textContent = submit._add ? T('Someone already has this season here. Adding it makes no copy, so it’s ready to watch right away.')
-      : useRange ? T('{0} of {1}–{2}. A season batch still serves a range: episodes outside it are skipped.', plural(picked.length, 'episode'), bounds().first, bounds().last)
-      : T('Lilin picks a good copy of the season and skips episodes you already have.');
-    // The show's button: "Add to library" until some of it is yours, then "More episodes" for the rest.
-    const addsAll = serverOnlyEpisodes(full).length > 0;
-    const toggleText = addingAll ? T('Adding…') : full.ready.length && !addsAll ? T('More episodes') : T('Add to library');
-    if (toggle._mode !== toggleText) {
-      toggle._mode = toggleText;
-      toggle.replaceChildren(icon('plus'), h('span', {}, toggleText));
-    }
-    toggle.setAttribute('aria-disabled', String(addingAll));
-    if (addsAll) toggle.removeAttribute('aria-expanded'); // it adds right away, so there's no panel to expand
-    else toggle.setAttribute('aria-expanded', String(ps.open));
-    paintToggle();
-    seasonSel.disabled = locked || !seasons?.length;
-    scopeSel.disabled = fromIn.disabled = toIn.disabled = locked;
-    panel.setAttribute('aria-busy', String(locked));
-    const result = commandResult(cmd);
-    const text = addError || result?.text || '';
-    if (status.textContent !== text) status.textContent = text;
-    status.classList.toggle('is-error', Boolean(addError || (result?.retry && !result.partial)));
-    retry._episodes = result?.episodes?.length ? result.episodes : null;
-    retry.hidden = !result?.retry;
-    retry.textContent = retry._episodes ? T('Retry unavailable') : T('Try again');
-  };
-  commandViews.add(panel);
-  panel._update();
-  if (ps.open) load();
-  return { toggle, panel };
 }
 
 // Upgrade quality: the season is here but looks soft. A clearly better pack replaces it episode by episode.

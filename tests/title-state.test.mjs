@@ -80,7 +80,7 @@ test('nothing lost: every action is reachable in some state, the download tools 
   for (const id of ['play', 'resume', 'save', 'trailer', 'rate', 'review', 'playOnTv', 'toPhone', 'versions', 'episodes', 'identityNote']) {
     assert.ok(everyone.has(id), `${id} is reachable`);
   }
-  for (const id of ['download', 'moreEpisodes', 'addSeason', 'delete', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
+  for (const id of ['download', 'addSeason', 'delete', 'identify', 'advanced', 'getVersion', 'details']) assert.ok(owner.has(id), `owner: ${id}`);
 });
 
 test('members never meet a download tool: no Add, Download, Delete or transfer details', () => {
