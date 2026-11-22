@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-22-new-episodes",
+  "date": "2026-11-22",
+  "title": "New episodes that just came out",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "New episodes this week shows what actually aired",
+      "text": "The New episodes this week row on Discover now shows series that just put out an episode, like a show releasing weekly, with the newest and most watched first. No more talk shows and soaps. Each card says which episode came out and when, and a New episode tag stays on for a week. A season or series that just started is tagged New season or New series for a month."
+    },
+    {
+      "kind": "new",
+      "title": "New tag on episodes",
+      "text": "On a show's page, episodes that came out in the last week have a New tag, until you've watched them."
+    }
+  ]
+},
+{
   "id": "2026-11-22-smoother-tabs",
   "date": "2026-11-22",
   "title": "Smoother Discover and Live",

@@ -111,6 +111,7 @@ import { APP_DIR, DATA_DIR, CACHE_DIR, PUBLIC_DIR, dataDirProblem, ensureDataDir
 import * as preview from './preview.js';
 import { pickBackdrop } from './backdrop.js';
 import { createComingSoon } from './coming-soon.js'; // comingsoon: Discover's Coming soon row and page
+import { createNewEpisodes } from './new-episodes.js'; // New episodes this week: shows that just aired one
 
 {
   const problem = dataDirProblem();
@@ -808,6 +809,9 @@ const copyCheck = createCopyCheck({
 const comingSoon = createComingSoon({ tmdb, listTmdb: (endpoint, params) => cachedTmdb(endpoint, params, 3 * 3600 * 1000), mapTitle,
   region: TMDB_REGION, language: currentLanguage, log: (line) => console.warn(line) });
 if (TMDB_TOKEN || TMDB_KEY) setTimeout(() => comingSoon.warm(), 20_000).unref();
+const newEpisodes = createNewEpisodes({ tmdb, listTmdb: (endpoint, params) => cachedTmdb(endpoint, params, 2 * 3600 * 1000), mapTitle,
+  language: currentLanguage, log: (line) => console.warn(line) });
+if (TMDB_TOKEN || TMDB_KEY) setTimeout(() => newEpisodes.warm(), 25_000).unref();
 
 // Trailers first, then teasers; official ones in your language, then English; the biggest and newest wins.
 function pickTrailer(videos, lang) {
@@ -885,6 +889,7 @@ export const seasonEpisodes = (d) => (d.episodes || []).map((e) => ({
 
 async function discoverList(key, page = 1) {
   if (comingSoon.handles(key)) return comingSoon.list(key, page); // comingsoon
+  if (newEpisodes.handles(key)) return newEpisodes.list(key, page);
   const [endpoint, type, params] = LISTS[key] || [];
   if (!endpoint) throw new HttpError(400, 'Unknown list.');
   const data = await cachedTmdb(endpoint, { ...params?.(), page: String(page) });
@@ -925,7 +930,7 @@ async function bannerArt(t) {
 async function discoverHome(type) {
   const rows = HOME_ROWS[type] || HOME_ROWS.all;
   const lists = await Promise.all(rows.map(([key]) => (comingSoon.handles(key) ? comingSoon.list(key, 1, { wait: 2500 }) // comingsoon: skipped until built
-    : discoverList(key)).catch(() => null)));
+    : newEpisodes.handles(key) ? newEpisodes.list(key, 1, { wait: 2500 }) : discoverList(key)).catch(() => null)));
   const featured = await Promise.all((lists[0]?.results || []).filter((t) => t.backdrop && t.overview).slice(0, 6).map(bannerArt));
   return {
     featured,

@@ -1,4 +1,17 @@
 {
+  "2026-11-22-new-episodes": {
+    "title": "Nya avsnitt som precis kommit ut",
+    "items": {
+      "New episodes this week shows what actually aired": {
+        "title": "Nya avsnitt den här veckan visar det som faktiskt sänts",
+        "text": "Raden Nya avsnitt den här veckan på Upptäck visar nu serier som precis släppt ett avsnitt, som en serie som kommer varje vecka, med de nyaste och mest sedda först. Inga fler pratshower och såpor. Varje kort visar vilket avsnitt som kom ut och när, och en Nytt avsnitt-etikett sitter kvar i en vecka. En säsong eller serie som precis har börjat får etiketten Ny säsong eller Ny serie i en månad."
+      },
+      "New tag on episodes": {
+        "title": "Nytt-etikett på avsnitt",
+        "text": "På en series sida har avsnitt som kommit ut den senaste veckan en Nytt-etikett, tills du har sett dem."
+      }
+    }
+  },
   "2026-11-22-smoother-tabs": {
     "title": "Lugnare Upptäck och Live",
     "items": {

@@ -2815,4 +2815,6 @@ export default {
   "Also at": "Även vid",
   "Play {0} from {1}": "Spela {0} från {1}",
   "said {0} times": "sägs {0} gånger",
+  "New season": "Ny säsong",
+  "New episode": "Nytt avsnitt",
 };

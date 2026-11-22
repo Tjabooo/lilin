@@ -915,15 +915,30 @@ function titleCard(t) {
         ? toneArt(art, tone)
         : h('div', { class: 'poster-fallback' }, t.title),
       ownershipBadge(t),
+      t.fresh && h('span', { class: 'new-badge' }, freshTag(t.fresh)),
       svt && h('span', { class: 'svt-mark' }, 'SVT Play')),
     h('div', { class: 'name' }, t.title),
     // Narrow grid cards drop the Film/Series word (style.css) so the rating always fits.
-    h('div', { class: 'sub' }, t.year ? String(t.year) : '',
+    t.fresh ? h('div', { class: 'sub' }, freshLine(t.fresh),
+      t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', fmtRating(t.rating)) }, ` · ★ ${fmtRating(t.rating)}`) : null)
+    : h('div', { class: 'sub' }, t.year ? String(t.year) : '',
       h('span', { class: t.year ? 'kind' : null }, `${t.year ? ' · ' : ''}${isSeries(t) ? T('Series') : T('Film')}`),
       t.rating ? h('span', { class: 'star', 'aria-label': T('Rated {0} out of 10', fmtRating(t.rating)) }, ` · ★ ${fmtRating(t.rating)}`) : null));
   button._title = t; // peek.js: the preview on hover or long press
   return h('li', {}, button);
 }
+// New episodes this week (src/new-episodes.js): what just came out. The tag: New season / New series for a month,
+// New episode for a week; the line under the card: "S3 · E5 · 2 days ago".
+const freshTag = (f) => (f.kind === 'series' ? T('New series') : f.kind === 'season' ? T('New season') : T('New episode'));
+function freshLine(f) {
+  const days = Math.round((Date.parse(`${isoToday()}T00:00:00Z`) - Date.parse(`${f.date}T00:00:00Z`)) / 86400000);
+  const when = days <= 0 ? T('today') : days === 1 ? T('yesterday') : T('{0} days ago', days);
+  return `S${f.season} · E${f.episode} · ${when}`;
+}
+// An episode that aired in the last week gets a New tag in the season list.
+const freshEpisode = (airDate) => /^\d{4}-\d{2}-\d{2}$/.test(airDate || '') && airDate <= isoToday()
+  && Date.parse(`${isoToday()}T00:00:00Z`) - Date.parse(`${airDate}T00:00:00Z`) <= 7 * 86400000;
+const newMark = () => h('span', { class: 'ep-new' }, T('New'));
 const titleGrid = (items) => h('ul', { class: 'grid' }, items.map(titleCard));
 
 const genreNames = (t) => (disc.genres || [])
@@ -2555,7 +2570,7 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
     return h('li', { class: `ep is-mine${done ? ' is-watched' : ''}`, 'data-episode': k ?? '' },
       h('button', { type: 'button', class: 'ep-art title-card', 'aria-label': f.converting ? T('{0}: getting ready to play', name) : T('Play {0}', name),
         'aria-disabled': f.converting ? 'true' : null, onclick: () => (f.converting ? toast(T('Almost ready. It can be played in a moment.')) : openPlayer(file)) }, art),
-      body([done && watchedMark(), !f.converting && pct <= 1 && !done && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
+      body([freshEpisode(ep.airDate) && !done && newMark(), done && watchedMark(), !f.converting && pct <= 1 && !done && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
         tools && f.versions?.length > 1 && f.versionLabel]),
       rowMenu(T('More for {0}', name), [
         [icon('tv'), T('Play on TV'), (o) => openPicker(file, o)],
@@ -2580,7 +2595,7 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
   }
   return h('li', { class: `ep ${here ? 'is-here' : 'is-missing'}${seen ? ' is-watched' : ''}`, 'data-episode': k },
     press || h('div', { class: 'ep-art' }, art),
-    body([seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]));
+    body([freshEpisode(ep.airDate) && !seen && newMark(), seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]));
 }
 // "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
 function airsLabel(airDate) {
