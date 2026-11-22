@@ -118,6 +118,9 @@
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 html { background: var(--velvet); scroll-padding-top: calc(var(--safe-top) + var(--head-h) + 8px); overflow-x: clip; } /* never pan sideways on phones, even if something pokes out */
+/* no page scrollbar in the browser, phone or desktop: it still scrolls, it just doesn't draw a bar (Oliver) */
+html, .search-layer { scrollbar-width: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar, .search-layer::-webkit-scrollbar { display: none; }
 body {
   margin: 0;
   color: var(--text);
