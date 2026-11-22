@@ -3735,8 +3735,6 @@ html.wrapped-on { overflow: hidden; }
 .live-mark { width: 14px; height: 14px; flex: none; border-radius: 50%; background: var(--live);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 22%, transparent), 0 0 18px var(--live); }
 .live-tools { display: flex; gap: var(--s2); margin: calc(-1 * var(--s3)) 0 var(--s4); }
-.live-picks { margin: 0 0 var(--s3); padding-left: 1.2em; color: var(--text); }
-.live-picks li { margin: 2px 0; }
 .live-sub { margin: var(--s5) 0 var(--s3); font: 700 var(--t-kicker)/1.2 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); }
 .live-loading { padding: var(--s6) 0; }
 
@@ -3805,21 +3803,54 @@ html.wrapped-on { overflow: hidden; }
 .together-art svg { width: 22px; height: 22px; }
 .together-go { flex: none; font-size: 24px; line-height: 1; color: var(--text-3); }
 
-/* The owner's channel editor (a sheet) */
-.live-rename, .live-selects, .live-edit-actions { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s3) 0; }
-.live-rename input, #picker-body > input[type="text"] { flex: 1; min-width: 180px; min-height: 44px; padding: 0 14px; font: inherit; color: var(--text);
-  background: var(--velvet); border: 1px solid var(--hairline); border-radius: var(--r-sm); }
-#picker-body > input[type="text"] { width: 100%; }
-.live-select { display: grid; gap: 4px; font-size: 13px; color: var(--dust); }
-.live-select select { min-height: 40px; padding: 0 10px; font: inherit; color: var(--text); background: var(--velvet); border: 1px solid var(--hairline); border-radius: var(--r-sm); }
-.live-pick { margin: var(--s3) 0; padding: 0; border: 0; }
+/* The owner's channel editor (a sheet): a header, then one card per job */
+.live-head { margin-bottom: var(--s4); }
+.live-head h2 { margin: 0 0 var(--s2); }
+.live-head .muted { font-size: 14px; line-height: 1.5; max-width: 52ch; }
+.live-card { margin: 0 0 var(--s3); padding: var(--s4); background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.live-card .live-sub { margin: 0 0 var(--s3); }
+.live-rename, .live-selects, .live-edit-actions { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.live-rename { margin: 0; }
+.live-selects { margin: var(--s3) 0; }
+.live-edit-actions { margin: var(--s4) 0 0; }
+.live-rename input, .live-form > input[type="text"] { flex: 1; min-width: 160px; min-height: 44px; padding: 0 14px; font: inherit; color: var(--text);
+  background: var(--velvet); border: 1px solid var(--hairline-2); border-radius: var(--r-sm); }
+.live-form > input[type="text"] { width: 100%; box-sizing: border-box; }
+.live-rename input:focus-visible, .live-form > input[type="text"]:focus-visible, .live-select select:focus-visible { outline: none; border-color: var(--bulb); box-shadow: 0 0 0 3px var(--bulb-dim); }
+.live-rename .chip { min-height: 44px; }
+.live-select { display: grid; flex: 1; min-width: 140px; gap: 4px; font-size: 13px; color: var(--dust); }
+.live-select select { min-height: 42px; padding: 0 10px; font: inherit; color: var(--text); background: var(--velvet); border: 1px solid var(--hairline-2); border-radius: var(--r-sm); }
+.live-pick { margin: var(--s4) 0 0; padding: 0; border: 0; min-width: 0; }
 .live-pick legend { margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--dust); }
 .live-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 190px; overflow-y: auto; }
 .live-chips .chip { min-height: 34px; padding: 0 12px; font-size: 13px; }
 .live-chips .chip.is-on { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
-.live-edit-list { margin: var(--s3) 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-.live-edit-list li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: var(--velvet); border-radius: var(--r-sm); }
+.live-edit-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.live-edit-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--r-sm); }
 .live-edit-list b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Picks: a count + storage meter, channel tallies, then the newest picks as rows */
+.live-stat { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.live-stat-big { font: 800 22px/1.1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+.live-stat-small { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.live-meter { height: 6px; margin: var(--s2) 0 var(--s3); overflow: hidden; background: var(--surface-2); border-radius: 99px; }
+.live-meter span { display: block; height: 100%; background: linear-gradient(90deg, color-mix(in srgb, var(--bulb) 70%, var(--seat)), var(--bulb)); border-radius: inherit; }
+.live-note { font-size: 13px; line-height: 1.5; }
+.live-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0; }
+.live-count { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; font-size: 12px; color: var(--text-2); background: var(--surface-2); border-radius: 99px; }
+.live-count b { min-width: 2ch; padding: 1px 6px; font-size: 11px; text-align: center; color: var(--text); background: var(--velvet); border-radius: 99px; font-variant-numeric: tabular-nums; }
+.live-picks { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--hairline); }
+.live-pick-row { display: flex; align-items: center; gap: var(--s3); padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.live-pick-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.live-pick-text b { display: flex; align-items: center; min-width: 0; font-weight: 600; color: var(--text); }
+.live-pick-text b > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-season { flex: none; margin-left: 8px; padding: 1px 6px; font-size: 11px; font-weight: 700; vertical-align: 1px; color: var(--text-2); border: 1px solid var(--hairline-2); border-radius: var(--r-xs); }
+.live-pick-chan { font-size: 12px; color: var(--text-3); }
+.live-state { flex: none; padding: 3px 9px; font-size: 11px; font-weight: 700; border-radius: 99px; }
+.live-state.is-downloading { color: var(--bulb); background: var(--bulb-dim); }
+.live-state.is-searching { color: var(--info); background: color-mix(in srgb, var(--info) 16%, transparent); }
+.live-more { display: block; width: 100%; margin-top: var(--s2); min-height: 40px; font: 600 13px/1 var(--body); color: var(--text-2); background: none; border: 0; border-radius: var(--r-sm); cursor: pointer; }
+.live-more:hover { color: var(--text); background: var(--surface-2); }
+.live-more:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* The player on a channel: nothing to seek or pause, a strip with the channel and what's on instead */
 .player.is-live :is(.seek-row, .pc-skip, .pc-play, .player-center, #watch-btn) { display: none; }

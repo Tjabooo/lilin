@@ -149,6 +149,7 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
     let data;
     try { data = await api('/api/live/channels'); } catch (e) { toast(e.message); return; }
     const body = document.getElementById('picker-body');
+    let allPicks = false;
     const paint = () => {
       const list = h('ul', { class: 'live-edit-list' }, data.channels.map((c) => h('li', {},
         h('span', { class: 'guide-number' }, String(c.number)), h('b', {}, c.name),
@@ -190,26 +191,49 @@ export function createLiveView({ h, icon, api, jsonPost, toast, people, episodeL
       } }, editing ? T('Save channel') : T('Add channel'));
       const liveName = h('input', { type: 'text', maxlength: '30', value: data.nameSetting, placeholder: data.name, 'aria-label': T('Name of Live TV') });
       const rename = h('button', { type: 'button', class: 'chip', onclick: async () => {
-        try { await api('/api/admin/settings', jsonPost({ liveName: liveName.value })); state.at = 0; changed(); }
+        try { await api('/api/admin/settings', jsonPost({ liveName: liveName.value })); state.at = 0; changed(); toast(T('Saved')); }
         catch (e) { toast(e.message); }
       } }, T('Save name'));
       // Trending films and shows the server fetches for the channels by itself (LIVE_TV_PICKS_GB).
       const picks = data.picks;
-      const gb = (b) => Math.round(b / 1024 ** 3);
+      const gb = (b) => Math.round(b / 1024 ** 3).toLocaleString(locale);
+      const chanName = (id) => (id && AUTO_NAMES()[id]) || '';
       const pickState = (p) => (p.state === 'searching' ? T('Finding a copy') : p.state === 'downloading' ? T('Downloading') : '');
-      const picksBlock = picks ? [h('h3', { class: 'live-sub' }, T('Picks for the channels')),
-        h('p', { class: 'muted' }, T('{0} films and shows the server picked for the channels, {1} of {2} GB. New ones arrive every few hours, mostly for the channels with the least on them; the oldest nobody kept make room.',
-          picks.picks.length, gb(picks.bytes), gb(picks.cap))),
-        picks.picks.length ? h('ul', { class: 'live-picks' }, picks.picks.slice(0, 12).map((p) => h('li', {},
-          `${p.title}${p.season != null ? ` · S${String(p.season).padStart(2, '0')}` : ''}${p.channel && AUTO_NAMES()[p.channel] ? ` → ${AUTO_NAMES()[p.channel]}` : ''}`, pickState(p) ? h('span', { class: 'muted' }, ` · ${pickState(p)}`) : null))) : null] : [];
-      body.replaceChildren(h('h2', { id: 'picker-title' }, T('Your channels')),
-        h('p', { class: 'muted' }, T('Channels run around the clock from what’s on the server. Automatic ones (Anime, Sitcoms, Films, Documentaries, Fresh, Drama, Sci-Fi & Fantasy, Action & Adventure and everyone’s picks) are always there.')),
-        h('div', { class: 'live-rename' }, liveName, rename),
+      const pickRow = (p) => h('li', { class: 'live-pick-row' },
+        h('div', { class: 'live-pick-text' },
+          h('b', {}, h('span', {}, p.title), p.season != null ? h('span', { class: 'live-season' }, `S${String(p.season).padStart(2, '0')}`) : null),
+          chanName(p.channel) ? h('span', { class: 'live-pick-chan' }, chanName(p.channel)) : null),
+        pickState(p) ? h('span', { class: `live-state is-${p.state}` }, pickState(p)) : null);
+      let picksBlock = [];
+      if (picks) {
+        const counts = new Map();
+        for (const p of picks.picks) if (chanName(p.channel)) counts.set(p.channel, (counts.get(p.channel) || 0) + 1);
+        const fill = picks.cap ? Math.min(100, Math.round((picks.bytes / picks.cap) * 100)) : 0;
+        const shown = allPicks ? picks.picks : picks.picks.slice(0, 8);
+        picksBlock = [h('section', { class: 'live-card' },
+          h('h3', { class: 'live-sub' }, T('Picks for the channels')),
+          h('div', { class: 'live-stat' },
+            h('span', { class: 'live-stat-big' }, T('{0} titles', picks.picks.length.toLocaleString(locale))),
+            h('span', { class: 'live-stat-small' }, T('{0} of {1} GB', gb(picks.bytes), gb(picks.cap)))),
+          h('div', { class: 'live-meter', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(fill), 'aria-label': T('{0} of {1} GB', gb(picks.bytes), gb(picks.cap)) },
+            h('span', { style: `width:${fill}%` })),
+          h('p', { class: 'muted live-note' }, T('New ones arrive every few hours, mostly for the channels with the least on them; the oldest nobody kept make room.')),
+          counts.size ? h('div', { class: 'live-counts' }, [...counts].sort((a, b) => b[1] - a[1]).map(([id, n]) =>
+            h('span', { class: 'live-count' }, chanName(id), h('b', {}, String(n))))) : null,
+          shown.length ? h('ul', { class: 'live-picks' }, shown.map(pickRow)) : null,
+          picks.picks.length > 8 ? h('button', { type: 'button', class: 'live-more', onclick: () => { allPicks = !allPicks; paint(); } },
+            allPicks ? T('Show less') : T('Show all {0}', picks.picks.length.toLocaleString(locale))) : null)];
+      }
+      body.replaceChildren(
+        h('header', { class: 'live-head' }, h('h2', { id: 'picker-title' }, T('Your channels')),
+          h('p', { class: 'muted' }, T('Channels run around the clock from what’s on the server. Automatic ones (Anime, Sitcoms, Films, Documentaries, Fresh, Drama, Sci-Fi & Fantasy, Action & Adventure and everyone’s picks) are always there.'))),
+        h('section', { class: 'live-card' }, h('h3', { class: 'live-sub' }, T('Name of Live TV')), h('div', { class: 'live-rename' }, liveName, rename)),
         ...picksBlock,
-        data.channels.length ? list : null,
-        h('h3', { class: 'live-sub' }, editing ? T('Edit {0}', editing.name) : T('New channel')),
-        name, h('div', { class: 'live-selects' }, types, order), shows, genres, libraries, audience, status,
-        h('div', { class: 'live-edit-actions' }, save, editing ? h('button', { type: 'button', class: 'chip', onclick: () => { editing = null; paint(); } }, T('Cancel')) : null));
+        data.channels.length ? h('section', { class: 'live-card' }, h('h3', { class: 'live-sub' }, T('Your own channels')), list) : null,
+        h('section', { class: 'live-card live-form' },
+          h('h3', { class: 'live-sub' }, editing ? T('Edit {0}', editing.name) : T('New channel')),
+          name, h('div', { class: 'live-selects' }, types, order), shows, genres, libraries, audience, status,
+          h('div', { class: 'live-edit-actions' }, save, editing ? h('button', { type: 'button', class: 'chip', onclick: () => { editing = null; paint(); } }, T('Cancel')) : null)));
     };
     paint();
     overlay.push(sheet(() => opener?.focus?.()));

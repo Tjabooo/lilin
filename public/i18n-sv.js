@@ -2817,4 +2817,8 @@ export default {
   "said {0} times": "sägs {0} gånger",
   "New season": "Ny säsong",
   "New episode": "Nytt avsnitt",
+  "{0} of {1} GB": "{0} av {1} GB",
+  "Show all {0}": "Visa alla {0}",
+  "Your own channels": "Dina egna kanaler",
+  "New ones arrive every few hours, mostly for the channels with the least on them; the oldest nobody kept make room.": "Nya kommer med några timmars mellanrum, mest till kanalerna som har minst; de äldsta som ingen sparat får ge plats.",
 };
