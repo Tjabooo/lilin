@@ -190,3 +190,15 @@ test('nothing under 10 seeders while a release with 10 or more exists; otherwise
     ['Rare.Film.2001.1080p.BluRay.x264-A', 3], ['Rare.Film.2001.1080p.BluRay.x264-B', 7], ['Rare.Film.2001.1080p.WEB.x264-C', 4],
   ], { type: 'movie', title: 'Rare Film', year: 2001 }), 'Rare.Film.2001.1080p.BluRay.x264-B', 'none has 10: the most-seeded');
 });
+
+test('a starved "1080p" pack loses to a real one, but is still picked when it is all there is', () => {
+  // Rings of Power S02 (2026-11-22): 0.75 GB per 70-minute episode in x265 is about 1.1 Mbit/s of picture.
+  const show = { type: 'tv', title: 'Severance', season: 2, episodes: 8, runtime: 70 };
+  const starved = ['Severance.S02.1080p.WEBRip.AAC5.1.x265-TINY', 500, 6 * GB];
+  const proper = ['Severance.S02.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb', 40, 28 * GB];
+  assert.equal(pick([starved, proper], show), proper[0], 'the real bitrate wins over more seeders');
+  assert.equal(pick([starved], show), starved[0], 'nothing better: the starved one still comes');
+  assert.equal(pick([starved, proper], { ...show, profile: 'save' }), starved[0], 'Save Space keeps small');
+  const hevc = ['Severance.S02.1080p.WEB-DL.x265-GOOD', 300, 14 * GB];
+  assert.equal(pick([starved, hevc], show), hevc[0], 'a solid HEVC encode passes the floor');
+});

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-no-starved-packs",
+  "date": "2026-11-22",
+  "title": "Sharper whole-season downloads",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "No more blurry season packs",
+      "text": "When a show downloads a whole season, it no longer takes a tiny \u201c1080p\u201d copy that is far too small to look sharp while a proper one is out there. Only if nothing better exists does the small one still come."
+    }
+  ]
+},
+{
   "id": "2026-11-22-holidays",
   "date": "2026-11-22",
   "title": "Discover gets into the holiday spirit",

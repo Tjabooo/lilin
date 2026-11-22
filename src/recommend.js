@@ -25,6 +25,7 @@
 // Best Quality also has to play while it downloads (Play now): a pick whose swarm can't keep ahead
 // of its bitrate gives way to the best-looking release that can (streamable, below). With no such
 // release, the best picture stays. (2026-11-15: a 55 GB remux on 24 seeders crawled at 1.4 MB/s.)
+// Starved encodes (bitrateFloor) only when nothing of their tier has a real bitrate (not in Save Space).
 // Hard limits, never relaxed: an exact resolution chosen in Advanced, the largest size per film or
 // episode from Settings, and the free space on the media disk.
 import { showKey } from './shows.js';
@@ -217,6 +218,27 @@ export function seederFloor(list) {
   return high.length ? [...floorOf(high), ...floorOf(list.filter((r) => !isHigh(r.quality)))] : floorOf(list);
 }
 
+// ---- Bitrate floor (Oliver 2026-11-22) ----
+// A release far below what its resolution needs is that resolution in name only, and never picked while one of the same
+// tier (1080p and up, else the same resolution) has a real bitrate. Bitrate = size over TMDB's running time (bitrateOf),
+// HEVC/AV1 counted 1.5x like fidelity(); unknown size or episode count passes. Save Space opts out: small is its point.
+// TV only (episodes and packs): a 2 GB YTS-style film is a deliberate quick-start option (Black Swan, 2026-11-20).
+// (Rings of Power S02: a 0.75 GB per episode "1080p WEBRip x265" pack, 1.1 Mbit/s of picture for 70-minute episodes,
+// beat proper 1080p web downloads because its seeders were fine and size only counted a little.)
+const FLOOR_MBIT = { '2160p': 8, '1440p': 4.5, '1080p': 3, '720p': 1.5 };   // whole file, x264-equivalent
+export function starved(r, want = {}, kind = 'movie') {
+  const floor = FLOOR_MBIT[r.quality];
+  const rate = bitrateOf(r, want, kind);
+  if (!floor || !rate) return false;
+  return rate * 8 / 1e6 * (EFFICIENT.test(r.name) ? 1.5 : 1) < floor;
+}
+export function bitrateFloor(list, want = {}, kind = 'movie') {
+  if (want.profile === 'save' || kind === 'movie') return list;
+  const tier = (r) => (isHigh(r.quality) ? 'high' : r.quality ?? null);
+  const fed = new Set(list.filter((r) => !starved(r, want, kind)).map(tier));
+  return list.filter((r) => !fed.has(tier(r)) || !starved(r, want, kind));
+}
+
 // Higher is better; only compares torrents of the same quality (Best Quality: of 1080p and up).
 function score(r, want, kind) {
   const profile = want.profile;
@@ -344,10 +366,10 @@ export function choose(found, want, kind, minAlive = ALIVE) {
   const limited = limits(found, want, kind);
   let fits = limited.fits;
   // The seeder floor among the quality asked for (Advanced), else among everything that fits.
-  if (!(want.quality && want.quality !== 'all')) fits = seederFloor(fits);
+  if (!(want.quality && want.quality !== 'all')) fits = bitrateFloor(seederFloor(fits), want, kind);
   if (want.quality && want.quality !== 'all') {
     const any = fits.length;
-    fits = seederFloor(fits.filter((r) => r.quality === want.quality));
+    fits = bitrateFloor(seederFloor(fits.filter((r) => r.quality === want.quality)), want, kind);
     if (!fits.length) return { pick: null, why: limited.why || (found.length || any ? `No matching ${qualityName(want.quality)} release has enough seeders.` : none) };
     const healthy = fits.filter((r) => r.seeders >= HEALTHY);
     let pool = healthy.length ? healthy : fits;

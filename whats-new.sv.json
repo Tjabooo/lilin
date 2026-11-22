@@ -1,4 +1,13 @@
 {
+  "2026-11-22-no-starved-packs": {
+    "title": "Skarpare säsongsnedladdningar",
+    "items": {
+      "No more blurry season packs": {
+        "title": "Inga fler suddiga säsongspaket",
+        "text": "När en serie laddar ner en hel säsong tar den inte längre en pytteliten ”1080p”-kopia som är alldeles för liten för att se skarp ut när det finns en riktig. Bara om inget bättre finns kommer den lilla ändå."
+      }
+    }
+  },
   "2026-11-22-holidays": {
     "title": "Upptäck kommer i högtidsstämning",
     "items": {
