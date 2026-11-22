@@ -1,5 +1,27 @@
 [
 {
+  "id": "2026-11-22-holidays",
+  "date": "2026-11-22",
+  "title": "Discover gets into the holiday spirit",
+  "items": [
+    {
+      "kind": "new",
+      "title": "A holiday row on Discover",
+      "text": "In the weeks before Christmas, New Year\u2019s Eve, Valentine\u2019s Day and Halloween, Discover gets a row for the holiday near the top. Christmas is on now."
+    },
+    {
+      "kind": "improved",
+      "title": "For you leans toward the season",
+      "text": "During a holiday, For you also mixes in a few holiday films and shows that suit what you usually watch."
+    },
+    {
+      "kind": "new",
+      "title": "Three new moods",
+      "text": "Halloween night, New Year\u2019s Eve and Valentine\u2019s date night join Snowed-in Christmas in Moods, each in its own season."
+    }
+  ]
+},
+{
   "id": "2026-11-21-my-list",
   "date": "2026-11-21",
   "title": "My list",

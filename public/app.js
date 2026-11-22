@@ -44,6 +44,7 @@ import { createSearch } from './search.js'; // search: titles + Go to (places.js
 import { titleModel } from './title-model.js'; // the one title page: its state, gold button, chips and ⋯ menu
 import { createCreditsCard } from './credits-card.js'; // the credits card: picture in the corner, song + Up next
 import { createDaypart } from './daypart.js'; // Discover by time of day: morning + late-night rows and look
+import { createHoliday, tiltForYou } from './holiday.js'; // holidays: a row near the top + For you leans toward it
 import { createChannelStatic, STATIC_MIN_MS } from './channel-static.js'; // Live TV: grain + corner number on a channel switch
 import { createPauseScreen } from './pause-screen.js'; // the pause screen: logo + synopsis after a few seconds paused
 import { createGettingReady } from './getting-ready.js';
@@ -1365,7 +1366,8 @@ function forYouItems(groups) {
   return [...tally.values()].sort((a, b) => b.n - a.n || (b.t.rating || 0) - (a.t.rating || 0)).map((x) => x.t).slice(0, 20);
 }
 async function forYouRow(seeds, signal) {
-  const items = forYouItems(await forYouGroups(seeds, signal));
+  const [groups, holidayPool] = await Promise.all([forYouGroups(seeds, signal), holidayUi.pool(signal).catch(() => [])]);
+  const items = tiltForYou(forYouItems(groups), holidayPool, { skip: ownedTitle, type: disc.type });
   if (items.length < 4 || signal.aborted) return null;
   return carousel(T('For you'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('For you') }, items.map(titleCard)),
     h('button', { class: 'see-all', onclick: () => { leaveDiscoverHome(); disc.list = { key: 'for-you', title: T('For you') }; window.scrollTo({ top: 0 }); renderDiscover(); } }, T('See all')), 'home-shelf');
@@ -1442,7 +1444,7 @@ async function pagedGrid(content, urlFor, signal, gridClass = 'grid') {
   await load();
 }
 
-// Discover's home, at most 12 blocks: billboard · Right now · (the control row) · Continue watching · Moods ·
+// Discover's home, at most 13 blocks: billboard · Right now · (the control row) · Continue watching · Holiday · Moods ·
 // Trending · For you · Popular on Lilin · then TMDB's rows (on All, Popular and Top rated are one row each).
 // Films and Shows keep the same order with their own TMDB rows. Sub-pages (See all, a genre, a mood) have no Right now.
 async function renderDiscover() {
@@ -1525,6 +1527,7 @@ async function renderDiscover() {
       continueRow(),
       savedRow(), // My list: right under Continue watching
       newEpisodesRow(),
+      !anime && rowSlot(holidayUi.row(disc.type, signal), signal), // holidays: Christmas, Halloween… in their weeks
       !anime && rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
       !anime && rowSlot(moods, signal),
       trending,
@@ -4062,6 +4065,7 @@ const vibesUi = createVibes({ h, leaveHome: () => leaveDiscoverHome(), cachedApi
     renderDiscover();
   } });
 // Time-of-day Discover: a warm morning row and look, a dark late-night one (daypart.js).
+const holidayUi = createHoliday({ h, cachedApi, carousel, titleCard, owned: (t) => isInstant(t), openVibe: (v, type) => vibesUi.open(v, type) });
 const daypartUi = createDaypart({ h, cachedApi, carousel, titleCard, owned: (t) => isInstant(t), openVibe: (v, type) => vibesUi.open(v, type) });
 
 // The subtitles the phone player would turn on by itself (see its subtitle setup), so a TV starts with

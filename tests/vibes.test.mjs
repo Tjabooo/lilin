@@ -18,7 +18,7 @@ const idsIn = (value) => String(value || '').split(/[|,]/).filter(Boolean).map(N
 test('every vibe is complete: names and blurbs in both languages, a look, queries and anchors', () => {
   const ids = VIBES.map((v) => v.id);
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
-  assert.ok(VIBES.length >= 20 && VIBES.length <= 32, `${VIBES.length} vibes`);
+  assert.ok(VIBES.length >= 20 && VIBES.length <= 40, `${VIBES.length} vibes`);
   const glyphs = new Set(glyphNames());
   for (const v of VIBES) {
     assert.match(v.id, /^[a-z0-9-]{1,40}$/, v.id);

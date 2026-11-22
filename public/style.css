@@ -4202,6 +4202,10 @@ html.wrapped-on { overflow: hidden; }
 /* Firefox still repaints the glow on every scroll frame, even as a plain background (p95 50-67 ms vs 33 ms without):
    no glow there, the dimmed billboard stays. */
 @supports (-moz-appearance: none) { :root[data-daypart] #view-discover { background: none; } }
+/* Holiday row (holiday.js): a small glowing dot in the holiday's own colours before the title. */
+.holiday-shelf .shelf-head h3 { display: flex; align-items: center; gap: 10px; }
+.holiday-shelf .shelf-head h3::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--holiday-b), var(--holiday-a)); box-shadow: 0 0 12px 2px color-mix(in srgb, var(--holiday-b) 55%, transparent); }
 .daypart-shelf .shelf-head h3 { display: flex; align-items: center; gap: 10px; }
 .daypart-shelf .shelf-head h3::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .daypart-shelf.is-morning .shelf-head h3::before { background: radial-gradient(circle at 35% 35%, #ffe2a8, #ff9a3c); box-shadow: 0 0 12px 2px rgb(255 160 70 / .55); }

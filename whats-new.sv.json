@@ -1,4 +1,21 @@
 {
+  "2026-11-22-holidays": {
+    "title": "Upptäck kommer i högtidsstämning",
+    "items": {
+      "A holiday row on Discover": {
+        "title": "En högtidsrad på Upptäck",
+        "text": "Veckorna före jul, nyår, alla hjärtans dag och halloween får Upptäck en rad för högtiden högt upp. Julen är igång nu."
+      },
+      "For you leans toward the season": {
+        "title": "För dig följer säsongen",
+        "text": "Under en högtid blandar För dig också in några högtidsfilmer och serier som passar det du brukar titta på."
+      },
+      "Three new moods": {
+        "title": "Tre nya stämningar",
+        "text": "Halloweenkväll, Nyårsafton och Alla hjärtans dejtkväll ansluter till Insnöad jul under Stämningar, var och en under sin säsong."
+      }
+    }
+  },
   "2026-11-21-my-list": {
     "title": "Min lista",
     "items": {
