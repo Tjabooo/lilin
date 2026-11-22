@@ -11538,9 +11538,8 @@ function markScrolled() {
 window.addEventListener('scroll', () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(markScrolled); }, { passive: true });
 markScrolled();
 
-// Tab changes cross-fade with the View Transitions API where there is one; elsewhere .view fades in (style.css).
-const smoothViews = () => 'startViewTransition' in document && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-if ('startViewTransition' in document) document.documentElement.classList.add('has-vt');
+// Page changes: the new .view just fades in (style.css). No View Transitions: their snapshot of a page that is still
+// filling in gets stretched into the finished page's box, so a page opened for the first time looked squashed.
 
 // ---------- the shell: tabs, addresses and Back (routes.js) ----------
 // Every screen has an address (#library, #you/watching, #house/people) and lights its tab. A tab opens the page it
@@ -11607,7 +11606,6 @@ async function setView(target, { address = true } = {}) {
   if (id === state.route) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const fromRoot = state.route === r.tab;
   if (address) rememberView(id, Boolean(r.sub) && fromRoot);
-  const viewChanged = r.view !== state.view;
   state.route = id; state.sub = r.sub || null; state.view = r.view;
   likLokUI.setActive(r.view === 'liklok'); // liklok: plays only while its tab shows
   tabStack[r.tab] = id;
@@ -11619,7 +11617,7 @@ async function setView(target, { address = true } = {}) {
     document.body.classList.toggle('has-billboard', r.view === 'discover' && Boolean($('#discover-body .billboard')));
     window.scrollTo(0, 0);
   };
-  if (viewChanged && smoothViews()) document.startViewTransition(show); else show();
+  show();
 
   renderView(); // render cached data, then refresh
   const view = r.view;

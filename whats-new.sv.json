@@ -1,4 +1,13 @@
 {
+  "2026-11-22-no-squash": {
+    "title": "Sidor öppnas rent",
+    "items": {
+      "No squashed pages": {
+        "title": "Inga ihoptryckta sidor",
+        "text": "När du öppnar en sida för första gången, som Aktivitet eller Spelklipp under Huset, visas den inte längre ihoptryckt en kort stund. Sidorna tonar nu bara in."
+      }
+    }
+  },
   "2026-11-22-new-episodes": {
     "title": "Nya avsnitt som precis kommit ut",
     "items": {
