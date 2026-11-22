@@ -5169,6 +5169,18 @@ async function handleApi(req, res, url) {
     const type = ['movie', 'tv'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
     return sendJson(res, 200, withoutDisliked(user, { items: await comingSoon.items(type), region: TMDB_REGION }));
   }
+  // New episodes (Discover, your shows): each show's latest aired episode by TMDB's air date, not when Lilin got it.
+  if (p === '/api/discover/aired') {
+    const ids = [...new Set(String(url.searchParams.get('ids') || '').split(',').filter((x) => /^\d{1,9}$/.test(x)))].slice(0, 80);
+    const today = new Date().toISOString().slice(0, 10);
+    const out = {};
+    await Promise.all(ids.map(async (id) => {
+      const d = await cachedTmdb(`/tv/${id}`, {}, 3 * 3600 * 1000).catch(() => null);
+      const e = d?.last_episode_to_air;
+      if (e?.air_date && e.air_date <= today && e.season_number >= 1) out[id] = { season: e.season_number, episode: e.episode_number, date: e.air_date };
+    }));
+    return sendJson(res, 200, { items: out });
+  }
   if (p === '/api/discover/list') {
     const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page')) || 1));
     return sendJson(res, 200, withoutDisliked(user, await discoverList(url.searchParams.get('key'), page)));

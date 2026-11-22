@@ -9,6 +9,10 @@
       "New tag on episodes": {
         "title": "Nytt-etikett på avsnitt",
         "text": "På en series sida har avsnitt som kommit ut den senaste veckan en Nytt-etikett, tills du har sett dem."
+      },
+      "Your New episodes row goes by release date": {
+        "title": "Din rad Nya avsnitt går efter släppdatum",
+        "text": "Raden Nya avsnitt med dina egna serier visar nu bara en serie när ett nytt avsnitt faktiskt har kommit ut de senaste två veckorna och du inte har sett det, inte när ett gammalt avsnitt råkade hamna på Lilin. Etiketten säger bara Nya avsnitt."
       }
     }
   },

@@ -1250,36 +1250,43 @@ function continueRow() {
   const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
-// New episodes: shows you follow, or watch and still have in your library, with episodes from the last two weeks
-// you haven't seen, here (yours or anyone's) and past where you are. Shows already in Continue watching stay there.
-// A show you removed from your library (only someone else's copy left) stays out unless you follow it.
-function newEpisodeItems() {
-  const since = Date.now() - 14 * 86400000;
+// New episodes: shows you follow, or watch and still have in your library, whose latest episode came OUT (TMDB's
+// air date, not when Lilin got it) in the last two weeks and you haven't seen it yet. Shows already in Continue
+// watching stay there. A show you removed from your library (only someone else's copy left) stays out unless you follow it.
+async function newEpisodeItems(signal) {
   const followed = new Set(watch.items.filter((i) => i.type === 'tv' && i.follow).map((i) => Number(i.id)));
   const continuing = new Set(continueItems(state.library).map((x) => x.f.show).filter(Boolean));
   const mine = new Set(state.library.map((f) => f.show).filter(Boolean));
-  const out = [];
+  const shows = [];
   for (const s of state.libraryShows) {
     if (s.tmdbId == null || continuing.has(s.id) || (disc.type === 'anime' && !s.anime)) continue;
     if (!mine.has(s.id) && !followed.has(Number(s.tmdbId))) continue;
     const fin = state.finished?.[`tv:${s.tmdbId}`];
-    const eps = [...state.library, ...state.server].filter((f) => f.show === s.id && f.season != null && f.episode != null);
-    const watched = Boolean(fin) || eps.some((f) => savedProgress(libraryFile(f)));
-    if (!watched && !followed.has(Number(s.tmdbId))) continue;
-    const fresh = new Set(eps.filter((f) => (f.addedAt || f.added || 0) > since && !savedProgress(libraryFile(f))
-      && (!fin || f.season > fin.season || (f.season === fin.season && f.episode > fin.episode))).map((f) => `${f.season}:${f.episode}`));
-    if (fresh.size) out.push({ s, n: fresh.size, at: Math.max(...eps.map((f) => f.addedAt || f.added || 0)) });
+    const watched = Boolean(fin) || [...state.library, ...state.server].some((f) => f.show === s.id && savedProgress(libraryFile(f)));
+    if (watched || followed.has(Number(s.tmdbId))) shows.push(s);
   }
-  return out.sort((a, b) => b.at - a.at).slice(0, 20);
+  if (!shows.length) return [];
+  const { items: aired = {} } = await cachedApi(`/api/discover/aired?ids=${shows.map((s) => s.tmdbId).slice(0, 80).join(',')}`, signal);
+  const since = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+  const out = [];
+  for (const s of shows) {
+    const e = aired[s.tmdbId];
+    if (!e || e.date < since) continue;
+    const fin = state.finished?.[`tv:${s.tmdbId}`];
+    if (fin && (fin.season > e.season || (fin.season === e.season && fin.episode >= e.episode))) continue;
+    if (seenEpisode(`tv:${s.tmdbId}`, e.season, e.episode)) continue;
+    out.push({ s, e });
+  }
+  return out.sort((a, b) => b.e.date.localeCompare(a.e.date)).slice(0, 20);
 }
-function newEpisodesRow() {
+async function newEpisodesRow(signal) {
   if (disc.type === 'movie') return null;
-  const items = newEpisodeItems();
+  const items = await newEpisodeItems(signal);
   if (!items.length) return null;
-  const cards = items.map(({ s, n }) => {
+  const cards = items.map(({ s, e }) => {
     const li = titleCard({ type: 'tv', id: s.tmdbId, title: s.title, year: s.year, poster: s.poster, backdrop: s.backdrop, overview: s.overview });
-    li.querySelector('.poster').append(h('span', { class: 'new-badge' }, n === 1 ? T('New') : T('{0} new', n)));
-    li.querySelector('.sub').textContent = n === 1 ? T('{0} new episode', n) : T('{0} new episodes', n);
+    li.querySelector('.poster').append(h('span', { class: 'new-badge' }, T('New episodes')));
+    li.querySelector('.sub').textContent = freshLine(e);
     return li;
   });
   return carousel(T('New episodes'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('New episodes') }, cards), null, 'home-shelf');
@@ -1296,7 +1303,7 @@ function savedRow() {
     const line = listLine(i, { today: todayIso(), autoDownload: watch.autoDownload, ready: here.some((f) => f.done), coming: here.some((f) => !f.done) });
     if (line) li.querySelector('.sub').textContent = line;
     const fresh = i.newEpisodes?.length || 0;
-    if (fresh) li.querySelector('.poster')?.append(h('span', { class: 'new-badge' }, fresh === 1 ? T('New') : T('{0} new', fresh)));
+    if (fresh) li.querySelector('.poster')?.append(h('span', { class: 'new-badge' }, T('New episodes')));
     return li;
   });
   return carousel(T('My list'), h('ul', { class: 'shelf-items', tabindex: '0', 'aria-label': T('My list') }, cards), null, 'home-shelf saved-shelf');
@@ -1515,7 +1522,7 @@ async function renderDiscover() {
       ...homeTop(data.featured.length ? billboard(data.featured, { signal, label: anime ? T('New this season') : T('Trending this week') }) : null),
       continueRow(),
       savedRow(), // My list: right under Continue watching
-      newEpisodesRow(),
+      rowSlot(newEpisodesRow(signal), signal),
       !anime && rowSlot(holidayUi.row(disc.type, signal), signal), // holidays: Christmas, Halloween… in their weeks
       !anime && rowSlot(daypartUi.row(disc.type, signal), signal), // daypart: Good morning / Late night
       !anime && rowSlot(moods, signal),

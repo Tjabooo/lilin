@@ -10,6 +10,11 @@
       "text": "The New episodes this week row on Discover now shows series that just put out an episode, like a show releasing weekly, with the newest and most watched first. No more talk shows and soaps. Each card says which episode came out and when, and a New episode tag stays on for a week. A season or series that just started is tagged New season or New series for a month."
     },
     {
+      "kind": "fix",
+      "title": "Your New episodes row goes by release date",
+      "text": "The New episodes row with your own shows now only lists a show when a new episode actually came out in the last two weeks and you haven't seen it, not when an old episode happened to land on Lilin. The tag just says New episodes."
+    },
+    {
       "kind": "new",
       "title": "New tag on episodes",
       "text": "On a show's page, episodes that came out in the last week have a New tag, until you've watched them."
