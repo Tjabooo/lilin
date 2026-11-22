@@ -39,7 +39,7 @@ const SIGNED_IN = [
   /^\/api\/title\/movie\/\d+\/copies$/, // only cinema recordings? (src/copy-check.js)
   /^\/api\/vibes(\/[a-z0-9-]{1,40})?$/, // Discover's Moods
   /^\/api\/media\/lib\/[^/]+\/(intro|credits|still)$/, // still = Continue watching's frame where you stopped
-  /^\/api\/subs\/(fetch|langs)$/,
+  /^\/api\/subs\/(fetch|langs|sync)$/, // sync: Play now subtitles re-read while the video downloads (TV, 7d8d66f)
   /^\/api\/subs\/file\//,
   // Live TV: the guide, tuning in, and the channel's room (clock, heartbeats, leaving)
   /^\/api\/live$/,
