@@ -8,6 +8,7 @@
 .lilin.db-*
 .lilin.db.*
 .lilin-*.json
+/dub-graft.json
 .lilin-*.jsonl
 .lilin-*.tmp
 .lilin-*.json.tmp
