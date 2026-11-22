@@ -1,5 +1,7 @@
 //! A film's or show's page from Discover or Search. Play first: Play is the one gold button; yours plays, anything
 //! else gets ready (ready.rs, src/tv-play.js on the server). Downloads are started on the website, not here.
+//! Reviews people wrote on Lilin (src/reviews.js) sit in a row under the hero; OK on one reads it in full.
+//! They're read-only here: writing one is the website's job.
 use super::browse::{self, Mine};
 use crate::gfx::{hexa, rect};
 use crate::logic::Pending;
@@ -18,6 +20,7 @@ const FOLLOW_T: u32 = 7;
 const FOLLOWED: u32 = 8;
 const COPIES: u32 = 9;
 const EP_T: u32 = 10;
+const REVIEWS: u32 = 11;
 /// A season's episodes come back tagged EPS + its number.
 const EPS: u32 = 1000;
 const EP_STEP: f32 = 400.0 + browse::CARD_GAP;
@@ -28,6 +31,7 @@ enum Zone {
     Hero,
     /// A show: the chosen season's episodes, in a row under the season chips.
     Episodes,
+    Reviews,
     Cast,
     Similar,
 }
@@ -37,6 +41,20 @@ struct Person {
     part: String,
     photo: String,
 }
+/// A written review from /api/reviews (stars 0 = none given).
+struct Review {
+    name: String,
+    avatar: String,
+    stars: f32,
+    text: String,
+    spoiler: bool,
+    mine: bool,
+    friend: bool,
+}
+const REVIEW_W: f32 = 600.0;
+const REVIEW_H: f32 = 296.0;
+const REVIEW_STEP: f32 = REVIEW_W + browse::CARD_GAP;
+const READ_LINES: usize = 13;
 const PAGE_X: f32 = 128.0;
 const FACE: f32 = 156.0;
 const FACE_STEP: f32 = 212.0;
@@ -96,6 +114,66 @@ pub struct TitleScreen {
     lib_eps: Vec<(i64, i64, Value)>,
     /// Where you are in the show (your copy), as season and episode numbers.
     start: Option<(i64, i64)>,
+    reviews: Vec<Review>,
+    /// "★ 4,2 · 5 ratings · 3 reviews"; empty when nobody rated it.
+    rv_summary: String,
+    ri: usize,
+    rv_x: ui::Ease,
+    rv_top: f32,
+    /// The review open in full, and how many lines it's scrolled down.
+    reading: Option<usize>,
+    read_at: usize,
+}
+
+/// "★★★★½" for 4.5 stars.
+fn star_text(n: f32) -> String {
+    let mut out = String::new();
+    for _ in 0..(n as usize) {
+        out.push('★');
+    }
+    if n - libm::floorf(n) >= 0.5 {
+        out.push('½');
+    }
+    out
+}
+fn one_decimal(n: f64) -> String {
+    let v = alloc::format!("{:.1}", n);
+    if crate::platform::swedish() {
+        v.replace('.', ",")
+    } else {
+        v
+    }
+}
+/// The line next to the Reviews heading, as on the website (public/reviews.js summaryText).
+fn review_summary(j: &Value) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let ratings = f(j, "ratings").unwrap_or(0.0) as i64;
+    let count = f(j, "count").unwrap_or(0.0) as i64;
+    if let Some(a) = f(j, "average") {
+        parts.push(alloc::format!("★ {}", one_decimal(a)));
+        parts.push(if ratings == 1 { String::from(t!("1 rating")) } else { t!("{0} ratings", alloc::format!("{}", ratings)) });
+    }
+    if count > 0 {
+        parts.push(if count == 1 { String::from(t!("1 review")) } else { t!("{0} reviews", alloc::format!("{}", count)) });
+    }
+    parts.join("  ·  ")
+}
+/// A round face: the picture, else the first letter.
+fn face(cx: &mut Cx, url: &str, name: &str, r: crate::gfx::Rect) {
+    cx.g.round(r, r.w / 2.0, ui::seat().mix(ui::paper(), 0.08));
+    let full = if url.is_empty() || url.starts_with("http") { String::from(url) } else { alloc::format!("{}{}", cx.server, url) };
+    let got = if full.is_empty() || !cx.g.visible(&r) { None } else { cx.picture(&full) };
+    match got {
+        Some(p) => {
+            let uv = crate::img::cover_top(p.w, p.h, r.w, r.h);
+            cx.g.image(p.id, r, uv, r.w / 2.0, ui::WHITE.alpha(p.fade));
+        }
+        None => {
+            let init: String = name.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+            let f0 = display(r.h * 0.46, 800);
+            cx.tx.draw_center(&mut cx.g, f0, &init, r.x + r.w / 2.0, r.y + (r.h - f0.line()) / 2.0, ui::dust());
+        }
+    }
 }
 
 /// Today as YYYY-MM-DD (UTC), for telling aired episodes from coming ones.
@@ -208,7 +286,18 @@ impl TitleScreen {
             ep_timer: 0,
             lib_eps,
             start,
+            reviews: Vec::new(),
+            rv_summary: String::new(),
+            ri: 0,
+            rv_x: ui::Ease::at(0.0),
+            rv_top: 0.0,
+            reading: None,
+            read_at: 0,
         };
+        if !me.tid.is_empty() && (ty == "movie" || ty == "tv") {
+            let key = alloc::format!("{}:{}", ty, me.tid);
+            cx.get(&alloc::format!("/api/reviews?key={}&all=1", crate::util::enc(&key)), sid, REVIEWS);
+        }
         if !me.tv && me.mine.is_none() && me.actions.contains(&Do::Play) {
             cx.get(&alloc::format!("/api/title/movie/{}/copies", crate::util::enc(&me.tid)), sid, COPIES);
         }
@@ -348,13 +437,129 @@ pub fn heading(cx: &mut Cx, logo: &str, name: &str, x: f32, y: f32, size: f32, m
 }
 
 impl TitleScreen {
-    /// What Up from the cast or More like this lands on: a show's episode row, else the hero.
-    fn above_rows(&self) -> Zone {
+    /// The rows under the hero that are on the page, top to bottom.
+    fn rows(&self) -> Vec<Zone> {
+        let mut v = Vec::new();
         if self.tv && self.episodes().map(|l| !l.is_empty()).unwrap_or(false) {
-            Zone::Episodes
-        } else {
-            Zone::Hero
+            v.push(Zone::Episodes);
         }
+        if !self.reviews.is_empty() {
+            v.push(Zone::Reviews);
+        }
+        if !self.cast.is_empty() {
+            v.push(Zone::Cast);
+        }
+        if !self.similar.is_empty() {
+            v.push(Zone::Similar);
+        }
+        v
+    }
+    /// The row under `z` (None at the bottom). From the hero's buttons the episode row is above, not below.
+    fn below(&self, z: Zone) -> Option<Zone> {
+        let rows = self.rows();
+        match z {
+            Zone::Hero => rows.into_iter().find(|r| *r != Zone::Episodes),
+            _ => rows.iter().position(|r| *r == z).and_then(|i| rows.get(i + 1).copied()),
+        }
+    }
+    /// The row above `z`, else the hero.
+    fn above(&self, z: Zone) -> Zone {
+        let rows = self.rows();
+        rows.iter().position(|r| *r == z).and_then(|i| i.checked_sub(1)).and_then(|i| rows.get(i).copied()).unwrap_or(Zone::Hero)
+    }
+    /// The reviews row; returns the y under it.
+    fn draw_reviews(&mut self, cx: &mut Cx, x: f32, y: f32, sy: f32) -> f32 {
+        let h2 = display(34.0, 700);
+        self.rv_top = y + sy;
+        let w = cx.tx.draw(&mut cx.g, h2, t!("Reviews"), x, y, ui::paper());
+        if !self.rv_summary.is_empty() {
+            let sm = self.rv_summary.clone();
+            let sf = body(26.0, 700);
+            cx.tx.draw_fit(&mut cx.g, sf, &sm, x + w + 28.0, y + (h2.line() - sf.line()) / 2.0 + 2.0, 1100.0, ui::dust());
+        }
+        let y = y + h2.line() + 24.0;
+        if self.reviews.is_empty() {
+            cx.tx.draw(&mut cx.g, body(25.0, 400), t!("No written reviews yet."), x, y, ui::dust());
+            return y + 80.0;
+        }
+        let row_w = 1920.0 - 2.0 * x;
+        let n = self.reviews.len();
+        let max_x = (n as f32 * REVIEW_STEP - browse::CARD_GAP - row_w).max(0.0);
+        self.rv_x.set(((self.ri as f32 - 1.0).max(0.0) * REVIEW_STEP).min(max_x));
+        let sx = self.rv_x.step(cx, 13.0);
+        let nf = body(26.0, 700);
+        let sf = body(24.0, 700);
+        let tf = body(25.0, 400);
+        for i in 0..n {
+            let px = x + i as f32 * REVIEW_STEP - sx;
+            if px > 1920.0 || px + REVIEW_STEP < 0.0 {
+                continue;
+            }
+            let lit = self.lit.get(5000 + i as u64);
+            let r = rect(px, y, REVIEW_W, REVIEW_H).scale(1.0 + 0.03 * lit);
+            ui::shadow(cx, r, 22.0, 18.0 + 24.0 * lit, 0.3 + 0.2 * lit);
+            cx.g.round(r, 22.0, ui::seat().mix(ui::paper(), 0.04 + 0.04 * lit));
+            cx.g.ring(r, 22.0, 1.0, ui::paper().alpha(0.08));
+            ui::focus_ring(cx, r, 22.0, lit);
+            let (ix, iy, iw) = (r.x + 30.0, r.y + 26.0, r.w - 60.0);
+            let rv = &self.reviews[i];
+            let (name, avatar, text, stars) = (rv.name.clone(), rv.avatar.clone(), rv.text.clone(), rv.stars);
+            let hidden = rv.spoiler && !rv.mine;
+            let who = if rv.mine { String::from(t!("You")) } else { name.clone() };
+            let tag = if rv.friend && !rv.mine { t!("Friend") } else { "" };
+            face(cx, &avatar, &name, rect(ix, iy, 60.0, 60.0));
+            let nx = ix + 80.0;
+            let room = iw - 80.0 - if tag.is_empty() { 0.0 } else { 120.0 };
+            let nw = cx.tx.draw_fit(&mut cx.g, nf, &who, nx, iy, room, ui::paper());
+            if !tag.is_empty() {
+                cx.tx.draw(&mut cx.g, body(20.0, 700), &tag.to_uppercase(), nx + nw + 16.0, iy + 4.0, ui::bulb());
+            }
+            if stars > 0.0 {
+                cx.tx.draw(&mut cx.g, sf, &star_text(stars), nx, iy + nf.line() + 2.0, ui::bulb());
+            }
+            let ty = iy + 86.0;
+            if hidden {
+                cx.tx.draw(&mut cx.g, body(26.0, 700), t!("Contains spoilers"), ix, ty, ui::paper().alpha(0.9));
+                cx.tx.draw(&mut cx.g, tf, t!("Press OK to read"), ix, ty + 40.0, ui::dust());
+            } else {
+                cx.tx.para(&mut cx.g, tf, &text, ix, ty, iw, 4, 36.0, ui::paper().mix(ui::dust(), 0.3));
+            }
+        }
+        y + REVIEW_H + 70.0
+    }
+    /// One review over the page, in full.
+    fn draw_reader(&mut self, cx: &mut Cx, i: usize) {
+        let Some(rv) = self.reviews.get(i) else { return };
+        let (name, avatar, text, stars) = (rv.name.clone(), rv.avatar.clone(), rv.text.clone(), rv.stars);
+        let who = if rv.mine { String::from(t!("You")) } else { name.clone() };
+        cx.g.fill(rect(0.0, 0.0, 1920.0, 1080.0), ui::velvet().alpha(0.82));
+        let r = rect(300.0, 90.0, 1320.0, 900.0);
+        ui::panel(cx, r, 28.0, ui::seat());
+        let (ix, iw) = (r.x + 64.0, r.w - 128.0);
+        let y = r.y + 56.0;
+        face(cx, &avatar, &name, rect(ix, y, 84.0, 84.0));
+        let nf = display(40.0, 700);
+        cx.tx.draw_fit(&mut cx.g, nf, &who, ix + 108.0, y, iw - 108.0, ui::paper());
+        let title = String::from(s(&self.t, "title"));
+        let sub = if stars > 0.0 { alloc::format!("{}   {}", star_text(stars), title) } else { title };
+        cx.tx.draw_fit(&mut cx.g, body(28.0, 700), &sub, ix + 108.0, y + nf.line() + 2.0, iw - 108.0, ui::bulb().mix(ui::paper(), 0.25));
+        let y = y + 130.0;
+        let tf = body(30.0, 400);
+        let lines = cx.tx.wrap(tf, &text, iw, 400);
+        let max_at = lines.len().saturating_sub(READ_LINES);
+        self.read_at = self.read_at.min(max_at);
+        for (n, l) in lines.iter().skip(self.read_at).take(READ_LINES).enumerate() {
+            cx.tx.draw(&mut cx.g, tf, l, ix, y + n as f32 * 46.0, ui::paper().mix(ui::dust(), 0.2));
+        }
+        let mut hint: Vec<String> = Vec::new();
+        if max_at > 0 {
+            hint.push(String::from(t!("▲ ▼ scroll")));
+        }
+        if self.reviews.len() > 1 {
+            hint.push(t!("◀ ▶ {0} of {1}", alloc::format!("{}", i + 1), alloc::format!("{}", self.reviews.len())));
+        }
+        hint.push(String::from(t!("OK to close")));
+        cx.tx.draw_center(&mut cx.g, body(24.0, 700), &hint.join("   ·   "), r.x + r.w / 2.0, r.y + r.h - 64.0, ui::dust());
     }
     /// The chosen season's episodes as a row of stills; returns the y under it.
     fn draw_episodes(&mut self, cx: &mut Cx, x: f32, y: f32) -> f32 {
@@ -481,6 +686,7 @@ impl Screen for TitleScreen {
             Zone::Episodes => 4000 + self.ei as u64,
             Zone::Cast => 2000 + self.ci as u64,
             Zone::Similar => 3000 + self.mi as u64,
+            Zone::Reviews => 5000 + self.ri as u64,
         };
         self.lit.focus(focus);
         self.lit.step(cx);
@@ -547,6 +753,9 @@ impl Screen for TitleScreen {
         }
         // The rows under the hero; the first one peeks in from the bottom.
         y = y.max(700.0 - sy) + 12.0;
+        if !self.reviews.is_empty() || !self.rv_summary.is_empty() {
+            y = self.draw_reviews(cx, x, y, sy);
+        }
         let h2 = display(34.0, 700);
         let row_w = 1920.0 - 2.0 * x;
         if !self.cast.is_empty() {
@@ -624,13 +833,36 @@ impl Screen for TitleScreen {
         let target = match self.zone {
             Zone::Hero => 0.0,
             Zone::Episodes => (self.ep_top - 600.0).max(0.0),
+            Zone::Reviews => (self.rv_top - 380.0).max(0.0),
             Zone::Cast => (self.cast_top - 420.0).max(0.0),
             Zone::Similar => (self.sim_top - if self.cast.is_empty() { 420.0 } else { 300.0 }).max(0.0),
         };
         self.scroll.set(target);
+        if let Some(i) = self.reading {
+            self.draw_reader(cx, i);
+        }
     }
     fn key(&mut self, cx: &mut Cx, k: Key) -> bool {
         cx.redraw();
+        if let Some(i) = self.reading {
+            match k.code {
+                key::UP => self.read_at = self.read_at.saturating_sub(4),
+                key::DOWN => self.read_at += 4,
+                key::LEFT if i > 0 => {
+                    self.reading = Some(i - 1);
+                    self.ri = i - 1;
+                    self.read_at = 0;
+                }
+                key::RIGHT if i + 1 < self.reviews.len() => {
+                    self.reading = Some(i + 1);
+                    self.ri = i + 1;
+                    self.read_at = 0;
+                }
+                key::ENTER | key::BACK | key::ESC | key::BACKSPACE => self.reading = None,
+                _ => {}
+            }
+            return true;
+        }
         match self.zone {
             Zone::Episodes => {
                 let n = self.episodes().map(|l| l.len()).unwrap_or(0);
@@ -639,13 +871,32 @@ impl Screen for TitleScreen {
                     key::RIGHT => self.ei = (self.ei + 1).min(n.saturating_sub(1)),
                     key::UP | key::BACK | key::ESC | key::BACKSPACE => self.zone = Zone::Hero,
                     key::DOWN => {
-                        if !self.cast.is_empty() {
-                            self.zone = Zone::Cast;
-                        } else if !self.similar.is_empty() {
-                            self.zone = Zone::Similar;
+                        if let Some(z) = self.below(Zone::Episodes) {
+                            self.zone = z;
                         }
                     }
                     key::ENTER => self.play_episode(cx),
+                    _ => return false,
+                }
+                return true;
+            }
+            Zone::Reviews => {
+                match k.code {
+                    key::LEFT => self.ri = self.ri.saturating_sub(1),
+                    key::RIGHT => self.ri = (self.ri + 1).min(self.reviews.len().saturating_sub(1)),
+                    key::UP => self.zone = self.above(Zone::Reviews),
+                    key::DOWN => {
+                        if let Some(z) = self.below(Zone::Reviews) {
+                            self.zone = z;
+                        }
+                    }
+                    key::ENTER => {
+                        if self.ri < self.reviews.len() {
+                            self.reading = Some(self.ri);
+                            self.read_at = 0;
+                        }
+                    }
+                    key::BACK | key::ESC | key::BACKSPACE => self.zone = Zone::Hero,
                     _ => return false,
                 }
                 return true;
@@ -654,7 +905,7 @@ impl Screen for TitleScreen {
                 match k.code {
                     key::LEFT => self.ci = self.ci.saturating_sub(1),
                     key::RIGHT => self.ci = (self.ci + 1).min(self.cast.len().saturating_sub(1)),
-                    key::UP => self.zone = self.above_rows(),
+                    key::UP => self.zone = self.above(Zone::Cast),
                     key::DOWN if !self.similar.is_empty() => self.zone = Zone::Similar,
                     key::DOWN | key::ENTER => {}
                     key::BACK | key::ESC | key::BACKSPACE => self.zone = Zone::Hero,
@@ -666,7 +917,7 @@ impl Screen for TitleScreen {
                 match k.code {
                     key::LEFT => self.mi = self.mi.saturating_sub(1),
                     key::RIGHT => self.mi = (self.mi + 1).min(self.similar.len().saturating_sub(1)),
-                    key::UP => self.zone = if self.cast.is_empty() { self.above_rows() } else { Zone::Cast },
+                    key::UP => self.zone = self.above(Zone::Similar),
                     key::DOWN => {}
                     key::ENTER => {
                         if let Some(c) = self.similar.get(self.mi).cloned() {
@@ -680,13 +931,7 @@ impl Screen for TitleScreen {
             }
             Zone::Hero => {}
         }
-        let down = if !self.cast.is_empty() {
-            Some(Zone::Cast)
-        } else if !self.similar.is_empty() {
-            Some(Zone::Similar)
-        } else {
-            None
-        };
+        let down = self.below(Zone::Hero);
         if self.at_seasons {
             match k.code {
                 key::LEFT if self.si > 0 => {
@@ -810,6 +1055,26 @@ impl Screen for TitleScreen {
                 if self.season_no() == Some(n) {
                     self.pick_start();
                 }
+            }
+            REVIEWS => {
+                if !res.ok() || b(&res.json, "restricted") {
+                    return;
+                }
+                self.rv_summary = review_summary(&res.json);
+                self.reviews = arr(&res.json, "reviews")
+                    .iter()
+                    .filter(|r| !s(r, "text").trim().is_empty())
+                    .take(30)
+                    .map(|r| Review {
+                        name: String::from(s(r, "name")),
+                        avatar: String::from(s(r, "avatar")),
+                        stars: f(r, "stars").unwrap_or(0.0) as f32,
+                        text: String::from(s(r, "text").trim()),
+                        spoiler: b(r, "spoiler"),
+                        mine: b(r, "mine"),
+                        friend: b(r, "friend"),
+                    })
+                    .collect();
             }
             COPIES => {
                 if res.ok() {

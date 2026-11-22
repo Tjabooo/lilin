@@ -238,4 +238,18 @@ window.LilinTvStrings = {
   'Stay: there are scenes during and after the credits': 'Stanna kvar: det kommer scener under och efter eftertexterna',
   'Stay: there’s a scene during the credits': 'Stanna kvar: det kommer en scen under eftertexterna',
   'Stay: there’s a scene after the credits': 'Stanna kvar: det kommer en scen efter eftertexterna',
+  // Reviews on a title page (tv/rust title.rs)
+  'Reviews': 'Recensioner',
+  '1 rating': '1 betyg',
+  '{0} ratings': '{0} betyg',
+  '1 review': '1 recension',
+  '{0} reviews': '{0} recensioner',
+  'No written reviews yet.': 'Inga skrivna recensioner än.',
+  'You': 'Du',
+  'Friend': 'Vän',
+  'Contains spoilers': 'Innehåller spoilers',
+  'Press OK to read': 'Tryck OK för att läsa',
+  '▲ ▼ scroll': '▲ ▼ bläddra',
+  '◀ ▶ {0} of {1}': '◀ ▶ {0} av {1}',
+  'OK to close': 'OK för att stänga',
 };

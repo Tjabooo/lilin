@@ -1,4 +1,13 @@
 {
+  "2026-11-22-tv-reviews": {
+    "title": "Recensioner på tv:n",
+    "items": {
+      "Read reviews on the TV app": {
+        "title": "Läs recensioner i tv-appen",
+        "text": "En films eller series sida i tv-appen har nu en rad med Recensioner: allt folk har skrivit om den på Lilin, plus snittbetyget i stjärnor. Tryck OK på en recension för att läsa hela; vänster och höger går till nästa. Spoilers är dolda tills du öppnar dem. Recensioner skriver du fortfarande på webbplatsen."
+      }
+    }
+  },
   "2026-11-22-search-popular": {
     "title": "Sök hittar den du menar",
     "items": {

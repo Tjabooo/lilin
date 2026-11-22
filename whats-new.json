@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-22-tv-reviews",
+  "date": "2026-11-22",
+  "title": "Reviews on the TV",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Read reviews on the TV app",
+      "text": "A film or show's page in the TV app now has a Reviews row with everything people wrote about it on Lilin, plus the average stars. Press OK on a review to read all of it; left and right go to the next one. Spoilers stay hidden until you open them. Writing a review still happens on the website."
+    }
+  ]
+},
+{
   "id": "2026-11-22-search-popular",
   "date": "2026-11-22",
   "title": "Search finds the one you mean",
