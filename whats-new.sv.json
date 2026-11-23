@@ -1,4 +1,13 @@
 {
+  "2026-11-23-liked-by-profiles": {
+    "title": "Se vem som gillade den",
+    "items": {
+      "Liked by faces open profiles": {
+        "title": "Ansiktena vid Gillad av öppnar profiler",
+        "text": "På en titels sida trycker du på ett ansikte vid Gillad av för att öppna den personens profil. Tryck på +3 (eller hur många fler det är) för att visa alla ansikten, så att du kan öppna vem som helst som gillade den."
+      }
+    }
+  },
   "2026-11-23-new-episode-pushes": {
     "title": "Aviseringar om nya avsnitt som faktiskt är nya",
     "items": {

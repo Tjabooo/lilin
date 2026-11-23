@@ -89,7 +89,7 @@ export function likedKeys(userId) {
 }
 
 // What one person sees on a title: their own thumb and who else liked it (likedBy: names; people:
-// { name, avatar } for the faces beside them, when avatarOf is given).
+// { id, name, avatar } for the faces beside them, when avatarOf is given; the id lets a face open the profile).
 // sight (friends: Restrict): { blind } shows nobody else, { hide: Set of ids } leaves those people out.
 export function ratingFor(userId, key, nameOf, avatarOf = () => null, sight = {}) {
   if (!validTitleKey(key)) throw fail(400, 'Which film or show?');
@@ -98,7 +98,7 @@ export function ratingFor(userId, key, nameOf, avatarOf = () => null, sight = {}
   const hid = sight.blind ? null : hiddenBy(key); // people who keep this title off their profile
   const others = sight.blind ? [] : rows.filter((r) => r.value === 1 && r.user_id !== userId && !sight.hide?.has(r.user_id) && !hid.has(r.user_id));
   const likedBy = others.map((r) => nameOf(r.user_id));
-  const people = others.slice(0, 5).map((r, i) => ({ name: likedBy[i], avatar: avatarOf(r.user_id) }));
+  const people = others.slice(0, 40).map((r, i) => ({ id: r.user_id, name: likedBy[i], avatar: avatarOf(r.user_id) }));
   return { key, mine, likedBy, people, likes: rows.filter((r) => r.value === 1).length };
 }
 

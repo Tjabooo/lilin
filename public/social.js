@@ -104,7 +104,9 @@ export function createSocial({ h, api, jsonPost, toast, icon, people }) {
       down.setAttribute('aria-pressed', String(r.mine === -1));
       whoText.textContent = whoText.title = likedText(r); // title: full list when the line is clamped
       const list = [...(r.mine === 1 && people?.me?.() ? [people.me()] : []), ...(r.people || r.likedBy.map((name) => ({ name })))];
-      whoFaces.replaceChildren(...[faces(list, { size: 26, max: 4 })].filter(Boolean));
+      // Each face opens that person's profile; "+3" spreads out every face so all of them can be opened.
+      const drawFaces = (max) => whoFaces.replaceChildren(...[faces(list, { size: 26, max, open: true, onMore: () => drawFaces(list.length) })].filter(Boolean));
+      drawFaces(4);
       down.title = r.mine === -1 ? T('Only you see this') : T('Not for me (only you see this)');
     };
     const send = async (value) => {

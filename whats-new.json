@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-liked-by-profiles",
+  "date": "2026-11-23",
+  "title": "See who liked it",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Liked by faces open profiles",
+      "text": "On a title's page, tap a face next to Liked by to open that person's profile. Tap +3 (or however many more) to show every face, so you can open anyone who liked it."
+    }
+  ]
+},
+{
   "id": "2026-11-23-new-episode-pushes",
   "date": "2026-11-23",
   "title": "New episode alerts that are actually new",

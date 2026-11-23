@@ -42,14 +42,18 @@ export function createPeople({ h, api, toast, me = () => null, openProfile = nul
   }
 
   // Overlapping faces, "+2" for the rest. null when there's nobody. open: each face opens its profile.
-  function faces(people, { size = 24, max = 4, cls = '', open = false } = {}) {
+  // onMore: the "+2" becomes a button that calls it (e.g. to show every face).
+  function faces(people, { size = 24, max = 4, cls = '', open = false, onMore = null } = {}) {
     const list = (people || []).filter(Boolean);
     if (!list.length) return null;
     const shown = list.slice(0, max);
     const rest = list.length - shown.length;
     return h('span', { class: `faces${cls ? ` ${cls}` : ''}`, style: `--face:${size}px`, ...(open ? {} : { 'aria-hidden': 'true' }) },
       shown.map((p) => (open ? faceButton(p, { size }) : face(p, { size }))),
-      rest > 0 && h('span', { class: 'face more', style: `--face:${size}px` }, `+${rest}`));
+      rest > 0 && (onMore
+        ? h('button', { type: 'button', class: 'face-btn', 'aria-label': T('Show all {0}', list.length),
+          onclick: (e) => { e.stopPropagation(); onMore(); } }, h('span', { class: 'face more', style: `--face:${size}px` }, `+${rest}`))
+        : h('span', { class: 'face more', style: `--face:${size}px` }, `+${rest}`)));
   }
 
   // Opens the file chooser (must run inside a click) and calls onFile with the chosen image.

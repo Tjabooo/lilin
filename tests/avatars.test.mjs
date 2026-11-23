@@ -56,8 +56,8 @@ test('faces travel with names: ratings, Activity, rooms, chat and reactions', ()
 
   social.rate(anna.id, 'movie:603', 1);
   const forBen = social.ratingFor(ben.id, 'movie:603', nameOf, avatarOf);
-  assert.deepEqual(forBen.people, [{ name: anna.name, avatar: anna.avatar }]);
-  assert.deepEqual(social.ratingFor(ben.id, 'movie:603', nameOf).people, [{ name: anna.name, avatar: null }], 'avatarOf is optional');
+  assert.deepEqual(forBen.people, [{ id: anna.id, name: anna.name, avatar: anna.avatar }]);
+  assert.deepEqual(social.ratingFor(ben.id, 'movie:603', nameOf).people, [{ id: anna.id, name: anna.name, avatar: null }], 'avatarOf is optional');
 
   activity.record(req('anna@example.test'), 'play', 'Movie');
   assert.equal(activity.report().events[0].avatar, anna.avatar);
