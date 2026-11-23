@@ -3727,9 +3727,51 @@ html.wrapped-on { overflow: hidden; }
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 .password-gate-save { width: 100%; height: 52px; margin-top: var(--s1); font-size: 17px; }
-.username-gate-input { position: relative; }
-.username-gate-input > span { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-2); font-weight: 700; pointer-events: none; }
-.password-gate-card .username-gate-input input { padding-left: 34px; }
+/* Username gate (email accounts pick a username): a cut-corner hairline panel on a dot grid, numbered readout rows
+   (01 NOW = the email going away, 02 USERNAME = the field), one accent, left-aligned like the rest of the app. */
+.ug { --c: 18px; --bl: var(--hairline-2); --acc: var(--ph-you, var(--bulb)); --pnl: var(--ph-pnl, var(--surface-2));
+  --cut: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px));
+  position: fixed; inset: 0; z-index: 1000; overflow-y: auto; overflow-x: hidden;
+  display: grid; align-content: center; justify-items: center; gap: 28px;
+  padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+  color: var(--text);
+  background: radial-gradient(circle, var(--ph-ghost, var(--hairline)) .8px, transparent 1.2px) 0 0 / 24px 24px, var(--surface-1); }
+.ug-mark { width: 112px; height: 54px; background: var(--text); opacity: .92;
+  -webkit-mask: url(/wordmark.svg) center / contain no-repeat; mask: url(/wordmark.svg) center / contain no-repeat; }
+.ug-panel { position: relative; width: min(100%, 440px); padding: 26px 24px 24px; display: grid;
+  background: var(--pnl); clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+.ug-panel::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: var(--cut) left top / var(--c) var(--c) no-repeat, var(--cut) right bottom / var(--c) var(--c) no-repeat,
+    linear-gradient(var(--acc), var(--acc)) left calc(var(--c) + 4px) top 0 / 22px 2px no-repeat,
+    linear-gradient(var(--ph-sq, var(--text-2)), var(--ph-sq, var(--text-2))) right 12px top 12px / 4px 4px no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl); }
+.ug-kick { margin: 0 0 14px; font: 700 10.5px/1 var(--body); letter-spacing: .26em; text-transform: uppercase; color: var(--text-2); }
+.ug-kick::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 9px; background: var(--acc); vertical-align: 1px; }
+.ug-title { margin: 0; font: 800 clamp(28px, 24px + 1.2vw, 34px)/1.02 var(--display); letter-spacing: -.02em; }
+.ug-title::after { content: ""; display: block; width: 46px; height: 4px; margin-top: 12px;
+  background: linear-gradient(var(--acc), var(--acc)) left bottom / calc(100% - 6px) 2px no-repeat, linear-gradient(var(--acc), var(--acc)) right bottom / 4px 4px no-repeat; }
+.ug-lede { margin: 16px 0 20px; color: var(--text-2); font-size: 14.5px; line-height: 1.55; }
+.ug-rows { list-style: none; margin: 0; padding: 0; counter-reset: ug; box-shadow: inset 0 0 0 1px var(--hairline); }
+.ug-row { counter-increment: ug; display: grid; gap: 7px; padding: 12px 14px 13px; min-width: 0; }
+.ug-row + .ug-row { border-top: 1px solid var(--hairline); }
+.ug-label { font: 700 10px/1.2 var(--body); letter-spacing: .2em; text-transform: uppercase; color: var(--text-2); }
+.ug-label::before { content: counter(ug, decimal-leading-zero); margin-right: 10px; font: 800 11px/1 var(--display); letter-spacing: .06em; color: var(--ph-warn, var(--text-3)); }
+.ug-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 14px;
+  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-3) 60%, transparent); }
+.ug-row-next { background: var(--ph-pnl2, transparent); }
+.ug-row-next:focus-within { box-shadow: inset 2px 0 0 var(--acc); }
+.ug-row-next:focus-within .ug-label { color: var(--acc); }
+.ug-field { display: flex; align-items: baseline; gap: 2px; min-width: 0; }
+.ug-at { font: 700 20px/1 var(--display); color: var(--acc); }
+.ug-input { flex: 1; min-width: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); outline: none;
+  font: 700 20px/1.2 var(--display); letter-spacing: -.01em; }
+.ug-rule { margin: 10px 0 0; font-size: 12px; color: var(--text-3); }
+.ug-msg { margin: 12px 0 0; color: var(--alert); font-size: 13.5px; }
+.ug-msg:empty { display: none; }
+.ug-go { width: 100%; height: 50px; margin-top: 20px; justify-content: center; font: 800 12.5px/1 var(--body); letter-spacing: .22em; text-transform: uppercase; }
+.ug-go:disabled { opacity: .6; cursor: wait; }
+.ug-later { justify-self: start; margin-top: 12px; }
+@media (max-width: 420px) { .ug-panel { padding: 22px 18px 20px; } }
 .password-gate-save:disabled { opacity: 0.6; cursor: wait; }
 
 /* ---------- Live TV: the guide and the player on a channel (live.js, app.js renderLiveStrip) ---------- */

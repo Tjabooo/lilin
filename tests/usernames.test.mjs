@@ -27,13 +27,14 @@ test('switching to a username moves the account off its email and deletes the em
   accounts.initAccounts({ dataDir: dir, adminEmails: [lower], mediaDir: null });
   activity.initActivity({ dataDir: dir, nameForUser: accounts.displayNameFor });
   profiles.initProfiles();
-  const auth = createAuth({ dataDir: dir, resolveLogin: (t) => usernames.identityForLogin(t) });
+  const auth = createAuth({ dataDir: dir, resolveLogin: (t) => usernames.identityForLogin(t), lilinSignsIn: () => true });
   const list = new Set([lower]);
+  let revoked = false; // Cloudflare looped when the old email's sign-ins were revoked (2026-11-23): never again
   const invites = {
     invitesConfigured: () => true,
     addMember: async (e) => { list.add(e); },
     removeMember: async (e) => { list.delete(e); return [...list]; },
-    revokeAccess: async () => {},
+    revokeAccess: async () => { revoked = true; },
     renameIdentity: () => {},
   };
   usernames.initUsernames({ auth, activity, invites, envFile, logDirs: [logs] });
@@ -77,6 +78,7 @@ test('switching to a username moves the account off its email and deletes the em
   assert.ok(!log.includes(lower));
   assert.equal(accounts.publicUser(accounts.userById(ana.id)).isOwner, true); // owner rights follow
   assert.deepEqual([...list], [done.identity]);
+  assert.equal(revoked, false);
 
   // the browser stays signed in as the new identity, even while Cloudflare still sends the old email
   const req = fakeReq({ headers: { cookie, 'cf-access-authenticated-user-email': lower } });

@@ -160,15 +160,15 @@ export async function switchToUsername(user, rawHandle) {
   profileOf(user); // make sure there's a profile row to hold the username
   db().prepare('UPDATE profiles SET handle = ?, updated_at = ? WHERE user_id = ?').run(handle, Date.now(), user.id);
   const moved = moveRows(previous, next);
-  deps.auth?.retire(previous);
   deps.activity?.renameIdentity(previous, next);
   inv?.renameIdentity(previous, next);
   replaceOwnerIdentity(previous, next);
   moveEnv(previous, next);
   if (cloudflare) {
-    // Off the list, and Cloudflare's sign-ins for the email end (this browser walks back in through Lilin as the id).
+    // Off the list. Cloudflare's own sign-ins for the email are NOT revoked: that sent browsers round Cloudflare's
+    // login in a loop (2026-11-23). They run out on their own; until then auth.js treats the email as unknown and
+    // the browser's Lilin session (or Lilin's sign-in page) says who it is.
     await inv.removeMember(previous).catch((e) => console.warn('[usernames] access list:', e.message));
-    await inv.revokeAccess(previous).catch((e) => console.warn('[usernames] revoke:', e.message));
   }
   scrubLogs(previous);
   console.log(`[usernames] user ${user.id} now signs in as @${handle} (${moved} rows moved)`);

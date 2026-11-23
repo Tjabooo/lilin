@@ -228,7 +228,7 @@ function notify(userIds, kind, message) {
     .catch((err) => { console.warn(`[push] ${err.message}`); return 0; })))
     .then((sent) => sent.reduce((total, n) => total + (Number(n) || 0), 0));
 }
-const auth = createAuth({ dataDir: DATA_DIR, resolveLogin: (typed) => usernames.identityForLogin(typed) });
+const auth = createAuth({ dataDir: DATA_DIR, resolveLogin: (typed) => usernames.identityForLogin(typed), lilinSignsIn: () => Boolean(oidc?.configured) });
 const tvPairing = createTvPairing();
 const tvProfiles = createTvProfiles(auth.store.db); // profiles on a TV (Who's watching?)
 const tvPairLimit = createPairLimit(); // sign-in codes asked for from outside the home network (tv-gateway.js)
@@ -440,6 +440,9 @@ const oidc = createOidc({
   dataDir: DATA_DIR, auth, nameFor: (email) => accounts.displayNameFor(email),
   onSignIn: (req, email) => activity.record(req, 'signin', 'Signed in to Lilin', { user: email }),
 });
+// A kill switch for the switch (and username invites): set true to send everyone back to email sign-up.
+// 2026-11-23 the first switches looped at Cloudflare (revoking the old email's sign-ins); fixed in usernames.js/auth.js.
+const USERNAMES_PAUSED = false;
 usernames.initUsernames({ auth, activity, invites, envFile: ENV_FILE, logDirs: [path.join(APP_DIR, 'logs')] });
 // Signed in through Access/a proxy but no Lilin password yet: the app blocks until they pick one.
 const needsPassword = (req) => oidc.configured && req.auth?.via === 'proxy' && Boolean(req.auth.email) && !auth.hasPassword(req.auth.email);
@@ -4496,6 +4499,7 @@ async function handleApi(req, res, url) {
   }
   // Account → Switch to a username: the email is replaced by the account's id everywhere and deleted.
   if (p === '/api/me/username' && req.method === 'POST') {
+    if (USERNAMES_PAUSED) throw new HttpError(503, 'Switching to a username is paused for now.');
     if (!oidc.configured) throw new HttpError(400, 'Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).');
     const { username } = await readJson(req);
     const done = await usernames.switchToUsername(user, username);
@@ -6215,7 +6219,7 @@ async function readCredentials(req) {
 // You, for the app: plus how you sign in ("@ebi", or your email until you switch to a username).
 function meOut(user, req) {
   const out = { ...accounts.publicUser(user), via: req.auth.via };
-  if (out.email) Object.assign(out, { handle: profiles.profileOf(user).handle, signIn: usernames.signInName(out.email), usernameSignIn: isAccountId(out.email), canSwitchToUsername: Boolean(oidc.configured) && !isAccountId(out.email) && auth.hasPassword(out.email) });
+  if (out.email) Object.assign(out, { handle: profiles.profileOf(user).handle, signIn: usernames.signInName(out.email), usernameSignIn: isAccountId(out.email), canSwitchToUsername: !USERNAMES_PAUSED && Boolean(oidc.configured) && !isAccountId(out.email) && auth.hasPassword(out.email) });
   return out;
 }
 
@@ -6341,7 +6345,7 @@ async function handleRequest(req, res) {
       else if (handleQrSignIn(req, res, url)) { /* scan to sign in: the sign-in page's QR code (signin-link.js) */ }
       else if (await oidc.handle(req, res, url)) { /* sign-in provider for Cloudflare Access */ }
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
-        && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null, usernames: oidc.configured ? usernames : null }))
+        && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null, usernames: oidc.configured && !USERNAMES_PAUSED ? usernames : null }))
         && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
         && !(await listShare.handlePublic(req, res, url, { cacheDir: path.join(CACHE_DIR, 'list-cards'), nameOf: (id) => accounts.userById(id)?.name || '' }))
         && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))

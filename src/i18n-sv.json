@@ -829,5 +829,6 @@
  "You already sign in with your username.": "Du loggar redan in med ditt användarnamn.",
  "Pick a Lilin password first: you’ll sign in with it and your username.": "Välj ett Lilin-lösenord först: du loggar in med det och ditt användarnamn.",
  "This account has no id yet. Reload and try again.": "Kontot har inget id än. Ladda om och försök igen.",
- "Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).": "Användarnamn kräver att Lilin är inloggningen för Cloudflare (OIDC_* i .env)."
+ "Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).": "Användarnamn kräver att Lilin är inloggningen för Cloudflare (OIDC_* i .env).",
+ "Switching to a username is paused for now.": "Bytet till användarnamn är pausat just nu."
 }

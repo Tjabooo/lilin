@@ -9659,19 +9659,29 @@ function showPasswordGate() {
 // Only if the switch itself fails for a reason that isn't theirs (Cloudflare down) does a way past appear.
 function showUsernameGate() {
   if ($('#username-gate')) return;
-  const name = h('input', { type: 'text', id: 'gate-username', value: state.me?.handle || '', minlength: '3', maxlength: '21', required: '',
-    autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'aria-describedby': 'gate-username-note gate-msg' });
-  const save = h('button', { type: 'submit', class: 'play-btn password-gate-save' }, T('Use this username'));
-  const msg = h('p', { class: 'password-gate-msg', id: 'gate-msg', role: 'alert' });
-  const later = h('button', { type: 'button', class: 'password-gate-show', hidden: '' }, T('Try again later'));
-  const form = h('form', { class: 'password-gate-card' },
-    h('div', { class: 'password-gate-bulbs', 'aria-hidden': 'true' }),
-    h('h2', { id: 'gate-title' }, T('Pick your username')),
-    h('p', {}, T('Lilin is done with emails. From now on you sign in with a username and your password, and your email is deleted from Lilin. Your history, friends and settings stay.')),
-    state.me?.email && h('p', { class: 'password-gate-email' }, T('Signing in with {0} today', state.me.email)),
-    h('div', { class: 'password-gate-field' }, h('label', { for: 'gate-username' }, T('Username')),
-      h('div', { class: 'username-gate-input' }, h('span', { 'aria-hidden': 'true' }, '@'), name)),
-    h('p', { class: 'safe-note', id: 'gate-username-note' }, T('3 to 20 letters, numbers, dots or underscores. Your password stays the same.')),
+  const clean = (v) => v.trim().replace(/^@+/, '').toLowerCase();
+  const name = h('input', { type: 'text', id: 'ug-name', class: 'ug-input', value: state.me?.handle || '', minlength: '3', maxlength: '21', required: '',
+    autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'aria-describedby': 'ug-rule ug-msg' });
+  const label = h('span', {});
+  const save = h('button', { type: 'submit', class: 'play-btn ug-go' }, label);
+  const msg = h('p', { class: 'ug-msg', id: 'ug-msg', role: 'alert' });
+  const later = h('button', { type: 'button', class: 'chip ug-later', hidden: '' }, T('Try again later'));
+  const sync = () => { const v = clean(name.value); label.textContent = v ? T('Use @{0}', v) : T('Use this username'); };
+  name.addEventListener('input', () => { sync(); msg.textContent = ''; });
+  sync();
+  const email = state.me?.email || '';
+  const form = h('form', { class: 'ug-panel', novalidate: '' },
+    h('p', { class: 'ug-kick' }, T('Sign-in change')),
+    h('h2', { id: 'ug-title', class: 'ug-title' }, T('Pick your username')),
+    h('p', { class: 'ug-lede' }, T('Lilin is dropping emails. You’ll sign in with a username and the password you have now, and your email is deleted. Nothing else changes.')),
+    h('ol', { class: 'ug-rows' },
+      email && h('li', { class: 'ug-row' },
+        h('span', { class: 'ug-label' }, T('Now')),
+        h('span', { class: 'ug-email', title: email }, email)),
+      h('li', { class: 'ug-row ug-row-next' },
+        h('label', { class: 'ug-label', for: 'ug-name' }, T('Username')),
+        h('span', { class: 'ug-field' }, h('span', { class: 'ug-at', 'aria-hidden': 'true' }, '@'), name))),
+    h('p', { class: 'ug-rule', id: 'ug-rule' }, T('3–20 characters · letters, numbers, dots and underscores')),
     msg, save, later);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -9679,7 +9689,7 @@ function showUsernameGate() {
     msg.textContent = '';
     try {
       const r = await api('/api/me/username', jsonPost({ username: name.value }));
-      save.textContent = T('Done. You sign in with {0} now.', r.signIn);
+      label.textContent = T('Done. You sign in with {0} now.', r.signIn);
       setTimeout(() => location.reload(), 1200);
     } catch (err) {
       msg.textContent = err.message;
@@ -9688,13 +9698,13 @@ function showUsernameGate() {
     }
   });
   later.addEventListener('click', () => { try { sessionStorage.setItem('lilin-username-later', '1'); } catch { /* private mode */ } location.reload(); });
-  const gate = h('div', { id: 'username-gate', class: 'password-gate', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'gate-title' },
-    h('p', { class: 'password-gate-brand', 'aria-hidden': 'true' }, 'Lilin'), form);
+  const gate = h('div', { id: 'username-gate', class: 'ug', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ug-title' },
+    h('div', { class: 'ug-mark', role: 'img', 'aria-label': 'Lilin' }), form);
   gate.addEventListener('keydown', (e) => { if (e.key === 'Escape') e.preventDefault(); });
   document.body.append(gate);
   for (const el of document.body.children) if (el !== gate) el.inert = true;
   name.focus();
-  name.select();
+  name.setSelectionRange(name.value.length, name.value.length);
 }
 
 // Account → Password: change it here (signs every other device out, Cloudflare's sign-ins too).
@@ -11858,7 +11868,8 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     h('span', { class: 'preview-pill-bulb', 'aria-hidden': 'true' }), h('strong', {}, T('Preview mode')), h('span', { class: 'preview-pill-sep', 'aria-hidden': 'true' }, '·'), T('Back to live')));
   syncLanguage();
   if (state.me?.needsPassword) { showPasswordGate(); return; }
-  if (state.me?.canSwitchToUsername && !sessionStorage.getItem('lilin-username-later')) { showUsernameGate(); return; }
+  // Username gate paused (2026-11-23): Cloudflare Access loops for username accounts; see usernames.js.
+  if (false && state.me?.canSwitchToUsername && !sessionStorage.getItem('lilin-username-later')) { showUsernameGate(); return; }
   state.rules = state.status.rules;
   applyTheme(prefs().theme);
   if (state.status.admin) loadIdeas().then(updateHouseDot); // House → Needs you lights the tab

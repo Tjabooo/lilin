@@ -2916,4 +2916,9 @@ export default {
   "3 to 20 letters, numbers, dots or underscores. Your password stays the same.": "3 till 20 bokstäver, siffror, punkter eller understreck. Ditt lösenord är detsamma.",
   "Use this username": "Använd det här användarnamnet",
   "Try again later": "Försök igen senare",
+  "Sign-in change": "Ändrad inloggning",
+  "Lilin is dropping emails. You’ll sign in with a username and the password you have now, and your email is deleted. Nothing else changes.": "Lilin slutar med e-post. Du loggar in med ett användarnamn och lösenordet du har nu, och din e-post raderas. Inget annat ändras.",
+  "Now": "Nu",
+  "3–20 characters · letters, numbers, dots and underscores": "3–20 tecken · bokstäver, siffror, punkter och understreck",
+  "Use @{0}": "Använd @{0}",
 };

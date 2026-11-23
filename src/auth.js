@@ -238,6 +238,8 @@ export function createAuth({
   allowedHosts = process.env.ALLOWED_HOSTS || '',
   // A username typed at sign-in → the identity it signs in as (usernames.js), or null. Emails skip it.
   resolveLogin = () => null,
+  // Is Lilin Cloudflare's only sign-in (OIDC)? Then an identity unknown here is a stale one (see identify).
+  lilinSignsIn = () => false,
   now = () => Date.now(),
 } = {}) {
   const store = openAuthStore(dataDir);
@@ -327,26 +329,21 @@ export function createAuth({
     return null;
   }
 
-  // Emails that just stopped being anyone's sign-in (usernames.js), kept a day as hashes in memory only.
-  const retired = new Map();
-  const retiredKey = (e) => crypto.createHash('sha256').update(normalEmail(e)).digest('base64url');
-  function retire(email) {
-    for (const [k, until] of retired) if (until <= now()) retired.delete(k);
-    retired.set(retiredKey(email), now() + 86400_000);
-  }
-  function isRetired(email) {
-    const until = retired.get(retiredKey(email));
-    return Boolean(until && until > now());
-  }
+  // When Lilin is Cloudflare's only sign-in (oidc.js), every identity Cloudflare sends was signed in by Lilin, so
+  // one with neither a password nor an account here is an email someone switched away from (usernames.js) or a
+  // removed account, still riding Cloudflare's sign-in until it expires. It must not come back as a new, empty
+  // account: the browser's Lilin session says who it is, and without one it is signed out (Lilin's sign-in page).
+  // (Cloudflare's sign-ins for the old email are left alone: revoking them made Cloudflare loop, 2026-11-23.)
+  const unknownToLilin = (email) => {
+    if (!lilinSignsIn() || store.login(email)) return false;
+    try { return !store.db.prepare('SELECT 1 FROM users WHERE email = ?').get(email); } catch { return false; }
+  };
 
   // Sets req.auth = { via: 'proxy' | 'session' | 'home' | null, remote, email }.
   function identify(req) {
     const remote = isRemote(req);
     const proxied = normalEmail(req.headers[IDENTITY]);
-    // Someone who just switched from their email to a username may still carry Cloudflare's sign-in for the
-    // email until its revocation lands: their Lilin session, already moved to the new identity, says who they
-    // are, and without one the old email counts as signed out (it must not come back as a new, empty account).
-    if (proxied && isRetired(proxied)) {
+    if (proxied && unknownToLilin(proxied)) {
       const moved = sessionFor(sessionCookie(req));
       if (!moved) return (req.auth = { via: null, remote, email: null });
       req.headers[IDENTITY] = moved.email;
@@ -479,7 +476,6 @@ export function createAuth({
     devices,
     endDevice,
     endOtherDevices,
-    retire,
     hasLogins: () => store.count() > 0,
     hasPassword: (email) => Boolean(email && store.login(email)),
   };
