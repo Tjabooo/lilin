@@ -239,6 +239,7 @@ Invites add people to the email list your Cloudflare Access policy allows. See
 | `OIDC_CLIENT_ID` | | With the two below: Lilin becomes Cloudflare Access's login method, so people sign in with a Lilin password and invites sign people straight in ([remote-access.md](remote-access.md#lilin-as-the-sign-in-for-access-no-email-codes)). |
 | `OIDC_CLIENT_SECRET` | | Long random string, also entered in the Access login method. |
 | `OIDC_REDIRECT_URIS` | | Comma-separated; for Access `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`. |
+| `ACCOUNT_ID_DOMAIN` | `accounts.<PUBLIC_URL host>` | Username accounts (people who sign in with @username, not an email) are known inside Lilin and on the Access email list as `<uuid>@<this>`. Never shown; changing it later strands existing username accounts. |
 
 ## Previewing a redesign
 

@@ -119,7 +119,7 @@ export function passwordProblem(password, email = '') {
   const p = String(password || '');
   if (p.length < MIN_PASSWORD) return `Use at least ${MIN_PASSWORD} characters.`;
   if (p.length > 256) return 'That password is too long (256 characters at most).';
-  if (email && p.toLowerCase().includes(String(email).split('@')[0].toLowerCase()) && String(email).split('@')[0].length >= 4) return 'Don’t use your email name in the password.';
+  if (email && p.toLowerCase().includes(String(email).split('@')[0].toLowerCase()) && String(email).split('@')[0].length >= 4) return 'Don’t put your username or email name in the password.';
   return null;
 }
 
@@ -236,6 +236,8 @@ export function createAuth({
   sessionDays = Number(process.env.SESSION_DAYS) || 30,
   publicUrl = process.env.PUBLIC_URL || '',
   allowedHosts = process.env.ALLOWED_HOSTS || '',
+  // A username typed at sign-in → the identity it signs in as (usernames.js), or null. Emails skip it.
+  resolveLogin = () => null,
   now = () => Date.now(),
 } = {}) {
   const store = openAuthStore(dataDir);
@@ -325,10 +327,31 @@ export function createAuth({
     return null;
   }
 
+  // Emails that just stopped being anyone's sign-in (usernames.js), kept a day as hashes in memory only.
+  const retired = new Map();
+  const retiredKey = (e) => crypto.createHash('sha256').update(normalEmail(e)).digest('base64url');
+  function retire(email) {
+    for (const [k, until] of retired) if (until <= now()) retired.delete(k);
+    retired.set(retiredKey(email), now() + 86400_000);
+  }
+  function isRetired(email) {
+    const until = retired.get(retiredKey(email));
+    return Boolean(until && until > now());
+  }
+
   // Sets req.auth = { via: 'proxy' | 'session' | 'home' | null, remote, email }.
   function identify(req) {
     const remote = isRemote(req);
     const proxied = normalEmail(req.headers[IDENTITY]);
+    // Someone who just switched from their email to a username may still carry Cloudflare's sign-in for the
+    // email until its revocation lands: their Lilin session, already moved to the new identity, says who they
+    // are, and without one the old email counts as signed out (it must not come back as a new, empty account).
+    if (proxied && isRetired(proxied)) {
+      const moved = sessionFor(sessionCookie(req));
+      if (!moved) return (req.auth = { via: null, remote, email: null });
+      req.headers[IDENTITY] = moved.email;
+      return (req.auth = { via: 'session', remote, email: moved.email, session: moved.id });
+    }
     if (proxied) return (req.auth = { via: 'proxy', remote, email: proxied });
     const session = sessionFor(sessionCookie(req));
     if (session) {
@@ -342,15 +365,20 @@ export function createAuth({
   const secure = (req) => req.headers['x-forwarded-proto'] === 'https' || /"scheme":"https"/.test(req.headers['cf-visitor'] || '') || Boolean(req.socket?.encrypted);
   const cookie = (req, value, maxAge) => `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure(req) ? '; Secure' : ''}`;
 
-  async function signIn(req, email, password) {
-    const e = normalEmail(email);
+  // `identifier`: a username (with or without @) or an email.
+  async function signIn(req, identifier, password) {
+    const typed = normalEmail(identifier).replace(/^@+/, '');
+    const byEmail = typed.includes('@');
+    let e = byEmail ? typed : '';
+    if (!byEmail && typed) { try { e = normalEmail(resolveLogin(typed) || ''); } catch { e = ''; } }
+    const key = e || typed;
     const address = clientAddress(req);
-    const wait = limiter.wait(e, address);
+    const wait = limiter.wait(key, address);
     if (wait) throw httpError(429, `Too many tries. Wait ${Math.ceil(wait / 60_000)} min and try again.`, { retryAfter: Math.ceil(wait / 1000) });
     const login = validEmail(e) ? store.login(e) : null;
     const ok = login ? await verifyPassword(password, login.password) : (await verifyPassword(password, await decoy), false);
-    if (!ok) { limiter.fail(e, address); throw httpError(401, 'That email and password don’t match.'); }
-    limiter.success(e);
+    if (!ok) { limiter.fail(key, address); throw httpError(401, byEmail ? 'That email and password don’t match.' : 'That username and password don’t match.'); }
+    limiter.success(key);
     return startSession(req, e);
   }
 
@@ -451,6 +479,7 @@ export function createAuth({
     devices,
     endDevice,
     endOtherDevices,
+    retire,
     hasLogins: () => store.count() > 0,
     hasPassword: (email) => Boolean(email && store.login(email)),
   };
@@ -523,7 +552,7 @@ button{margin-top:20px;width:100%;padding:12px;border:0;border-radius:10px;backg
 <h1>${brandMark()}</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
 ${qr ? `<div class="signin-split">${signInQrPanel()}<div class="pw-side">` : ''}<form method="post" action="${esc(action)}">
 <input type="hidden" name="next" value="${esc(safeNext(next))}">
-<div class="field field-email"><label for="email">${tr('Email')}</label><input id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}></div>
+<div class="field field-email"><label for="email">${tr('Username or email')}</label><input id="email" name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}></div>
 <div class="field field-password"><label for="password">${tr('Password')}</label><div class="pw-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required${typed ? ' autofocus' : ''}></div></div>
 <button type="submit" class="go">${tr('Sign in')}</button></form>${qr ? '</div></div>' : ''}
 <p class="foot">${help}</p><nav class="lang" aria-label="${tr('Language')}">${langLink('en', 'English')}${langLink('sv', 'Svenska')}</nav></main>${qr ? SIGN_IN_QR_SCRIPT : ''}${passwordPeek()}</body></html>`;

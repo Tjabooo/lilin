@@ -12,6 +12,9 @@
 // also asks for a password, creates the Lilin account and signs the browser in, so the person lands
 // in Lilin without seeing a login page. A "password link" is an invite tied to one existing member's
 // email: the only way to claim an email that's already on the list.
+//
+// With Lilin signing people in, a new person picks a username instead of giving an email: they get an
+// account id (account-ids.js) on the Access list and never type an email at all.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -64,7 +67,7 @@ export async function members() {
   return items.map((i) => String(i.value || '').toLowerCase()).filter(Boolean);
 }
 // Single-item append / remove: nothing else in the list is touched.
-async function addMember(email) {
+export async function addMember(email) {
   if ((await members()).includes(email)) return;
   await cf('PATCH', '', { append: [{ value: email, description: 'Lilin invite' }] });
 }
@@ -84,6 +87,15 @@ export async function removeMember(email, admins = []) {
   const actual = ((await cf('GET', '/items?per_page=1000')) || []).map((i) => i.value).find((v) => String(v).toLowerCase() === email);
   if (actual) await cf('PATCH', '', { remove: [actual] });
   return members();
+}
+
+// Someone switched from their email to a username (usernames.js): their links and used invites follow.
+export function renameIdentity(previous, next) {
+  let changed = false;
+  for (const inv of Object.values(invites)) {
+    for (const k of ['email', 'forEmail']) if (inv[k] && inv[k] === previous) { inv[k] = next; changed = true; }
+  }
+  if (changed) save();
 }
 
 // ---------- invites (owner side) ----------
@@ -133,7 +145,8 @@ async function readForm(req) {
 
 // Returns true when it handled the request.
 // `auth`: Lilin's sign-in (auth.js), passed when Lilin is Cloudflare's sign-in provider.
-export async function handlePublic(req, res, url, { auth = null } = {}) {
+// `usernames`: with `auth`, new people pick a username (usernames.js) instead of entering an email.
+export async function handlePublic(req, res, url, { auth = null, usernames = null } = {}) {
   const m = url.pathname.match(/^\/c\/i\/([A-Za-z0-9_-]{16})\/?$/);
   if (!m) return false;
   const send = (status, body, extra = {}) => {
@@ -155,13 +168,23 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
 
   const bound = inv.forEmail;
   const title = bound ? 'Pick your Lilin password' : 'You’re invited to Lilin';
+  // Lilin signs people in: new people pick a username; a password link shows whoever it was made for.
+  const byName = Boolean(auth && usernames);
+  const boundShown = bound && usernames ? usernames.signInName(bound) : bound;
+  const boundIsName = Boolean(bound && boundShown !== bound);
+  const who = (typed) => (bound ? `
+      <div class="field field-email"><label for="email">${boundIsName ? 'Your username' : 'Your email'}</label>
+      <input id="email" name="${boundIsName ? 'username' : 'email'}" type="${boundIsName ? 'text' : 'email'}" required autocomplete="username" readonly value="${esc(boundShown)}"></div>` : byName ? `
+      <div class="field field-email"><label for="username">Pick a username</label>
+      <input id="username" name="username" type="text" required minlength="3" maxlength="21" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus value="${esc(typed)}" aria-describedby="username-note">
+      <p class="safe-note" id="username-note">3 to 20 letters, numbers, dots or underscores. You sign in with it, and friends find you by it.</p></div>` : `
+      <div class="field field-email"><label for="email">Your email</label>
+      <input id="email" name="email" type="email" required autocomplete="username" autofocus value="${esc(typed)}" placeholder="you@example.com"></div>`);
   const form = (email = '', error = '') => (auth ? `
     <div class="card-brand">${brandMark()}</div>
     <h1>${bound ? 'Pick a password' : 'You’re invited to Lilin'}</h1>
-    <p>${bound ? 'From now on you sign in to Lilin with your email and this password.' : 'Your own cinema: films and shows on your phone, your TV, anywhere.'}</p>
-    <form method="post">
-      <div class="field field-email"><label for="email">Your email</label>
-      <input id="email" name="email" type="email" required autocomplete="username" ${bound ? 'readonly' : 'autofocus'} value="${esc(bound || email)}" placeholder="you@example.com"></div>
+    <p>${bound ? (boundIsName ? 'From now on you sign in to Lilin with your username and this password.' : 'From now on you sign in to Lilin with your email and this password.') : 'Your own cinema: films and shows on your phone, your TV, anywhere.'}</p>
+    <form method="post">${who(email)}
       <div class="field field-password"><label for="password">Choose a password (10+ characters)</label>
       <div class="pw-wrap"><input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}></div></div>
       <div class="field field-password"><label for="again">Same password again</label>
@@ -170,7 +193,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
       ${error ? `<p class="err">${esc(translate(error))}</p>` : ''}
       <button type="submit" class="go">${bound ? 'Save password' : 'Join Lilin'}</button>
     </form>
-    <p class="foot">On a new phone or computer, open Lilin and sign in with this email and password.</p>${passwordPeek()}` : `
+    <p class="foot">${byName && (!bound || boundIsName) ? 'On a new phone or computer, open Lilin and sign in with this username and password.' : 'On a new phone or computer, open Lilin and sign in with this email and password.'}</p>${passwordPeek()}` : `
     <h1>You’re invited to Lilin</h1>
     <p>Your own cinema: films and shows on your phone, your TV, anywhere.</p>
     <form method="post">
@@ -191,6 +214,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
   attempts.push(now);
 
   const body = await readForm(req);
+  if (byName && !bound) return joinWithUsername(req, res, body, inv, { auth, usernames, view: (error) => view(title, form(String(body.username || '').trim().slice(0, 40), error)) });
   const email = bound || String(body.email || '').trim().toLowerCase();
   if (!EMAIL.test(email) || email.length > 254) return view(title, form(email, 'That doesn’t look like an email address.'));
   if (auth) {
@@ -198,7 +222,7 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
     // a password belongs to someone, and only a password link made for that email may set it.
     const password = String(body.password || '');
     if (password !== String(body.again || '')) return view(title, form(email, 'The two passwords aren’t the same.'));
-    const problem = passwordProblem(password, email);
+    const problem = passwordProblem(password, boundIsName ? boundShown.replace(/^@/, '') : email);
     if (problem) return view(title, form(email, problem));
     if (!bound && auth.hasPassword(email)) return view(title, form(email, 'That email already has a Lilin account. Open Lilin and sign in.'));
     if (!bound) {
@@ -239,4 +263,34 @@ export async function handlePublic(req, res, url, { auth = null } = {}) {
     <p>Taking you there… pick how you want to sign in (with a code sent to this email, or an account that uses it). Next time just open Lilin and sign in the same way.</p>
     <form method="get" action="/"><button type="submit">Open Lilin</button></form>
     <script>setTimeout(() => location.replace('/'), 2500)</script>`);
+}
+
+// A new person through an open invite, when Lilin signs people in: they pick a username and a password.
+// The account (with its id and username) is made first, so two people can't race for one username; if
+// Cloudflare or the password then fails, it's taken back out.
+async function joinWithUsername(req, res, body, inv, { auth, usernames, view }) {
+  let handle;
+  try { handle = usernames.check(body.username); } catch (e) { return view(e.message); }
+  const password = String(body.password || '');
+  if (password !== String(body.again || '')) return view('The two passwords aren’t the same.');
+  const problem = passwordProblem(password, handle);
+  if (problem) return view(problem);
+  let made;
+  try { made = usernames.create(handle); } catch (e) { return view(e.status === 400 || e.status === 409 ? e.message : 'Couldn’t add you right now. Try again in a minute, or tell whoever sent the link.'); }
+  try {
+    await addMember(made.identity);
+    await auth.store.setPassword(made.identity, password);
+  } catch (e) {
+    console.error('[invites]', e.message);
+    usernames.undo(made);
+    return view(e.status === 400 ? e.message : 'Couldn’t add you right now. Try again in a minute, or tell whoever sent the link.');
+  }
+  inv.usedAt = Date.now();
+  inv.email = made.identity;
+  save();
+  record(req, 'joined', inv.note || 'with an invite', { user: made.identity });
+  const { setCookie } = auth.startSession(req, made.identity);
+  res.writeHead(303, { Location: '/', 'Set-Cookie': setCookie, 'Cache-Control': 'no-store' });
+  res.end();
+  return true;
 }

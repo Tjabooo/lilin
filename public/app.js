@@ -8924,7 +8924,7 @@ function youRowMeta(sub) {
     }
     case 'activity': return T('Who watched what, and when');
     case 'invite': return T('A one-time link for someone new');
-    case 'account': return me.email || T('Home network');
+    case 'account': return me.signIn || me.email || T('Home network');
     case 'look': {
       const key = p.theme?.preset || state.rules?.defaultTheme || 'lilin';
       return [LANGUAGES.find((l) => l.code === lang)?.name, key === 'custom' ? T('Your own') : THEMES[key]?.name].filter(Boolean).join(' · ');
@@ -9153,7 +9153,10 @@ function accountPage() {
   ];
   const signedIn = me.via === 'session' || me.hasPassword;
   return [
-    settingsRow(T('Email'), me.via === 'session' ? T('You sign in with {0}.', me.email) : T('You sign in with {0} through Cloudflare.', me.email), null),
+    me.usernameSignIn
+      ? settingsRow(T('Username'), T('You sign in with {0}.', me.signIn), null)
+      : settingsRow(T('Email'), me.via === 'session' ? T('You sign in with {0}.', me.email) : T('You sign in with {0} through Cloudflare.', me.email), null),
+    ...(me.canSwitchToUsername ? [usernameSwitchRow()] : []),
     ...(signedIn ? [passwordRow()] : []),
     ...(signedIn ? devicesSection() : []),
     h('h3', { class: 'set-head' }, T('This device')),
@@ -9677,6 +9680,34 @@ function passwordRow() {
       h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
     form);
 }
+// Account → Switch to a username: sign in with @username from now on; Lilin deletes the email.
+function usernameSwitchRow() {
+  const name = h('input', { type: 'text', class: 'invite-note', value: state.me?.handle || '', minlength: '3', maxlength: '21', required: '',
+    autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', 'aria-label': T('Username') });
+  const save = h('button', { class: 'chip', type: 'submit' }, T('Switch to this username'));
+  const msg = h('div', { class: 'set-hint', role: 'status' });
+  const form = h('form', { class: 'set-card account-password' },
+    h('p', { class: 'set-hint' }, T('From now on you sign in with this username and your password. Your email is deleted from Lilin for good; your history, friends and settings stay.')),
+    h('div', { class: 'username-field' }, h('span', { 'aria-hidden': 'true' }, '@'), name),
+    h('p', { class: 'set-hint' }, T('3 to 20 letters, numbers, dots or underscores.')), save, msg);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm(T('Switch to @{0}? Your email can’t be used to sign in after this.', name.value.trim().replace(/^@+/, '')))) return;
+    save.disabled = true;
+    msg.textContent = '';
+    try {
+      const r = await api('/api/me/username', jsonPost({ username: name.value }));
+      toast(T('Done. You sign in with {0} now.', r.signIn));
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) { msg.textContent = err.message; save.disabled = false; }
+  });
+  return h('details', { class: 'set-details' },
+    h('summary', {},
+      h('span', { class: 'set-text' }, h('span', { class: 'set-label' }, T('Switch to a username')),
+        h('span', { class: 'set-hint' }, T('Sign in with your username instead of your email, and Lilin forgets the email.'))),
+      h('span', { class: 'set-details-chev', 'aria-hidden': 'true' })),
+    form);
+}
 function signOutRow() {
   const out = h('button', { class: 'chip', type: 'button' }, T('Sign out'));
   out.addEventListener('click', async () => {
@@ -9734,7 +9765,7 @@ function peopleSettings() {
       h('div', { class: 'row-text' },
         h('div', { class: 'row-title' }, onAccessList(u.email) ? accessName(u.email, u.name) : u.name, u.isOwner && h('span', { class: 'tag' }, T('Owner'))),
         h('div', { class: 'row-meta' },
-          u.email && h('span', {}, u.email),
+          u.email && h('span', {}, u.login || u.email),
           h('span', {}, `${plural(u.items, 'video')}, ${fmtBytes(u.size)}`),
           u.lastSeen && h('span', {}, lastSeenText(u.lastSeen)),
           onAccessList(u.email) && a.passwords && !a.passwords.includes(String(u.email).toLowerCase()) && h('span', {}, T('No password yet'))),
@@ -9767,7 +9798,7 @@ function peopleSettings() {
       out.push(h('ul', { class: 'rows people' }, pending.map((email) => {
         const name = a.names?.[email] || personName(email);
         return h('li', { class: 'row person is-new' }, people.face({ name }, { size: 40 }),
-          h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, accessName(email, name)), h('div', { class: 'row-meta' }, h('span', {}, email)),
+          h('div', { class: 'row-text' }, h('div', { class: 'row-title' }, accessName(email, name)), h('div', { class: 'row-meta' }, h('span', {}, a.logins?.[email] || email)),
             h('div', { class: 'person-access' }, accessActions(email, name))));
       })));
     }

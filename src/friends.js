@@ -7,6 +7,7 @@
 // Restricted people (People → Restrict, accounts.isRestricted) have no friends: they can't be found or
 // asked, can't ask anyone, and their existing friendships are hidden (not deleted) while restricted.
 import { database, userById, isRestricted, restrictedIds } from './accounts.js';
+import { isAccountId } from './account-ids.js';
 
 const MAX_PENDING = 30;       // open requests one person can have sent at a time
 const MAX_FRIENDS = 300;
@@ -82,7 +83,7 @@ export function search(user, query) {
   if (q.length < 2) return [];
   const hidden = restrictedIds();
   const rows = db().prepare("SELECT id, email, name FROM users WHERE id != ? AND email != ?").all(user.id, HOME);
-  const name = (r) => (r.name || String(r.email).split('@')[0]).toLowerCase();
+  const name = (r) => (r.name || (isAccountId(r.email) ? '' : String(r.email).split('@')[0])).toLowerCase();
   const hits = rows.filter((r) => !hidden.has(r.id) && name(r).includes(q))
     .sort((a, b) => Number(!name(a).startsWith(q)) - Number(!name(b).startsWith(q)) || name(a).localeCompare(name(b)))
     .slice(0, 12);

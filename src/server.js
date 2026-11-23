@@ -37,6 +37,9 @@ import * as ideas from './ideas.js';
 import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
 import * as profiles from './profiles.js'; // profiles: everyone's own page
+import * as usernames from './usernames.js'; // sign in with @username instead of an email
+import { isAccountId } from './account-ids.js';
+import { ENV_FILE } from './env.js';
 import * as profileBanner from './profile-banner.js'; // profiles: banners people upload
 import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
@@ -225,7 +228,7 @@ function notify(userIds, kind, message) {
     .catch((err) => { console.warn(`[push] ${err.message}`); return 0; })))
     .then((sent) => sent.reduce((total, n) => total + (Number(n) || 0), 0));
 }
-const auth = createAuth({ dataDir: DATA_DIR });
+const auth = createAuth({ dataDir: DATA_DIR, resolveLogin: (typed) => usernames.identityForLogin(typed) });
 const tvPairing = createTvPairing();
 const tvProfiles = createTvProfiles(auth.store.db); // profiles on a TV (Who's watching?)
 const tvPairLimit = createPairLimit(); // sign-in codes asked for from outside the home network (tv-gateway.js)
@@ -437,6 +440,7 @@ const oidc = createOidc({
   dataDir: DATA_DIR, auth, nameFor: (email) => accounts.displayNameFor(email),
   onSignIn: (req, email) => activity.record(req, 'signin', 'Signed in to Lilin', { user: email }),
 });
+usernames.initUsernames({ auth, activity, invites, envFile: ENV_FILE, logDirs: [path.join(APP_DIR, 'logs')] });
 // Signed in through Access/a proxy but no Lilin password yet: the app blocks until they pick one.
 const needsPassword = (req) => oidc.configured && req.auth?.via === 'proxy' && Boolean(req.auth.email) && !auth.hasPassword(req.auth.email);
 cast.initCasting({ lanIp: LAN_IP });
@@ -4486,9 +4490,17 @@ async function handleApi(req, res, url) {
     if (req.method === 'POST') {
       const next = accounts.updateMe(user, await readJson(req));
       watchRooms.renameUser(next);
-      return sendJson(res, 200, { me: { ...accounts.publicUser(next), via: req.auth.via } });
+      return sendJson(res, 200, { me: meOut(next, req) });
     }
-    return sendJson(res, 200, { me: { ...accounts.publicUser(user), via: req.auth.via } });
+    return sendJson(res, 200, { me: meOut(user, req) });
+  }
+  // Account → Switch to a username: the email is replaced by the account's id everywhere and deleted.
+  if (p === '/api/me/username' && req.method === 'POST') {
+    if (!oidc.configured) throw new HttpError(400, 'Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).');
+    const { username } = await readJson(req);
+    const done = await usernames.switchToUsername(user, username);
+    activity.record(req, 'signin', 'Switched to a username', { user: done.identity });
+    return sendJson(res, 200, { ok: true, signIn: `@${done.handle}` });
   }
   // Profile pictures: anyone signed in sees everyone's (they show beside names all over Lilin).
   if ((m = p.match(/^\/api\/avatar\/(\d{1,9})$/)) && req.method === 'GET') {
@@ -4765,7 +4777,7 @@ async function handleApi(req, res, url) {
       for (const i of (await scanLibrary()) || []) sizes.set(accounts.mediaKey(i.full), i.size);
       const users = accounts.listUsers().map(({ keys, ...u }) => {
         const held = keys.filter((k) => sizes.has(k));
-        return { ...u, items: held.length, size: held.reduce((n, k) => n + sizes.get(k), 0) };
+        return { ...u, login: u.email ? usernames.signInName(u.email) : null, items: held.length, size: held.reduce((n, k) => n + sizes.get(k), 0) };
       });
       return sendJson(res, 200, { users });
     }
@@ -5090,7 +5102,8 @@ async function handleApi(req, res, url) {
       let error = null;
       try { members = await invites.members(); } catch (e) { error = e.message; }
       const names = Object.fromEntries((members || []).map((email) => [email, accounts.displayNameFor(email)]));
-      return sendJson(res, 200, { configured: true, members, names, error, owners: activity.adminEmails(), invites: invites.listInvites(),
+      const logins = Object.fromEntries((members || []).filter((id) => isAccountId(id)).map((id) => [id, usernames.signInName(id)]));
+      return sendJson(res, 200, { configured: true, members, names, logins, error, owners: activity.adminEmails(), invites: invites.listInvites(),
         passwords: oidc.configured ? auth.store.emails() : null });
     }
     if (p === '/api/access/rename' && req.method === 'POST') {
@@ -6181,7 +6194,8 @@ function drawSignIn(req, res, url) {
   // The shared home account may still ask for the page (Account → Sign in as yourself): ?own=1.
   const switching = req.auth.via === 'home' && url.searchParams.has('own');
   if (req.auth.via && !switching) { res.writeHead(303, { Location: next, 'Cache-Control': 'no-store' }); return res.end(); }
-  const errors = { wrong: 'That email and password don’t match.', wait: 'Too many tries. Wait a few minutes and try again.', missing: 'Enter your email and password.' };
+  const byEmail = String(url.searchParams.get('email') || '').includes('@');
+  const errors = { wrong: byEmail ? 'That email and password don’t match.' : 'That username and password don’t match.', wait: 'Too many tries. Wait a few minutes and try again.', missing: 'Enter your username and password.' };
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(req.method === 'HEAD' ? undefined : signInPage({ next, error: errors[url.searchParams.get('error')] || '', hasLogins: auth.hasLogins(), remote: req.auth.remote, email: url.searchParams.get('email') || '', qr: auth.hasLogins() }));
 }
@@ -6198,6 +6212,13 @@ async function readCredentials(req) {
 
 // Ends someone's Cloudflare Access sign-ins on every device (their own request: password change, sign out
 // everywhere else). True when this browser came in through Cloudflare and should reload to sign back in.
+// You, for the app: plus how you sign in ("@ebi", or your email until you switch to a username).
+function meOut(user, req) {
+  const out = { ...accounts.publicUser(user), via: req.auth.via };
+  if (out.email) Object.assign(out, { handle: profiles.profileOf(user).handle, signIn: usernames.signInName(out.email), usernameSignIn: isAccountId(out.email), canSwitchToUsername: Boolean(oidc.configured) && !isAccountId(out.email) && auth.hasPassword(out.email) });
+  return out;
+}
+
 async function revokeCloudflare(req) {
   if (!invites.invitesConfigured() || !req.auth?.email) return false;
   try { await invites.revokeAccess(req.auth.email); } catch (e) { console.warn('[auth] revoke:', e.message); return false; }
@@ -6219,7 +6240,7 @@ async function handleAuth(req, res, p) {
     const body = await readCredentials(req);
     const next = safeNext(body.next);
     try {
-      if (!body.email || !body.password) throw new HttpError(400, 'Enter your email and password.');
+      if (!body.email || !body.password) throw new HttpError(400, 'Enter your username and password.');
       const { email, setCookie } = await auth.signIn(req, body.email, body.password);
       activity.record(req, 'signin', 'Signed in to Lilin', { user: email });
       res.setHeader('Set-Cookie', setCookie);
@@ -6294,6 +6315,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
+        || url.pathname === '/api/me/username' // Account → Switch to a username
         || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
@@ -6319,7 +6341,7 @@ async function handleRequest(req, res) {
       else if (handleQrSignIn(req, res, url)) { /* scan to sign in: the sign-in page's QR code (signin-link.js) */ }
       else if (await oidc.handle(req, res, url)) { /* sign-in provider for Cloudflare Access */ }
       else if (!handleWatchPage(req, res, url, { rooms: watchRooms, artwork: watchArtwork })
-        && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null }))
+        && !(await invites.handlePublic(req, res, url, { auth: oidc.configured ? auth : null, usernames: oidc.configured ? usernames : null }))
         && !(await moments.handlePublic(req, res, url, { sendVideo })) // friends: shared moments, /c/m/<token>
         && !(await listShare.handlePublic(req, res, url, { cacheDir: path.join(CACHE_DIR, 'list-cards'), nameOf: (id) => accounts.userById(id)?.name || '' }))
         && !(await noteShare.handlePublic(req, res, url, { notes, media: sharedMedia, sendVideo, nameFor: (email) => accounts.displayNameFor(email) })) && !(await clips.handlePublic(req, res, url, { sendVideo, previews }))

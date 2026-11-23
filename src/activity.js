@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ADMINS = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+let ADMINS = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 // Everything from the last year stays readable: the page used to get only the newest 300 entries (two busy days),
 // so what quieter people did a few days ago looked like it had vanished.
 const KEEP_MS = 365 * 24 * 3600 * 1000;
@@ -45,6 +45,27 @@ function userOf(req) {
 
 export const isAdmin = (req) => ADMINS.includes(userOf(req));
 export const adminEmails = () => [...ADMINS];
+
+// Someone switched from their email to a username account (usernames.js): every entry of theirs moves to
+// the new identity and the email is gone from the log, in memory and in the file.
+export function renameIdentity(previous, next) {
+  const from = String(previous || '').toLowerCase();
+  if (!from || !next) return;
+  events = events.map((e) => (JSON.stringify(e).toLowerCase().includes(from) ? JSON.parse(replaceAllCi(JSON.stringify(e), from, next)) : e));
+  for (const [user, seen] of [...lastSeen]) if (String(user).toLowerCase() === from) { lastSeen.delete(user); lastSeen.set(next, seen); }
+  ADMINS = ADMINS.map((e) => (e === from ? next : e));
+  if (file) fs.writeFileSync(file, events.map((e) => `${JSON.stringify(e)}\n`).join(''));
+}
+// Every match of `find`, any case, replaced (no regex, so dots and pluses in an email mean themselves).
+export function replaceAllCi(text, find, replacement) {
+  const lower = text.toLowerCase();
+  const f = find.toLowerCase();
+  if (!f) return text;
+  let out = '';
+  let from = 0;
+  for (let i = lower.indexOf(f); i !== -1; i = lower.indexOf(f, from)) { out += text.slice(from, i) + replacement; from = i + f.length; }
+  return out + text.slice(from);
+}
 
 // "iPhone · Safari", "Windows · Firefox", ...
 function deviceOf(req) {

@@ -815,5 +815,19 @@
  "Banners aren’t set up.": "Banners är inte inställda.",
  "Keep the status under 80 characters.": "Håll statusen under 80 tecken.",
  "Pick up to four numbers.": "Välj upp till fyra siffror.",
- "Pin one of your own reviews.": "Fäst en av dina egna recensioner."
+ "Pin one of your own reviews.": "Fäst en av dina egna recensioner.",
+ "Username or email": "Användarnamn eller e-post",
+ "That username and password don’t match.": "Användarnamnet och lösenordet stämmer inte.",
+ "Enter your username and password.": "Ange ditt användarnamn och ditt lösenord.",
+ "Don’t put your username or email name in the password.": "Ha inte med ditt användarnamn eller namnet i din e-postadress i lösenordet.",
+ "Your username": "Ditt användarnamn",
+ "Pick a username": "Välj ett användarnamn",
+ "3 to 20 letters, numbers, dots or underscores. You sign in with it, and friends find you by it.": "3 till 20 bokstäver, siffror, punkter eller understreck. Du loggar in med det, och vänner hittar dig med det.",
+ "From now on you sign in to Lilin with your username and this password.": "Från och med nu loggar du in i Lilin med ditt användarnamn och det här lösenordet.",
+ "On a new phone or computer, open Lilin and sign in with this username and password.": "På en ny telefon eller dator öppnar du Lilin och loggar in med det här användarnamnet och lösenordet.",
+ "Only someone signed in with an email can switch.": "Bara den som loggar in med e-post kan byta.",
+ "You already sign in with your username.": "Du loggar redan in med ditt användarnamn.",
+ "Pick a Lilin password first: you’ll sign in with it and your username.": "Välj ett Lilin-lösenord först: du loggar in med det och ditt användarnamn.",
+ "This account has no id yet. Reload and try again.": "Kontot har inget id än. Ladda om och försök igen.",
+ "Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).": "Användarnamn kräver att Lilin är inloggningen för Cloudflare (OIDC_* i .env)."
 }

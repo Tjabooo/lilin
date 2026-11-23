@@ -2890,4 +2890,13 @@ export default {
   "Hidden from your profile. Only you see it here.": "Dold från din profil. Bara du ser den här.",
   "Hidden from others": "Dolt för andra",
   "Only you see these on your profile. To show one again, open it and pick Show on my profile in ⋯.": "Bara du ser dessa på din profil. Vill du visa en igen, öppna den och välj Visa på min profil i ⋯.",
+  "Switch to a username": "Byt till ett användarnamn",
+  "Sign in with your username instead of your email, and Lilin forgets the email.": "Logga in med ditt användarnamn i stället för din e-post, så glömmer Lilin e-postadressen.",
+  "Switch to this username": "Byt till det här användarnamnet",
+  "From now on you sign in with this username and your password. Your email is deleted from Lilin for good; your history, friends and settings stay.": "Från och med nu loggar du in med det här användarnamnet och ditt lösenord. Din e-post raderas från Lilin för gott; din historik, dina vänner och inställningar finns kvar.",
+  "Switch to @{0}? Your email can’t be used to sign in after this.": "Byta till @{0}? Efter det kan du inte logga in med din e-post.",
+  "Done. You sign in with {0} now.": "Klart. Nu loggar du in med {0}.",
+  "That username is taken.": "Det användarnamnet är upptaget.",
+  "A username is 3 to 20 characters.": "Ett användarnamn är 3 till 20 tecken.",
+  "Use letters, numbers, dots and underscores (not at the start or end).": "Använd bokstäver, siffror, punkter och understreck (inte först eller sist).",
 };

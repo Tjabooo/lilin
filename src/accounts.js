@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { newUuid, uuidOf, isAccountId } from './account-ids.js';
 
 // node:sqlite still prints an "experimental" warning on load; that one line is noise in the log.
 const emitWarning = process.emitWarning;
@@ -182,6 +183,15 @@ export function initAccounts({ dataDir, adminEmails, notesEmails: notes = [], me
   if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'can_see_activity'").get()) {
     db.exec('ALTER TABLE users ADD COLUMN can_see_activity INTEGER NOT NULL DEFAULT 0');
   }
+  // Added later: every account has a UUID (account-ids.js). Username accounts are known by it, so their
+  // username can change without touching sessions or Cloudflare; email accounts get one ready for the switch.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'uuid'").get()) {
+    db.exec('ALTER TABLE users ADD COLUMN uuid TEXT');
+  }
+  for (const r of db.prepare('SELECT id, email FROM users WHERE uuid IS NULL').all()) {
+    db.prepare('UPDATE users SET uuid = ? WHERE id = ?').run(uuidOf(r.email) || newUuid(), r.id);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_uuid ON users(uuid)');
   // Added later: when the episode was finished. last_at keeps moving when you rewatch part of it the same day,
   // so it can't tell "finished" from "started again" (old rows: null, last_at stands in).
   if (!db.prepare("SELECT 1 FROM pragma_table_info('watch_log') WHERE name = 'finished_at'").get()) {
@@ -224,7 +234,10 @@ export const choices = () => ({});
 
 // ---------- users ----------
 const emailOf = (req) => String(req.headers['cf-access-authenticated-user-email'] || '').trim().toLowerCase() || HOME;
-const fallbackName = (identity) => identity === HOME || identity === 'Home network' ? 'Home network' : String(identity).split('@')[0];
+// A username account's identity is an id, not a name: its @username stands in until it picks a name.
+const handleOfIdentity = (identity) => { try { return db?.prepare('SELECT p.handle FROM profiles p JOIN users u ON u.id = p.user_id WHERE u.email = ?').get(String(identity).toLowerCase())?.handle || null; } catch { return null; } };
+const fallbackName = (identity) => (identity === HOME || identity === 'Home network' ? 'Home network'
+  : isAccountId(identity) ? handleOfIdentity(identity) || 'Lilin member' : String(identity).split('@')[0]);
 
 // ---------- profile pictures ----------
 // One small square image per person (the browser crops and shrinks it to 256 px before upload), kept
@@ -322,11 +335,20 @@ function ensureUser(email, lastSeen = Date.now()) {
   let row = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!row) {
     const canDownload = admins.includes(email) || serverSettings().membersCanDownload;
-    db.prepare('INSERT OR IGNORE INTO users (email, can_download, created_at, last_seen) VALUES (?, ?, ?, ?)')
-      .run(email, canDownload ? 1 : 0, Date.now(), lastSeen);
+    db.prepare('INSERT OR IGNORE INTO users (email, uuid, can_download, created_at, last_seen) VALUES (?, ?, ?, ?, ?)')
+      .run(email, uuidOf(email) || newUuid(), canDownload ? 1 : 0, Date.now(), lastSeen);
     row = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   }
   return rowToUser(row);
+}
+
+// The account behind an identity, made now if it doesn't exist yet (a new username account, before its first visit).
+export const accountFor = (identity) => ensureUser(String(identity).trim().toLowerCase(), null);
+export const uuidForUser = (id) => db.prepare('SELECT uuid FROM users WHERE id = ?').get(id)?.uuid || null;
+// Someone switched to a username: owner and Notes rights follow them to their new identity.
+export function replaceOwnerIdentity(previous, next) {
+  admins = admins.map((e) => (e === previous ? next : e));
+  notesEmails = notesEmails.map((e) => (e === previous ? next : e));
 }
 
 // The person making this request (created on their first visit).

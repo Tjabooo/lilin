@@ -24,6 +24,23 @@
   ]
 },
 {
+  "id": "2026-11-23-usernames",
+  "date": "2026-11-23",
+  "title": "Sign in with your username",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Usernames instead of emails",
+      "text": "You can now sign in with your @username and password. New people pick a username when they join and never have to give an email."
+    },
+    {
+      "kind": "new",
+      "title": "Drop your email",
+      "text": "Joined with an email? It still works for now. When you're ready, go to You, then Account, then Switch to a username: you sign in with your username from then on and Lilin deletes your email. Your history, friends and settings stay."
+    }
+  ]
+},
+{
   "id": "2026-11-23-diary-real-watches",
   "date": "2026-11-23",
   "title": "A diary of what you really watched",

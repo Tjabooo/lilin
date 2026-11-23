@@ -17,6 +17,19 @@
       }
     }
   },
+  "2026-11-23-usernames": {
+    "title": "Logga in med ditt användarnamn",
+    "items": {
+      "Usernames instead of emails": {
+        "title": "Användarnamn i stället för e-post",
+        "text": "Nu kan du logga in med ditt @användarnamn och lösenord. Nya personer väljer ett användarnamn när de går med och behöver aldrig ange någon e-post."
+      },
+      "Drop your email": {
+        "title": "Bli av med din e-post",
+        "text": "Gick du med med e-post? Den fungerar fortfarande tills vidare. När du vill går du till Du, sedan Konto, sedan Byt till ett användarnamn: därefter loggar du in med ditt användarnamn och Lilin raderar din e-post. Din historik, dina vänner och inställningar finns kvar."
+      }
+    }
+  },
   "2026-11-23-diary-real-watches": {
     "title": "En dagbok över det du faktiskt sett",
     "items": {

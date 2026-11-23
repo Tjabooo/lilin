@@ -163,7 +163,7 @@ export function createOidc({
       const request = authorizeRequest(target.searchParams);
       if (request.error) return problem(res, request.error);
       try {
-        if (!body.email || !body.password) throw Object.assign(new Error('Enter your email and password.'), { status: 400 });
+        if (!body.email || !body.password) throw Object.assign(new Error('Enter your username and password.'), { status: 400 });
         const { email, setCookie } = await auth.signIn(req, body.email, body.password);
         onSignIn(req, email);
         res.setHeader('Set-Cookie', setCookie);
