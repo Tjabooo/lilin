@@ -93,7 +93,10 @@ test('rankVideos keeps one language per video, the viewer’s first, and counts 
 
 function library(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-lines-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // Hooks run in the order they're added, so the index is closed here, before the folder goes
+  // (Windows can't delete an open lines.db).
+  const closers = [];
+  t.after(() => { for (const close of closers.splice(0)) close(); fs.rmSync(dir, { recursive: true, force: true }); });
   const media = path.join(dir, 'media');
   fs.mkdirSync(path.join(media, 'Blood'), { recursive: true });
   fs.mkdirSync(path.join(media, 'Friends', 'Season 5'), { recursive: true });
@@ -117,7 +120,7 @@ function library(t) {
     { key: 'Blood/There.Will.Be.Blood.2007', id: 'film', file: film, kind: 'film', title: 'There Will Be Blood' },
     { key: 'Friends/Season 5/Friends.S05E16', id: 'ep', file: ep, kind: 'episode', title: 'Friends', season: 5, episode: 16 },
   ];
-  return { dir, media, film, ep, items };
+  return { dir, media, film, ep, items, closeFirst: (close) => closers.push(close) };
 }
 
 test('the index reads the library, finds lines with context and follows changes', async (t) => {
@@ -125,7 +128,7 @@ test('the index reads the library, finds lines with context and follows changes'
   let items = lib.items;
   const logs = [];
   const qs = createQuoteSearch({ cacheDir: path.join(lib.dir, 'cache'), library: async () => items, languages: () => ['en', 'sv'], log: (m) => logs.push(m) });
-  t.after(() => qs.close());
+  lib.closeFirst(() => qs.close());
   assert.equal(qs.ready(), false);
   assert.deepEqual(await qs.round(), { indexed: 3, removed: 0 });
   assert.equal(qs.ready(), true);
@@ -176,7 +179,7 @@ test('the index survives a restart and rebuilds on a new version', async (t) => 
   await first.round();
   first.close();
   const again = createQuoteSearch({ cacheDir, library: async () => lib.items, languages: () => ['en'] });
-  t.after(() => again.close());
+  lib.closeFirst(() => again.close());
   again.start(); again.stop(); // opens the file without a round
   assert.equal(again.search('pivot', { items: lib.items })[0].id, 'ep');
   assert.deepEqual(await again.round(), { indexed: 0, removed: 0 });
@@ -187,7 +190,7 @@ test('a tidy-up hook sees the text before it is indexed', async (t) => {
   const seen = [];
   const qs = createQuoteSearch({ cacheDir: path.join(lib.dir, 'cache'), library: async () => lib.items, languages: () => ['en'],
     clean: (text, file, lang) => { seen.push(lang); return text.replace('Pivot!', 'Turn!'); } });
-  t.after(() => qs.close());
+  lib.closeFirst(() => qs.close());
   await qs.round();
   assert.deepEqual(seen, ['en', 'en']);
   assert.equal(qs.search('turn', { items: lib.items })[0].id, 'ep');
@@ -198,7 +201,7 @@ test('a feature-length file indexes and searches quickly', async (t) => {
   const lines = Array.from({ length: 1800 }, (_, i) => [i * 3, i * 3 + 2, `Line number ${i} about the ${['ranch', 'oil', 'church', 'boy'][i % 4]} and more words here`]);
   fs.writeFileSync(path.join(lib.media, 'Blood', 'There.Will.Be.Blood.2007.en.srt'), srt(lines));
   const qs = createQuoteSearch({ cacheDir: path.join(lib.dir, 'cache'), library: async () => lib.items, languages: () => ['en'] });
-  t.after(() => qs.close());
+  lib.closeFirst(() => qs.close());
   let t0 = performance.now();
   await qs.round();
   const indexMs = performance.now() - t0;
