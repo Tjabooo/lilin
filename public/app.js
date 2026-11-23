@@ -1258,6 +1258,7 @@ function continueRow() {
 // New episodes: shows you follow, or watch and still have in your library, whose latest episode came OUT (TMDB's
 // air date, not when Lilin got it) in the last two weeks and you haven't seen it yet. Shows already in Continue
 // watching stay there. A show you removed from your library (only someone else's copy left) stays out unless you follow it.
+const reallyWatched = (p) => p?.duration > 0 && p.time >= Math.min(600, p.duration * 0.25);
 async function newEpisodeItems(signal) {
   const followed = new Set(watch.items.filter((i) => i.type === 'tv' && i.follow).map((i) => Number(i.id)));
   const continuing = new Set(continueItems(state.library).map((x) => x.f.show).filter(Boolean));
@@ -1267,7 +1268,9 @@ async function newEpisodeItems(signal) {
     if (s.tmdbId == null || continuing.has(s.id) || (disc.type === 'anime' && !s.anime)) continue;
     if (!mine.has(s.id) && !followed.has(Number(s.tmdbId))) continue;
     const fin = state.finished?.[`tv:${s.tmdbId}`];
-    const watched = Boolean(fin) || [...state.library, ...state.server].some((f) => f.show === s.id && savedProgress(libraryFile(f)));
+    // Really watched: a finished episode, or a real stretch of one (10 min, or a quarter of a short one). A few
+    // seconds of trying a file out doesn't make it a show you watch.
+    const watched = Boolean(fin) || [...state.library, ...state.server].some((f) => f.show === s.id && reallyWatched(savedProgress(libraryFile(f))));
     if (watched || followed.has(Number(s.tmdbId))) shows.push(s);
   }
   if (!shows.length) return [];

@@ -1,4 +1,13 @@
 {
+  "2026-11-23-new-episodes-real-watching": {
+    "title": "Nya avsnitt bara för serier du tittar på",
+    "items": {
+      "Trying an episode no longer adds the show to New episodes": {
+        "title": "Att testa ett avsnitt lägger inte längre till serien i Nya avsnitt",
+        "text": "Om du öppnade ett avsnitt i några sekunder trodde Lilin att du tittade på serien, så dess nya avsnitt dök upp på Upptäck. Nu räknas en serie först när du har sett klart ett avsnitt eller tittat en ordentlig stund på ett."
+      }
+    }
+  },
   "2026-11-23-credits-on-time": {
     "title": "Nästa avsnitt-kortet i tid",
     "items": {

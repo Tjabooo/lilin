@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-new-episodes-real-watching",
+  "date": "2026-11-23",
+  "title": "New episodes only for shows you watch",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Trying an episode no longer adds the show to New episodes",
+      "text": "Opening an episode for a few seconds made Lilin think you were watching that show, so its new episodes turned up on Discover. Now a show only counts once you've finished an episode or watched a real stretch of one."
+    }
+  ]
+},
+{
   "id": "2026-11-23-credits-on-time",
   "date": "2026-11-23",
   "title": "Next episode card on time",
