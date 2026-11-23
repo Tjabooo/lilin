@@ -13,6 +13,10 @@
       "Background patterns": {
         "title": "Mönster på bakgrunden",
         "text": "Under Utseende → Mönster lägger du ett svagt mönster över bakgrunden: prickar, rutnät, ränder, korn, stjärnor eller hjärtan."
+      },
+      "Tidier See all links": {
+        "title": "Snyggare Visa alla-länkar",
+        "text": "Visa alla gillade, Fler recensioner, Mer aktivitet och de andra är nu små länkar under varje del av en profil i stället för stora rader över hela bredden."
       }
     }
   },
