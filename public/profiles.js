@@ -1528,16 +1528,21 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       btn.disabled = false;
       done();
     };
+    // Long lists (AniList allows lots): the first ANIME_SHOWN plus any already picked, then Show all.
+    const ANIME_SHOWN = 12;
+    const shown = draft.favAnimeAll || anime.length <= ANIME_SHOWN ? anime : anime.filter((e, i) => i < ANIME_SHOWN || has(e.key));
     const fromAnime = anime.length > 0 && h('div', { class: 'pf-fav-anime' },
       h('div', { class: 'pf-fav-anime-head' },
         h('p', { class: 'pf-ed-label' }, T('From your anime favourites')),
         draft.favorites.length < 4 && !chosen && h('button', { type: 'button', class: 'chip', onclick: (ev) => fill(ev.currentTarget) }, T('Fill the empty slots'))),
-      h('ul', { class: 'pf-strip pf-fav-anime-strip' }, anime.map((e) => h('li', {},
+      h('ul', { class: 'pf-strip pf-fav-anime-strip' }, shown.map((e) => h('li', {},
         h('button', { type: 'button', class: 'pf-poster', title: e.title,
           'aria-label': chosen && keyOf(chosen) !== e.key ? T('Swap {0} for {1}', chosen.title, e.title) : has(e.key) ? T('Remove {0}', e.title) : T('Add {0}', e.title),
           'aria-pressed': String(has(e.key)), onclick: (ev) => pickAnime(e, ev.currentTarget) },
           e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
-          has(e.key) && h('span', { class: 'pf-fav-anime-on', 'aria-hidden': 'true' }, icon('check')))))));
+          has(e.key) && h('span', { class: 'pf-fav-anime-on', 'aria-hidden': 'true' }, icon('check')))))),
+      anime.length > ANIME_SHOWN && h('button', { type: 'button', class: 'chip pf-fav-anime-more', 'aria-expanded': String(!!draft.favAnimeAll),
+        onclick: () => { draft.favAnimeAll = !draft.favAnimeAll; redraw(); } }, draft.favAnimeAll ? T('Show less') : T('Show all {0}', anime.length)));
     const n = draft.favorites.length;
     const slots = h('ol', { class: `pf-fav-edit${chosen ? ' has-sel' : ''}` }, Array.from({ length: 4 }, (_, i) => {
       const f = draft.favorites[i];
