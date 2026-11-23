@@ -7,6 +7,7 @@
 .lilin.db
 .lilin.db-*
 .lilin.db.*
+.lilin-bio-rules.json
 .lilin-*.json
 /dub-graft.json
 .lilin-*.jsonl

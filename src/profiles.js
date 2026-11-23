@@ -19,6 +19,9 @@
 // A linked Letterboxd account (letterboxd.js) adds its diary: films watched elsewhere, with Letterboxd's own rewatch
 // mark. They count in the diary and the film numbers, not in hours (Letterboxd doesn't know how long). Films its
 // export only marks as watched (no day) count as watched but stay out of the diary.
+import fs from 'node:fs';
+import path from 'node:path';
+import { DATA_DIR } from './paths.js';
 import { database, userById, isRestricted } from './accounts.js';
 import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey, localDay } from './social.js';
@@ -71,6 +74,16 @@ const DIARY_PAGE = 30;
 const db = () => database();
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const parse = (s, fallback) => { try { const v = JSON.parse(s); return v ?? fallback; } catch { return fallback; } };
+
+// Words the server owner keeps out of one member's bio: DATA_DIR/.lilin-bio-rules.json, { "<user id>": ["word", ...] }.
+// Read on every save, so a change needs no restart; there is no way to change it from inside Lilin.
+function bannedBioWord(userId, bio) {
+  let rules;
+  try { rules = JSON.parse(fs.readFileSync(path.join(DATA_DIR, '.lilin-bio-rules.json'), 'utf8')); } catch { return null; }
+  const words = Array.isArray(rules?.[userId]) ? rules[userId] : [];
+  const said = new Set(String(bio).toLowerCase().split(/[^\p{L}\p{N}]+/u));
+  return words.find((w) => typeof w === 'string' && said.has(w.toLowerCase())) || null;
+}
 
 export function initProfiles() {
   db().exec(`
@@ -259,6 +272,7 @@ export async function save(user, body = {}, { resolve, now = Date.now() } = {}) 
   if ('bio' in body) {
     const bio = cleanBio(body.bio);
     if (bio.length > MAX_BIO) throw fail(400, `Keep the bio under ${MAX_BIO} characters.`);
+    if (bannedBioWord(user.id, bio)) throw fail(400, 'That word isn’t allowed in your bio.');
     next.bio = bio;
   }
   if ('visibility' in body) {
