@@ -132,7 +132,8 @@ html.ph .view { animation: none; }
 /* The official logo wins when TMDB has one (Oliver 11-23: the stacked name was huge on phones); the stacked name is the
    fallback. While the logo lookup is pending, the plain title holds the space invisibly so the big name never flashes. */
 .bb-copy.ph-has-name > .bb-title:is(.is-pending, :has(> .bb-logo)) { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; margin-top: 10px; }
-.bb-copy:has(> .bb-title:is(.is-pending, :has(> .bb-logo))) > .ph-name { display: none; }
+/* (no :has() inside :has(): browsers drop the whole rule) */
+.bb-copy:has(> .bb-title.is-pending) > .ph-name, .bb-copy:has(> .bb-title > .bb-logo) > .ph-name { display: none; }
 #sheet .sheet-content > h2.ph-named:has(> img.page-logo) { line-height: normal; }
 #sheet .sheet-content > h2.ph-named > img.page-logo { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 #sheet .sheet-content > h2.ph-named:has(> img.page-logo) > .ph-name { display: none; }
