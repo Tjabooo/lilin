@@ -13,7 +13,25 @@ Write-Host 'Stopping Lilin...'
 # Find Lilin and everything it started (ffmpeg conversions, Apple TV helpers) before stopping it,
 # so no conversion is left running on its own. Downloads are unaffected: qBittorrent keeps going.
 $all = @(Get-CimInstance Win32_Process)
-$nodes = @($all | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\.js' })
+# Only this Lilin's server.js: other Node apps on the machine run `node server.js` too. Lilin's is the one whose
+# command line, or a parent's (the task's cmd /c <dir>\start-lilin.cmd), points into this folder, or that listens on its port.
+$port = 8080
+$envFile = Join-Path $dir '.env'
+if (Test-Path $envFile) {
+  $m = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' | Select-Object -First 1
+  if ($m) { $port = [int]$m.Matches[0].Groups[1].Value }
+}
+$listener = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess })
+function Test-OursProcess($p) {
+  if ($listener -contains $p.ProcessId) { return $true }
+  for ($i = 0; $p -and $i -lt 4; $i++) {
+    if ($p.CommandLine -and $p.CommandLine.IndexOf("$dir\", [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    $parentId = $p.ParentProcessId
+    $p = $all | Where-Object { $_.ProcessId -eq $parentId } | Select-Object -First 1
+  }
+  return $false
+}
+$nodes = @($all | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'server\.js' -and (Test-OursProcess $_) })
 function Get-Descendants($parentId) {
   foreach ($c in ($all | Where-Object { $_.ParentProcessId -eq $parentId })) { $c; Get-Descendants $c.ProcessId }
 }
@@ -32,13 +50,6 @@ Start-Sleep -Seconds 2
 
 Write-Host 'Starting Lilin...'
 Start-ScheduledTask -TaskName 'Lilin'
-
-$port = 8080
-$envFile = Join-Path $dir '.env'
-if (Test-Path $envFile) {
-  $m = Select-String -Path $envFile -Pattern '^\s*PORT\s*=\s*(\d+)' | Select-Object -First 1
-  if ($m) { $port = [int]$m.Matches[0].Groups[1].Value }
-}
 
 $status = $null
 for ($i = 0; $i -lt 20 -and -not $status; $i++) {
