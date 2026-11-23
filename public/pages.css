@@ -82,6 +82,9 @@ button:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
 .field input { padding-left: 46px; background-repeat: no-repeat; background-position: 15px 50%; background-size: 19px; }
 .field-email input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23BA9DAD' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='3'/%3E%3Cpath d='m4 7.5 8 5.5 8-5.5'/%3E%3C/svg%3E"); }
 .field-password input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23BA9DAD' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2.5'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E"); }
+/* username fields (sign-in and invites): a person, not an envelope */
+.field-user input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23BA9DAD' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7'/%3E%3C/svg%3E"); }
+.card .field-note { margin: 7px 0 0; padding-left: 2px; font-size: 12.5px; line-height: 1.45; color: var(--dust); text-align: left; }
 .field input::placeholder { color: rgb(186 157 173 / .55); }
 /* autofill keeps Lilin's dark box instead of the browser's pale one */
 .field input:-webkit-autofill { -webkit-text-fill-color: var(--paper); caret-color: var(--paper); transition: background-color 9999s 0s; }

@@ -548,7 +548,7 @@ button{margin-top:20px;width:100%;padding:12px;border:0;border-radius:10px;backg
 <h1>${brandMark()}</h1><p>${remote ? tr('You’re connecting from outside the home network. ') : ''}${tr('Sign in to carry on.')}</p>${message}
 ${qr ? `<div class="signin-split">${signInQrPanel()}<div class="pw-side">` : ''}<form method="post" action="${esc(action)}">
 <input type="hidden" name="next" value="${esc(safeNext(next))}">
-<div class="field field-email"><label for="email">${tr('Username or email')}</label><input id="email" name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}></div>
+<div class="field field-user"><label for="email">${tr('Username or email')}</label><input id="email" name="email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required${typed ? ` value="${esc(typed)}"` : ' autofocus'}></div>
 <div class="field field-password"><label for="password">${tr('Password')}</label><div class="pw-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required${typed ? ' autofocus' : ''}></div></div>
 <button type="submit" class="go">${tr('Sign in')}</button></form>${qr ? '</div></div>' : ''}
 <p class="foot">${help}</p><nav class="lang" aria-label="${tr('Language')}">${langLink('en', 'English')}${langLink('sv', 'Svenska')}</nav></main>${qr ? SIGN_IN_QR_SCRIPT : ''}${passwordPeek()}</body></html>`;

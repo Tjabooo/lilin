@@ -173,11 +173,11 @@ export async function handlePublic(req, res, url, { auth = null, usernames = nul
   const boundShown = bound && usernames ? usernames.signInName(bound) : bound;
   const boundIsName = Boolean(bound && boundShown !== bound);
   const who = (typed) => (bound ? `
-      <div class="field field-email"><label for="email">${boundIsName ? 'Your username' : 'Your email'}</label>
+      <div class="field ${boundIsName ? 'field-user' : 'field-email'}"><label for="email">${boundIsName ? 'Your username' : 'Your email'}</label>
       <input id="email" name="${boundIsName ? 'username' : 'email'}" type="${boundIsName ? 'text' : 'email'}" required autocomplete="username" readonly value="${esc(boundShown)}"></div>` : byName ? `
-      <div class="field field-email"><label for="username">Pick a username</label>
+      <div class="field field-user"><label for="username">Pick a username</label>
       <input id="username" name="username" type="text" required minlength="3" maxlength="21" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus value="${esc(typed)}" aria-describedby="username-note">
-      <p class="safe-note" id="username-note">3 to 20 letters, numbers, dots or underscores. You sign in with it, and friends find you by it.</p></div>` : `
+      <p class="field-note" id="username-note">3 to 20 letters, numbers, dots or underscores. You sign in with it, and friends find you by it.</p></div>` : `
       <div class="field field-email"><label for="email">Your email</label>
       <input id="email" name="email" type="email" required autocomplete="username" autofocus value="${esc(typed)}" placeholder="you@example.com"></div>`);
   const form = (email = '', error = '') => (auth ? `
