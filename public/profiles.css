@@ -91,7 +91,7 @@
 .pf-face-mine { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
 .pf-face-mine:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 8px; }
 .pf-face-cam { position: absolute; right: 2px; bottom: 2px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%;
-  color: var(--on-bulb); background: var(--bulb); box-shadow: 0 0 0 3px var(--velvet); transition: transform 0.15s; }
+  color: var(--on-bulb); background: var(--pf-accent); box-shadow: 0 0 0 3px var(--velvet); transition: transform 0.15s; }
 .pf-face-cam svg { width: 17px; height: 17px; }
 .pf-face-mine:hover .pf-face-cam { transform: scale(1.08); }
 .pf-pic-hint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
