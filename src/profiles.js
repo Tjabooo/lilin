@@ -324,26 +324,52 @@ function watches(userId) {
     const what = type === 'movie' ? r.title_key : r.season != null && r.episode != null ? `${r.title_key}|${r.season}|${r.episode}` : `${r.title_key}|${r.ref}`;
     const first = firstDay.get(what);
     if (first == null) firstDay.set(what, r.day);
-    out.push({ key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode, rewatch: (first != null && first !== r.day) || Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) });
+    out.push({ key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode, rewatch: (first != null && first !== r.day) || Boolean(r.lbRewatch),
+      lbRewatch: Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) });
   }
   return out;
 }
 
 // Diary lines, newest first: one per title per day. { key, type, title, day, at, episodes: [[s, e]], rewatch,
-// stars, liked, letterboxd }. offset/limit page through them; more says whether there are older ones.
+// stars, liked, lilin, letterboxd }. lilin: watched here that day (at is the real time); letterboxd: logged on
+// Letterboxd too (or only there, when lilin is false: then at is just noon that day).
+// offset/limit page through them; more says whether there are older ones.
 // type: 'movie' or 'tv' keeps only films or only shows (film stub numbers still count every film).
 // hide: title keys left out (what they keep off their profile, for everyone but themselves).
+const dayShift = (day, n) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 export function diary(userId, { offset = 0, limit = DIARY_PAGE, type = null, hide = null } = {}) {
   const lines = new Map();
-  for (const w of watches(userId)) {
-    const id = `${w.key}|${w.day}`;
+  const line = (id, w) => {
     let l = lines.get(id);
-    if (!l) { l = { key: w.key, type: w.type, title: w.title, day: w.day, at: w.at, episodes: [], rewatch: false, letterboxd: true }; lines.set(id, l); }
-    l.at = Math.max(l.at, w.at);
+    if (!l) { l = { key: w.key, type: w.type, title: w.title, day: w.day, at: 0, episodes: [], rewatch: false, lilin: false, letterboxd: false }; lines.set(id, l); }
     l.title = w.title || l.title;
-    if (w.rewatch) l.rewatch = true;
-    if (!w.letterboxd) l.letterboxd = false; // watched here too that day: it's a Lilin line
+    return l;
+  };
+  const ws = watches(userId);
+  // What was watched here first: a film's line takes the real time it was watched.
+  for (const w of ws) {
+    if (w.letterboxd) continue;
+    const l = line(`${w.key}|${w.day}`, w);
+    l.lilin = true;
+    l.at = Math.max(l.at, w.at);
+    if (w.type === 'tv' && w.rewatch) l.rewatch = true; // films: worked out from the lines below
     if (w.type === 'tv' && w.season != null && w.episode != null && !l.episodes.some(([s, e]) => s === w.season && e === w.episode)) l.episodes.push([w.season, w.episode]);
+  }
+  // Then Letterboxd: a log joins the film's Lilin line that day, or the day either side (logged after midnight or
+  // the morning after) if that line has no log yet; otherwise it's its own line, at noon (Letterboxd has no time).
+  for (const w of ws) {
+    if (!w.letterboxd) continue;
+    const near = [0, -1, 1].map((n) => lines.get(`${w.key}|${dayShift(w.day, n)}`)).filter(Boolean);
+    let l = near.find((x, i) => x.lilin && (i === 0 || !x.letterboxd)) || null;
+    if (!l) { l = line(`${w.key}|${w.day}`, w); if (!l.lilin) l.at = Math.max(l.at, w.at); }
+    l.letterboxd = true;
+    if (w.lbRewatch) l.rewatch = true;
+  }
+  // A film is rewatched on every line after its first.
+  const seenFilm = new Set();
+  for (const l of [...lines.values()].filter((x) => x.type === 'movie').sort((x, y) => x.at - y.at)) {
+    if (seenFilm.has(l.key)) l.rewatch = true;
+    seenFilm.add(l.key);
   }
   const all = [...lines.values()].filter((l) => !hide?.has(l.key)).sort((a, b) => b.at - a.at);
   // Ticket stubs: every film line gets its number, counting from the first film ever watched (No. 1).

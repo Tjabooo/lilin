@@ -780,7 +780,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .pf-stat + .pf-stat { border-left: 0; }
 .pf-stat dd, #view-you .pf-stat dd { font: 300 30px/.9 var(--display); letter-spacing: .06em; color: var(--text); transform: none; font-variant-numeric: tabular-nums; }
 .pf-stat dt { font: 700 8.5px/1 var(--body); letter-spacing: .2em; color: var(--text-2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-/* the diary: a node chain inside its panel; film tickets straight and contained, never stacked over each other */
+/* the diary: a node chain inside its panel; films are sync records (profiles.css .pf-rec) on a diamond node in their colour */
 .pf-diary { margin-top: 0; }
 .pf-diary-head { margin-bottom: 6px; }
 .pf-diary-title { font: 700 10.5px/1.2 var(--body); letter-spacing: .2em; color: var(--text); }
@@ -789,10 +789,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .pf-diary-list::before { content: ""; position: absolute; left: 4px; top: 6px; bottom: 6px; width: 1px; background: var(--hairline-2); }
 .pf-diary-list > li { position: relative; }
 .pf-diary-list > li::before { content: ""; position: absolute; left: -18px; top: 50%; width: 9px; height: 5px; margin-top: -2.5px; border-radius: 3px; background: var(--velvet); box-shadow: inset 0 0 0 1px var(--text-3); z-index: 1; }
-.pf-diary-list > li.pf-stub-li::before { background: var(--ph-film); box-shadow: none; }
-.pf-stub-li, .pf-stub-li + .pf-stub-li, .pf-diary-list > li:not(.pf-stub-li) + .pf-stub-li { margin: 6px 0; }
-.pf-stub, .pf-stub:not(:disabled):hover, .pf-stub:focus-visible { translate: none; rotate: none; width: 100%; max-width: 100%; height: 72px; margin: 0; filter: none; }
-.pf-stub:not(:disabled):hover .pf-stub-main, .pf-stub:focus-visible .pf-stub-main { box-shadow: inset 0 0 0 1px var(--stub-ink); }
+.pf-diary-list > li.pf-rec-li::before { left: -19px; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 0; rotate: 45deg; background: var(--tone, var(--ph-film)); box-shadow: none; }
 .pf-entry { grid-template-columns: 30px 34px minmax(0, 1fr) auto; }
 .pf-entry-day { font: 300 18px/1 var(--display); letter-spacing: .06em; color: var(--text); }
 /* profiles (your public page, a friend's page) */

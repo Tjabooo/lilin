@@ -2818,10 +2818,12 @@ export default {
   "What ties them together (optional)": "Vad de har gemensamt (valfritt)",
   "e.g. Films that ruined my sleep": "t.ex. Filmer som förstörde min sömn",
   "{0} is on the list already": "{0} finns redan på listan",
-  // ticket stubs in the diary (profiles.js)
-  "Admit one · again": "Entré · igen",
-  "Admit one": "Entré",
-  "Ticket {0}": "Biljett {0}",
+  // sync records in the diary (profiles.js)
+  "Film {0}": "Film {0}",
+  "Rewatch": "Omtitt",
+  "Sync": "Synk",
+  "Lock": "Låst",
+  "Only logged on Letterboxd: no time": "Bara loggad på Letterboxd: ingen tid",
   // ghost reactions in the player (ghosts.js)
   "Friends see it at {0} when they watch": "Vänner ser den vid {0} när de tittar",
   "Friends’ reactions are off on this device": "Vänners reaktioner är av på den här enheten",

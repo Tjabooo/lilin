@@ -595,7 +595,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     for (const [month, list] of months) {
       out.append(h('h5', { class: 'pf-month' }, new Date(`${month}-15T12:00:00`).toLocaleDateString(locale(), { month: 'long', year: 'numeric' })),
         h('ol', { class: 'pf-diary-list' }, monthLines(list).map((e) => {
-          if (e.type === 'movie') return h('li', { class: 'pf-stub-li' }, stub(ctx, e)); // ticket stubs
+          if (e.type === 'movie') return h('li', { class: 'pf-rec-li' }, stub(ctx, e)); // sync records
           const card = e.card;
           const lines = e.lines || [e];
           const several = lines.length > 1;
@@ -625,41 +625,67 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return out;
   }
 
-  // ---------- ticket stubs ----------
-  // Every film in the diary is a torn cinema stub in its poster's colour: the title and your marks on the big part,
-  // the day, the time you watched and its number (your nth film) on the torn-off end. Each one sits a little askew,
-  // the same way every time (from its key and day), so scrolling the diary is like going through a drawer of them.
+  // ---------- sync records ----------
+  // Every film in the diary is a sync record, PHASE LOCK style: the poster in brackets, the film's number (your nth
+  // film), its name, and your rating drawn as two waves, you (accent) and the film (its poster's colour). The better
+  // you rated it the closer they are in phase; five stars and they lock into one line. Scrolling a record into view
+  // slides the film's wave in from far out of phase. On the right the day, and the time you watched it here
+  // (--:-- when it was only logged on Letterboxd, which keeps no time).
+  const W_PERIOD = 32, W_LEN = 4 * W_PERIOD + 8, W_AMP = 5, W_MID = 8;
+  const wavePath = (w = W_LEN + W_PERIOD) => {
+    let d = `M ${-W_PERIOD} ${W_MID}`;
+    for (let x = -W_PERIOD; x <= w; x += 2) d += ` L ${x + 2} ${(W_MID - W_AMP * Math.sin(((x + 2) / W_PERIOD) * Math.PI * 2)).toFixed(2)}`;
+    return d;
+  };
+  let WAVE_D = null;
+  const svgEl = (tag, attrs) => { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+  function syncWave(stars) {
+    const svg = svgEl('svg', { class: 'pf-rec-wave', viewBox: `0 0 ${W_LEN} 16`, preserveAspectRatio: 'none', 'aria-hidden': 'true', focusable: 'false' });
+    if (!stars) { svg.append(svgEl('path', { class: 'is-flat', d: `M0 ${W_MID} H${W_LEN}` })); return svg; }
+    WAVE_D ||= wavePath();
+    // half a period apart at ½ star (opposite), none at five
+    const shift = ((5 - stars) / 4.5) * (W_PERIOD / 2);
+    if (stars >= 5) svg.append(svgEl('path', { class: 'is-lock', d: WAVE_D }));
+    else {
+      svg.append(svgEl('path', { class: 'is-you', d: WAVE_D }));
+      svg.append(svgEl('path', { class: 'is-film', d: WAVE_D, style: `--shift:${shift.toFixed(2)}px;--from:${(W_PERIOD / 2).toFixed(2)}px` }));
+    }
+    return svg;
+  }
+  const starsText = (n) => `${Math.floor(n) || ''}${n % 1 ? '½' : ''}`;
   function stub(ctx, e) {
     const card = e.card;
     const title = card?.title || e.title;
     const at = new Date(e.at);
     const date = new Date(`${e.day}T12:00:00`);
-    const seed = [...`${e.key}${e.day}`].reduce((n, c) => (Math.imul(n, 31) + c.charCodeAt(0)) >>> 0, 7);
-    const tilt = ((seed % 1000) / 1000 - 0.5) * 3.2; // -1.6° to 1.6°
-    const nudge = (((seed >>> 10) % 100) / 100) * 14 - 7; // px sideways
-    const btn = h('button', { type: 'button', class: 'pf-stub', disabled: card?.id == null, style: `--tilt:${tilt.toFixed(2)}deg;--nudge:${nudge.toFixed(1)}px`,
-      'aria-label': [title, card?.year, date.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }), e.stub && T('Ticket {0}', e.stub)].filter(Boolean).join(', '),
+    const lilin = e.lilin ?? !e.letterboxd; // older servers: Letterboxd meant only there
+    const time = lilin ? at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : '--:--';
+    const label = [title, card?.year, date.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }), lilin && time,
+      e.stars && (e.stars === 1 ? T('1 star') : T('{0} stars', Number(e.stars).toLocaleString(locale(), { maximumFractionDigits: 1 }))),
+      e.liked && T('Liked'), e.rewatch && T('Rewatched'), e.letterboxd && T('Logged on Letterboxd')].filter(Boolean).join(', ');
+    const btn = h('button', { type: 'button', class: `pf-rec${e.stars >= 5 ? ' is-locked' : ''}`, disabled: card?.id == null, 'aria-label': label,
       onclick: () => card && openTitle(card, btn, ctx.nested) },
-      h('span', { class: 'pf-stub-main' },
-        card?.poster ? h('img', { class: 'pf-stub-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-stub-poster' }),
-        h('span', { class: 'pf-stub-text' },
-          h('span', { class: 'pf-stub-kicker', 'aria-hidden': 'true' }, e.rewatch ? T('Admit one · again') : T('Admit one')),
-          h('strong', { class: 'pf-stub-title' }, title),
-          h('span', { class: 'pf-stub-marks' }, card?.year ? h('span', { class: 'pf-stub-year' }, String(card.year)) : null, hiddenMark(ctx, e.key), stars(e.stars),
-            e.liked && h('span', { class: 'pf-heart', role: 'img', 'aria-label': T('Liked') }, '♥'),
-            e.rewatch && h('span', { class: 'pf-rewatch', role: 'img', 'aria-label': T('Rewatched'), title: T('Rewatched') }, icon('rewatch')),
-            e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')))),
-      h('span', { class: 'pf-stub-end', 'aria-hidden': 'true' },
-        h('span', { class: 'pf-stub-month' }, date.toLocaleDateString(locale(), { month: 'short' }).replace('.', '')),
-        h('span', { class: 'pf-stub-day' }, String(date.getDate())),
-        h('span', { class: 'pf-stub-time' }, e.letterboxd ? String(date.getFullYear()) : at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })),
-        e.stub ? h('span', { class: 'pf-stub-no' }, `№ ${String(e.stub).padStart(4, '0')}`) : null));
-    // The poster's colour, worked out once per device (app.js keeps them); a calm ink until it's known.
-    if (card?.poster) toneOf(card.poster).then((hex) => { const c = stubColour(hex); if (c) { btn.style.setProperty('--stub', c.paper); btn.style.setProperty('--stub-ink', c.ink); } });
+      h('span', { class: 'pf-rec-plate', 'aria-hidden': 'true' },
+        card?.poster ? h('img', { class: 'pf-rec-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-rec-poster' })),
+      h('span', { class: 'pf-rec-body', 'aria-hidden': 'true' },
+        h('span', { class: 'pf-rec-kick' }, e.stub ? T('Film {0}', String(e.stub).padStart(4, '0')) : T('Film'),
+          e.rewatch ? h('b', {}, T('Rewatch')) : null),
+        h('strong', { class: 'pf-rec-title' }, title),
+        h('span', { class: 'pf-rec-marks' }, card?.year ? h('span', { class: 'pf-rec-year' }, String(card.year)) : null, hiddenMark(ctx, e.key),
+          e.liked && h('span', { class: 'pf-heart' }, '♥'),
+          e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')),
+        h('span', { class: 'pf-rec-sync' }, syncWave(e.stars),
+          h('span', { class: 'pf-rec-sync-ro' }, h('small', {}, e.stars >= 5 ? T('Lock') : T('Sync')), e.stars ? h('b', {}, starsText(e.stars)) : h('b', { class: 'is-none' }, '—')))),
+      h('span', { class: 'pf-rec-when', 'aria-hidden': 'true' },
+        h('span', { class: 'pf-rec-month' }, date.toLocaleDateString(locale(), { month: 'short' }).replace('.', '')),
+        h('span', { class: 'pf-rec-day' }, String(date.getDate()).padStart(2, '0')),
+        h('span', { class: `pf-rec-time${lilin ? '' : ' is-none'}`, title: lilin ? null : T('Only logged on Letterboxd: no time') }, time)));
+    // The film's colour (its poster's hue, worked out once per device by app.js); the theme's film colour until it's known.
+    if (card?.poster) toneOf(card.poster).then((hex) => { const t = toneParts(hex); const host = btn.closest('li') || btn; if (t) { host.style.setProperty('--tone-h', t.h); host.style.setProperty('--tone-s', `${t.s}%`); host.classList.add('has-tone'); } });
     return btn;
   }
-  // A poster's average colour is usually a muddy dark: lift it to a printed-card tone that keeps its hue.
-  function stubColour(hex) {
+  // A poster's average colour is usually a muddy dark: keep its hue, give it enough colour to read as a signal.
+  function toneParts(hex) {
     const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
     if (!m) return null;
     const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255);
@@ -668,8 +694,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     if (d) hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
     hue = Math.round(hue * 60 + 360) % 360;
     const sat = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
-    const s = Math.round(Math.min(0.62, sat < 0.08 ? sat : Math.max(0.34, sat * 1.3)) * 100);
-    return { paper: `hsl(${hue} ${s}% 33%)`, ink: `hsl(${hue} ${Math.min(40, s)}% 91%)` };
+    return { h: hue, s: Math.round(sat < 0.08 ? sat * 100 : Math.min(78, Math.max(42, sat * 130))) };
   }
 
   function episodesText(eps = []) {

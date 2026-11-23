@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-23-diary-sync-records",
+  "date": "2026-11-23",
+  "title": "Films in your diary are sync records",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Sync records instead of ticket stubs",
+      "text": "Every film in a profile's diary is now a sync record: the poster, the film's number, its name, and your rating drawn as two waves, you and the film. The higher you rated it, the closer they are in step; five stars and they lock into one line. On the right is the day and the time you watched it."
+    },
+    {
+      "kind": "fix",
+      "title": "LB means it's on your Letterboxd",
+      "text": "The LB tag now shows on every film you also logged on Letterboxd, including ones you watched on Lilin. A log dated the day before or after your watch here joins it instead of becoming a second entry, and the time shown is when you actually watched, not a made-up noon."
+    }
+  ]
+},
+{
   "id": "2026-11-23-friend-accept-visible",
   "date": "2026-11-23",
   "title": "Accept button you can see",

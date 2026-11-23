@@ -170,3 +170,26 @@ test('letterboxd: the feed’s TMDB id beats a same-named export match, one watc
   assert.equal(asked, 0);
   assert.equal(reviews.reviewOf(anna.id, 'movie:2'), null);
 });
+
+test('letterboxd: a film watched here and logged there is one line, marked as on Letterboxd too', async () => {
+  const { anna } = setup();
+  lb.setLink(anna.id, 'someone');
+  const at = (iso) => Date.parse(iso);
+  const watched = (key, day, when) => accounts.database().prepare(`INSERT INTO watch_log (user_id, day, ref, title_key, title, seconds, finished, first_at, last_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, 7200, 1, ?, ?, ?)`).run(anna.id, day, `r:${key}`, key, key, when, when, when);
+  watched('movie:1', '2026-11-19', at('2026-11-19T21:30:00Z'));       // logged the same day
+  watched('movie:2', '2026-11-19', at('2026-11-19T23:10:00Z'));       // logged with the next day's date
+  watched('movie:3', '2026-11-10', at('2026-11-10T20:00:00Z'));       // logged a week later: a second watch there
+  await lb.sync(anna.id, { fetchFeed: async () => feed(
+    item({ n: 1, title: 'One', year: 2001, tmdb: 1, day: '2026-11-19', rating: '4' }),
+    item({ n: 2, title: 'Two', year: 2002, tmdb: 2, day: '2026-11-20', rating: '3' }),
+    item({ n: 3, title: 'Three', year: 2003, tmdb: 3, day: '2026-11-17', rating: '3' })) });
+  const lines = profiles.diary(anna.id).entries.map((e) => [e.key, e.day, e.lilin, e.letterboxd, e.rewatch]);
+  assert.deepEqual(lines, [
+    ['movie:2', '2026-11-19', true, true, false],
+    ['movie:1', '2026-11-19', true, true, false],
+    ['movie:3', '2026-11-17', false, true, true],
+    ['movie:3', '2026-11-10', true, false, false],
+  ]);
+  assert.equal(profiles.diary(anna.id).entries[1].at, at('2026-11-19T21:30:00Z'), 'the real time, not Letterboxd’s noon');
+});
