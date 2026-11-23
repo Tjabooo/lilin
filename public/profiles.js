@@ -626,32 +626,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   }
 
   // ---------- sync records ----------
-  // Every film in the diary is a sync record, PHASE LOCK style: the poster in brackets, the film's number (your nth
-  // film), its name, and your rating drawn as two waves, you (accent) and the film (its poster's colour). The better
-  // you rated it the closer they are in phase; five stars and they lock into one line. Scrolling a record into view
-  // slides the film's wave in from far out of phase. On the right the day, and the time you watched it here
-  // (--:-- when it was only logged on Letterboxd, which keeps no time).
-  const W_PERIOD = 32, W_LEN = 4 * W_PERIOD + 8, W_AMP = 5, W_MID = 8;
-  const wavePath = (w = W_LEN + W_PERIOD) => {
-    let d = `M ${-W_PERIOD} ${W_MID}`;
-    for (let x = -W_PERIOD; x <= w; x += 2) d += ` L ${x + 2} ${(W_MID - W_AMP * Math.sin(((x + 2) / W_PERIOD) * Math.PI * 2)).toFixed(2)}`;
-    return d;
-  };
-  let WAVE_D = null;
-  const svgEl = (tag, attrs) => { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
-  function syncWave(stars) {
-    const svg = svgEl('svg', { class: 'pf-rec-wave', viewBox: `0 0 ${W_LEN} 16`, preserveAspectRatio: 'none', 'aria-hidden': 'true', focusable: 'false' });
-    if (!stars) { svg.append(svgEl('path', { class: 'is-flat', d: `M0 ${W_MID} H${W_LEN}` })); return svg; }
-    WAVE_D ||= wavePath();
-    // half a period apart at ½ star (opposite), none at five
-    const shift = ((5 - stars) / 4.5) * (W_PERIOD / 2);
-    if (stars >= 5) svg.append(svgEl('path', { class: 'is-lock', d: WAVE_D }));
-    else {
-      svg.append(svgEl('path', { class: 'is-you', d: WAVE_D }));
-      svg.append(svgEl('path', { class: 'is-film', d: WAVE_D, style: `--shift:${shift.toFixed(2)}px;--from:${(W_PERIOD / 2).toFixed(2)}px` }));
-    }
-    return svg;
-  }
+  // Every film in the diary is a slim psychograph row on the diary's spine (NERV readout style): the weekday and
+  // day, a small poster, the name, one tracked line of data (its number as your nth film, year, the time you watched
+  // it here, ♥, rewatch, LB), and your rating as a strip of ten capsule cells, one per half star. Five stars and the
+  // strip lights in the accent with a LOCKED status plate instead of the number.
   const starsText = (n) => `${Math.floor(n) || ''}${n % 1 ? '½' : ''}`;
   function stub(ctx, e) {
     const card = e.card;
@@ -659,28 +637,33 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const at = new Date(e.at);
     const date = new Date(`${e.day}T12:00:00`);
     const lilin = e.lilin ?? !e.letterboxd; // older servers: Letterboxd meant only there
-    const time = lilin ? at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : '--:--';
-    const label = [title, card?.year, date.toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }), lilin && time,
-      e.stars && (e.stars === 1 ? T('1 star') : T('{0} stars', Number(e.stars).toLocaleString(locale(), { maximumFractionDigits: 1 }))),
+    const time = lilin ? at.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : null;
+    const lit = Math.round((Number(e.stars) || 0) * 2);
+    const locked = lit >= 10;
+    const label = [title, card?.year, date.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), time,
+      e.stars ? (e.stars === 1 ? T('1 star') : T('{0} stars', Number(e.stars).toLocaleString(locale(), { maximumFractionDigits: 1 }))) : null,
       e.liked && T('Liked'), e.rewatch && T('Rewatched'), e.letterboxd && T('Logged on Letterboxd')].filter(Boolean).join(', ');
-    const btn = h('button', { type: 'button', class: `pf-rec${e.stars >= 5 ? ' is-locked' : ''}`, disabled: card?.id == null, 'aria-label': label,
+    const sep = () => h('i', { class: 'pf-rec-sep' });
+    const data = [e.stub ? h('span', {}, `№${String(e.stub).padStart(4, '0')}`) : null, card?.year ? h('span', {}, String(card.year)) : null,
+      time ? h('span', { class: 'pf-rec-time' }, time) : null].filter(Boolean);
+    const btn = h('button', { type: 'button', class: `pf-rec${locked ? ' is-locked' : ''}${lit ? '' : ' is-unrated'}`, disabled: card?.id == null, 'aria-label': label,
       onclick: () => card && openTitle(card, btn, ctx.nested) },
-      h('span', { class: 'pf-rec-plate', 'aria-hidden': 'true' },
-        card?.poster ? h('img', { class: 'pf-rec-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-rec-poster' })),
-      h('span', { class: 'pf-rec-body', 'aria-hidden': 'true' },
-        h('span', { class: 'pf-rec-kick' }, e.stub ? T('Film {0}', String(e.stub).padStart(4, '0')) : T('Film'),
-          e.rewatch ? h('b', {}, T('Rewatch')) : null),
-        h('strong', { class: 'pf-rec-title' }, title),
-        h('span', { class: 'pf-rec-marks' }, card?.year ? h('span', { class: 'pf-rec-year' }, String(card.year)) : null, hiddenMark(ctx, e.key),
-          e.liked && h('span', { class: 'pf-heart' }, '♥'),
-          e.letterboxd && h('span', { class: 'pf-lb-mark', title: T('Logged on Letterboxd') }, 'LB')),
-        h('span', { class: 'pf-rec-sync' }, syncWave(e.stars),
-          h('span', { class: 'pf-rec-sync-ro' }, h('small', {}, e.stars >= 5 ? T('Lock') : T('Sync')), e.stars ? h('b', {}, starsText(e.stars)) : h('b', { class: 'is-none' }, '—')))),
       h('span', { class: 'pf-rec-when', 'aria-hidden': 'true' },
-        h('span', { class: 'pf-rec-month' }, date.toLocaleDateString(locale(), { month: 'short' }).replace('.', '')),
-        h('span', { class: 'pf-rec-day' }, String(date.getDate()).padStart(2, '0')),
-        h('span', { class: `pf-rec-time${lilin ? '' : ' is-none'}`, title: lilin ? null : T('Only logged on Letterboxd: no time') }, time)));
-    // The film's colour (its poster's hue, worked out once per device by app.js); the theme's film colour until it's known.
+        h('span', { class: 'pf-rec-wd' }, date.toLocaleDateString(locale(), { weekday: 'short' }).replace('.', '')),
+        h('span', { class: 'pf-rec-day' }, String(date.getDate()).padStart(2, '0'))),
+      card?.poster ? h('img', { class: 'pf-rec-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pf-rec-poster' }),
+      h('span', { class: 'pf-rec-body', 'aria-hidden': 'true' },
+        h('strong', { class: 'pf-rec-title' }, title),
+        h('span', { class: 'pf-rec-data' }, ...data.flatMap((d, i) => (i ? [sep(), d] : [d])),
+          hiddenMark(ctx, e.key),
+          e.liked ? h('span', { class: 'pf-heart' }, '♥') : null,
+          e.rewatch ? h('span', { class: 'pf-rec-tag' }, T('Rewatch')) : null,
+          e.letterboxd ? h('span', { class: 'pf-rec-tag is-lb', title: T('Logged on Letterboxd') }, 'LB') : null)),
+      h('span', { class: 'pf-rec-sync', 'aria-hidden': 'true' },
+        h('span', { class: 'pf-rec-cells' }, ...Array.from({ length: 10 }, (_, i) => h('i', { class: i < lit ? 'on' : '', style: `--i:${i}` }))),
+        locked ? h('span', { class: 'pf-rec-lock' }, T('Locked'))
+          : h('span', { class: 'pf-rec-ro' }, h('small', {}, T('Sync')), h('b', {}, lit ? starsText(e.stars) : '—'))));
+    // The film's colour (its poster's hue, worked out once per device by app.js) lights its node on the spine.
     if (card?.poster) toneOf(card.poster).then((hex) => { const t = toneParts(hex); const host = btn.closest('li') || btn; if (t) { host.style.setProperty('--tone-h', t.h); host.style.setProperty('--tone-s', `${t.s}%`); host.classList.add('has-tone'); } });
     return btn;
   }

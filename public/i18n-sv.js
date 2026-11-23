@@ -2822,7 +2822,7 @@ export default {
   "Film {0}": "Film {0}",
   "Rewatch": "Omtitt",
   "Sync": "Synk",
-  "Lock": "Låst",
+  "Locked": "Låst",
   "Only logged on Letterboxd: no time": "Bara loggad på Letterboxd: ingen tid",
   // ghost reactions in the player (ghosts.js)
   "Friends see it at {0} when they watch": "Vänner ser den vid {0} när de tittar",

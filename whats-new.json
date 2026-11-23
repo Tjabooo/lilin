@@ -7,7 +7,7 @@
     {
       "kind": "new",
       "title": "Sync records instead of ticket stubs",
-      "text": "Every film in a profile's diary is now a sync record: the poster, the film's number, its name, and your rating drawn as two waves, you and the film. The higher you rated it, the closer they are in step; five stars and they lock into one line. On the right is the day and the time you watched it."
+      "text": "Every film in a profile's diary is now a slim sync record on the diary's timeline: the weekday and day, the poster, the film's name, its number, year and the time you watched it, and your rating as ten small cells, one per half star. Five stars light up as LOCKED."
     },
     {
       "kind": "fix",

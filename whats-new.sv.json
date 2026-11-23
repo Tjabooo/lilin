@@ -4,7 +4,7 @@
     "items": {
       "Sync records instead of ticket stubs": {
         "title": "Synkloggar i stället för biljettstubbar",
-        "text": "Varje film i en profils dagbok är nu en synklogg: affischen, filmens nummer, namnet och ditt betyg ritat som två vågor, du och filmen. Ju högre betyg, desto mer i takt är de; fem stjärnor och de låser sig till en enda linje. Till höger står dagen och klockslaget du såg den."
+        "text": "Varje film i en profils dagbok är nu en smal synklogg på dagbokens tidslinje: veckodag och datum, affischen, filmens namn, dess nummer, år och klockslaget du såg den, och ditt betyg som tio små celler, en per halv stjärna. Fem stjärnor lyser upp som LÅST."
       },
       "LB means it's on your Letterboxd": {
         "title": "LB betyder att den finns på din Letterboxd",
