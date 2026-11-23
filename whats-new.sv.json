@@ -1,4 +1,13 @@
 {
+  "2026-11-23-tv-reviews-away": {
+    "title": "Recensioner på TV:n hemifrån",
+    "items": {
+      "Reviews load on TVs outside the house": {
+        "title": "Recensioner laddas på TV-apparater utanför huset",
+        "text": "En TV som tittar på Lilin från ett annat hem visade inga recensioner på en films eller series sida. Nu laddas de där också."
+      }
+    }
+  },
   "2026-11-23-banner-logos": {
     "title": "Titellogorna är tillbaka",
     "items": {

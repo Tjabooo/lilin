@@ -84,6 +84,7 @@ See [remote-access.md](remote-access.md) for how accounts work and how to publis
 | `KNABEN_URL` | `https://api.knaben.org/v1` | Knaben, an index over many torrent sites with live seeder counts, searched alongside the others. The best at Swedish and documentary releases. `off` leaves it out. |
 | `SVT_PLAY` | on | SVT Play in Discover → Documentaries, search and as a source when no torrent can be found. Works only from a Swedish address. `off` leaves it out. See [Integrations](integrations.md#svt-play). |
 | `ANILIST_URL` | `https://graphql.anilist.co` | AniList API: anime names and how their seasons line up with TMDB's. |
+| `MAL_URL` | `https://myanimelist.net` | MyAnimeList, read for a linked MAL profile's anime list and favourites. |
 | `FLARESOLVERR_URL` | | FlareSolverr address, e.g. `http://localhost:8191`, for when every 1337x mirror is behind a Cloudflare check. |
 
 ## Subtitles

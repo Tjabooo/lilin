@@ -46,6 +46,7 @@ const SIGNED_IN = [
   /^\/api\/live\/[\w-]{1,40}\/tune$/,
   /^\/api\/watch\/clock$/,
   /^\/api\/watch\/[A-Za-z0-9_-]{24}\/(heartbeat|leave)$/,
+  /^\/api\/reviews$/, // a film or show's reviews on its title page (59a62ef)
   /^\/api\/client\/report$/, // public/tv-rs/host.js: why the TV app stopped (only logged)
 ];
 

@@ -50,7 +50,9 @@ test('opinions in stars and the level from the gaps', () => {
 test('compare: loved together, splits, and what they loved that you haven’t seen', () => {
   const { anna, ben } = setup();
   // Twelve films both rated: ten agree, two split.
-  for (let i = 1; i <= 10; i++) { star(anna.id, `movie:${i}`, 5); star(ben.id, `movie:${i}`, i <= 8 ? 4.5 : 3.5); }
+  // One timestamp for all ten: ties are broken by time, and a clock tick mid-loop would reorder them.
+  const T = Date.now();
+  for (let i = 1; i <= 10; i++) { star(anna.id, `movie:${i}`, 5, T); star(ben.id, `movie:${i}`, i <= 8 ? 4.5 : 3.5, T); }
   star(anna.id, 'movie:11', 5); social.rate(ben.id, 'movie:11', -1, 'Eleven'); // Ben's bare thumbs down: private
   social.rate(anna.id, 'movie:12', -1, 'Twelve'); star(ben.id, 'movie:12', 5); // Anna's own thumbs down: hers to see
   star(anna.id, 'movie:13', 5); star(ben.id, 'movie:13', 1);

@@ -27,8 +27,11 @@ test('Discover: one Coming soon row after New episodes this week, its own page, 
       body.results = [{ id: 502, title: 'Hated Film', popularity: 90, poster_path: '/b.jpg', release_date: plus(-50) }];
     } else if (url.pathname === '/discover/tv' && first && q['first_air_date.gte']) {
       body.results = [{ id: 601, name: 'Brand New Show', popularity: 6, poster_path: '/c.jpg', first_air_date: plus(8) }];
-    } else if (url.pathname === '/tv/on_the_air') {
+    } else if (url.pathname === '/trending/tv/week') { // New episodes this week (src/new-episodes.js): trending + details
       body.results = [{ id: 700, name: 'Weekly Show', popularity: 50, poster_path: '/d.jpg', first_air_date: '2020-01-01' }];
+    } else if (url.pathname === '/tv/700') {
+      body = { id: 700, last_episode_to_air: { air_date: plus(-2), season_number: 3, episode_number: 5 },
+        seasons: [{ season_number: 3, episode_count: 10, air_date: plus(-40) }] };
     } else if (url.pathname === '/movie/501') body = { release_date: plus(4), release_dates: releases([['SE', 3, plus(4)]]) };
     else if (url.pathname === '/movie/502') body = { release_date: plus(-50), release_dates: releases([['US', 3, plus(-50)], ['US', 4, plus(10)]]) };
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -90,7 +93,7 @@ test('Discover: one Coming soon row after New episodes this week, its own page, 
   assert.deepEqual(films.rows.find((r) => r.key === 'coming-soon-movie').items.map((i) => i.title), ['Swedish Premiere', 'Hated Film']);
   assert.deepEqual((await get('/api/discover/list?key=upcoming&page=1')).results.map((i) => i.title), ['Swedish Premiere', 'Hated Film']);
   const shows = await get('/api/discover/home?type=tv');
-  assert.deepEqual(shows.rows.map((r) => r.key), ['on-air', 'coming-soon-tv']);
+  assert.deepEqual(shows.rows.map((r) => r.key), ['trending-tv', 'on-air', 'coming-soon-tv'], 'Trending shares the mocked /trending/tv/week');
 
   // See all (TV apps) and the web page.
   const list = await get('/api/discover/list?key=coming-soon&page=1');

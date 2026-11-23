@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-tv-reviews-away",
+  "date": "2026-11-23",
+  "title": "TV reviews away from home",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Reviews load on TVs outside the house",
+      "text": "A TV that watches Lilin from another home showed no reviews on a film or show's page. They load there now too."
+    }
+  ]
+},
+{
   "id": "2026-11-23-banner-logos",
   "date": "2026-11-23",
   "title": "Title logos are back",
