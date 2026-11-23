@@ -2461,7 +2461,7 @@ function renderTitle() {
       model.inline.includes('identityNote') && h('p', { class: 'identity-note' }, state.me?.isOwner
         ? T('Several films match this filename. Choose “Identify film” to select the right one.')
         : T('Several films match this filename. The server’s owner can identify this file.')),
-      t.overview && h('p', { class: 'overview' }, t.overview),
+      pageOverview(t),
       !tv && stayCredits.pageNote(t.id), // stinger: "Scene after the credits"
       tv && episodeList(c),
       !tv && reactions,
@@ -3382,6 +3382,17 @@ function logoTone(url) {
   return logoTones.get(url);
 }
 const fmtRuntime = (min) => (min >= 60 ? T('{0} h {1} min', Math.floor(min / 60), min % 60) : T('{0} min', min));
+// The synopsis. Cards from someone's profile or a list carry none: TMDB's (page extras) fills it in.
+function pageOverview(t) {
+  if (t.overview) return h('p', { class: 'overview' }, t.overview);
+  if (t.id == null || !['movie', 'tv'].includes(t.type) || !state.status.search) return null;
+  const p = h('p', { class: 'overview', hidden: true });
+  pageInfo(t.type, t.id).then((page) => {
+    if (!page?.overview || !p.isConnected) return;
+    p.textContent = page.overview; p.hidden = false;
+  }).catch(() => {});
+  return p;
+}
 // One quiet line of facts: year · age rating · running time or seasons · genres · ★. TMDB's extras fill in when they arrive.
 function pageFacts(base, type, id) {
   const list = h('ul', { class: 'facts' }, base.filter(Boolean).map((x) => (x instanceof Node ? x : h('li', {}, x))));

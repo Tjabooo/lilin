@@ -1,4 +1,13 @@
 {
+  "2026-11-23-profile-synopsis": {
+    "title": "Beskrivningar på titlar från profiler",
+    "items": {
+      "Titles opened from a profile show their description": {
+        "title": "Titlar som öppnas från en profil visar sin beskrivning",
+        "text": "Trycker du på en affisch på någons profil eller i en lista öppnas titelsidan nu med beskrivningen, precis som överallt annars."
+      }
+    }
+  },
   "2026-11-23-favourites-editor": {
     "title": "Enklare favoriter",
     "items": {

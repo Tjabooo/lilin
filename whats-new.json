@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-profile-synopsis",
+  "date": "2026-11-23",
+  "title": "Descriptions on profile titles",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Titles opened from a profile show their description",
+      "text": "Tapping a poster on someone's profile or in a list now opens the title page with its description, like everywhere else."
+    }
+  ]
+},
+{
   "id": "2026-11-23-favourites-editor",
   "date": "2026-11-23",
   "title": "Easier favourites",

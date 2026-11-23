@@ -881,6 +881,7 @@ export function titlePage(type, d) {
     // A big textless backdrop (src/backdrop.js), w780 so the client's bigArt() can ask for the size the screen needs.
     backdrop: ((file) => (file ? `${TMDB_IMG}w780${file}` : null))(pickBackdrop(d.images?.backdrops) || d.backdrop_path || null),
     tagline: d.tagline || '',
+    overview: d.overview || '', // title pages opened from cards without one (someone's profile, lists)
     rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null, // title pages opened from cards without one
     runtime: type === 'tv' ? (d.episode_run_time?.[0] || d.last_episode_to_air?.runtime || null) : (d.runtime || null),
     genres: (d.genres || []).map((g) => g.name).filter(Boolean),
