@@ -663,7 +663,7 @@ function watchSheet() {
 const TAB_VIEWS = ['discover', 'live', 'you', 'house', 'liklok'];
 let trace = null;
 function burnWord(view, name) {
-  if (name === 'discover' || name === 'liklok') return null;
+  if (name === 'discover' || name === 'liklok' || name === 'you') return null; // no ghost word on You (ebi 11-23)
   let b = $(':scope > .ph-burn', view);
   const word = $(`.tabs .tab[data-view="${name}"] > span`)?.textContent.trim() || name;
   if (!b) { b = deco('div', 'ph-burn', '<span></span>'); view.prepend(b); }

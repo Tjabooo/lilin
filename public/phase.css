@@ -729,8 +729,6 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 #you-rows > .set-stack.you-me { padding: 0; }
 #you-rows > .set-stack.you-me .lrow { background: none; border: 0; box-shadow: none; }
 #you-list, #you-rows, #you-page { gap: 10px; }
-/* the ghost word sits right, clear of the left column */
-#view-you > .ph-burn > span { left: auto; right: calc(var(--gutter) - .04em); }
 #view-you .you-search { margin-bottom: 4px; }
 /* panel titles: number · tracked title · a ticked hairline */
 #you-rows .set-head, #you-page .set-head, .pf-sec-head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 0 0 0 10px; border: 0;
@@ -810,8 +808,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .tm-meter { gap: 3px; }
 .tm-meter > * { height: 14px; border-radius: 0; }
 
-/* 2e fixes: the You ghost word rests invisible on wide screens (it still burns in), the micro label sits left */
-@media (min-width: 900px) { #view-you > .ph-burn > span { opacity: 0; } }
+/* 2e fixes: the micro label sits left */
 .ph-mlabel { align-self: flex-start; }
 /* light presets: the wordmark over the billboard picture stays light until the page scrolls */
 :root[data-scheme="light"]:not(.scrolled) body.has-billboard:not(.searching) .wordmark .wm-letters { fill: var(--on-image); }
