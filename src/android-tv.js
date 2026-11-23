@@ -90,7 +90,7 @@ function page({ home, found, address, prefix = '' }) {
   const steps = [
     [tr('Get Downloader'), `<p>${esc(tr('On the TV, open Google Play, search for Downloader and install it. It’s free, made by AFTVnews, with an orange icon.'))}</p>`],
     [tr('Type this address'), `<p>${esc(tr('Open Downloader, select the address box and type:'))}</p>
-      <div class="address" aria-label="${esc(typed)}">${esc(typed)}</div><p>${esc(tr('Then press Go.'))}</p>`],
+      <div class="address" aria-label="${esc(typed)}">${esc(typed).replace(/\/(?!\/)/g, '/<wbr>')}</div><p>${esc(tr('Then press Go.'))}</p>`],
     [tr('Install Lilin'), `<p>${esc(tr('When the download is done, press Install. The first time, the TV asks to let Downloader install apps: choose Settings, turn Downloader on, press Back, then Install.'))}</p>`],
     [tr('Sign in'), `<p>${esc(tr('Press Open. The TV shows a code: on your phone, open Lilin, go to Settings → Sign in on a TV and enter it.'))}</p>`],
   ];
@@ -143,7 +143,7 @@ function page({ home, found, address, prefix = '' }) {
     repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 12px) 0 0 / 100% 5px no-repeat; }
   h1 { margin: 26px 0 0; font: 800 clamp(38px, 10.5vw, 64px)/.95 var(--display); letter-spacing: -.02em; text-transform: uppercase; }
   h1 .cond { width: calc(100% / var(--sx)); }
-  h1 em { font-style: normal; color: var(--accent); }
+  h1 em { font-style: normal; color: var(--accent); white-space: nowrap; }
   .lead { margin: 16px 0 30px; padding-left: 14px; color: var(--muted); border-left: 2px solid var(--support); }
 
   /* panels: top-left + bottom-right cut, hairline frame drawn in ::after, accent tick on top */
@@ -171,7 +171,7 @@ function page({ home, found, address, prefix = '' }) {
   /* the address: a readout cell with a blinking cursor */
   .address { --c: 10px; margin: 12px 0; padding: 14px 18px; background: rgba(21, 17, 43, .85); box-shadow: inset 0 0 0 1px rgba(160, 222, 89, .45);
     clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
-    font: 800 clamp(19px, 5.2vw, 27px)/1.2 var(--display); letter-spacing: .01em; color: var(--accent); overflow-wrap: anywhere; user-select: all; }
+    font: 800 clamp(18px, 4.8vw, 27px)/1.25 var(--display); letter-spacing: .01em; color: var(--accent); overflow-wrap: break-word; user-select: all; }
   .address::after { content: ""; display: inline-block; width: .5em; height: .12em; margin-left: .14em; background: var(--accent); animation: blink 1.1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .address::after { animation: none; } }
