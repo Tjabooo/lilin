@@ -441,34 +441,45 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     opener.disabled = false;
     const entries = list.entries || [];
     const counts = Object.fromEntries(ANIME_STATUS.map(([k]) => [k, entries.filter((e) => e.st === k).length]));
-    const st = { tab: ANIME_STATUS.find(([k]) => counts[k])?.[0] || 'completed', sort: 'recent', q: '', limit: 150 };
+    const statuses = ANIME_STATUS.filter(([k]) => counts[k]);
+    const st = { tab: statuses[0]?.[0] || 'completed', sort: 'recent', q: '', limit: 150 };
     const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
-    const body = h('div', { class: 'pf-al' });
+    // the editor's look (.pf-editor): EVA heading, ticked tabs, framed search box; the sheet gets the editor's height
+    const body = h('div', { class: 'pf-editor pf-al' });
+    const tabs = h('div', { class: 'pf-ed-tabs pf-al-tabs', role: 'tablist', 'aria-label': T('Anime list') });
     const search = h('input', { type: 'search', class: 'invite-note pf-al-search', placeholder: T('Search this list'), 'aria-label': T('Search this list'), autocomplete: 'off', enterkeyhint: 'search' });
     search.addEventListener('input', () => { st.q = search.value.trim().toLowerCase(); st.limit = 150; draw(); });
-    const rows = h('ol', { class: 'pf-al-rows' });
-    const tabs = h('div', { class: 'pf-al-tabs' });
-    const sorts = h('div', { class: 'pf-al-sorts' });
+    const sorts = h('div', { class: 'pf-al-sort', role: 'group', 'aria-label': T('Sort') });
+    const rows = h('ol', { class: 'pf-al-rows', 'aria-live': 'polite' });
     const more = h('div', { class: 'pf-al-more' });
-    const row = (e) => h('li', {}, h('a', { class: 'pf-al-row', href: e.u || list.url, target: '_blank', rel: 'noopener noreferrer' },
-      e.c ? h('img', { src: e.c, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-al-blank', 'aria-hidden': 'true' }),
-      h('span', { class: 'pf-al-text' }, h('span', { class: 'pf-al-title' }, e.t),
-        h('span', { class: 'pf-al-meta' }, [e.p || e.e ? (e.e ? T('{0}/{1} eps', e.p || 0, e.e) : T('{0} eps', e.p)) : null].filter(Boolean).join(''))),
-      e.s ? h('span', { class: 'pf-al-score' }, `★ ${n(e.s, 1)}`) : null));
+    const row = (e) => {
+      const pct = e.e && e.p ? Math.min(100, Math.round((e.p / e.e) * 100)) : 0;
+      return h('li', {}, h('a', { class: 'pf-al-row', href: e.u || list.url, target: '_blank', rel: 'noopener noreferrer' },
+        e.c ? h('img', { class: 'pf-al-cover', src: e.c, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-al-cover', 'aria-hidden': 'true' }),
+        h('span', { class: 'pf-al-text' },
+          h('span', { class: 'pf-al-title' }, e.t),
+          (e.p || e.e) && h('span', { class: 'pf-al-meta' }, e.e ? T('{0}/{1} eps', e.p || 0, e.e) : T('{0} eps', e.p)),
+          pct > 0 && pct < 100 && h('span', { class: 'pf-al-bar', 'aria-hidden': 'true' }, h('span', { style: `width:${pct}%` }))),
+        e.s ? h('span', { class: 'pf-al-score' }, n(e.s, 1)) : h('span', {})));
+    };
     const draw = () => {
-      tabs.replaceChildren(segmented(ANIME_STATUS.filter(([k]) => counts[k]).map(([k, label]) => [k, `${label} ${n(counts[k])}`]), st.tab, (v) => { st.tab = v; st.limit = 150; draw(); }));
-      sorts.replaceChildren(segmented([['recent', T('Recent')], ['score', T('Top rated')], ['title', T('A–Z')]], st.sort, (v) => { st.sort = v; draw(); }));
+      tabs.replaceChildren(...statuses.map(([k, label]) => h('button', { type: 'button', role: 'tab', 'aria-selected': String(st.tab === k),
+        onclick: () => { st.tab = k; st.limit = 150; draw(); } }, label, h('span', { class: 'pf-al-count' }, n(counts[k])))));
+      sorts.replaceChildren(...[['recent', T('Recent')], ['score', T('Top rated')], ['title', T('A–Z')]].map(([k, label]) =>
+        h('button', { type: 'button', 'aria-pressed': String(st.sort === k), onclick: () => { st.sort = k; draw(); } }, label)));
       let shown = entries.filter((e) => e.st === st.tab && (!st.q || e.t.toLowerCase().includes(st.q)));
       if (st.sort === 'score') shown = [...shown].sort((x, y) => (y.s || 0) - (x.s || 0) || x.t.localeCompare(y.t));
       else if (st.sort === 'title') shown = [...shown].sort((x, y) => x.t.localeCompare(y.t, locale()));
-      rows.replaceChildren(...shown.slice(0, st.limit).map(row));
-      if (!shown.length) rows.replaceChildren(h('li', { class: 'pf-empty' }, st.q ? T('Nothing on this list matches that.') : T('Nothing here.')));
+      rows.replaceChildren(...(shown.length ? shown.slice(0, st.limit).map(row)
+        : [h('li', { class: 'pf-empty' }, st.q ? T('Nothing on this list matches that.') : T('Nothing here.'))]));
       more.replaceChildren(shown.length > st.limit ? h('button', { type: 'button', class: 'chip', onclick: () => { st.limit += 150; draw(); } }, T('Show more ({0} left)', n(shown.length - st.limit))) : '');
     };
     body.append(
-      h('h2', { id: 'picker-title', class: 'pf-al-heading' }, T('{0}’s anime', ctx.data.person.name)),
-      h('p', { class: 'pf-al-from' }, h('a', { href: list.url, target: '_blank', rel: 'noopener noreferrer' }, T('{0} on {1}', list.username, list.name)), icon('chevron')),
-      tabs, h('div', { class: 'pf-al-tools' }, entries.length > 30 && search, sorts), rows, more);
+      h('h2', { id: 'picker-title', class: 'pf-ed-heading' }, T('Anime list')),
+      h('p', { class: 'pf-al-from' }, h('span', {}, ctx.data.person.name), h('a', { href: list.url, target: '_blank', rel: 'noopener noreferrer' }, T('{0} on {1}', list.username, list.name))),
+      tabs,
+      h('div', { class: 'pf-al-tools' }, entries.length > 30 && search, sorts),
+      rows, more);
     draw();
     picker.open([body], opener, null, ctx.nested);
   }

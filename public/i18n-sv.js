@@ -2933,9 +2933,10 @@ export default {
   "A–Z": "A–Ö",
   "Nothing on this list matches that.": "Inget på listan matchar det.",
   "Show more ({0} left)": "Visa fler ({0} kvar)",
-  "{0}’s anime": "{0}s anime",
   "Show my full list": "Visa hela min lista",
   "Visitors can browse all of it, by status.": "Besökare kan bläddra i hela listan, efter status.",
   "Off: only what you’re watching and finished lately.": "Av: bara det du tittar på och har sett klart nyligen.",
   "Your full {0} list is on your profile": "Hela din {0}-lista finns på din profil",
+  "Anime list": "Animelista",
+  "Sort": "Sortera",
 };
