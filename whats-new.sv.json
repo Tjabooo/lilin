@@ -1,4 +1,13 @@
 {
+  "2026-11-23-credits-on-time": {
+    "title": "Nästa avsnitt-kortet i tid",
+    "items": {
+      "The credits card no longer comes late": {
+        "title": "Eftertextkortet kommer inte längre för sent",
+        "text": "På vissa serier dök Nästa avsnitt-kortet upp nästan en minut in i eftertexterna, eftersom bara slutet av eftertextmusiken är samma mellan avsnitten. Nu tittar Lilin också på bilden och visar kortet där eftertexterna faktiskt börjar rulla."
+      }
+    }
+  },
   "2026-11-23-subtitle-reports": {
     "title": "Säg till när undertexterna strular",
     "items": {

@@ -94,37 +94,46 @@ export function creditsGuessFromSrt(srt, duration) {
 }
 
 // The audio match above finds the longest stretch of music two endings share, which is the start of the credits
-// only when the whole credits song repeats. Shows that change it every episode and share only its last bars or the
-// studio logos (Rings of Power) matched almost a minute into the credits, and the subtitle guess can be early. So
-// the time found is checked against the picture: credits are light text on black, frames that are dark and nearly
-// colourless. frames: [{ t, y, s }] keyframes with average luma and saturation (8-bit). The credits-looking stretch
-// that holds the time found (or starts soon after it) gives the start, when it lasts long enough to be credits.
-const ROLL_Y = 48; // average luma: black with text, not a dark scene
-const ROLL_SAT = 3; // average saturation: white or grey text, not a coloured night scene
+// only when the whole credits song repeats. Shows that change it every episode and share only its last bars
+// (Rings of Power) matched almost a minute into the credits. So the time found is checked against the picture,
+// and moved back to where the credits roll starts when it lands inside one. frames: [{ t, y, lo, hi, s }]
+// keyframes with average, 10th and 90th percentile luma and average saturation (8-bit).
+// A credits page is text on black: nine pixels in ten the same black (hi - lo about 1). Pages with more text,
+// or a dark closing scene (Fallout), spread 10 to 40, so the roll has to start with ROLL_PAGES of plain pages and
+// only then may carry on through dimmer, busier frames up to the time found. Never moved later: an anime ending
+// or credits over footage come before the black pages, and the time found is already the late side.
+const ROLL_Y = 40; // average luma, both kinds
+const ROLL_SPREAD = 6; // hi - lo of a plain page
+const ROLL_DIM_LO = 20, ROLL_DIM_HI = 48; // a busier page: still mostly black
+const ROLL_SAT = 5; // average saturation: white or grey text
 const ROLL_GAP = 6; // seconds of other frames (a logo, a sting) the credits may break for
-const ROLL_MIN = 30; // seconds: a shorter dark stretch is a fade or a title card
+const ROLL_PAGES = 10; // seconds of plain pages the roll starts with: a fade to black is shorter
 export const ROLL_BACK = 240; // how far before the time found the credits may start
-export const ROLL_AHEAD = 120; // how far after it
-export const creditsLook = (f) => f.y < ROLL_Y && f.s < ROLL_SAT;
+export const creditsPage = (f) => f.y < ROLL_Y && f.hi - f.lo <= ROLL_SPREAD && f.s < ROLL_SAT;
+const creditsDim = (f) => f.y < ROLL_Y && f.lo <= ROLL_DIM_LO && f.hi <= ROLL_DIM_HI && f.s < ROLL_SAT;
 export function creditsRollStart(frames, at, duration) {
-  if (!Array.isArray(frames) || !frames.length || !Number.isFinite(at) || !Number.isFinite(duration)) return null;
-  const sorted = [...frames].sort((a, b) => a.t - b.t);
-  const runs = [];
-  let run = null;
-  for (const f of sorted) {
-    if (!creditsLook(f)) continue;
-    if (run && f.t - run.end <= ROLL_GAP) run.end = f.t;
-    else runs.push(run = { start: f.t, end: f.t });
+  if (!Array.isArray(frames) || !Number.isFinite(at) || !Number.isFinite(duration)) return null;
+  const sorted = frames.filter((f) => f.t <= at + ROLL_GAP).sort((a, b) => a.t - b.t);
+  // Back from the time found while the picture stays credits-like (short breaks allowed).
+  let i = sorted.length - 1;
+  while (i >= 0 && sorted[i].t > at && !creditsDim(sorted[i])) i--;
+  if (i < 0 || !creditsDim(sorted[i]) || Math.abs(sorted[i].t - at) > ROLL_GAP) return null;
+  let first = i, lastLike = sorted[i].t;
+  for (let k = i - 1; k >= 0; k--) {
+    if (creditsDim(sorted[k])) { first = k; lastLike = sorted[k].t; } else if (lastLike - sorted[k].t > ROLL_GAP) break;
   }
-  const lastT = sorted[sorted.length - 1].t;
-  const found = runs.find((r) => r.start - ROLL_GAP <= at && at <= r.end + ROLL_GAP)
-    || runs.find((r) => r.start > at && r.start - at <= ROLL_AHEAD);
-  if (!found) return null;
-  // Long enough to be credits, or still running where the look stopped.
-  const long = found.end - found.start >= ROLL_MIN || (found.end >= lastT - ROLL_GAP && found.end - found.start >= ROLL_MIN / 2);
-  if (!long) return null;
-  const start = Math.ceil(found.start * 10) / 10;
-  return start > duration / 2 && start < duration - 1 && start >= at - ROLL_BACK && start <= at + ROLL_AHEAD ? start : null;
+  // The earliest stretch of plain pages in it, long enough to be the start of a roll.
+  let start = null, end = null;
+  for (let k = first; k <= i; k++) {
+    const f = sorted[k];
+    if (!creditsPage(f)) { if (start != null && f.t - end > ROLL_GAP) start = null; continue; }
+    if (start == null) start = f.t;
+    end = f.t;
+    if (end - start >= ROLL_PAGES) break;
+  }
+  if (start == null || end - start < ROLL_PAGES) return null;
+  const t = Math.ceil(start * 10) / 10;
+  return t > duration / 2 && t < at && t >= at - ROLL_BACK ? t : null;
 }
 
 // The opening titles (Skip intro) are found the same two ways: an opening chapter, or the theme song
@@ -488,8 +497,10 @@ function decodeLooks(file, start, seconds, limit = 120000) {
 export function parseLooks(out, start) {
   const frames = [];
   for (const block of String(out).split(/(?=frame:\s*\d+)/)) {
-    const t = /pts_time:\s*(-?[\d.]+)/.exec(block), y = /YAVG=([\d.]+)/.exec(block), sat = /SATAVG=([\d.]+)/.exec(block);
-    if (t && y && sat) frames.push({ t: Number(t[1]), y: Number(y[1]), s: Number(sat[1]) });
+    const num = (name) => { const m = new RegExp(`\\.${name}=(-?[\\d.]+)`).exec(block); return m ? Number(m[1]) : NaN; };
+    const t = /pts_time:\s*(-?[\d.]+)/.exec(block);
+    const f = { t: t ? Number(t[1]) : NaN, y: num('YAVG'), lo: num('YLOW'), hi: num('YHIGH'), s: num('SATAVG') };
+    if (Object.values(f).every(Number.isFinite)) frames.push(f);
   }
   const shift = frames.length && start > 60 && frames[0].t >= start - 30 ? 0 : start;
   return frames.map((f) => ({ ...f, t: f.t + shift }));
@@ -657,7 +668,7 @@ async function checkRoll(file, entry, at, wait = Infinity) {
   const job = `${file}|${id}`;
   let task = rolling.get(job);
   if (!task) {
-    const from = Math.max(entry.duration / 2, at - ROLL_BACK - 10), to = Math.min(entry.duration, at + ROLL_AHEAD + 40);
+    const from = Math.max(entry.duration / 2, at - ROLL_BACK - 10), to = Math.min(entry.duration, at + 10);
     task = decodeLooks(file, from, to - from).then((frames) => {
       if (!frames) return at; // couldn't decode: try again another time
       entry.roll[id] = creditsRollStart(frames, at, entry.duration);
@@ -673,12 +684,10 @@ async function checkRoll(file, entry, at, wait = Infinity) {
 }
 
 // The guess above for one episode, from its English subtitles beside it (or any other language there).
-export async function creditsGuessFor(file, sidecar, { wait = Infinity } = {}) {
+export async function creditsGuessFor(file, sidecar) {
   const entry = await facts(file);
   if (!entry?.duration || !sidecar) return null;
-  let guess;
-  try { guess = creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
-  return guess == null ? null : checkRoll(file, entry, guess, wait);
+  try { return creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
 }
 
 // What's already known about a video for Live TV: its length, the opening titles and where the credits start.

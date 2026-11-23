@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-credits-on-time",
+  "date": "2026-11-23",
+  "title": "Next episode card on time",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "The credits card no longer comes late",
+      "text": "On some shows the Next episode card showed up almost a minute into the end credits, because only the last part of the credits music repeats between episodes. Lilin now also looks at the picture and starts the card where the credits roll really begins."
+    }
+  ]
+},
+{
   "id": "2026-11-23-subtitle-reports",
   "date": "2026-11-23",
   "title": "Tell us when subtitles are off",

@@ -4030,6 +4030,7 @@ async function recapPeers(file) {
     .filter((i) => !seen.has(`${i.season}|${i.episode}`) && seen.add(`${i.season}|${i.episode}`))
     .slice(0, 2).map((i) => converter.originalFor(i.full) || i.full);
 }
+const CREDITS_WAIT = 4000;
 const englishSidecar = (file) => subtitles.findSidecar(file, 'en') || [...subtitles.localLanguages(file)].map((l) => subtitles.findSidecar(file, l)).find(Boolean) || null;
 async function recapOf(file, siblings) {
   return recapFor(file, await recapPeers(file), siblings, subtitles.findSidecar(file, 'en') || null);
@@ -5876,7 +5877,8 @@ async function handleApi(req, res, url) {
     const listed = await sourceFile(m[1], m[2]);
     const file = converter.originalFor(listed) || listed;
     const peers = m[1] === 'lib' ? await creditPeers(file) : { siblings: [] };
-    const creditsAt = await creditsFor(file, peers.siblings);
+    // The picture check (credits.js checkRoll) holds the answer at most CREDITS_WAIT; it finishes for the next play.
+    const creditsAt = await creditsFor(file, peers.siblings, { wait: CREDITS_WAIT });
     if (peers.next) creditPeers(peers.next).then((n) => creditsFor(peers.next, n.siblings)).catch(() => {});
     // No credits start found: where the dialogue ends, for a Next episode button without the countdown.
     const sidecar = creditsAt == null ? englishSidecar(file) : null;
