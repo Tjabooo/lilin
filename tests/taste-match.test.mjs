@@ -107,7 +107,7 @@ test('only friends get it, never restricted people, and the friend can switch it
 });
 
 test('old profiles get the section after Ratings', () => {
-  assert.deepEqual(profiles.cleanSections(['favorites', 'ratings', 'reviews']).map((s) => s.id).slice(0, 4), ['favorites', 'ratings', 'match', 'reviews']);
+  assert.deepEqual(profiles.cleanSections(['favorites', 'ratings', 'reviews']).map((s) => s.id).slice(0, 5), ['favorites', 'ratings', 'match', 'anime', 'reviews']);
 });
 
 // Over HTTP: the profile answer carries `match` for a friend, and null for anyone else.

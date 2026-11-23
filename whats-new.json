@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-anime-lists",
+  "date": "2026-11-23",
+  "title": "Your anime list on your profile",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Link MyAnimeList or AniList",
+      "text": "In Edit profile, add your MyAnimeList or AniList username (or both). Your profile gets an Anime section with what you're watching there, what you finished lately and your numbers, plus a link in the header. It updates by itself every few hours. The list has to be public."
+    }
+  ]
+},
+{
   "id": "2026-11-23-diary-real-watches",
   "date": "2026-11-23",
   "title": "A diary of what you really watched",

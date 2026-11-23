@@ -1,4 +1,13 @@
 {
+  "2026-11-23-anime-lists": {
+    "title": "Din animelista på din profil",
+    "items": {
+      "Link MyAnimeList or AniList": {
+        "title": "Koppla MyAnimeList eller AniList",
+        "text": "Lägg till ditt användarnamn på MyAnimeList eller AniList (eller båda) i Redigera profil. Din profil får en Anime-del med det du tittar på där, det du nyss avslutat och dina siffror, plus en länk högst upp. Den uppdateras av sig själv med några timmars mellanrum. Listan måste vara offentlig."
+      }
+    }
+  },
   "2026-11-23-diary-real-watches": {
     "title": "En dagbok över det du faktiskt sett",
     "items": {

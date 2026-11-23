@@ -193,6 +193,7 @@ function anilist(query, variables) {
   anilistQueue = run.catch(() => {}).then(() => new Promise((ok) => setTimeout(ok, GAP_MS)));
   return run;
 }
+export { anilist as anilistQuery }; // anime-lists.js: linked AniList accounts share the same spaced queue
 const FIELDS = 'id format episodes status startDate{year} title{romaji english} synonyms';
 const SEARCH = `query($s:String,$f:[MediaFormat]){Page(perPage:10){media(search:$s,type:ANIME,format_in:$f,sort:SEARCH_MATCH){${FIELDS}}}}`;
 // Two sequel levels per request: half the requests for long chains.

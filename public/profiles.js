@@ -30,7 +30,7 @@ const HEX = /^#[0-9a-f]{6}$/;
 const hexOnly = (c) => (HEX.test(String(c || '')) ? c : null); // the only colours that go into a style attribute
 const FONTS = [['display', T('Bold')], ['condensed', T('Tall')], ['light', T('Light')], ['serif', T('Serif')], ['mono', T('Mono')], ['rounded', T('Rounded')]];
 const POSTERS = [['soft', T('Soft')], ['square', T('Square')], ['round', T('Round')], ['polaroid', T('Polaroid')]];
-const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
+const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), anime: T('Anime'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
   public: T('Everyone on this Lilin can see your profile.'),
@@ -206,7 +206,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const p = d.person;
     const lb = !d.locked && d.letterboxd?.linked && d.letterboxd;
     const sub = [h('span', { class: 'pf-handle' }, `@${p.handle}`), p.pronouns && h('span', { class: 'pf-pronouns' }, p.pronouns),
-      lb && h('a', { class: 'pf-lb-link', href: lb.url, target: '_blank', rel: 'noopener noreferrer', title: T('{0} on Letterboxd', lb.username) }, T('Letterboxd'))].filter(Boolean);
+      lb && h('a', { class: 'pf-lb-link', href: lb.url, target: '_blank', rel: 'noopener noreferrer', title: T('{0} on Letterboxd', lb.username) }, T('Letterboxd')),
+      ...(d.locked ? [] : (d.anime || []).filter((a) => !d.me || a.stats).map((a) => h('a', { class: 'pf-lb-link', href: a.url, target: '_blank', rel: 'noopener noreferrer', title: T('{0} on {1}', a.username, a.name) }, a.service === 'mal' ? 'MAL' : a.name)))].filter(Boolean);
     return h('header', { class: 'pf-head' },
       d.me && changePicture
         ? h('button', { type: 'button', class: 'pf-face pf-face-mine', 'aria-label': p.avatar ? T('Change your picture') : T('Add a picture'),
@@ -354,6 +355,12 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           : h('p', { class: 'pf-empty' }, T('Stars you give films and shows show up here.')));
     },
     match: (ctx, d) => taste.section(ctx, d), // taste: friends only (taste-match.js)
+    // anime (anime-lists.js): a linked MyAnimeList / AniList, mirrored: numbers, watching now, finished lately.
+    anime(ctx, d) {
+      const lists = (d.anime || []).filter((a) => a.stats);
+      if (!lists.length) return d.me ? sectionBox('anime', T('Anime'), null, h('p', { class: 'pf-empty' }, T('Link your MyAnimeList or AniList in Edit profile and what you watch there shows up here.'))) : null;
+      return sectionBox('anime', T('Anime'), null, ...lists.map((a) => animeList(a, lists.length > 1)));
+    },
     reviews(ctx, d) {
       const list = ctx.allReviews?.reviews || d.reviews?.reviews || [];
       if (!list.length) return d.me ? sectionBox('reviews', T('Reviews'), null, h('p', { class: 'pf-empty' }, T('Reviews you write show up here.'))) : null;
@@ -392,6 +399,22 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           people.face(p, { size: 52 }), h('span', {}, p.name))))));
     },
   };
+
+  function animeList(a, many) {
+    const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
+    const facts = [[T('Completed'), a.stats.completed], [T('Episodes'), a.stats.episodes], a.stats.days ? [T('Days'), a.stats.days, 1] : null, a.stats.mean ? [T('Mean score'), a.stats.mean, 1] : null].filter(Boolean);
+    const tile = (e) => h('li', {}, h('a', { class: 'pf-poster pf-anime-tile', href: e.url || a.url, target: '_blank', rel: 'noopener noreferrer', title: e.title, 'aria-label': e.title },
+      e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
+      (e.progress || e.score) && h('span', { class: 'pf-anime-badge' },
+        e.progress && h('span', {}, e.episodes ? `${e.progress}/${e.episodes}` : T('Ep {0}', e.progress)),
+        e.score && h('span', {}, `★ ${n(e.score, 1)}`))));
+    const shelf = (title, list) => list.length > 0 && h('div', { class: 'pf-anime-shelf' }, h('h4', { class: 'pf-anime-sub' }, title), h('ul', { class: 'pf-strip' }, list.map(tile)));
+    return h('div', { class: 'pf-anime' },
+      h('p', { class: 'pf-anime-from' }, h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, many ? T('{0} on {1}', a.username, a.name) : T('From {0}', a.name)), icon('chevron')),
+      h('dl', { class: 'pf-anime-stats' }, facts.map(([label, v, digits]) => h('div', {}, h('dt', {}, label), h('dd', {}, n(v, digits))))),
+      shelf(T('Watching now'), a.watching || []),
+      shelf(T('Finished lately'), a.finished || []));
+  }
 
   function reviewCard(ctx, r) {
     const text = h('p', { class: 'pf-review-text clamp' }, r.text);
@@ -697,6 +720,37 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('p', { class: 'set-hint' }, T('Unlinking takes the Letterboxd films out of your diary, and the stars and reviews it brought over that you haven’t changed.')));
   }
 
+  // MyAnimeList / AniList (anime-lists.js): like Letterboxd, linking reads the list right away so a typo says so here.
+  function animeEditor(ctx, { repaint, redraw }) {
+    const linked = new Map((ctx.data.anime || []).map((a) => [a.service, a]));
+    const done = (data) => { ctx.data = { ...ctx.data, ...data }; own.data = ctx.data; own.at = Date.now(); mineChanged(); repaint(); redraw(); };
+    const run = async (btn, url, body, ok) => {
+      btn.disabled = true;
+      try { done(await api(url, jsonPost(body))); if (ok) toast(ok); } catch (err) { toast(err.message); btn.disabled = false; }
+    };
+    const one = (service, name) => {
+      const a = linked.get(service);
+      if (!a) {
+        const input = h('input', { type: 'text', class: 'invite-note', maxlength: '80', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false',
+          placeholder: T('Your {0} username', name), 'aria-label': T('{0} username', name) });
+        const go = h('button', { type: 'button', class: 'chip', onclick: (e) => input.value.trim() && run(e.currentTarget, '/api/profiles/me/anime', { service, username: input.value }, T('{0} linked', name)) }, T('Link'));
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+        return h('div', { class: 'pf-lb-row' }, input, go);
+      }
+      const when = a.syncedAt ? new Date(a.syncedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : null;
+      return h('div', { class: 'pf-lb' },
+        h('p', { class: 'pf-lb-who' }, `${name}:`, ' ', h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.username)),
+        h('p', { class: 'set-hint' }, a.error ? T('Last check failed: {0}', a.error)
+          : a.stats ? T('{0} completed · last checked {1}', Number(a.stats.completed).toLocaleString(locale()), when) : ''),
+        h('div', { class: 'pf-lb-row' },
+          h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime/sync', { service }, T('Checked {0}', name)) }, icon('rewatch'), T('Check now')),
+          h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime', { service, username: '' }, T('{0} unlinked', name)) }, T('Unlink'))));
+    };
+    return h('div', { class: 'pf-lb' },
+      h('p', { class: 'set-hint' }, T('Link MyAnimeList, AniList or both: your profile gets an Anime section with what you’re watching there, what you finished lately and your numbers. Lilin checks every few hours. The list has to be public.')),
+      one('mal', 'MyAnimeList'), one('anilist', 'AniList'));
+  }
+
   // The editor is four tabs under a small live card of how your profile looks (on phones the sheet covers the page it
   // repaints, so the card is what you see change). draft.tab remembers the open tab across redraws.
   const EDITOR_TABS = [['profile', T('Profile')], ['favorites', T('Favourites')], ['look', T('Look')], ['page', T('Page')]];
@@ -801,6 +855,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             avatar && removePicture && h('button', { type: 'button', class: 'pf-pic-remove',
               onclick: async (e) => { e.currentTarget.disabled = true; await removePicture(); ctx.data.person.avatar = null; repaint(); redraw(); } }, T('Remove picture'))),
           titled(T('Letterboxd'), letterboxdEditor(ctx, { repaint, redraw })),
+          titled(T('Anime lists'), animeEditor(ctx, { repaint, redraw })),
         ];
       },
       favorites: () => [favoritesEditor(draft, { repaint, redraw }), titled(T('Pinned review'), pinnedEditor(ctx, draft, { repaint, redraw }))],

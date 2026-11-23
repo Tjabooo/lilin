@@ -40,6 +40,7 @@ import * as profiles from './profiles.js'; // profiles: everyone's own page
 import * as profileBanner from './profile-banner.js'; // profiles: banners people upload
 import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
+import * as animeLists from './anime-lists.js'; // profiles: linked MyAnimeList / AniList accounts (the Anime section)
 import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
 import { titleStinger } from './stinger.js'; // stinger: a scene during or after a film's credits
 import * as scout from './scout.js'; // scout: the idea scout agent's ideas in the owner's inbox
@@ -376,6 +377,8 @@ profileBanner.initBanners({ dataDir: DATA_DIR }); // profiles: uploaded banners 
 letterboxd.initLetterboxd(); // letterboxd: linked accounts and what was imported from them
 // Linked Letterboxd feeds are read again every few hours (letterboxd.SYNC_EVERY); checked every 20 minutes.
 setInterval(() => letterboxd.syncRound().catch((e) => console.log(`[letterboxd] ${e.message || e}`)), 20 * 60 * 1000).unref();
+// Linked anime lists likewise (anime-lists.js SYNC_EVERY), on the same 20-minute check.
+setInterval(() => animeLists.syncRound().catch((e) => console.log(`[anime-lists] ${e.message || e}`)), 20 * 60 * 1000).unref();
 scout.initScout({ dataDir: DATA_DIR }); // scout
 moments.initMoments({ dataDir: DATA_DIR, cacheDir: CACHE_DIR, encoder: () => converter.converterStatus().encoder, // friends: Moments
   resolve: async (key) => { const i = key && (await scanLibrary())?.find((x) => accounts.mediaKey(x.full) === key); return i ? converter.preferConverted(i.full) : null; },
@@ -4961,6 +4964,19 @@ async function handleApi(req, res, url) {
       }
       // Letterboxd (letterboxd.js): { username } links and reads the feed now, { username: '' } unlinks, /sync reads it
       // again, /import takes the export zip (runs in the background; GET /import says how far it got).
+      // Anime lists (anime-lists.js): { service, username } links and reads the list now, { service, username: '' }
+      // unlinks, /sync { service } reads it again.
+      if (p === '/api/profiles/me/anime' || p === '/api/profiles/me/anime/sync') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
+        const body = await readJson(req, 4 * 1024);
+        const service = String(body.service || '');
+        if (!animeLists.SERVICES.includes(service)) throw new HttpError(400, 'Pick AniList or MyAnimeList.');
+        if (p.endsWith('/sync')) await animeLists.sync(user.id, service);
+        else if (!String(body.username ?? '').trim()) animeLists.unlink(user.id, service);
+        else await animeLists.link(user.id, service, body.username);
+        return sendJson(res, 200, await profileView(user, user));
+      }
       if (p.startsWith('/api/profiles/me/letterboxd')) {
         if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
         if (p === '/api/profiles/me/letterboxd' && req.method === 'POST') {
@@ -6278,7 +6294,7 @@ async function handleRequest(req, res) {
       || (req.method === 'POST' && (url.pathname.startsWith('/api/cast/') || url.pathname === '/api/downloads/add' || url.pathname === '/api/downloads/smart' || url.pathname === '/api/svt/add' || url.pathname === '/api/subs/fetch' || url.pathname === '/api/subs/sync' || url.pathname === '/api/library/delete' || url.pathname === '/api/library/delete-many' || url.pathname === '/api/library/delete-many-info' || /^\/api\/downloads\/\w+\/(pause|resume|retry|delete|leave)$/.test(url.pathname) || /^\/api\/media\/\w+\/[\w-]+\/sync$/.test(url.pathname)
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

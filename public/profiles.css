@@ -575,3 +575,21 @@
 .pf-pin-text { display: grid; gap: 2px; min-width: 0; }
 .pf-pin-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-pin-text span { overflow: hidden; font-size: 13px; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Anime (anime-lists.js): a linked MyAnimeList / AniList, mirrored */
+.pf-anime + .pf-anime { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--hairline); }
+.pf-anime-from { display: flex; align-items: center; gap: 4px; margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.pf-anime-from a { color: var(--pf-accent); text-decoration: none; }
+.pf-anime-from a:hover { text-decoration: underline; }
+.pf-anime-from svg { width: 14px; height: 14px; opacity: .6; }
+.pf-anime-stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 16px; }
+.pf-anime-stats > div { display: flex; flex-direction: column-reverse; min-width: 0; }
+.pf-anime-stats dd { margin: 0; font: 800 20px/1 var(--display); font-variant-numeric: tabular-nums; }
+.pf-anime-stats dt { margin-top: 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-2); white-space: nowrap; }
+.pf-anime-shelf + .pf-anime-shelf { margin-top: 10px; }
+.pf-anime-sub { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--paper); }
+a.pf-anime-tile { text-decoration: none; }
+.pf-anime-badge { position: absolute; inset: auto 0 0; z-index: 1; display: flex; justify-content: space-between; gap: 4px; padding: 14px 6px 5px;
+  font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; border-radius: 0 0 var(--pf-r) var(--pf-r);
+  background: linear-gradient(transparent, rgb(0 0 0 / .78)); pointer-events: none; }
+.pf-posters-polaroid .pf-anime-badge { inset: auto 5px 18px; border-radius: 0; }

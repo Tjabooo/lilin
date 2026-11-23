@@ -23,14 +23,15 @@ import { database, userById, isRestricted } from './accounts.js';
 import { areFriends, friendIds, stateBetween } from './friends.js';
 import { validTitleKey } from './social.js';
 import * as letterboxd from './letterboxd.js';
+import * as animeLists from './anime-lists.js'; // linked MyAnimeList / AniList accounts: the Anime section
 import { listsOf } from './lists.js';
 import { hiddenKeys, hiddenList, NOT_HIDDEN, ensureTable as ensureHidden } from './profile-hidden.js'; // hide from profile
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
-export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'match', 'reviews', 'lists', 'liked', 'friends'];
+export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'match', 'anime', 'reviews', 'lists', 'liked', 'friends'];
 // sections that came later, and the one they follow (match: taste-match.js, only shown to friends)
-const NEW_AFTER = { lists: 'reviews', match: 'ratings' };
+const NEW_AFTER = { lists: 'reviews', match: 'ratings', anime: 'match' };
 const SECTIONS_OFF = new Set(); // every section starts on; empty ones hide themselves for visitors
 export const FONTS = ['display', 'condensed', 'light', 'serif', 'mono', 'rounded'];
 export const POSTERS = ['soft', 'square', 'round', 'polaroid'];
@@ -475,5 +476,7 @@ export function view(viewer, target) {
     hidden: self ? hiddenList(target.id) : [],
     // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.
     letterboxd: !lb.linked ? (self ? { linked: false } : null) : self ? lb : { linked: true, username: lb.username, url: lb.url },
+    // Linked anime lists (anime-lists.js): the header links always, what's on the lists only while Anime is on.
+    anime: animeLists.viewOf(target.id, { self }).map((a) => (on('anime') ? a : { service: a.service, name: a.name, username: a.username, url: a.url, stats: null, watching: [], finished: [] })),
   };
 }
