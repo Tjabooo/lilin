@@ -165,6 +165,14 @@ html.ph .view { animation: none; }
 .bb-bulb[aria-current="true"] .ph-q { color: #fff; }
 .bb-bulb[aria-current="true"] .ph-q i { transform: scaleX(1); }
 .bb-bulb:focus-visible { outline: 2px solid var(--ph-lock); outline-offset: 3px; }
+/* trailer sound: the same cut glass square as the theme-music speaker on a show page, parked at the far right of the
+   queue row so it isn't read as one more title */
+.bb-sound { flex: none; margin-left: auto; width: 38px; height: 38px; padding: 0; cursor: pointer; background-color: rgb(var(--picture-dark) / .55);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: background-color var(--d-2); }
+.bb-sound svg { width: 18px; height: 18px; }
+.bb-sound:hover { background-color: rgb(var(--picture-dark) / .75); }
+.bb-sound[aria-pressed="false"]:not(:hover) { opacity: .85; }
+html.no-glass .bb-sound { background-color: rgb(var(--picture-dark) / .72); }
 
 /* E8 living wordmark: while the billboard loads the letters drift on their own phases */
 .ph-loader { position: absolute; left: 50%; top: 42%; width: 128px; margin-left: -64px; color: var(--text); pointer-events: none; }
@@ -919,7 +927,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   .cc-nudge-buttons button, .edit-chip, .continue-more, .st-pill, .wr-chip, .watch-start, .room-pill, .reaction-btn, .live-more, .live-pill,
   .hs-nudge-actions button, .note-action, .note-reminder-toggle, .note-reminder-chip, .note-more, .note-viewer-close, .moment-close,
   .compose-star, .md-service-btn, .pf-gradbtn, .pf-choice, .theme-btn, .lk-rail-btn .lk-ico, .lk-sound-chip, .quality-rail button,
-  .skel-btn, .swatch, .review-link) {
+  .skel-btn, .swatch, .review-link, .bb-sound) {
   --c: 8px; --bl: var(--hairline-2); --hl: color-mix(in srgb, var(--text) 70%, transparent);
   border-radius: 0 !important; border-color: transparent !important;
   clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
@@ -943,14 +951,14 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .skip-btn.skip-btn { --c: 14px; }
 .swatch.swatch { --c: 12px; }
 .swatch[aria-pressed="true"] { --bl: var(--bulb); --hl: var(--bulb); box-shadow: inset 0 0 0 2px var(--bulb) !important; }
-.continue-more.continue-more, .lk-rail-btn .lk-ico.lk-ico, .note-viewer-close.note-viewer-close, .moment-close.moment-close, .search-clear.search-clear, .theme-btn.theme-btn { --bl: rgb(255 255 255 / .3); --hl: rgb(255 255 255 / .8); }
+.continue-more.continue-more, .lk-rail-btn .lk-ico.lk-ico, .note-viewer-close.note-viewer-close, .moment-close.moment-close, .search-clear.search-clear, .theme-btn.theme-btn, .bb-sound.bb-sound { --bl: rgb(255 255 255 / .3); --hl: rgb(255 255 255 / .8); }
 :is(.thumb, .rate-review, .load-more, .news-btn, .trailer-btn, .stats-btn, .cast-btn, .skip-btn, .stop-btn, .cc-choices button, .toast-action,
   .edit-chip, .watch-start, .room-pill, .reaction-btn, .live-more, .note-action, .note-reminder-toggle, .note-more, .compose-star,
-  .md-service-btn, .pf-gradbtn, .pf-choice, .swatch, .lk-sound-chip, .quality-rail button, .continue-more, .theme-btn):active { --bl: var(--ph-you); --hl: var(--ph-you); }
+  .md-service-btn, .pf-gradbtn, .pf-choice, .swatch, .lk-sound-chip, .quality-rail button, .continue-more, .theme-btn, .bb-sound):active { --bl: var(--ph-you); --hl: var(--ph-you); }
 :is(.thumb, .rate-review, .load-more, .news-btn, .trailer-btn, .stats-btn, .cast-btn, .skip-btn, .toggle-btn, .stop-btn, .cc-choices button,
   .toast-action, .edit-chip, .watch-start, .room-pill, .reaction-btn, .live-more, .note-action, .note-reminder-toggle, .note-more,
   .compose-star, .md-service-btn, .pf-gradbtn, .pf-choice, .swatch, .lk-sound-chip, .quality-rail button, .continue-more, .theme-btn,
-  .search-clear, .review-link):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text) !important; }
+  .search-clear, .review-link, .bb-sound):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text) !important; }
 /* containers that framed the old pills */
 .segmented, .set-control > .segmented { border-radius: 0; }
 .row-menu-item, .fold-btn { border-radius: 0; }
