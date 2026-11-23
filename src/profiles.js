@@ -39,11 +39,15 @@ export const BANNERS = ['auto', 'title', 'upload', 'gradient', 'none'];
 export const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
 export const BACKGROUNDS = ['glow', 'image', 'plain', 'color'];
 export const ALIGNS = ['center', 'left'];
+// frame: how the page's boxes look (Lilin's own panels, soft rounded cards, or open with no boxes at all);
+// pattern: a faint texture over the background.
+export const FRAMES = ['panel', 'soft', 'open'];
+export const PATTERNS = ['none', 'dots', 'grid', 'stripes', 'grain', 'stars', 'hearts'];
 // bannerY: the banner picture's focal point (0 = its top, 100 = its bottom). upload: when they last uploaded a banner
 // of their own (profile-banner.js; set by the upload route, never by the editor). background 'color': the page is
-// pageColor, or a gradient from pageColor to pageColor2 when pageGradient is on (the browser keeps the text readable).
+// pageColor, or a gradient from pageColor to pageColor2 when pageGradient is on (the browser picks text that reads on it).
 export const LOOK_DEFAULTS = { accent: null, banner: 'auto', gradient: 'ember', bannerKey: null, bannerImage: null, font: 'display', posters: 'soft', background: 'glow', align: 'center',
-  bannerY: 28, upload: null, pageColor: null, pageColor2: null, pageGradient: true };
+  bannerY: 28, upload: null, pageColor: null, pageColor2: null, pageGradient: true, frame: 'panel', pattern: 'none' };
 // Extras: a short status line (cleared after a day or a week if they like), which four numbers show, one pinned review.
 export const STATS = ['films', 'filmsThisYear', 'shows', 'episodes', 'hours', 'reviews', 'likes'];
 export const STATS_DEFAULT = ['films', 'filmsThisYear', 'episodes', 'hours'];
@@ -114,7 +118,7 @@ export function cleanLook(raw = {}, old = LOOK_DEFAULTS) {
   const look = {
     accent: 'accent' in raw ? (HEX.test(String(raw.accent || '').toLowerCase()) ? String(raw.accent).toLowerCase() : null) : old.accent ?? null,
     banner: pick('banner', BANNERS), gradient: pick('gradient', GRADIENTS), font: pick('font', FONTS), posters: pick('posters', POSTERS),
-    background: pick('background', BACKGROUNDS), align: pick('align', ALIGNS),
+    background: pick('background', BACKGROUNDS), align: pick('align', ALIGNS), frame: pick('frame', FRAMES), pattern: pick('pattern', PATTERNS),
     bannerKey: 'bannerKey' in raw ? (validTitleKey(raw.bannerKey) ? raw.bannerKey : null) : old.bannerKey ?? null,
     bannerImage: old.bannerImage ?? null,
     bannerY: 'bannerY' in raw ? (Number.isFinite(Number(raw.bannerY)) && raw.bannerY !== null && raw.bannerY !== '' ? Math.min(100, Math.max(0, Math.round(Number(raw.bannerY)))) : LOOK_DEFAULTS.bannerY) : old.bannerY ?? LOOK_DEFAULTS.bannerY,

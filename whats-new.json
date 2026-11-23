@@ -1,5 +1,27 @@
 [
 {
+  "id": "2026-11-23-profile-style",
+  "date": "2026-11-23",
+  "title": "Make your profile look like you",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Background colours stay the colour you pick",
+      "text": "Edit profile → Look → Background → Colour now paints your page in exactly the colour you chose, light or dark, pastel or neon. The text turns light or dark by itself so it stays readable. There are more colours to pick from too, including black, white and pastels."
+    },
+    {
+      "kind": "new",
+      "title": "Profile style",
+      "text": "Under Look → Style, pick Panels (Lilin's own look), Soft (rounded cards) or Minimal (no boxes, just your background)."
+    },
+    {
+      "kind": "new",
+      "title": "Background patterns",
+      "text": "Under Look → Pattern, lay a faint texture over your background: dots, grid, stripes, grain, stars or hearts."
+    }
+  ]
+},
+{
   "id": "2026-11-23-ring-accent",
   "date": "2026-11-23",
   "title": "Your ring, your colour",

@@ -15,12 +15,13 @@ import { T, locale as appLocale } from './i18n.js';
 import { tintOf } from './people.js';
 import { readMore } from './reviews.js';
 import { createTasteMatch } from './taste-match.js'; // taste: Taste match on a friend's profile
-import { profilePaint, partnerOf } from './profile-colors.js'; // profile colours: readable on any theme
+import { profilePaint, partnerOf } from './profile-colors.js'; // profile colours: the text follows the picked colour
 
 const ACCENTS = ['#F4C152', '#FF9B85', '#E9A0C4', '#C3ACF2', '#93D6BA', '#97C9F2', '#F5AE6B', '#FF8C1A', '#E5484D', '#7FD1FF', '#B8E986', '#EDE6DD'];
 const GRADIENTS = ['ember', 'dusk', 'ocean', 'forest', 'rose', 'aurora', 'sunset', 'mono'];
-// page colours (Look → Background → Colour): picked to still be themselves once darkened (or lightened) for the text
-const PAGE_COLORS = ['#ff4d1f', '#e5484d', '#ff6f91', '#d946ef', '#8b5cf6', '#4f6bff', '#0ea5e9', '#14b8a6', '#22c55e', '#a3e635', '#f5a524', '#94a3b8'];
+// page colours (Look → Background → Colour): brights, then darks and pastels; the page is exactly the one picked
+const PAGE_COLORS = ['#ff4d1f', '#e5484d', '#ff6f91', '#d946ef', '#8b5cf6', '#4f6bff', '#0ea5e9', '#14b8a6', '#22c55e', '#a3e635', '#f5a524', '#94a3b8',
+  '#0b0b0f', '#1b2a4a', '#1f3d2b', '#3b1028', '#f7f4ee', '#f3e6cf', '#f9c9d6', '#dcd0ff', '#c9efdc', '#cfe6ff'];
 const STAT_KEYS = ['films', 'filmsThisYear', 'shows', 'episodes', 'hours', 'reviews', 'likes'];
 const STATS_DEFAULT = ['films', 'filmsThisYear', 'episodes', 'hours'];
 const STAT_NAMES = { films: T('Films'), filmsThisYear: T('This year'), shows: T('Shows'), episodes: T('Episodes'), hours: T('Hours'), reviews: T('Reviews'), likes: T('Likes') };
@@ -30,6 +31,13 @@ const HEX = /^#[0-9a-f]{6}$/;
 const hexOnly = (c) => (HEX.test(String(c || '')) ? c : null); // the only colours that go into a style attribute
 const FONTS = [['display', T('Bold')], ['condensed', T('Tall')], ['light', T('Light')], ['serif', T('Serif')], ['mono', T('Mono')], ['rounded', T('Rounded')]];
 const POSTERS = [['soft', T('Soft')], ['square', T('Square')], ['round', T('Round')], ['polaroid', T('Polaroid')]];
+// Look → Style: Lilin's own panels, soft rounded cards, or open (no boxes); Look → Pattern: a faint texture
+const FRAMES = [['panel', T('Panels')], ['soft', T('Soft')], ['open', T('Minimal')]];
+const FRAME_HINTS = { panel: T('Lilin’s own look: square panels, numbered sections.'), soft: T('Rounded cards and plain headings.'), open: T('No boxes: everything sits right on your background.') };
+const PATTERNS = [['none', T('None')], ['dots', T('Dots')], ['grid', T('Grid')], ['stripes', T('Stripes')], ['grain', T('Grain')], ['stars', T('Stars')], ['hearts', T('Hearts')]];
+const frameOf = (look) => (FRAMES.some(([k]) => k === look?.frame) ? look.frame : 'panel');
+const patternOf = (look) => (PATTERNS.some(([k]) => k === look?.pattern) && look.pattern !== 'none' ? look.pattern : null);
+const patternLayer = (look) => { const p = patternOf(look); return p ? h('div', { class: `pf-pattern pf-pat-${p}`, 'aria-hidden': 'true' }) : null; };
 const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), anime: T('Anime'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
@@ -121,12 +129,14 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const page = ctx.page;
     page.className = ['pf', 'open', ctx.nested && 'pf-nested', `pf-font-${look.font || 'display'}`, `pf-posters-${look.posters || 'soft'}`,
       `pf-bg-${paint ? 'color' : look.background === 'color' ? 'glow' : look.background || 'glow'}`, `pf-align-${look.align || 'center'}`, paint && 'pf-painted', paint?.page2 && 'pf-paint-grad',
+      `pf-frame-${frameOf(look)}`, paint && (paint.light ? 'pf-ink-light' : 'pf-ink-dark'),
       d.locked && 'pf-locked', ctx.scrolled && 'scrolled'].filter(Boolean).join(' ');
     paintVars(page, look, paint, d.person.name);
     page.setAttribute('aria-label', T('{0}’s profile', d.person.name));
     const scrollTop = page.scrollTop;
     const banner = bannerOf(d);
     page.replaceChildren(...[ // filter: replaceChildren writes null/false out as text
+      patternLayer(look),
       topBar(ctx, d),
       look.background === 'image' && banner ? h('div', { class: 'pf-wash', 'aria-hidden': 'true' }, h('img', { src: small(banner, 'w300'), alt: '', decoding: 'async' })) : null,
       h('div', { class: `pf-banner${bannerClass(look, banner, paint)}`, 'aria-hidden': 'true' },
@@ -153,11 +163,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   }
 
   // ---------- colours ----------
-  // The viewer's theme decides which way a picked page colour moves (profile-colors.js), so read it each time.
+  // A picked page colour is used as it is; the page's text turns light or dark to read on it (profile-colors.js).
   function paintOf(look, accent) {
     if (look?.background !== 'color') return null;
-    const root = getComputedStyle(document.documentElement);
-    return profilePaint(look, { text: root.getPropertyValue('--paper'), text2: root.getPropertyValue('--dust') }, accent);
+    return profilePaint(look, accent);
   }
   // Scoped to the profile page (or the editor's card): the accent, the page colours, the banner's focal point.
   function paintVars(el, look, paint, name) {
@@ -165,6 +174,9 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     set('--pf-accent', hexOnly(paint?.accent) || look.accent || tintOf(name));
     set('--pf-page', hexOnly(paint?.page));
     set('--pf-page2', hexOnly(paint?.page2));
+    set('--pf-text', hexOnly(paint?.text));
+    set('--pf-text2', hexOnly(paint?.text2));
+    set('--pf-on-accent', hexOnly(paint?.onAccent));
     set('--pf-c1', paint ? hexOnly(look.pageColor) : null);
     set('--pf-c2', paint ? hexOnly(look.pageGradient !== false && look.pageColor2) || hexOnly(look.pageColor) : null);
     const y = Number(look.bannerY);
@@ -627,7 +639,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           favorites: draft.favorites.map(keyOf), sections: draft.sections,
           look: { accent: draft.look.accent, banner: draft.look.banner, gradient: draft.look.gradient, bannerKey: draft.look.bannerKey, font: draft.look.font,
             posters: draft.look.posters, background: draft.look.background, align: draft.look.align, bannerY: draft.look.bannerY,
-            pageColor: draft.look.pageColor, pageColor2: draft.look.pageColor2, pageGradient: draft.look.pageGradient !== false },
+            pageColor: draft.look.pageColor, pageColor2: draft.look.pageColor2, pageGradient: draft.look.pageGradient !== false,
+            frame: frameOf(draft.look), pattern: patternOf(draft.look) || 'none' },
           stats: draft.stats, pinned: draft.pinned };
         // the status only goes along when it changed (sending it again would restart its "clear after")
         if (`${draft.status.trim()}|${draft.statusClear}` !== statusBefore) payload.status = { text: draft.status.trim(), clear: draft.statusClear };
@@ -763,7 +776,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const p = d.person;
     const paint = paintOf(look, look.accent || tintOf(p.name));
     const cls = look.banner === 'none' ? ' pf-ed-banner-none' : bannerClass(look, banner, paint);
-    const card = h('div', { class: `pf-ed-card pf-font-${look.font || 'display'}${paint ? ' pf-painted' : ''}${paint?.page2 ? ' pf-paint-grad' : ''}`, 'aria-hidden': 'true' },
+    const card = h('div', { class: `pf-ed-card pf-font-${look.font || 'display'} pf-frame-${frameOf(look)}${paint ? ` pf-painted ${paint.light ? 'pf-ink-light' : 'pf-ink-dark'}` : ''}${paint?.page2 ? ' pf-paint-grad' : ''}`, 'aria-hidden': 'true' },
+      patternLayer(look),
       h('div', { class: `pf-ed-banner${cls}` }, banner && look.banner !== 'none' && h('img', { src: small(banner, 'w780'), alt: '', decoding: 'async', draggable: 'false' })),
       h('div', { class: 'pf-ed-who' },
         h('div', { class: 'pf-ed-face' }, people.face(p, { size: 64 })),
@@ -888,6 +902,9 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             setLook({ background: v, pageColor: base, pageColor2: look.pageColor2 || partnerOf(base) });
           } else setLook({ background: v });
         }), look.background === 'color' && pageColorEditor(look, { setLook, live, redraw, hint, block })),
+        block(T('Pattern'), h('div', { class: 'pf-choices pf-pat-choices' }, PATTERNS.map(([k, label]) => h('button', { type: 'button', class: 'pf-choice', 'aria-pressed': String((patternOf(look) || 'none') === k), onclick: () => setLook({ pattern: k }) },
+          h('span', { class: 'pf-choice-sample pf-pat-sample' }, k !== 'none' && h('span', { class: `pf-pattern pf-pat-${k}` })), h('span', {}, label))))),
+        block(T('Style'), segmented(FRAMES, frameOf(look), (v) => setLook({ frame: v })), hint(FRAME_HINTS[frameOf(look)])),
         block(T('Name'), h('div', { class: 'pf-choices' }, FONTS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-font-${k}`, 'aria-pressed': String(look.font === k), onclick: () => setLook({ font: k }) },
           h('span', { class: 'pf-choice-sample pf-name-sample' }, 'Aa'), h('span', {}, label))))),
         block(T('Posters'), h('div', { class: 'pf-choices' }, POSTERS.map(([k, label]) => h('button', { type: 'button', class: `pf-choice pf-posters-${k}`, 'aria-pressed': String(look.posters === k), onclick: () => setLook({ posters: k }) },
@@ -973,7 +990,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(grad), 'aria-labelledby': 'pf-grad-label',
           onclick: () => setLook({ pageGradient: !grad, pageColor2: look.pageColor2 || partnerOf(look.pageColor) }) }, h('span', {}))),
       grad && block(T('Second colour'), swatches('pageColor2')),
-      hint(T('Lilin adjusts the shade so text stays readable, in light and dark themes.')));
+      hint(T('Everyone sees your page in this colour. The text turns light or dark so it stays readable.')));
   }
 
   // Look → Banner → Upload: your own picture. It's uploaded (and re-encoded on the server) right away; Save makes it

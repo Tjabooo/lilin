@@ -83,27 +83,44 @@ test('banner uploads are limited per person', () => {
   resetLimits();
 });
 
-test('page colours stay readable on dark and light themes', () => {
-  const dark = { text: '#EFE8E1', text2: '#B8AAB2' };
-  const light = { text: '#2a1d16', text2: '#6b5a50' };
-  for (const c of ['#ff8c1a', '#ffff00', '#ffffff', '#a3e635', '#22d3ee', '#000000', '#8b5cf6']) {
-    for (const theme of [dark, light]) {
-      const p = profilePaint({ background: 'color', pageColor: c, pageColor2: partnerOf(c), pageGradient: true }, theme, '#f5a524');
-      for (const bg of [p.page, p.page2]) {
-        assert.ok(contrast(parseColor(bg), parseColor(theme.text)) >= 7, `${c} → ${bg} body text`);
-        assert.ok(contrast(parseColor(bg), parseColor(theme.text2)) >= 4.5, `${c} → ${bg} secondary text`);
-        assert.ok(contrast(parseColor(bg), parseColor(p.accent)) >= 3 - 1e-9, `${c} → accent ${p.accent} on ${bg}`);
-      }
+test('page colours are used as picked; the text follows them and stays readable', () => {
+  for (const c of ['#ff8c1a', '#ffff00', '#ffffff', '#a3e635', '#22d3ee', '#000000', '#8b5cf6', '#f9c9d6', '#777777', '#1b2a4a']) {
+    const solid = profilePaint({ background: 'color', pageColor: c, pageGradient: false }, '#f5a524');
+    // mid-tones where neither light nor dark text quite reaches 4.5:1 move a hair; everything else stays exact
+    if (c === '#8b5cf6' || c === '#777777') assert.ok(parseColor(solid.page).every((v, i) => Math.abs(v - parseColor(c)[i]) <= 10), `${c} → ${solid.page} barely moves`);
+    else assert.equal(solid.page, c, `${c} stays ${c}`);
+    const p = profilePaint({ background: 'color', pageColor: c, pageColor2: partnerOf(c), pageGradient: true }, '#f5a524');
+    for (const bg of [p.page, p.page2]) {
+      assert.ok(contrast(parseColor(bg), parseColor(p.text)) >= 4.5, `${c} → ${bg} body text ${p.text}`);
+      assert.ok(contrast(parseColor(bg), parseColor(p.text2)) >= 4.5, `${c} → ${bg} secondary text ${p.text2}`);
+      assert.ok(contrast(parseColor(bg), parseColor(p.accent)) >= 3 - 1e-9, `${c} → accent ${p.accent} on ${bg}`);
     }
+    assert.ok(contrast(parseColor(p.accent), parseColor(p.onAccent)) >= 3, `${c}: text on the accent`);
   }
-  // the hue survives: a bright orange becomes a deep orange, not grey
-  const deep = parseColor(readable('#ff8c1a', [[parseColor(dark.text), 7], [parseColor(dark.text2), 4.5]], { darken: true }));
+  assert.equal(profilePaint({ background: 'color', pageColor: '#ffffff', pageGradient: false }, '#fff').light, false, 'white page = dark text');
+  assert.equal(profilePaint({ background: 'color', pageColor: '#000000', pageGradient: false }, '#fff').light, true, 'black page = light text');
+  // a gradient too wide for one text colour: only its weaker end moves, and the hue survives
+  const wide = profilePaint({ background: 'color', pageColor: '#000000', pageColor2: '#ff8c1a', pageGradient: true }, '#fff');
+  assert.equal(wide.page, '#000000');
+  const deep = parseColor(wide.page2);
   assert.ok(deep[0] > deep[1] && deep[1] > deep[2], `still orange: ${deep}`);
-  assert.equal(readable('#101010', [[parseColor(dark.text), 7]], { darken: true }), '#101010', 'already readable = unchanged');
-  const solid = profilePaint({ background: 'color', pageColor: '#ff8c1a', pageColor2: '#00ff00', pageGradient: false }, dark, '#ffffff');
+  assert.equal(readable('#101010', [[parseColor('#efe8e1'), 7]], { darken: true }), '#101010', 'already readable = unchanged');
+  const solid = profilePaint({ background: 'color', pageColor: '#ff8c1a', pageColor2: '#00ff00', pageGradient: false }, '#ffffff');
   assert.equal(solid.page2, null, 'gradient off = one colour');
-  assert.equal(profilePaint({ background: 'glow', pageColor: '#ff8c1a' }, dark, '#fff'), null);
-  assert.equal(profilePaint({ background: 'color', pageColor: 'red;}' }, dark, '#fff'), null);
+  assert.equal(profilePaint({ background: 'glow', pageColor: '#ff8c1a' }, '#fff'), null);
+  assert.equal(profilePaint({ background: 'color', pageColor: 'red;}' }, '#fff'), null);
+});
+
+test('look: style and pattern are known choices or the default', () => {
+  assert.equal(LOOK_DEFAULTS.frame, 'panel');
+  assert.equal(LOOK_DEFAULTS.pattern, 'none');
+  const look = cleanLook({ frame: 'soft', pattern: 'hearts' });
+  assert.equal(look.frame, 'soft');
+  assert.equal(look.pattern, 'hearts');
+  assert.equal(cleanLook({ frame: 'url(x)', pattern: '<b>' }).frame, 'panel');
+  assert.equal(cleanLook({ pattern: 'confetti' }).pattern, 'none');
+  assert.equal(cleanLook({ font: 'serif' }, { ...LOOK_DEFAULTS, frame: 'open', pattern: 'grid' }).frame, 'open', 'untouched = kept');
+  assert.equal(cleanLook({}, { ...LOOK_DEFAULTS, pattern: 'grid' }).pattern, 'grid');
 });
 
 // ---------- over HTTP: upload, re-encode, who sees it ----------

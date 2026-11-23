@@ -1,8 +1,7 @@
-// Profile colours (profiles.js): someone picks a page colour (and a second one for a gradient); this keeps the page
-// readable whatever they pick and whatever theme the viewer uses. The text stays the theme's own (light text on dark
-// themes, dark text on light ones); each picked colour keeps its hue and saturation and only its lightness moves until
-// the theme's text reads on it (body text at 7:1, secondary text at 4.5:1). The accent (the @username, the face ring)
-// gets the same treatment against the page at 3:1. No DOM here, so tests can run it.
+// Profile colours (profiles.js): someone picks a page colour (and a second one for a gradient) and the page is that
+// colour, whatever theme the viewer uses: the page's text turns light or dark to read on it (profilePaint). The accent
+// (the @username, the face ring) keeps its hue and only its lightness moves until it reads on the page at 3:1.
+// No DOM here, so tests can run it.
 
 const HEX6 = /^#([0-9a-f]{6})$/i;
 const HEX3 = /^#([0-9a-f]{3})$/i;
@@ -68,21 +67,39 @@ export function readable(color, needs, { darken } = {}) {
   return toHex(fromHsl([h, s, down ? l * (1 - hi) : l + (1 - l) * hi]));
 }
 
-// What a profile page is painted with: { page, page2, accent, dark } or null when the look doesn't use colours.
-// theme: the viewer's theme colours { text, text2, bg } as CSS strings; accent: the profile's accent as hex.
-export function profilePaint(look, theme, accent) {
+// The two text colours a painted page can have: light on dark colours, dark on light ones.
+export const LIGHT_TEXT = '#f7f3ef';
+export const DARK_TEXT = '#17131c';
+const mix = (a, b, f) => a.map((v, i) => v + (b[i] - v) * f);
+
+// What a profile page is painted with: { page, page2, text, text2, accent, onAccent, light } or null when the look
+// doesn't use colours. The picked colours stay exactly as picked; the text follows them instead (light or dark,
+// whichever reads better on both ends). Only a gradient whose two ends are too far apart for one text colour gets its
+// weaker end moved, just far enough for body text (4.5:1). accent: the profile's accent as hex; it's moved to read on
+// the page at 3:1, and onAccent is the text that goes on it.
+export function profilePaint(look, accent) {
   if (!look || look.background !== 'color' || !parseColor(look.pageColor)) return null;
-  const text = parseColor(theme.text) || [239, 232, 225];
-  const text2 = parseColor(theme.text2) || text;
-  const darkTheme = luminance(text) > 0.5;
-  const needs = [[text, 7], [text2, 4.5]];
-  const page = readable(look.pageColor, needs, { darken: darkTheme });
-  const page2 = look.pageGradient !== false && parseColor(look.pageColor2) ? readable(look.pageColor2, needs, { darken: darkTheme }) : null;
-  // the accent reads on both ends of the page (it's the @username and the face ring)
-  const ends = [parseColor(page), parseColor(page2 || page)];
+  const c1 = parseColor(toHex(parseColor(look.pageColor)));
+  const c2 = look.pageGradient !== false && parseColor(look.pageColor2) ? parseColor(toHex(parseColor(look.pageColor2))) : null;
+  const ends = c2 ? [c1, c2] : [c1];
+  const worst = (t) => Math.min(...ends.map((e) => contrast(e, t)));
+  const L = parseColor(LIGHT_TEXT), D = parseColor(DARK_TEXT);
+  const light = worst(L) >= worst(D);
+  const text = light ? L : D;
+  const page = readable(toHex(c1), [[text, 4.5]], { darken: light });
+  const page2 = c2 ? readable(toHex(c2), [[text, 4.5]], { darken: light }) : null;
+  const pe = [parseColor(page), parseColor(page2 || page)];
+  // secondary text: the main text blended toward the page as far as it can go and still read at 4.5:1 on both ends
+  let text2 = text;
+  for (let f = 0.42; f > 0; f -= 0.03) {
+    const t2 = parseColor(toHex(mix(text, pe[0], f)));
+    if (pe.every((e) => contrast(e, t2) >= 4.5)) { text2 = t2; break; }
+  }
   const acc = parseColor(accent);
-  const fixedAccent = acc ? readable(accent, ends.map((c) => [c, 3]), { darken: !darkTheme }) : null;
-  return { page, page2, accent: fixedAccent, dark: darkTheme };
+  const fixed = acc ? readable(accent, pe.map((c) => [c, 3]), { darken: !light }) : null;
+  const fa = parseColor(fixed);
+  const onAccent = fa ? (contrast(fa, L) >= contrast(fa, D) ? LIGHT_TEXT : DARK_TEXT) : null;
+  return { page, page2, text: toHex(text), text2: toHex(text2), accent: fixed, onAccent, light };
 }
 
 // A second colour that goes with the first, for when someone switches the gradient on before picking one: the same

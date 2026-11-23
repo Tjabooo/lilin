@@ -515,7 +515,11 @@
 .pf-ed-card:hover .pf-ed-drag-hint { opacity: 1; }
 .pf-ed-dragging .pf-ed-drag-hint { opacity: 0; }
 
+/* a painted page is exactly the picked colour; its text (light or dark, profile-colors.js) and everything mixed from
+   the text are set again here, because the theme's versions were worked out on :root with the theme's text */
 .pf.pf-painted, .pf-ed-card.pf-painted {
+  --paper: var(--pf-text); --dust: var(--pf-text2);
+  --text: var(--pf-text); --text-2: var(--pf-text2);
   --velvet: var(--pf-page);
   --curtain: color-mix(in srgb, var(--paper) 6%, var(--pf-page));
   --seat: color-mix(in srgb, var(--paper) 11%, var(--pf-page));
@@ -523,7 +527,17 @@
   --surface-1: var(--curtain);
   --surface-2: var(--seat);
   --surface-glass: color-mix(in srgb, var(--pf-page) 76%, transparent);
-  --text-3: color-mix(in srgb, var(--dust) 75%, var(--pf-page));
+  --text-3: color-mix(in srgb, var(--pf-text2) 75%, var(--pf-page));
+  --hairline: color-mix(in srgb, var(--pf-text) 11%, transparent);
+  --hairline-2: color-mix(in srgb, var(--pf-text) 19%, transparent);
+  --bulb: var(--pf-accent); --on-bulb: var(--pf-on-accent, var(--pf-page));
+  --ph-warn: var(--pf-accent); --ph-you: var(--pf-accent);
+  --ph-pnl: color-mix(in srgb, var(--pf-text) 5%, transparent); --ph-pnl2: color-mix(in srgb, var(--pf-text) 9%, transparent);
+  --ph-sq: color-mix(in srgb, var(--pf-text) 55%, transparent);
+  --ph-dim: color-mix(in srgb, var(--pf-text) 18%, transparent); --ph-ghost: color-mix(in srgb, var(--pf-text) 8%, transparent);
+  --ph-ticks: linear-gradient(var(--hairline-2), var(--hairline-2)) left center / 100% 1px no-repeat, repeating-linear-gradient(90deg, var(--hairline-2) 0 1px, transparent 1px 8px) left bottom / 100% 3px no-repeat;
+  color: var(--text);
+  scrollbar-color: color-mix(in srgb, var(--pf-text) 25%, transparent) transparent;
 }
 .pf.pf-bg-color { background: var(--pf-page); }
 .pf.pf-bg-color.pf-paint-grad { background: linear-gradient(172deg, var(--pf-page) 0%, var(--pf-page2) 100%) local, var(--pf-page); }
@@ -593,3 +607,60 @@ a.pf-anime-tile { text-decoration: none; }
   font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; border-radius: 0 0 var(--pf-r) var(--pf-r);
   background: linear-gradient(transparent, rgb(0 0 0 / .78)); pointer-events: none; }
 .pf-posters-polaroid .pf-anime-badge { inset: auto 5px 18px; border-radius: 0; }
+
+/* ---------- Look → Pattern: a faint texture over the background, in the page's own text colour ---------- */
+.pf-pattern { position: fixed; inset: 0; z-index: -1; pointer-events: none; --pf-pat: color-mix(in srgb, var(--text) 10%, transparent); }
+.pf-ed-card { isolation: isolate; }
+.pf-ed-card > .pf-pattern { position: absolute; }
+.pf-pat-dots { background: radial-gradient(circle, var(--pf-pat) 1.3px, transparent 1.9px) 0 0 / 18px 18px; }
+.pf-pat-grid { background: linear-gradient(var(--pf-pat) 1px, transparent 1px) 0 0 / 30px 30px, linear-gradient(90deg, var(--pf-pat) 1px, transparent 1px) 0 0 / 30px 30px; }
+.pf-pat-stripes { background: repeating-linear-gradient(135deg, var(--pf-pat) 0 1px, transparent 1px 12px); }
+.pf-pat-grain { opacity: .3; mix-blend-mode: overlay;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 180px 180px; }
+.pf-pat-stars, .pf-pat-hearts { --pf-pat: color-mix(in srgb, var(--text) 13%, transparent); background: var(--pf-pat); -webkit-mask-repeat: repeat; mask-repeat: repeat; }
+.pf-pat-stars {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M14 4Q15 13 24 14Q15 15 14 24Q13 15 4 14Q13 13 14 4Z M46 38Q46.7 44.3 53 45Q46.7 45.7 46 52Q45.3 45.7 39 45Q45.3 44.3 46 38Z'/%3E%3Ccircle cx='50' cy='12' r='1.4'/%3E%3Ccircle cx='18' cy='50' r='1.1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M14 4Q15 13 24 14Q15 15 14 24Q13 15 4 14Q13 13 14 4Z M46 38Q46.7 44.3 53 45Q46.7 45.7 46 52Q45.3 45.7 39 45Q45.3 44.3 46 38Z'/%3E%3Ccircle cx='50' cy='12' r='1.4'/%3E%3Ccircle cx='18' cy='50' r='1.1'/%3E%3C/svg%3E");
+  -webkit-mask-size: 64px 64px; mask-size: 64px 64px; }
+.pf-pat-hearts {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M12 21C5 15 2 11.5 2 8.2 2 5.5 4.2 3.5 6.8 3.5 8.6 3.5 10.6 4.6 12 6.4 13.4 4.6 15.4 3.5 17.2 3.5 19.8 3.5 22 5.5 22 8.2 22 11.5 19 15 12 21Z' transform='translate(4 4) scale(.62)'/%3E%3Cpath d='M12 21C5 15 2 11.5 2 8.2 2 5.5 4.2 3.5 6.8 3.5 8.6 3.5 10.6 4.6 12 6.4 13.4 4.6 15.4 3.5 17.2 3.5 19.8 3.5 22 5.5 22 8.2 22 11.5 19 15 12 21Z' transform='translate(32 32) scale(.45)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M12 21C5 15 2 11.5 2 8.2 2 5.5 4.2 3.5 6.8 3.5 8.6 3.5 10.6 4.6 12 6.4 13.4 4.6 15.4 3.5 17.2 3.5 19.8 3.5 22 5.5 22 8.2 22 11.5 19 15 12 21Z' transform='translate(4 4) scale(.62)'/%3E%3Cpath d='M12 21C5 15 2 11.5 2 8.2 2 5.5 4.2 3.5 6.8 3.5 8.6 3.5 10.6 4.6 12 6.4 13.4 4.6 15.4 3.5 17.2 3.5 19.8 3.5 22 5.5 22 8.2 22 11.5 19 15 12 21Z' transform='translate(32 32) scale(.45)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 56px 56px; mask-size: 56px 56px; }
+/* the picker's samples: a small tile of each pattern, a touch stronger so it shows at that size */
+.pf-pat-choices { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+.pf-pat-sample { position: relative; width: 100%; overflow: hidden; isolation: isolate; border-radius: 4px; background: var(--surface-2); }
+.pf-pat-sample .pf-pattern { position: absolute; z-index: 0; --pf-pat: color-mix(in srgb, var(--text) 32%, transparent); }
+.pf-pat-sample .pf-pat-grain { opacity: .8; }
+
+/* ---------- Look → Style: Soft (rounded cards) and Minimal (no boxes) step out of Lilin's panel look ----------
+   phase.css draws the panels; these win on specificity, so the EVA skin doesn't have to know about them */
+.pf:is(.pf-frame-soft, .pf-frame-open) :is(.pf-sec, .pf-head) { overflow: visible; }
+.pf.pf-frame-soft .pf-sec, .pf.pf-frame-soft.pf-painted .pf-sec { border-radius: 20px; background: var(--ph-pnl2); }
+.pf.pf-frame-soft .pf-head, .pf.pf-frame-soft.pf-painted .pf-head,
+.pf.pf-frame-open .pf-head, .pf.pf-frame-open.pf-painted .pf-head { background: none; }
+.pf.pf-frame-open .pf-sec { background: none; padding-left: 4px; padding-right: 4px; }
+.pf.pf-frame-open .pf-sec + .pf-sec { margin-top: 26px; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sec-head { padding-left: 0; font: 750 17px/1.2 var(--body); letter-spacing: -.005em; text-transform: none; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sec-head::before,
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sec-head::after,
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-name::before,
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-face::before { content: none; display: none; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sec-head .pf-sec-note { letter-spacing: .02em; text-transform: none; font-size: 12.5px; font-weight: 600; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sub { letter-spacing: .01em; text-transform: none; font-size: 14px; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-poster { clip-path: none; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-poster::after { background: none; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-status { border-radius: 999px; clip-path: none; letter-spacing: .01em; text-transform: none; font-size: 13px; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-stat dt { letter-spacing: .04em; text-transform: none; font-size: 11.5px; }
+.pf.pf-frame-soft .pf-stat { border-radius: 14px; }
+.pf:is(.pf-frame-soft, .pf-frame-open) .pf-sec-pinned .pf-review { border-radius: 14px; background: var(--ph-pnl2); box-shadow: inset 3px 0 0 var(--pf-accent); }
+.pf.pf-frame-open .pf-sec-pinned .pf-review { background: none; }
+/* buttons go round too (phase.css chamfers every button app-wide) */
+.pf:is(.pf-frame-soft, .pf-frame-open) :is(.play-btn, .btn-primary, .chip, .icon-btn, .row-more-btn):not(.player *):not(.me-btn) {
+  clip-path: none; border-radius: 999px; background-image: none; }
+.pf:is(.pf-frame-soft, .pf-frame-open) :is(.chip, .icon-btn):not(.player *):not(.me-btn) { box-shadow: inset 0 0 0 1px var(--hairline-2); }
+/* the editor's preview card follows the style */
+.pf-editor .pf-ed-card:is(.pf-frame-soft, .pf-frame-open) { border-radius: 20px; overflow: hidden; }
+.pf-editor .pf-ed-card:is(.pf-frame-soft, .pf-frame-open)::after { content: none; }
+.pf-ed-card:is(.pf-frame-soft, .pf-frame-open) .pf-ed-face::before { content: none; }
+.pf-ed-card:is(.pf-frame-soft, .pf-frame-open) :is(.pf-ed-sub, .pf-status) { letter-spacing: .01em; text-transform: none; }
+.pf-ed-card:is(.pf-frame-soft, .pf-frame-open) .pf-status { border-radius: 999px; clip-path: none; }

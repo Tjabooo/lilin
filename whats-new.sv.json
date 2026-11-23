@@ -1,4 +1,21 @@
 {
+  "2026-11-23-profile-style": {
+    "title": "Gör din profil till din egen",
+    "items": {
+      "Background colours stay the colour you pick": {
+        "title": "Bakgrundsfärgen blir den du väljer",
+        "text": "Redigera profil → Utseende → Bakgrund → Färg målar nu din sida i exakt den färg du valt, ljus eller mörk, pastell eller neon. Texten blir ljus eller mörk av sig själv så att den går att läsa. Det finns fler färger att välja på också, bland annat svart, vitt och pasteller."
+      },
+      "Profile style": {
+        "title": "Profilstil",
+        "text": "Under Utseende → Stil väljer du Paneler (Lilins egen stil), Mjuka (rundade kort) eller Minimal (inga rutor, bara din bakgrund)."
+      },
+      "Background patterns": {
+        "title": "Mönster på bakgrunden",
+        "text": "Under Utseende → Mönster lägger du ett svagt mönster över bakgrunden: prickar, rutnät, ränder, korn, stjärnor eller hjärtan."
+      }
+    }
+  },
   "2026-11-23-ring-accent": {
     "title": "Din ring, din färg",
     "items": {
