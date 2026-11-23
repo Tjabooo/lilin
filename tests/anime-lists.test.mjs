@@ -223,3 +223,23 @@ test('favourites give a thumbs up once, never over a rating they gave on Lilin',
   await anime.sync(ebi.id, 'mal', { readers });
   assert.deepEqual([...social.likedKeys(ebi.id)].sort(), ['tv:1000'], 'the removed thumb stays off; a new favourite is liked');
 });
+
+test('favourite thumbs carry the list date, and undated ones move back once a date turns up', async () => {
+  const social = await import('../src/social.js');
+  const map = await import('../src/anime-map.js');
+  map.use(map.compact([{ mal_id: 19, themoviedb_id: { tv: 30981 } }, { mal_id: 6, themoviedb_id: { tv: 1000 } }]));
+  const { ebi } = setup();
+  const when = (key) => social.likedKeys(ebi.id).has(key) && (profiles.likedBy(ebi.id, 50).findIndex((l) => l.key === key));
+  social.rate(ebi.id, 'movie:603', 1); // a real like today
+  anime.likeFavorites(ebi.id, [{ title: 'Monster', url: 'https://myanimelist.net/anime/19/x', at: Date.UTC(2020, 0, 1) }, { title: 'Trigun', url: 'https://myanimelist.net/anime/6/x' }]);
+  assert.deepEqual(profiles.likedBy(ebi.id, 50).map((l) => l.key), ['tv:1000', 'movie:603', 'tv:30981'], 'Trigun had no date: today');
+  anime.likeFavorites(ebi.id, [{ title: 'Trigun', url: 'https://myanimelist.net/anime/6/x', at: Date.UTC(2019, 0, 1) }]);
+  assert.deepEqual(profiles.likedBy(ebi.id, 50).map((l) => l.key), ['movie:603', 'tv:30981', 'tv:1000'], 'dated now: moved back');
+  assert.equal(when('tv:1000'), 2);
+});
+
+test('MyAnimeList favourites get the date their list entry last changed', async () => {
+  const html = '<div id="anime_favorites"><ul><li title="X"><a href="https://myanimelist.net/anime/1/X"></a></li></ul></div>';
+  const got = await anime.readMal('ebi', { page: async () => [malRow({ anime_id: 1, updated_at: 1600000000 })], profile: async () => html });
+  assert.equal(got.favorites[0].at, 1600000000 * 1000);
+});

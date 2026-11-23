@@ -59,7 +59,7 @@ function onlyFiveLikes() {
   if (done) return;
   const lb = (t) => db().prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
   const keep = [lb('letterboxd_wrote') && 'NOT EXISTS (SELECT 1 FROM letterboxd_wrote w WHERE w.user_id = r.user_id AND w.title_key = r.title_key AND w.thumb = 1)',
-    lb('letterboxd_log') && 'NOT EXISTS (SELECT 1 FROM letterboxd_log l WHERE l.user_id = r.user_id AND l.title_key = r.title_key AND l.liked = 1)'].filter(Boolean);
+    lb('letterboxd_log') && 'NOT EXISTS (SELECT 1 FROM letterboxd_log l WHERE l.user_id = r.user_id AND l.title_key = r.title_key AND l.liked != 0)'].filter(Boolean);
   db().exec('BEGIN');
   try {
     db().prepare(`DELETE FROM ratings AS r WHERE r.value = 1 AND EXISTS (SELECT 1 FROM reviews v WHERE v.user_id = r.user_id

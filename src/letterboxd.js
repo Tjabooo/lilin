@@ -219,10 +219,11 @@ export function parseExport(buf) {
   const csv = (name) => (files.has(name) ? parseCsv(files.get(name)) : []);
   const profile = csv('profile.csv')[0] || {};
   const byUri = new Map(); // film page links → the film (diary.csv's links are to diary entries, not films)
-  const ratings = new Map(), likes = new Set();
+  // likes: film → when it was liked (likes/films.csv Date), so the thumb up here gets that date, not the import's
+  const ratings = new Map(), likes = new Map();
   for (const r of csv('watched.csv')) if (r.Name) byUri.set(r['Letterboxd URI'], filmOf(r));
   for (const r of csv('ratings.csv')) if (r.Name) { const f = filmOf(r); byUri.set(r['Letterboxd URI'], f); const v = rating(r.Rating); if (v) ratings.set(filmId(f), v); }
-  for (const r of csv('likes/films.csv')) if (r.Name) { const f = filmOf(r); byUri.set(r['Letterboxd URI'], f); likes.add(filmId(f)); }
+  for (const r of csv('likes/films.csv')) if (r.Name) { const f = filmOf(r); byUri.set(r['Letterboxd URI'], f); const d = dayOf(r.Date); likes.set(filmId(f), (d && Date.parse(`${d}T20:00:00Z`)) || true); }
   const entries = [];
   const logged = new Set();
   const reviews = new Map(); // film|day → review row
@@ -235,7 +236,7 @@ export function parseExport(buf) {
     if (review) reviews.delete(`${filmId(film)}|${day || ''}`);
     logged.add(filmId(film));
     entries.push({ id: `diary:${r['Letterboxd URI'] || `${filmId(film)}|${day}`}`, film, title: film.title, year: film.year, day, at: day ? Date.parse(`${day}T20:00:00Z`) : Date.now(),
-      rating: rating(r.Rating), rewatch: yes(r.Rewatch), liked: likes.has(filmId(film)),
+      rating: rating(r.Rating), rewatch: yes(r.Rewatch), liked: likes.get(filmId(film)) || false,
       review: review ? String(review.Review || '').replace(/\r\n?/g, '\n').slice(0, MAX_TEXT).trim() : '', spoiler: false });
   }
   // Reviews without a diary entry, then films only marked watched or rated: no day, so they count as
@@ -245,14 +246,14 @@ export function parseExport(buf) {
     logged.add(filmId(film));
     const day = dayOf(r['Watched Date']);
     entries.push({ id: `review:${r['Letterboxd URI'] || filmId(film)}`, film, title: film.title, year: film.year, day, at: Date.parse(`${dayOf(r.Date) || day || '2000-01-01'}T20:00:00Z`),
-      rating: rating(r.Rating), rewatch: yes(r.Rewatch), liked: likes.has(filmId(film)), review: String(r.Review || '').replace(/\r\n?/g, '\n').slice(0, MAX_TEXT).trim(), spoiler: false });
+      rating: rating(r.Rating), rewatch: yes(r.Rewatch), liked: likes.get(filmId(film)) || false, review: String(r.Review || '').replace(/\r\n?/g, '\n').slice(0, MAX_TEXT).trim(), spoiler: false });
   }
   const seen = new Set();
   for (const f of [...byUri.values()]) {
     const id = filmId(f);
     if (logged.has(id) || seen.has(id)) continue;
     seen.add(id);
-    entries.push({ id: `watched:${id}`, film: f, title: f.title, year: f.year, day: null, at: 0, rating: ratings.get(id) ?? null, rewatch: false, liked: likes.has(id), review: '', spoiler: false });
+    entries.push({ id: `watched:${id}`, film: f, title: f.title, year: f.year, day: null, at: 0, rating: ratings.get(id) ?? null, rewatch: false, liked: likes.get(id) || false, review: '', spoiler: false });
   }
   const favorites = String(profile['Favorite Films'] || '').split(/[,\s]+/).filter(Boolean).map((u) => byUri.get(u)).filter(Boolean).slice(0, 4);
   return { username: cleanUsername(profile.Username), favorites, entries };
@@ -299,6 +300,9 @@ function removeImported(userId) {
 }
 
 // ---------- storing ----------
+// liked in the log: 0, 1 (liked, date unknown) or when it was liked (ms, from the export's likes).
+const likedValue = (liked) => (typeof liked === 'number' && liked > 1 ? liked : liked ? 1 : 0);
+
 // Keeps entries ({ id, key, title, year, day, at, rating, rewatch, liked, review, spoiler }) and brings the
 // person's stars, reviews and thumbs up to date with them. Returns how many entries were new.
 export function store(userId, entries, now = Date.now()) {
@@ -313,7 +317,7 @@ export function store(userId, entries, now = Date.now()) {
       if (!e?.id || !e.title) continue;
       if (!had.get(userId, e.id)) added++;
       put.run(userId, String(e.id).slice(0, 300), e.key || null, e.title, e.year || null, e.day || null, e.at || 0, e.rating ?? null,
-        e.rewatch ? 1 : 0, e.liked ? 1 : 0, e.review || '', e.spoiler ? 1 : 0);
+        e.rewatch ? 1 : 0, likedValue(e.liked), e.review || '', e.spoiler ? 1 : 0);
     }
   });
   trustFeed(userId);
@@ -350,9 +354,10 @@ function applyReviews(userId, now) {
   const rows = db().prepare('SELECT * FROM letterboxd_log WHERE user_id = ? AND title_key IS NOT NULL ORDER BY at').all(userId);
   const per = new Map();
   for (const r of rows) {
-    const p = per.get(r.title_key) || { title: r.title, rating: null, liked: false, review: '', spoiler: false, at: r.at, reviewAt: null };
+    const p = per.get(r.title_key) || { title: r.title, rating: null, liked: false, likedAt: null, review: '', spoiler: false, at: r.at, reviewAt: null };
     if (r.rating != null) p.rating = r.rating;
     if (r.liked) p.liked = true;
+    if (r.liked > 1) p.likedAt = Math.max(p.likedAt || 0, r.liked);
     if (r.review) { p.review = r.review; p.spoiler = Boolean(r.spoiler); p.reviewAt = r.at; }
     p.at = r.at || p.at;
     per.set(r.title_key, p);
@@ -387,7 +392,7 @@ function applyReviews(userId, now) {
       const untouched = rating && before && rating.value === before.thumb; // still the thumb we wrote
       if (thumb && (!rating || untouched)) {
         db().prepare(`INSERT INTO ratings (user_id, title_key, value, title, updated_at) VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(user_id, title_key) DO UPDATE SET value = excluded.value, title = excluded.title, updated_at = excluded.updated_at`).run(userId, key, thumb, p.title, p.at || now);
+          ON CONFLICT(user_id, title_key) DO UPDATE SET value = excluded.value, title = excluded.title, updated_at = excluded.updated_at`).run(userId, key, thumb, p.title, (p.liked && p.likedAt) || p.at || now);
         wroteThumb = thumb;
       } else if (!thumb && untouched && before.thumb) {
         // Letterboxd no longer stands for a thumb here (or the rule changed): take back the one we wrote.

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-liked-dates",
+  "date": "2026-11-23",
+  "title": "Liked in the right order",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Imported likes keep their own dates",
+      "text": "Liked on your profile goes newest first, but likes brought over from Letterboxd or your anime favourites all got the day they were brought over, so a whole batch jumped to the top. Anime favourites now get the date from your list, and a Letterboxd export import uses the day you liked each film. Imported your Letterboxd export before today? Import it once more and those likes move to their real dates."
+    }
+  ]
+},
+{
   "id": "2026-11-23-anime-parts",
   "date": "2026-11-23",
   "title": "Choose what your Anime section shows",

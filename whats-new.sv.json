@@ -1,4 +1,13 @@
 {
+  "2026-11-23-liked-dates": {
+    "title": "Gillat i rätt ordning",
+    "items": {
+      "Imported likes keep their own dates": {
+        "title": "Importerade gillanden behåller sina datum",
+        "text": "Gillat på din profil visas nyast först, men gillanden från Letterboxd eller dina animefavoriter fick alla dagen de hämtades, så en hel hög hoppade upp överst. Animefavoriter får nu datumet från din lista, och en import av Letterboxd-exporten använder dagen du gillade varje film. Importerade du din Letterboxd-export före i dag? Importera den en gång till så hamnar de gillandena på sina riktiga datum."
+      }
+    }
+  },
   "2026-11-23-anime-parts": {
     "title": "Välj vad din Anime-del visar",
     "items": {

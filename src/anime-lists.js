@@ -14,7 +14,7 @@
 import { database } from './accounts.js';
 import { anilistQuery } from './anime.js';
 import { keyOf } from './anime-map.js'; // the Lilin title of an entry, so its poster opens the title page here
-import { rate } from './social.js'; // a favourite there is a thumbs up here
+import { validTitleKey } from './social.js'; // a favourite there is a thumbs up here (the ratings table)
 
 export const SERVICES = ['anilist', 'mal'];
 export const NAMES = { anilist: 'AniList', mal: 'MyAnimeList' };
@@ -95,10 +95,13 @@ const capFull = (list) => list.filter(Boolean).sort((a, b) => b.at - a.at).slice
 
 // ---------- reading the sites ----------
 const ANILIST_QUERY = `query($n:String){
-  User(name:$n){ name siteUrl favourites{ anime(perPage:${FAVS}){ nodes{ siteUrl episodes title{ userPreferred } coverImage{ large } } } } statistics{ anime{ count episodesWatched minutesWatched meanScore statuses{ status count } } } }
+  User(name:$n){ name siteUrl favourites{ anime(perPage:${FAVS}){ nodes{ id siteUrl episodes title{ userPreferred } coverImage{ large } } } } statistics{ anime{ count episodesWatched minutesWatched meanScore statuses{ status count } } } }
   w: Page(perPage:${SHOW}){ mediaList(userName:$n, type:ANIME, status_in:[CURRENT,REPEATING], sort:UPDATED_TIME_DESC){ progress score(format:POINT_10_DECIMAL) media{ siteUrl episodes title{ userPreferred } coverImage{ large } } } }
   d: Page(perPage:${SHOW}){ mediaList(userName:$n, type:ANIME, status:COMPLETED, sort:[UPDATED_TIME_DESC]){ progress score(format:POINT_10_DECIMAL) media{ siteUrl episodes title{ userPreferred } coverImage{ large } } } }
 }`;
+// When each favourite was finished (else last changed) on their list: the date its thumb up here gets.
+const ANILIST_FAV_DATES = `query($n:String,$ids:[Int]){ Page(perPage:${FAVS}){ mediaList(userName:$n, mediaId_in:$ids){ mediaId updatedAt completedAt{ year month day } } } }`;
+const dayMs = (d) => (d?.year ? Date.UTC(d.year, (d.month || 1) - 1, d.day || 1, 20) : 0);
 const ANILIST_FULL = `query($n:String){
   MediaListCollection(userName:$n, type:ANIME){ lists{ isCustomList entries{ status progress updatedAt score(format:POINT_10_DECIMAL) media{ siteUrl episodes title{ userPreferred } coverImage{ medium } } } } }
 }`;
@@ -127,14 +130,22 @@ export async function readAnilist(username, { query = anilistQuery, full = false
           episodes: l.media?.episodes, score: l.score, status: ANILIST_STATUS[l.status], updated: l.updatedAt })));
     } catch { throw fail(502, 'AniList didn’t send the full list. Try again in a bit.'); }
   }
+  const favNodes = (user.favourites?.anime?.nodes || []).slice(0, FAVS);
+  const favAt = new Map();
+  if (favNodes.length) {
+    try {
+      const got = await query(ANILIST_FAV_DATES, { n: username, ids: favNodes.map((m) => m.id).filter(Boolean) });
+      for (const l of got?.Page?.mediaList || []) favAt.set(l.mediaId, dayMs(l.completedAt) || num(l.updatedAt) * 1000);
+    } catch { /* no dates: the thumbs get today's */ }
+  }
   return {
     full: whole,
     username: text(user.name, 40) || username,
     stats: { completed: done, episodes: num(st.episodesWatched), days: Math.round(num(st.minutesWatched) / 144) / 10, mean: mean > 10 ? Math.round(mean) / 10 : mean },
     watching: (data.w?.mediaList || []).map(toEntry).filter((e) => e.title),
     finished: (data.d?.mediaList || []).map(toEntry).filter((e) => e.title),
-    favorites: (user.favourites?.anime?.nodes || []).map((m) => entry({ title: m?.title?.userPreferred, cover: m?.coverImage?.large, url: m?.siteUrl, episodes: m?.episodes }))
-      .filter((e) => e.title).slice(0, FAVS),
+    favorites: favNodes.map((m) => ({ ...entry({ title: m?.title?.userPreferred, cover: m?.coverImage?.large, url: m?.siteUrl, episodes: m?.episodes }), at: favAt.get(m?.id) || null }))
+      .filter((e) => e.title),
   };
 }
 
@@ -197,7 +208,11 @@ export async function readMal(username, { page = malPage, profile = malProfile, 
       mean: scored.length ? Math.round(scored.reduce((n, e) => n + num(e.score), 0) / scored.length * 10) / 10 : 0 },
     watching: all.filter((e) => e.status === 1 || e.is_rewatching).sort(newest).slice(0, SHOW).map(toEntry).filter((e) => e.title),
     finished: all.filter((e) => e.status === 2 && !e.is_rewatching).sort(newest).slice(0, SHOW).map(toEntry).filter((e) => e.title),
-    favorites: await profile(username).then((html) => (html == null ? null : malFavoritesOf(html)), () => null),
+    // a favourite's date: when its list entry last changed (MAL has no finish date in a usable format)
+    favorites: await profile(username).then((html) => (html == null ? null : malFavoritesOf(html).map((e) => {
+      const at = num(all.find((x) => String(x.anime_id) === /\/anime\/(\d+)/.exec(e.url)?.[1])?.updated_at) * 1000;
+      return { ...e, at: at || null };
+    })), () => null),
   };
 }
 
@@ -261,18 +276,32 @@ export async function link(userId, service, username, { readers = READERS, now =
 
 // A favourite on MyAnimeList / AniList that Lilin has (anime-map.js) gets a thumbs up here, once per title: one
 // they already rated on Lilin (a thumbs down too) is left alone, and so is one whose thumb they took off later.
+// The thumb is dated when the entry was finished / last changed on their list (e.at), so Liked on the profile,
+// newest first, doesn't put the whole batch on top; a thumb given earlier with today's date (no date known then) is
+// moved back once a date turns up, while it's still the one we gave.
 export function likeFavorites(userId, favorites, { now = Date.now() } = {}) {
   const d = db();
-  const rated = d.prepare('SELECT 1 FROM ratings WHERE user_id = ? AND title_key = ?');
-  const done = d.prepare('SELECT 1 FROM anime_liked WHERE user_id = ? AND title_key = ?');
+  const rated = d.prepare('SELECT value, updated_at FROM ratings WHERE user_id = ? AND title_key = ?');
+  const done = d.prepare('SELECT at FROM anime_liked WHERE user_id = ? AND title_key = ?');
   const mark = d.prepare('INSERT OR IGNORE INTO anime_liked (user_id, title_key, at) VALUES (?, ?, ?)');
+  const like = d.prepare('INSERT INTO ratings (user_id, title_key, value, title, updated_at) VALUES (?, ?, 1, ?, ?) ON CONFLICT(user_id, title_key) DO NOTHING');
+  const redate = d.prepare('UPDATE ratings SET updated_at = ? WHERE user_id = ? AND title_key = ? AND value = 1');
   let n = 0;
   for (const e of Array.isArray(favorites) ? favorites : []) {
     const key = keyOf(e?.url);
-    if (!key || done.get(userId, key)) continue;
+    if (!key || !validTitleKey(key)) continue;
+    const at = num(e.at) && e.at < now ? e.at : null;
+    const r = rated.get(userId, key);
+    const marked = done.get(userId, key);
+    if (marked) {
+      // ours, given without a date (within a minute of the mark) and never touched since
+      if (at && r?.value === 1 && Math.abs(r.updated_at - marked.at) < 60000) redate.run(at, userId, key);
+      continue;
+    }
     mark.run(userId, key, now);
-    if (rated.get(userId, key)) continue;
-    try { rate(userId, key, 1, e.title); n++; } catch { /* not a title key Lilin takes */ }
+    if (r) continue;
+    like.run(userId, key, text(e.title) || null, at || now);
+    n++;
   }
   return n;
 }

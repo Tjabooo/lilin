@@ -131,6 +131,18 @@ test('letterboxd: the export brings the whole history and the top four', async (
   assert.throws(() => lb.parseExport(Buffer.from('nope')), /export/);
 });
 
+test('letterboxd: a liked film gets its thumb on the day it was liked, not the import day', async () => {
+  const { anna } = setup();
+  const buf = zip({
+    'watched.csv': 'Date,Name,Year,Letterboxd URI\n2020-02-01,Heat,1995,https://boxd.it/a\n2020-02-01,Alien,1979,https://boxd.it/b\n',
+    'likes/films.csv': 'Date,Name,Year,Letterboxd URI\n2022-05-06,Heat,1995,https://boxd.it/a\n2024-01-02,Alien,1979,https://boxd.it/b\n',
+  });
+  await lb.importExport(anna.id, buf, { findFilm: async (f) => ({ Heat: 'movie:949', Alien: 'movie:348' })[f.title] });
+  assert.deepEqual(profiles.likedBy(anna.id).map((l) => l.key), ['movie:348', 'movie:949'], 'newest like first');
+  const day = (key) => new Date(accounts.database().prepare('SELECT updated_at FROM ratings WHERE user_id = ? AND title_key = ?').get(anna.id, key).updated_at).toISOString().slice(0, 10);
+  assert.deepEqual([day('movie:949'), day('movie:348')], ['2022-05-06', '2024-01-02']);
+});
+
 test('letterboxd: the feed’s TMDB id beats a same-named export match, one watch per day', async () => {
   const { anna } = setup();
   lb.setLink(anna.id, 'someone');
