@@ -1050,7 +1050,7 @@ async function svtSaved(job, full) {
     if (details) shows.identifyFilm(key, details);
   }
   invalidateLibrary();
-  if (arrived.size) announceArrivals(job.hash, arrived, job.requesters);
+  if (arrived.size) announceArrivals(job.hash, arrived, job.requesters).catch((e) => console.log(`[push] arrivals: ${e.message}`));
   if (job.kind === 'series') prepSeasonOf(full);
 }
 
@@ -4116,7 +4116,21 @@ const announcedEpisodes = new Set(); // media keys already announced as new epis
 setInterval(() => { for (const [k, at] of watchInvitesSent) if (Date.now() - at > 120000) watchInvitesSent.delete(k); }, 600000).unref();
 const pushTitle = (title) => shows.knownShow(title, null)?.title || title;
 const announcedListFilms = new Set(); // films already announced to the people with them on My list, since startup
-function announceArrivals(hash, arrived, claimants) {
+// "New episode" pushes are for episodes that just came out (TMDB air date in the last two weeks), not old
+// episodes that just landed on Lilin. A show TMDB doesn't know never counts as new.
+const NEW_EPISODE_DAYS = 14;
+async function justAired(info) {
+  const show = shows.knownShow(info.title, info.year);
+  if (!show?.id || info.season == null || info.episode == null) return null;
+  let date = show.episodes?.[info.season]?.[info.episode]?.airDate;
+  if (!date && tmdbOn()) {
+    const d = await cachedTmdb(`/tv/${show.id}/season/${info.season}`, {}, 6 * 3600 * 1000).catch(() => null);
+    date = (d?.episodes || []).find((e) => e.episode_number === info.episode)?.air_date;
+  }
+  const age = date ? (Date.now() - Date.parse(date)) / 86400000 : NaN;
+  return age >= -1 && age <= NEW_EPISODE_DAYS ? show.id : null;
+}
+async function announceArrivals(hash, arrived, claimants) {
   const follows = new Map(); // person -> show keys they follow (shows on My list, watchlist.js)
   for (const r of watchlist.followers()) {
     if (!follows.has(r.user_id)) follows.set(r.user_id, new Set());
@@ -4142,7 +4156,8 @@ function announceArrivals(hash, arrived, claimants) {
       continue;
     }
     // A followed show's episodes that downloaded by themselves count as new episodes.
-    if (shown.size === 1 && infos[0].season != null && follows.get(userId)?.has([...shown][0])) {
+    if (shown.size === 1 && infos[0].season != null && follows.get(userId)?.has([...shown][0])
+      && (await Promise.all(infos.map(justAired))).every(Boolean)) {
       const name = pushTitle(infos[0].title);
       notify([userId], 'episode', { title: files.length === 1 ? `New episode of ${name}` : `${files.length} new episodes of ${name}`,
         body: files.length === 1 ? `${titleOf(files[0])} plays instantly now. Tap to watch.` : 'They play instantly now. Tap to watch.', url: '/', tag: `download-${hash.toLowerCase()}` });
@@ -4169,37 +4184,31 @@ function announceArrivals(hash, arrived, claimants) {
     for (const id of people) notify([id], 'mylist', { title: `From My list: ${listName(id, key)} is on Lilin`,
       body: 'A good copy just arrived. It plays instantly now. Tap to watch.', url: '/', tag: `mylist-${key}`.slice(0, 64) });
   }
-  // New episodes: everyone else with an episode of the show in their library hears once per episode.
-  // Following alone isn't enough: a show that isn't in your library stays quiet until it lands there.
+  // New episodes: everyone else who actually watches the show (has finished at least one episode of it) hears
+  // once per episode, and only for episodes that just aired, not old ones someone just downloaded.
   const episodes = [...new Set([...arrived.values()].flat())].map((full) => ({ key: accounts.mediaKey(full), info: parseFile(full) }))
     .filter((e) => e.key && e.info.season != null && !announcedEpisodes.has(e.key));
   if (!episodes.length) return;
-  const showsOf = new Map(); // person -> show keys in their library
-  for (const r of accounts.libraryRows()) {
-    const info = parseFile(path.join(MEDIA_DIR, `${r.media_key}.mkv`));
-    if (info.season == null) continue;
-    if (!showsOf.has(r.user_id)) showsOf.set(r.user_id, new Set());
-    showsOf.get(r.user_id).add(shows.showKey(info.title));
-  }
   const skip = new Set(claimants);
   const byShow = new Map();
   if (announcedEpisodes.size > 5000) announcedEpisodes.clear();
   for (const e of episodes) {
     announcedEpisodes.add(e.key);
-    const k = shows.showKey(e.info.title);
-    byShow.set(k, [...(byShow.get(k) || []), e]);
+    const id = await justAired(e.info);
+    if (!id) continue;
+    byShow.set(id, [...(byShow.get(id) || []), e]);
   }
   const label = (i) => `S${String(i.season).padStart(2, '0')} E${String(i.episode).padStart(2, '0')}`;
-  for (const [k, eps] of byShow) {
-    const people = [...showsOf].filter(([id, set]) => !skip.has(id) && set.has(k)).map(([id]) => id);
+  for (const [id, eps] of byShow) {
+    const people = social.showWatchers(`tv:${id}`).filter((uid) => !skip.has(uid));
     if (!people.length) continue;
     eps.sort((a, b) => a.info.season - b.info.season || a.info.episode - b.info.episode);
     const name = pushTitle(eps[0].info.title);
     notify(people, 'episode', {
       title: eps.length === 1 ? `New episode of ${name}` : `${eps.length} new episodes of ${name}`,
-      body: eps.length === 1 ? `${label(eps[0].info)} just arrived on Lilin. Find it on the show’s page to add it to your library.`
-        : `${label(eps[0].info)} to ${label(eps.at(-1).info)} just arrived on Lilin. Find them on the show’s page to add them to your library.`,
-      url: '/', tag: `episode-${k}`.slice(0, 64),
+      body: eps.length === 1 ? `${label(eps[0].info)} just came out and is on Lilin. Find it on the show’s page to add it to your library.`
+        : `${label(eps[0].info)} to ${label(eps.at(-1).info)} just came out and are on Lilin. Find them on the show’s page to add them to your library.`,
+      url: '/', tag: `episode-${id}`.slice(0, 64),
     });
   }
 }
@@ -6889,7 +6898,7 @@ function claimCompletedTorrents(torrents) {
         // pending until the whole selected video set is ready; INSERT OR IGNORE preserves dates.
         if (t.progress >= 1 && availability.every(Boolean)) accounts.markClaimed(t.hash);
         if (changed) invalidateLibrary();
-        if (arrived.size) announceArrivals(t.hash, arrived, claimants);
+        if (arrived.size) announceArrivals(t.hash, arrived, claimants).catch((e) => console.log(`[push] arrivals: ${e.message}`));
         for (const file of new Set([...arrived.values()].flat())) prepSeasonOf(file);
       } catch {
         // A transient qBittorrent/filesystem failure is retried on the next poll.

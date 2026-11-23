@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // The real server with stand-ins for qBittorrent, TMDB and the push service. Each person's phone is
 // an endpoint named after them, so the inbox shows exactly who was notified about what.
-test('download notifications only reach people who have the show or film in their library', { timeout: 30000 }, async (t) => {
+test('download notifications only reach people who have it, and new episodes only people who watch the show', { timeout: 30000 }, async (t) => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-push-audience-'));
   const media = path.join(app, 'media'); await fs.mkdir(media);
@@ -33,7 +33,10 @@ test('download notifications only reach people who have the show or film in thei
       const v = incoming.shift(); torrents.set(v.hash, v); res.end('Ok.'); return;
     }
     if (url.pathname.startsWith('/api/v2/')) { res.end('Ok.'); return; }
-    res.end(JSON.stringify(url.pathname === '/tv/42' ? { id: 42, name: 'Example Show', first_air_date: '2020-01-01', seasons: [] } : {}));
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const season = { episodes: [1, 2, 3, 4].map((n) => ({ episode_number: n, name: `Episode ${n}`, air_date: n === 3 ? '2020-01-15' : yesterday })) };
+    res.end(JSON.stringify(url.pathname === '/tv/42' ? { id: 42, name: 'Example Show', first_air_date: '2020-01-01', seasons: [] }
+      : url.pathname === '/tv/42/season/1' ? season : {}));
   });
   await new Promise((r) => mock.listen(0, '127.0.0.1', r));
   const mockBase = `http://127.0.0.1:${mock.address().port}`;
@@ -107,7 +110,14 @@ test('download notifications only reach people who have the show or film in thei
   assert.deepEqual(await pushed(), ['holder'], 'following a show is not having it in your library');
 
   await download('downloader', 'Example.Show.S01E02.mp4', { mediaType: 'tv', tvId: 42 });
-  assert.deepEqual(await pushed(), ['downloader', 'holder'], 'someone with the show hears about its new episode');
+  assert.deepEqual(await pushed(), ['downloader'], 'having the show in your library is not watching it');
+
+  await request('/api/me/seen', 'holder', { key: 'tv:42', season: 1, episode: 1, seen: true, title: 'Example Show' });
+  await download('downloader', 'Example.Show.S01E04.mp4', { mediaType: 'tv', tvId: 42 });
+  assert.deepEqual(await pushed(), ['downloader', 'holder'], 'someone who watches the show hears about its new episode');
+
+  await download('downloader', 'Example.Show.S01E03.mp4', { mediaType: 'tv', tvId: 42 });
+  assert.deepEqual(await pushed(), ['downloader'], 'an old episode landing on Lilin is not a new episode');
 
   await download('downloader', 'Other.Film.2020.1080p.mp4');
   assert.deepEqual(await pushed(), ['downloader'], 'a film only notifies the person whose library it landed in');

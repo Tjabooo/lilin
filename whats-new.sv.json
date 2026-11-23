@@ -1,4 +1,13 @@
 {
+  "2026-11-23-new-episode-pushes": {
+    "title": "Aviseringar om nya avsnitt som faktiskt är nya",
+    "items": {
+      "Only shows you watch, only episodes that just came out": {
+        "title": "Bara serier du tittar på, bara avsnitt som precis kommit ut",
+        "text": "Du får nu bara höra om ett nytt avsnitt av en serie du sett minst ett avsnitt av, och bara när avsnittet kom ut de senaste två veckorna. Att någon laddar ner gamla säsonger av en serie skickar inte längre en hög med aviseringar om nya avsnitt."
+      }
+    }
+  },
   "2026-11-23-popular-balanced": {
     "title": "Ett rättvisare Populärt på Lilin",
     "items": {
