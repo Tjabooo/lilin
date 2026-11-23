@@ -436,7 +436,7 @@ function fitBillboard() {
   const bb = BB.root;
   if (!bb) return;
   const w = wide();
-  $$('.bb-copy .ph-name', bb).forEach((box) => fit(box, w ? { max: 150, maxH: 250, min: 34 } : { max: 104, maxH: 196, min: 28 }));
+  $$('.bb-copy .ph-name', bb).forEach((box) => fit(box, w ? { max: 150, maxH: 250, min: 34 } : { max: 72, maxH: 128, min: 24 }));
 }
 function placeRibbon() {
   const bb = BB.root, slide = $('.bb-slide.is-active', bb) || $('.bb-slide', bb);
@@ -535,7 +535,7 @@ function enhanceSheet(sheet) {
     h2.append(box);
     h2.classList.add('ph-named');
   }
-  if (box._fitW !== box.clientWidth && fit(box, wide() ? { max: 132, maxH: 280, min: 30 } : { max: 112, maxH: 230, min: 26 })) box._fitW = box.clientWidth;
+  if (box._fitW !== box.clientWidth && fit(box, wide() ? { max: 132, maxH: 280, min: 30 } : { max: 76, maxH: 140, min: 24 })) box._fitW = box.clientWidth;
   // the wave edge + the ribbon that rides it
   const hero = $('.sheet-hero', sheet);
   if (hero && !hero.classList.contains('no-image') && !hero.classList.contains('is-playing')) {

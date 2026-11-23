@@ -1,4 +1,13 @@
 {
+  "2026-11-23-banner-logos": {
+    "title": "Titellogorna är tillbaka",
+    "items": {
+      "Banners show the title's own logo": {
+        "title": "Banners visar titelns egen logga",
+        "text": "Den stora bannern på Upptäck och toppen av titelsidor visar filmens eller seriens officiella logga igen i stället för enorma staplade bokstäver, så långa titlar får plats på mobilen. Titlar utan logga får fortfarande bokstäverna, nu mindre på mobilen."
+      }
+    }
+  },
   "2026-11-23-episode-more": {
     "title": "⋯ på varje avsnitt",
     "items": {

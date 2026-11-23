@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-banner-logos",
+  "date": "2026-11-23",
+  "title": "Title logos are back",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Banners show the title's own logo",
+      "text": "The big banner on Discover and the top of title pages show the film or show's official logo again instead of huge stacked letters, so long titles fit on a phone. Titles without a logo still get the lettering, now smaller on phones."
+    }
+  ]
+},
+{
   "id": "2026-11-23-episode-more",
   "date": "2026-11-23",
   "title": "⋯ on every episode",

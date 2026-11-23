@@ -129,6 +129,16 @@ html.ph .view { animation: none; }
 .bb-copy { align-items: flex-start; text-align: left; }
 .bb-copy.ph-has-name > .bb-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .bb-copy .ph-name { margin: 10px 0 0; color: var(--on-image); text-shadow: 0 2px 24px rgb(0 0 0 / .35); }
+/* The official logo wins when TMDB has one (Oliver 11-23: the stacked name was huge on phones); the stacked name is the
+   fallback. While the logo lookup is pending, the plain title holds the space invisibly so the big name never flashes. */
+.bb-copy.ph-has-name > .bb-title:is(.is-pending, :has(> .bb-logo)) { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; margin-top: 10px; }
+.bb-copy:has(> .bb-title:is(.is-pending, :has(> .bb-logo))) > .ph-name { display: none; }
+#sheet .sheet-content > h2.ph-named:has(> img.page-logo) { line-height: normal; }
+#sheet .sheet-content > h2.ph-named > img.page-logo { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+#sheet .sheet-content > h2.ph-named:has(> img.page-logo) > .ph-name { display: none; }
+/* the title-card rule under a logo too */
+.bb-copy > .bb-title:has(> .bb-logo)::after, #sheet .sheet-content > h2.ph-named:has(> img.page-logo)::after { content: ""; display: block; height: 1px; margin-top: 14px; width: min(100%, 420px);
+  background: linear-gradient(90deg, var(--ph-you) 0 22px, transparent 22px 30px, color-mix(in srgb, currentColor 34%, transparent) 30px); }
 .bb-rank { height: auto; padding: 0; background: none; box-shadow: none; border-radius: 0; gap: 9px;
   font: 700 10.5px/1 var(--body); letter-spacing: .26em; text-transform: uppercase; color: rgb(255 255 255 / .8); text-shadow: 0 1px 8px rgb(0 0 0 / .5); }
 .bb-rank-bulb { width: 6px; height: 6px; box-shadow: none; }
@@ -219,7 +229,6 @@ html.ph-hidden .ph-loader .ph-lw > span { animation-play-state: paused; }
 .ph-edge { position: relative; height: 0; z-index: 3; pointer-events: none; }
 .ph-edge .ph-ribbon { top: var(--ph-edge-top, -32px); -webkit-mask: none; mask: none; }
 #sheet .sheet-content > h2.ph-named { line-height: 0; }
-#sheet .sheet-content > h2.ph-named > img.page-logo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 #sheet .sheet-content .ph-name { color: var(--text); margin: 4px 0 2px; }
 .ph-kick { margin: 0 0 12px; font: 700 10.5px/1 var(--body); letter-spacing: .26em; text-transform: uppercase; color: var(--text-2); }
 .ph-kick::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 9px; border-radius: 50%; background: var(--ph-you); vertical-align: 1px; }
