@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-diary-one-viewing",
+  "date": "2026-11-23",
+  "title": "No more fake rewatches in your diary",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Watching in parts counts once",
+      "text": "Watching half an episode or film one day and the rest later now counts as one watch, on the day you finished it, instead of showing up on every day with a rewatch mark. Opening something you've finished just to look near the end doesn't count as a rewatch either. Only watching it again after finishing it does."
+    }
+  ]
+},
+{
   "id": "2026-11-23-diary-edit-dates",
   "date": "2026-11-23",
   "title": "Change when you watched something",

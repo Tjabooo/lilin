@@ -45,3 +45,33 @@ test('diary: episodes marked watched by hand show up and move as a day', () => {
   const days = profiles.diary(anna.id).entries.map((x) => `${x.day}:${x.episodes.map((p) => p.join('x'))}`);
   assert.deepEqual(days, ['2026-11-23:1x1', '2026-10-01:1x2']);
 });
+
+test('diary: an episode watched half one day and finished the next is one watch, not a rewatch', () => {
+  const anna = setup();
+  const play = (day, clock, mins, finished = false) => {
+    for (let i = 1; i <= mins; i++) social.logWatch(anna.id, { ref: 'm:gg118', about: { title: 'Gilmore Girls', titleKey: 'tv:4586', season: 1, episode: 18 }, watched: 60, now: at(day, clock) + i * 60_000 });
+    if (finished) social.logWatch(anna.id, { ref: 'm:gg118', about: { title: 'Gilmore Girls', titleKey: 'tv:4586', season: 1, episode: 18 }, watched: 0, finished: true, now: at(day, clock) + (mins + 1) * 60_000 });
+  };
+  play('2026-11-13', '20:00', 20);
+  play('2026-11-14', '20:00', 20);
+  play('2026-11-15', '20:00', 5, true);
+  let list = profiles.diary(anna.id).entries;
+  assert.deepEqual(list.map((e) => [e.day, e.rewatch]), [['2026-11-15', false]]);
+  play('2026-11-20', '20:00', 30, true); // really watched again
+  list = profiles.diary(anna.id).entries;
+  assert.deepEqual(list.map((e) => [e.day, e.rewatch]), [['2026-11-20', true], ['2026-11-15', false]]);
+  // moving the first watch takes its unfinished start along
+  profiles.moveWatch(anna.id, { key: 'tv:4586', day: '2026-11-15', to: '2026-11-10', now: at('2026-11-23', '12:00') });
+  list = profiles.diary(anna.id).entries;
+  assert.deepEqual(list.map((e) => [e.day, e.rewatch]), [['2026-11-20', true], ['2026-11-10', false]]);
+});
+
+test('diary: opening a finished episode near its end and finishing it again is not a rewatch', () => {
+  const anna = setup();
+  const about = { title: 'Gilmore Girls', titleKey: 'tv:4586', season: 1, episode: 19 };
+  for (let i = 1; i <= 45; i++) social.logWatch(anna.id, { ref: 'm:gg119', about, watched: 60, now: at('2026-11-14', '20:00') + i * 60_000 });
+  social.logWatch(anna.id, { ref: 'm:gg119', about, watched: 0, finished: true, now: at('2026-11-14', '20:50') });
+  social.logWatch(anna.id, { ref: 'm:gg119', about, watched: 27, now: at('2026-11-15', '20:00') });
+  social.logWatch(anna.id, { ref: 'm:gg119', about, watched: 0, finished: true, now: at('2026-11-15', '20:01') });
+  assert.deepEqual(profiles.diary(anna.id).entries.map((e) => [e.day, e.rewatch]), [['2026-11-14', false]]);
+});

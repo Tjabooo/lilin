@@ -300,6 +300,10 @@ const img = (u) => (TMDB_IMAGE.test(String(u || '')) ? u : null);
 const snapshot = (key, c) => ({ key, id: Number(key.split(':')[1]), type: key.split(':')[0], title: line(c.title, 200) || 'Untitled', year: Number.isInteger(c.year) ? c.year : null, poster: img(c.poster), backdrop: img(c.backdrop) });
 
 // ---------- what they watched ----------
+// What a watch_log row is a watch of: the film, the episode, or (an episode without a number) the file itself.
+const watchWhat = (r) => (r.title_key.startsWith('movie:') ? r.title_key
+  : r.season != null && r.episode != null ? `${r.title_key}|${r.season}|${r.episode}` : `${r.title_key}|${r.ref}`);
+
 // Every qualifying watch, oldest first: { key, type, title, day, at, season, episode, rewatch, letterboxd }.
 function watches(userId) {
   // Finishing only counts after a real part of it was played (that day or before): opening an episode near its end
@@ -317,18 +321,27 @@ function watches(userId) {
     rows.push({ title_key: l.key, title: l.title, day: l.day, ref: `lb:${l.key}`, season: null, episode: null, at: new Date(`${l.day}T12:00:00`).getTime(), lbRewatch: l.rewatch, letterboxd: true });
   }
   rows.sort((a, b) => a.at - b.at);
-  const firstDay = new Map(); // what was watched → the first day it was
+  // One viewing is one watch: half an episode one day and the rest the next counts once, on the day it was finished
+  // (or the last day so far, while it isn't). Only watching it again after finishing it is a rewatch.
+  const open = new Map(); // what → the index in out of its unfinished viewing
+  const done = new Set(); // what has been finished at least once
   const out = [];
   for (const r of rows) {
     if (!validTitleKey(r.title_key)) continue;
     const type = r.title_key.slice(0, r.title_key.indexOf(':'));
-    const what = type === 'movie' ? r.title_key : r.season != null && r.episode != null ? `${r.title_key}|${r.season}|${r.episode}` : `${r.title_key}|${r.ref}`;
-    const first = firstDay.get(what);
-    if (first == null) firstDay.set(what, r.day);
-    out.push({ key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode, rewatch: (first != null && first !== r.day) || Boolean(r.lbRewatch),
-      lbRewatch: Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) });
+    const what = watchWhat(r);
+    const w = { key: r.title_key, type, title: r.title, day: r.day, at: r.at, season: r.season, episode: r.episode,
+      rewatch: Boolean(r.lbRewatch) || (!r.letterboxd && done.has(what)), lbRewatch: Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) };
+    if (r.letterboxd) { out.push(w); continue; }
+    const cur = open.get(what);
+    const secs = (cur?.secs || 0) + (Number(r.seconds) || 0);
+    // Finished again with hardly anything played (opened near the end to look around): not a rewatch.
+    if (r.finished && done.has(what) && !cur && secs < (type === 'movie' ? FINISHED_FILM_SECONDS : FINISHED_EPISODE_SECONDS) && !String(r.ref).startsWith('x:')) continue;
+    if (cur) { w.rewatch = out[cur.i].rewatch; out[cur.i] = null; }
+    out.push(w);
+    if (r.finished) { done.add(what); open.delete(what); } else open.set(what, { i: out.length - 1, secs });
   }
-  return out;
+  return out.filter(Boolean);
 }
 
 // Change when something was watched (the diary's Edit dates): every Lilin watch of `key` on `day` moves to `to`,
@@ -348,6 +361,16 @@ export function moveWatch(userId, { key, day, to, time = null, episodes = null, 
     rows = rows.filter((r) => want.has(`${r.season}:${r.episode}`));
   }
   if (!rows.length) throw fail(404, 'Nothing watched here that day. Letterboxd logs change on Letterboxd.');
+  // A viewing spread over days (half one evening, the rest the next) moves as one: the unfinished days before it
+  // since it was last finished come along.
+  const before = db().prepare('SELECT * FROM watch_log WHERE user_id = ? AND title_key = ? AND day < ? ORDER BY day DESC').all(userId, key, day);
+  const taken = new Set(rows.map((r) => `${r.day}|${r.ref}`));
+  for (const what of new Set(rows.map(watchWhat))) {
+    for (const r of before.filter((x) => watchWhat(x) === what)) {
+      if (r.finished) break;
+      if (!taken.has(`${r.day}|${r.ref}`)) { taken.add(`${r.day}|${r.ref}`); rows.push(r); }
+    }
+  }
   if (to === day && !clock) return 0;
   const shift = Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${day}T12:00:00Z`)) / 864e5);
   const move = (at) => {

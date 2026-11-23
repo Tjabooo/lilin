@@ -1,4 +1,13 @@
 {
+  "2026-11-23-diary-one-viewing": {
+    "title": "Inga falska omtittningar i dagboken",
+    "items": {
+      "Watching in parts counts once": {
+        "title": "Att titta i omgångar räknas en gång",
+        "text": "Att se halva ett avsnitt eller en film en dag och resten senare räknas nu som en tittning, på dagen du såg klart, i stället för att synas varje dag med en omtittningsmarkering. Att öppna något du redan sett klart bara för att kolla nära slutet räknas inte heller som en omtittning. Bara att se om det efter att du sett klart gör det."
+      }
+    }
+  },
   "2026-11-23-diary-edit-dates": {
     "title": "Ändra när du såg något",
     "items": {
