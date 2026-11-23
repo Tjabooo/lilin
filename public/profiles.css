@@ -829,3 +829,4 @@ span.pf-comment-like { pointer-events: none; }
 .pf-reply-form { grid-template-columns: 28px minmax(0, 1fr) 36px; margin: 8px 0 0; }
 .pf-reply-form .pf-comment-send { width: 36px; height: 36px; }
 .pf-reply-form .pf-comment-field { min-height: 36px; padding: 7px 11px; font-size: 14px; }
+.pf-fav-anime-more { display: block; margin: 4px auto 0; }
