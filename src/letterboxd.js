@@ -300,6 +300,10 @@ function removeImported(userId) {
 }
 
 // ---------- storing ----------
+// A thumb from a film Letterboxd gives no date for (watched only, liked without a date): the oldest time there is, so
+// Liked (newest first) puts it after every dated like, and a feed check doesn't bring it back to the top as "now".
+const UNDATED = 1;
+
 // liked in the log: 0, 1 (liked, date unknown) or when it was liked (ms, from the export's likes).
 const likedValue = (liked) => (typeof liked === 'number' && liked > 1 ? liked : liked ? 1 : 0);
 
@@ -392,7 +396,7 @@ function applyReviews(userId, now) {
       const untouched = rating && before && rating.value === before.thumb; // still the thumb we wrote
       if (thumb && (!rating || untouched)) {
         db().prepare(`INSERT INTO ratings (user_id, title_key, value, title, updated_at) VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(user_id, title_key) DO UPDATE SET value = excluded.value, title = excluded.title, updated_at = excluded.updated_at`).run(userId, key, thumb, p.title, (p.liked && p.likedAt) || p.at || now);
+          ON CONFLICT(user_id, title_key) DO UPDATE SET value = excluded.value, title = excluded.title, updated_at = excluded.updated_at`).run(userId, key, thumb, p.title, (p.liked && p.likedAt) || p.at || UNDATED);
         wroteThumb = thumb;
       } else if (!thumb && untouched && before.thumb) {
         // Letterboxd no longer stands for a thumb here (or the rule changed): take back the one we wrote.

@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import * as accounts from '../src/accounts.js';
 import * as reviews from '../src/reviews.js';
 import * as profiles from '../src/profiles.js';
+import * as social from '../src/social.js';
 import * as friends from '../src/friends.js';
 import * as lb from '../src/letterboxd.js';
 import * as lists from '../src/lists.js';
@@ -141,6 +142,12 @@ test('letterboxd: a liked film gets its thumb on the day it was liked, not the i
   assert.deepEqual(profiles.likedBy(anna.id).map((l) => l.key), ['movie:348', 'movie:949'], 'newest like first');
   const day = (key) => new Date(accounts.database().prepare('SELECT updated_at FROM ratings WHERE user_id = ? AND title_key = ?').get(anna.id, key).updated_at).toISOString().slice(0, 10);
   assert.deepEqual([day('movie:949'), day('movie:348')], ['2022-05-06', '2024-01-02']);
+  // a film with a thumb but no date at all (watched only, 5 stars) comes after them, also when imported later
+  social.rate(anna.id, 'movie:1', 1);
+  await lb.importExport(anna.id, zip({ 'watched.csv': 'Date,Name,Year,Letterboxd URI\n2020-02-01,Heat,1995,https://boxd.it/a\n2020-02-01,Seven,1995,https://boxd.it/c\n',
+    'ratings.csv': 'Date,Name,Year,Letterboxd URI,Rating\n2020-02-01,Seven,1995,https://boxd.it/c,5\n',
+    'likes/films.csv': 'Date,Name,Year,Letterboxd URI\n2022-05-06,Heat,1995,https://boxd.it/a\n' }), { findFilm: async (f) => ({ Heat: 'movie:949', Seven: 'movie:807' })[f.title] });
+  assert.deepEqual(profiles.likedBy(anna.id).map((l) => l.key), ['movie:1', 'movie:348', 'movie:949', 'movie:807']);
 });
 
 test('letterboxd: the feed’s TMDB id beats a same-named export match, one watch per day', async () => {
