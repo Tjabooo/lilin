@@ -14,6 +14,7 @@
 import { database } from './accounts.js';
 import { anilistQuery } from './anime.js';
 import { keyOf } from './anime-map.js'; // the Lilin title of an entry, so its poster opens the title page here
+import { rate } from './social.js'; // a favourite there is a thumbs up here
 
 export const SERVICES = ['anilist', 'mal'];
 export const NAMES = { anilist: 'AniList', mal: 'MyAnimeList' };
@@ -26,6 +27,8 @@ const MAL_PAGES = 15;            // 4,500 entries is plenty
 const MAL_URL = process.env.MAL_URL || 'https://myanimelist.net';
 const FULL_MAX = 5000;           // entries kept for Show my full list
 export const STATUSES = ['watching', 'completed', 'paused', 'dropped', 'planning'];
+// The parts of the Anime section someone can switch off (Edit profile → Anime lists); the same for every linked list.
+export const PARTS = ['favorites', 'watching', 'finished', 'stats'];
 
 const made = new WeakSet(); // databases that have the table (tests open several)
 const db = () => { const d = database(); if (!made.has(d)) { made.add(d); initAnimeLists(d); } return d; };
@@ -48,6 +51,23 @@ export function initAnimeLists(d = db()) {
   const cols = new Set(d.prepare('PRAGMA table_info(anime_links)').all().map((c) => c.name));
   if (!cols.has('show_full')) d.exec('ALTER TABLE anime_links ADD COLUMN show_full INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('full')) d.exec('ALTER TABLE anime_links ADD COLUMN full TEXT');
+  // hidden: the PARTS they switched off (JSON array); no row = everything shows
+  // anime_liked: titles a favourite gave a thumbs up once, so taking the thumb off on Lilin sticks
+  d.exec('CREATE TABLE IF NOT EXISTS anime_liked (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title_key TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, title_key))');
+  d.exec(`CREATE TABLE IF NOT EXISTS anime_prefs (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, hidden TEXT NOT NULL DEFAULT '[]')`);
+}
+
+export function hiddenOf(userId) {
+  const r = db().prepare('SELECT hidden FROM anime_prefs WHERE user_id = ?').get(userId);
+  const list = r ? parse(r.hidden) : null;
+  return Array.isArray(list) ? PARTS.filter((x) => list.includes(x)) : [];
+}
+
+// Which parts are switched off: hidden = a list of PARTS (anything else is ignored).
+export function setHidden(userId, hidden) {
+  const list = PARTS.filter((x) => (Array.isArray(hidden) ? hidden : []).includes(x));
+  db().prepare('INSERT INTO anime_prefs (user_id, hidden) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET hidden = excluded.hidden').run(userId, JSON.stringify(list));
+  return list;
 }
 
 export const cleanUsername = (raw) => {
@@ -211,10 +231,18 @@ export async function setShowFull(userId, service, on, { readers = READERS, now 
 const withKey = (field) => (e) => { const key = keyOf(e[field]); return key ? { ...e, key } : e; };
 
 // What a profile shows: every linked list that has been read at least once. self adds the ones still failing, and why.
+// hidden: the parts they switched off. Visitors don't get those at all (stats comes as {}: the list was read, nothing
+// to show); the owner gets everything, so the editor can still offer their favourites.
 export function viewOf(userId, { self = false } = {}) {
+  const hidden = hiddenOf(userId);
+  const off = (part) => !self && hidden.includes(part);
   return linksOf(userId).filter((l) => self || l.stats).map((l) => ({
-    service: l.service, name: NAMES[l.service], username: l.username, url: l.url,
-    stats: l.stats || null, favorites: (l.favorites || []).map(withKey('url')), watching: (l.watching || []).map(withKey('url')), finished: (l.finished || []).map(withKey('url')), fullCount: l.fullCount,
+    service: l.service, name: NAMES[l.service], username: l.username, url: l.url, hidden,
+    stats: l.stats ? (off('stats') ? {} : l.stats) : null,
+    favorites: off('favorites') ? [] : (l.favorites || []).map(withKey('url')),
+    watching: off('watching') ? [] : (l.watching || []).map(withKey('url')),
+    finished: off('finished') ? [] : (l.finished || []).map(withKey('url')),
+    fullCount: l.fullCount,
     ...(self ? { syncedAt: l.syncedAt, error: l.error, showFull: l.showFull } : {}),
   }));
 }
@@ -228,6 +256,25 @@ export async function link(userId, service, username, { readers = READERS, now =
   db().prepare(`INSERT INTO anime_links (user_id, service, username, linked_at, synced_at, error, data) VALUES (?, ?, ?, ?, ?, NULL, ?)
     ON CONFLICT(user_id, service) DO UPDATE SET username = excluded.username, synced_at = excluded.synced_at, error = NULL, data = excluded.data`)
     .run(userId, service, got.username || u, now, now, JSON.stringify(dataOf(got)));
+  likeFavorites(userId, got.favorites, { now });
+}
+
+// A favourite on MyAnimeList / AniList that Lilin has (anime-map.js) gets a thumbs up here, once per title: one
+// they already rated on Lilin (a thumbs down too) is left alone, and so is one whose thumb they took off later.
+export function likeFavorites(userId, favorites, { now = Date.now() } = {}) {
+  const d = db();
+  const rated = d.prepare('SELECT 1 FROM ratings WHERE user_id = ? AND title_key = ?');
+  const done = d.prepare('SELECT 1 FROM anime_liked WHERE user_id = ? AND title_key = ?');
+  const mark = d.prepare('INSERT OR IGNORE INTO anime_liked (user_id, title_key, at) VALUES (?, ?, ?)');
+  let n = 0;
+  for (const e of Array.isArray(favorites) ? favorites : []) {
+    const key = keyOf(e?.url);
+    if (!key || done.get(userId, key)) continue;
+    mark.run(userId, key, now);
+    if (rated.get(userId, key)) continue;
+    try { rate(userId, key, 1, e.title); n++; } catch { /* not a title key Lilin takes */ }
+  }
+  return n;
 }
 
 // What's kept of a read list. Favourites that couldn't be read this time (null) stay as they were.
@@ -245,6 +292,7 @@ export async function sync(userId, service, { readers = READERS, now = Date.now(
     const got = await readers[service](r.username, { full: Boolean(r.show_full) });
     db().prepare('UPDATE anime_links SET synced_at = ?, error = NULL, data = ?, full = ? WHERE user_id = ? AND service = ?')
       .run(now, JSON.stringify(dataOf(got, parse(r.data))), r.show_full && got.full ? JSON.stringify(got.full) : null, userId, service);
+    likeFavorites(userId, got.favorites, { now });
   } catch (e) {
     // the last good copy stays on the profile; the error is for the owner's editor
     db().prepare('UPDATE anime_links SET synced_at = ?, error = ? WHERE user_id = ? AND service = ?').run(now, text(e.message || e), userId, service);

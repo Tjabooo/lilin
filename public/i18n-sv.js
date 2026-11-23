@@ -2964,4 +2964,7 @@ export default {
   "All four slots are taken: remove one first.": "Alla fyra platser är tagna: ta bort en först.",
   "They’re all in already.": "Alla är redan med.",
   "Some of them couldn’t be found right now.": "Några av dem gick inte att hitta just nu.",
+  "Show on your profile": "Visa på din profil",
+  "Your favourites there. They also get a thumbs up here, once.": "Dina favoriter där. De får också en tumme upp här, en gång.",
+  "Completed, episodes, days and mean score.": "Avklarade, avsnitt, dagar och snittbetyg.",
 };

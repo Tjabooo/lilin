@@ -1,4 +1,17 @@
 {
+  "2026-11-23-anime-parts": {
+    "title": "Välj vad din Anime-del visar",
+    "items": {
+      "Switch parts of the Anime section off": {
+        "title": "Stäng av delar av Anime-delen",
+        "text": "Redigera profil → Animelistor har nu Visa på din profil: reglage för Favoriter, Tittar på nu, Nyss avslutade och Siffror. Det du stänger av försvinner från din profil för alla andra."
+      },
+      "Anime favourites get a thumbs up": {
+        "title": "Animefavoriter får tummen upp",
+        "text": "Allt i dina MyAnimeList- eller AniList-favoriter som finns på Lilin får nu en tumme upp här också. Det händer en gång per titel, så tar du bort tummen förblir den borta, och en tumme ner du redan gett lämnas i fred."
+      }
+    }
+  },
   "2026-11-23-anime-favourites": {
     "title": "Dina animefavoriter, här också",
     "items": {

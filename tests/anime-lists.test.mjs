@@ -187,3 +187,39 @@ test('favourites: read from AniList and the MAL profile page, kept when the page
   await anime.sync(ebi.id, 'mal', { readers });
   assert.equal(profiles.view(ebi, ebi).anime[0].favorites.length, 0, 'emptied on the site: empty here');
 });
+
+test('parts switched off: visitors get none of them, the owner still gets everything', async () => {
+  const { ebi, anna } = setup();
+  const fav = { title: 'Monster', cover: null, url: 'https://myanimelist.net/anime/19/Monster', progress: null, episodes: null, score: null };
+  const readers = { mal: async (u) => ({ username: u, stats: { completed: 3, episodes: 74, days: null, mean: 9 }, favorites: [fav],
+    watching: [{ ...fav, title: 'Frieren' }], finished: [{ ...fav, title: 'Bebop' }] }) };
+  await anime.link(ebi.id, 'mal', 'ebi_chan', { readers });
+  assert.deepEqual(anime.hiddenOf(ebi.id), []);
+  assert.deepEqual(anime.setHidden(ebi.id, ['favorites', 'stats', 'nonsense']), ['favorites', 'stats']);
+  const seen = anime.viewOf(ebi.id)[0];
+  assert.deepEqual([seen.favorites, seen.stats, seen.watching.length, seen.finished.length], [[], {}, 1, 1]);
+  assert.deepEqual(seen.hidden, ['favorites', 'stats']);
+  const mine = anime.viewOf(ebi.id, { self: true })[0];
+  assert.equal(mine.favorites.length, 1, 'the owner keeps them for the favourites picker');
+  assert.equal(mine.stats.completed, 3);
+  anime.setHidden(ebi.id, []);
+  assert.equal(anime.viewOf(ebi.id)[0].favorites.length, 1);
+});
+
+test('favourites give a thumbs up once, never over a rating they gave on Lilin', async () => {
+  const social = await import('../src/social.js');
+  const map = await import('../src/anime-map.js');
+  map.use(map.compact([{ mal_id: 19, themoviedb_id: { tv: 30981 } }, { mal_id: 1, themoviedb_id: { tv: 30991 } }, { mal_id: 6, themoviedb_id: { tv: 1000 } }]));
+  const { ebi } = setup();
+  social.rate(ebi.id, 'tv:30991', -1);
+  const favs = [['Monster', 19], ['Cowboy Bebop', 1], ['Unknown', 999]].map(([title, id]) => ({ title, url: `https://myanimelist.net/anime/${id}/x` }));
+  let list = favs;
+  const readers = { mal: async (u) => ({ username: u, stats: { completed: 1, episodes: 1, days: null, mean: 0 }, watching: [], finished: [], favorites: list }) };
+  await anime.link(ebi.id, 'mal', 'ebi_chan', { readers });
+  assert.deepEqual([...social.likedKeys(ebi.id)], ['tv:30981'], 'Monster liked, Bebop keeps its thumbs down, unknown skipped');
+  assert.ok(social.dislikedKeys(ebi.id).has('tv:30991'));
+  social.rate(ebi.id, 'tv:30981', 0); // took the thumb off on Lilin
+  list = [...favs, { title: 'Trigun', url: 'https://myanimelist.net/anime/6/Trigun' }];
+  await anime.sync(ebi.id, 'mal', { readers });
+  assert.deepEqual([...social.likedKeys(ebi.id)].sort(), ['tv:1000'], 'the removed thumb stays off; a new favourite is liked');
+});

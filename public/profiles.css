@@ -609,6 +609,9 @@ a.pf-anime-tile { text-decoration: none; }
   font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; border-radius: 0 0 var(--pf-r) var(--pf-r);
   background: linear-gradient(transparent, rgb(0 0 0 / .78)); pointer-events: none; }
 .pf-posters-polaroid .pf-anime-badge { inset: auto 5px 18px; border-radius: 0; }
+/* Anime lists editor: Show on your profile (a switch per part of the Anime section) */
+.pf-al-parts { margin-top: 14px; }
+.pf-al-parts .pf-ed-label { margin: 0 0 4px; }
 /* Favourites editor: From your anime favourites (a strip under the four slots; picked ones get a tick) */
 .pf-fav-anime { margin-top: 18px; }
 .pf-fav-anime-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }

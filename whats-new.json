@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-23-anime-parts",
+  "date": "2026-11-23",
+  "title": "Choose what your Anime section shows",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Switch parts of the Anime section off",
+      "text": "Edit profile → Anime lists now has Show on your profile: switches for Favourites, Watching now, Finished lately and Numbers. Whatever you turn off is gone from your profile for everyone else."
+    },
+    {
+      "kind": "new",
+      "title": "Anime favourites get a thumbs up",
+      "text": "Anything in your MyAnimeList or AniList favourites that Lilin has now gets a thumbs up here too. It happens once per title, so if you take the thumb off it stays off, and a thumbs down you already gave is left alone."
+    }
+  ]
+},
+{
   "id": "2026-11-23-anime-favourites",
   "date": "2026-11-23",
   "title": "Your anime favourites, here too",

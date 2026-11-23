@@ -415,20 +415,21 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
 
   function animeList(a, many, ctx) {
     const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
-    const facts = [[T('Completed'), a.stats.completed], [T('Episodes'), a.stats.episodes], a.stats.days ? [T('Days'), a.stats.days, 1] : null, a.stats.mean ? [T('Mean score'), a.stats.mean, 1] : null].filter(Boolean);
+    const facts = (a.hidden || []).includes('stats') ? [] : [[T('Completed'), a.stats.completed], [T('Episodes'), a.stats.episodes], a.stats.days ? [T('Days'), a.stats.days, 1] : null, a.stats.mean ? [T('Mean score'), a.stats.mean, 1] : null].filter(Boolean);
     const tile = (e) => h('li', {}, h('a', { class: 'pf-poster pf-anime-tile', href: e.url || a.url, target: '_blank', rel: 'noopener noreferrer', title: e.title, 'aria-label': e.title,
       onclick: e.key ? (ev) => openAnimeTitle(ctx, e.key, ev) : null },
       e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
       (e.progress || e.score) && h('span', { class: 'pf-anime-badge' },
         e.progress && h('span', {}, e.episodes ? `${e.progress}/${e.episodes}` : T('Ep {0}', e.progress)),
         e.score && h('span', {}, `★ ${n(e.score, 1)}`))));
-    const shelf = (title, list) => list.length > 0 && h('div', { class: 'pf-anime-shelf' }, h('h4', { class: 'pf-anime-sub' }, title), h('ul', { class: 'pf-strip' }, list.map(tile)));
+    const off = (part) => (a.hidden || []).includes(part); // switched off in Edit profile → Anime lists
+    const shelf = (title, list, part) => !off(part) && list.length > 0 && h('div', { class: 'pf-anime-shelf' }, h('h4', { class: 'pf-anime-sub' }, title), h('ul', { class: 'pf-strip' }, list.map(tile)));
     return h('div', { class: 'pf-anime' },
       h('p', { class: 'pf-anime-from' }, h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, many ? T('{0} on {1}', a.username, a.name) : T('From {0}', a.name)), icon('chevron')),
-      h('dl', { class: 'pf-anime-stats' }, facts.map(([label, v, digits]) => h('div', {}, h('dt', {}, label), h('dd', {}, n(v, digits))))),
-      shelf(T('Favourites'), a.favorites || []),
-      shelf(T('Watching now'), a.watching || []),
-      shelf(T('Finished lately'), a.finished || []),
+      !off('stats') && h('dl', { class: 'pf-anime-stats' }, facts.map(([label, v, digits]) => h('div', {}, h('dt', {}, label), h('dd', {}, n(v, digits))))),
+      shelf(T('Favourites'), a.favorites || [], 'favorites'),
+      shelf(T('Watching now'), a.watching || [], 'watching'),
+      shelf(T('Finished lately'), a.finished || [], 'finished'),
       a.fullCount > 0 && h('button', { type: 'button', class: 'chip pf-anime-all', onclick: (e) => openAnimeList(ctx, a, e.currentTarget) },
         T('See the full list ({0})', Number(a.fullCount).toLocaleString(locale()))));
   }
@@ -836,9 +837,22 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime/sync', { service }, T('Checked {0}', name)) }, icon('rewatch'), T('Check now')),
           h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime', { service, username: '' }, T('{0} unlinked', name)) }, T('Unlink'))));
     };
+    // Show on your profile: a switch per part of the Anime section (for every linked list at once).
+    const hidden = (ctx.data.anime || [])[0]?.hidden || [];
+    const parts = [['favorites', T('Favourites'), T('Your favourites there. They also get a thumbs up here, once.')],
+      ['watching', T('Watching now'), null], ['finished', T('Finished lately'), null], ['stats', T('Numbers'), T('Completed, episodes, days and mean score.')]];
+    const shown = linked.size > 0 && h('div', { class: 'pf-al-parts' },
+      h('p', { class: 'pf-ed-label' }, T('Show on your profile')),
+      parts.map(([part, label, note]) => {
+        const on = !hidden.includes(part);
+        return h('div', { class: 'pf-ed-switch-row' },
+          h('span', { class: 'pf-ed-switch-text', id: `pf-al-part-${part}` }, h('strong', {}, label), note && h('span', {}, note)),
+          h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(on), 'aria-labelledby': `pf-al-part-${part}`,
+            onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime/parts', { hidden: on ? [...hidden, part] : hidden.filter((x) => x !== part) }) }, h('span', {})));
+      }));
     return h('div', { class: 'pf-lb' },
       h('p', { class: 'set-hint' }, T('Link MyAnimeList, AniList or both: your profile gets an Anime section with what you’re watching there, what you finished lately and your numbers. Lilin checks every few hours. The list has to be public.')),
-      one('mal', 'MyAnimeList'), one('anilist', 'AniList'));
+      one('mal', 'MyAnimeList'), one('anilist', 'AniList'), shown);
   }
 
   // The editor is four tabs under a small live card of how your profile looks (on phones the sheet covers the page it

@@ -4997,7 +4997,13 @@ async function handleApi(req, res, url) {
       // Letterboxd (letterboxd.js): { username } links and reads the feed now, { username: '' } unlinks, /sync reads it
       // again, /import takes the export zip (runs in the background; GET /import says how far it got).
       // Anime lists (anime-lists.js): { service, username } links and reads the list now, { service, username: '' }
-      // unlinks, /sync { service } reads it again.
+      // unlinks, /sync { service } reads it again. /parts { hidden: [part] } switches parts of the Anime section off.
+      if (p === '/api/profiles/me/anime/parts') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
+        animeLists.setHidden(user.id, (await readJson(req, 4 * 1024)).hidden);
+        return sendJson(res, 200, await profileView(user, user));
+      }
       if (p === '/api/profiles/me/anime' || p === '/api/profiles/me/anime/sync' || p === '/api/profiles/me/anime/full') {
         if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
         if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
@@ -6344,7 +6350,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || url.pathname === '/api/me/username' // Account → Switch to a username
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
