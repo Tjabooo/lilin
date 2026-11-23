@@ -4516,7 +4516,7 @@ async function handleApi(req, res, url) {
     const image = body.length ? body : null;
     const next = accounts.setAvatar(user.id, image);
     watchRooms.renameUser(next);
-    return sendJson(res, 200, { me: { ...accounts.publicUser(next), via: req.auth.via } });
+    return sendJson(res, 200, { me: meOut(next, req) });
   }
   if (p.startsWith('/api/jellyfin') && await jellyfin.handleApi(req, res, p, user)) return;
   // Which pool a code is in: the QR says (on=web|tv); a typed code is looked up in both.
@@ -5218,7 +5218,7 @@ async function handleApi(req, res, url) {
       notes: activity.isAdmin(req) && Boolean(user?.canSeeNotes),
       liklok: liklok.enabled() && liklok.allowed(user), // liklok
       clips: activity.isAdmin(req) && clips.clipsConfigured(),
-      me: { ...accounts.publicUser(user), via: req.auth.via, hasPassword: auth.hasPassword(req.auth.email), needsPassword: needsPassword(req) },
+      me: { ...meOut(user, req), hasPassword: auth.hasPassword(req.auth.email), needsPassword: needsPassword(req) },
       rules: accounts.serverSettings(),
       liveName: liveTvName(),
       subLangs: subtitles.subtitleLanguages(),

@@ -2910,4 +2910,10 @@ export default {
   "Grain": "Korn",
   "Hearts": "Hjärtan",
   "Everyone sees your page in this colour. The text turns light or dark so it stays readable.": "Alla ser din sida i den här färgen. Texten blir ljus eller mörk så att den går att läsa.",
+  "Pick your username": "Välj ditt användarnamn",
+  "Lilin is done with emails. From now on you sign in with a username and your password, and your email is deleted from Lilin. Your history, friends and settings stay.": "Lilin slutar med e-post. Från och med nu loggar du in med ett användarnamn och ditt lösenord, och din e-post raderas från Lilin. Din historik, dina vänner och inställningar finns kvar.",
+  "Signing in with {0} today": "Loggar in med {0} i dag",
+  "3 to 20 letters, numbers, dots or underscores. Your password stays the same.": "3 till 20 bokstäver, siffror, punkter eller understreck. Ditt lösenord är detsamma.",
+  "Use this username": "Använd det här användarnamnet",
+  "Try again later": "Försök igen senare",
 };
