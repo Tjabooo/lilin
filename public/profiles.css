@@ -756,3 +756,32 @@ a.pf-anime-tile { text-decoration: none; }
 .pf-when-status:empty { display: none; }
 .pf-when-actions { align-items: center; padding-top: 4px; }
 .pf-when-save { min-width: 120px; justify-content: center; }
+
+/* Comments (profile-comments.js): a guestbook under the sections. Write box, then newest first. */
+.pf-comment-form { display: grid; grid-template-columns: 36px minmax(0, 1fr) 40px; align-items: end; gap: 10px; margin: 0 0 var(--s4); }
+.pf-comment-me { display: grid; align-self: start; padding-top: 2px; }
+.pf-comment-input { position: relative; min-width: 0; }
+.pf-comment-field { display: block; width: 100%; min-height: 40px; max-height: 220px; padding: 9px 12px; resize: none; overflow-y: auto;
+  font: 15px/1.45 var(--body); color: var(--text); background: color-mix(in srgb, var(--pf-accent) 5%, var(--surface-1));
+  border: 1px solid var(--hairline); border-radius: var(--r-sm); transition: border-color var(--d-2) var(--ease-out); }
+.pf-comment-field:focus { outline: none; border-color: color-mix(in srgb, var(--pf-accent) 70%, transparent); }
+.pf-comment-field::placeholder { color: var(--text-2); }
+.pf-comment-count { position: absolute; right: 9px; bottom: 5px; font-size: 11px; color: var(--text-2); pointer-events: none; }
+.pf-comment-send { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--on-bulb); background: var(--pf-accent);
+  border: 0; border-radius: var(--r-sm); transition: opacity var(--d-2), transform var(--d-2) var(--ease-out); }
+.pf-comment-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.pf-comment-send:disabled { opacity: .35; }
+.pf-comment-send:not(:disabled):active { transform: scale(.94); }
+.pf-comments { display: grid; margin: 0; padding: 0; list-style: none; }
+.pf-comment { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-top: 1px solid var(--hairline); }
+.pf-comment-face { display: grid; align-self: start; padding: 0; background: none; border: 0; border-radius: 50%; }
+.pf-comment-body { min-width: 0; }
+.pf-comment-meta { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 13px; color: var(--text-2); }
+.pf-comment-name { min-width: 0; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 14px/1.2 var(--body); color: var(--text); background: none; border: 0; }
+.pf-comment-name:hover { text-decoration: underline; }
+.pf-comment-del { display: inline-grid; place-items: center; min-width: 28px; height: 28px; margin-left: auto; padding: 0 6px; color: var(--text-2);
+  background: none; border: 0; border-radius: var(--r-xs); font: 600 12px/1 var(--body); }
+.pf-comment-del svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+.pf-comment-del:hover { color: var(--text); }
+.pf-comment-del.is-armed { color: #fff; background: #e5484d; }
+.pf-comment-text { margin: 2px 0 0; font-size: 15px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }

@@ -37,7 +37,7 @@ const FRAME_HINTS = { panel: T('Lilin’s own look: square panels, numbered sect
 const PATTERNS = [['none', T('None')], ['dots', T('Dots')], ['grid', T('Grid')], ['stripes', T('Stripes')], ['grain', T('Grain')], ['stars', T('Stars')], ['hearts', T('Hearts')]];
 const frameOf = (look) => (FRAMES.some(([k]) => k === look?.frame) ? look.frame : 'panel');
 const patternOf = (look) => (PATTERNS.some(([k]) => k === look?.pattern) && look.pattern !== 'none' ? look.pattern : null);
-const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), anime: T('Anime'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
+const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), anime: T('Anime'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends'), comments: T('Comments') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
   public: T('Everyone on this Lilin can see your profile.'),
@@ -411,7 +411,107 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         h('ul', { class: 'pf-people' }, list.map((p) => h('li', {}, h('button', { type: 'button', class: 'pf-person', onclick: (e) => open(p, e.currentTarget) },
           people.face(p, { size: 52 }), h('span', {}, p.name))))));
     },
+    // comments (profile-comments.js): a guestbook. Everyone who sees the whole page can write, newest first;
+    // the writer and the page's owner can delete.
+    comments(ctx, d) {
+      const c = d.comments;
+      if (!c) return null;
+      const list = c.comments || [];
+      return sectionBox('comments', T('Comments'), c.total ? h('span', { class: 'pf-sec-note' }, String(c.total)) : null,
+        c.canPost && commentForm(ctx, d),
+        list.length ? h('ul', { class: 'pf-comments' }, list.map((x) => commentRow(ctx, x)))
+          : h('p', { class: 'pf-empty' }, d.me ? T('Comments people leave on your profile show up here.') : c.canPost ? T('No comments yet. Be the first.') : T('No comments yet.')),
+        c.more && h('button', { type: 'button', class: 'pf-more', onclick: (e) => loadComments(ctx, e.currentTarget) }, h('span', {}, T('More comments')), icon('chevron')));
+    },
   };
+
+  const MAX_COMMENT = 500;
+  function commentForm(ctx, d) {
+    const field = h('textarea', { class: 'pf-comment-field', rows: '1', maxlength: String(MAX_COMMENT), 'aria-label': T('Comment'),
+      placeholder: d.me ? T('Write on your profile…') : T('Write something to {0}…', d.person.name) });
+    field.value = ctx.commentDraft || ''; // a repaint (the editor, More) keeps what you were typing
+    const count = h('span', { class: 'pf-comment-count', 'aria-live': 'polite' });
+    const send = h('button', { type: 'submit', class: 'pf-comment-send', 'aria-label': T('Post comment'), title: T('Post') }, icon('send'));
+    const sync = () => {
+      ctx.commentDraft = field.value;
+      field.style.height = 'auto';
+      field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
+      const left = MAX_COMMENT - field.value.length;
+      count.textContent = left <= 60 ? String(left) : '';
+      send.disabled = !field.value.trim();
+    };
+    const form = h('form', { class: 'pf-comment-form', onsubmit: async (e) => {
+      e.preventDefault();
+      const text = field.value.trim();
+      if (!text || send.disabled) return;
+      send.disabled = true;
+      field.readOnly = true;
+      try {
+        const r = await api(`/api/profiles/${d.person.id}/comments`, jsonPost({ text }));
+        ctx.commentDraft = '';
+        ctx.data.comments = { comments: r.comments, more: r.more, total: r.total, canPost: true };
+        paint(ctx);
+      } catch (err) { toast(err.message); field.readOnly = false; send.disabled = false; field.focus(); }
+    } }, h('span', { class: 'pf-comment-me', 'aria-hidden': 'true' }, people.face(me(), { size: 36 })), h('div', { class: 'pf-comment-input' }, field, count), send);
+    field.addEventListener('input', sync);
+    field.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } });
+    requestAnimationFrame(sync);
+    return form;
+  }
+
+  // "5 min ago", "yesterday", then the date
+  function ago(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return T('just now');
+    const rtf = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto', style: 'short' });
+    if (s < 3600) return rtf.format(-Math.floor(s / 60), 'minute');
+    if (s < 86400) return rtf.format(-Math.floor(s / 3600), 'hour');
+    if (s < 7 * 86400) return rtf.format(-Math.floor(s / 86400), 'day');
+    const date = new Date(t);
+    return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }) });
+  }
+
+  function commentRow(ctx, c) {
+    const when = new Date(c.created);
+    const toAuthor = (e) => open(c.author, e.currentTarget);
+    return h('li', { class: 'pf-comment' },
+      h('button', { type: 'button', class: 'pf-comment-face', 'aria-label': T('{0}’s profile', c.author.name), onclick: toAuthor }, people.face(c.author, { size: 36 })),
+      h('div', { class: 'pf-comment-body' },
+        h('div', { class: 'pf-comment-meta' },
+          h('button', { type: 'button', class: 'pf-comment-name', onclick: toAuthor }, c.author.name),
+          h('time', { datetime: when.toISOString(), title: when.toLocaleString(locale()) }, ago(c.created)),
+          c.canDelete && h('button', { type: 'button', class: 'pf-comment-del', 'aria-label': T('Delete comment'), title: T('Delete comment'), onclick: (e) => deleteComment(ctx, c, e.currentTarget) }, icon('trash'))),
+        h('p', { class: 'pf-comment-text' }, c.text)));
+  }
+
+  // Two taps: the bin turns into "Delete?" for a few seconds, a second tap deletes.
+  async function deleteComment(ctx, c, btn) {
+    if (!btn.classList.contains('is-armed')) {
+      btn.classList.add('is-armed');
+      btn.replaceChildren(h('span', {}, T('Delete?')));
+      setTimeout(() => { if (btn.isConnected && !btn.disabled && btn.classList.contains('is-armed')) { btn.classList.remove('is-armed'); btn.replaceChildren(icon('trash')); } }, 3500);
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await api(`/api/profiles/${ctx.data.person.id}/comments/${c.id}/delete`, jsonPost({}));
+      const had = ctx.data.comments;
+      ctx.data.comments = { ...had, comments: had.comments.filter((x) => x.id !== c.id), total: Math.max(0, had.total - 1) };
+      paint(ctx);
+      toast(T('Comment deleted'));
+    } catch (err) { toast(err.message); btn.disabled = false; }
+  }
+
+  async function loadComments(ctx, btn) {
+    btn.disabled = true;
+    const had = ctx.data.comments;
+    try {
+      const r = await api(`/api/profiles/${ctx.data.person.id}/comments?offset=${had.comments.length}`);
+      const seen = new Set(had.comments.map((x) => x.id));
+      ctx.data.comments = { ...had, comments: [...had.comments, ...r.comments.filter((x) => !seen.has(x.id))], more: r.more, total: r.total };
+      paint(ctx);
+    } catch (err) { toast(err.message); btn.disabled = false; }
+  }
 
   function animeList(a, many, ctx) {
     const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });

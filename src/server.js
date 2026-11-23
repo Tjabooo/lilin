@@ -41,6 +41,7 @@ import * as usernames from './usernames.js'; // sign in with @username instead o
 import { isAccountId } from './account-ids.js';
 import { ENV_FILE } from './env.js';
 import * as profileBanner from './profile-banner.js'; // profiles: banners people upload
+import * as profileComments from './profile-comments.js'; // the Comments section on profiles
 import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
 import * as animeMap from './anime-map.js'; // MAL / AniList ids → Lilin titles (anime-list posters open the title page)
@@ -2208,7 +2209,9 @@ async function profileView(viewer, target) {
   const [pinned] = v.pinned ? await withCards([v.pinned]) : [null];
   return { ...v, banner, recent, reviews: { ...v.reviews, reviews: reviewList }, liked: liked.filter((l) => l.card), match, hidden, hiddenKeys: (v.hidden || []).map((x) => x.key), pinned,
     // the editor shows your uploaded banner even while the banner is set to something else
-    uploadUrl: v.me ? profileBanner.bannerUrl(target.id, look.upload) : undefined };
+    uploadUrl: v.me ? profileBanner.bannerUrl(target.id, look.upload) : undefined,
+    // Comments (profile-comments.js): the first page while the section is on; an owner peeking can read, not post
+    comments: v.me || v.sections.some((s) => s.id === 'comments' && s.on) ? { ...profileComments.list(viewer, target.id), canPost: v.me || !v.ownerPeek } : null };
 }
 
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());
@@ -5070,6 +5073,28 @@ async function handleApi(req, res, url) {
         if (p === '/api/profiles/me/letterboxd/import' && req.method === 'GET') return sendJson(res, 200, letterboxdImports.get(user.id) || { state: 'none' });
         throw new HttpError(404, 'Not found.');
       }
+      // Comments (profile-comments.js): GET ?offset= pages, POST { text } posts, POST /comments/<id>/delete deletes.
+      if ((m = p.match(/^\/api\/profiles\/(\d{1,9})\/comments(?:\/(\d{1,12})\/delete)?$/))) {
+        const target = accounts.userById(Number(m[1]));
+        if (!target) throw new HttpError(404, 'No such profile.');
+        const sight = profiles.access(user, target);
+        const on = sight === 'self' || (sight === 'full' && profiles.profileOf(target).sections.some((s) => s.id === 'comments' && s.on));
+        if (!on) throw new HttpError(403, 'Comments aren’t open on this profile.');
+        if (m[2]) {
+          if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
+          profileComments.remove(user, m[2]);
+          return sendJson(res, 200, profileComments.list(user, target.id));
+        }
+        if (req.method === 'POST') {
+          if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+          if (profiles.view(user, target).ownerPeek) throw new HttpError(403, 'This profile isn’t shared with you, so you can’t comment on it.');
+          const comment = profileComments.add(user, target.id, (await readJson(req, 8 * 1024)).text);
+          if (sight !== 'self') notify([target.id], 'comment', { title: `${user.name || 'Someone'} commented on your Lilin profile`, body: comment.text.slice(0, 140),
+            url: `/#@${profiles.profileOf(target).handle}`, tag: `comment-${target.id}` });
+          return sendJson(res, 200, { comment, ...profileComments.list(user, target.id) });
+        }
+        return sendJson(res, 200, profileComments.list(user, target.id, { offset: Number(url.searchParams.get('offset')) || 0 }));
+      }
       if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked|banner|anime\/mal|anime\/anilist))?$/)) && req.method === 'GET') {
         const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
         const target = id ? accounts.userById(id) : null;
@@ -6375,7 +6400,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || url.pathname === '/api/me/username' // Account → Switch to a username
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/profiles\/\d{1,9}\/comments(?:\/\d{1,12}\/delete)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/seen|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

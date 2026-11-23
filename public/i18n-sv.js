@@ -1,5 +1,20 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  // Profile comments (the Comments section)
+  "Comments": "Kommentarer",
+  "Comments people leave on your profile show up here.": "Kommentarer som andra lämnar på din profil hamnar här.",
+  "No comments yet. Be the first.": "Inga kommentarer än. Bli först.",
+  "No comments yet.": "Inga kommentarer än.",
+  "More comments": "Fler kommentarer",
+  "Write on your profile…": "Skriv på din profil …",
+  "Write something to {0}…": "Skriv något till {0} …",
+  "Post comment": "Skicka kommentar",
+  "Post": "Skicka",
+  "Delete comment": "Ta bort kommentaren",
+  "Comment deleted": "Kommentaren togs bort",
+  "Profile comments": "Profilkommentarer",
+  "When someone comments on your profile.": "När någon kommenterar din profil.",
+  "Notify about comments on your profile": "Avisera om kommentarer på din profil",
   // Subtitle reports (player subtitle menu → House → Ideas → Bugs)
   "Out of sync": "Fel timing",
   "Wrong or bad lines": "Fel eller dålig text",

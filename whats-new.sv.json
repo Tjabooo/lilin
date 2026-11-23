@@ -1,4 +1,13 @@
 {
+  "2026-11-23-profile-comments": {
+    "title": "Kommentarer på profiler",
+    "items": {
+      "Leave a comment on someone's profile": {
+        "title": "Lämna en kommentar på någons profil",
+        "text": "Profiler har nu en Kommentarer-del längst ner. Alla som kan se en profil kan skriva något där, nyast först. Du kan ta bort dina egna kommentarer och allt på din egen profil. Vill du inte ha kommentarer? Stäng av Kommentarer i Redigera profil. Du får en avisering när någon kommenterar din (Inställningar → Aviseringar)."
+      }
+    }
+  },
   "2026-11-23-liked-by-profiles": {
     "title": "Se vem som gillade den",
     "items": {

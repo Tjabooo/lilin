@@ -29,7 +29,7 @@ import { hiddenKeys, hiddenList, NOT_HIDDEN, ensureTable as ensureHidden } from 
 
 const HOME = 'home';
 export const VISIBILITY = ['public', 'friends', 'private'];
-export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'match', 'anime', 'reviews', 'lists', 'liked', 'friends'];
+export const SECTIONS = ['favorites', 'recent', 'stats', 'ratings', 'match', 'anime', 'reviews', 'lists', 'liked', 'friends', 'comments'];
 // sections that came later, and the one they follow (match: taste-match.js, only shown to friends)
 const NEW_AFTER = { lists: 'reviews', match: 'ratings', anime: 'match' };
 const SECTIONS_OFF = new Set(); // every section starts on; empty ones hide themselves for visitors

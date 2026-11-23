@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-profile-comments",
+  "date": "2026-11-23",
+  "title": "Comments on profiles",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Leave a comment on someone's profile",
+      "text": "Profiles have a Comments section at the bottom. Anyone who can see a profile can write something there, newest first. You can delete your own comments, and anything on your own profile. Don't want comments? Switch Comments off in Edit profile. You get a notification when someone comments on yours (Settings → Notifications)."
+    }
+  ]
+},
+{
   "id": "2026-11-23-liked-by-profiles",
   "date": "2026-11-23",
   "title": "See who liked it",

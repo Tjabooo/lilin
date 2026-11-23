@@ -9719,6 +9719,8 @@ function notificationSettings() {
       toggle(p.pushFriend !== false, (v) => saveMe({ pushFriend: v }), T('Notify about friend requests'))));
     if (!state.me?.restricted) out.push(settingsRow(T('Moments'), T('When a friend sends you a moment from a film or episode.'), // friends
       toggle(p.pushShare !== false, (v) => saveMe({ pushShare: v }), T('Notify about moments friends send'))));
+    if (!state.me?.restricted) out.push(settingsRow(T('Profile comments'), T('When someone comments on your profile.'), // profile comments
+      toggle(p.pushComment !== false, (v) => saveMe({ pushComment: v }), T('Notify about comments on your profile'))));
     if (state.me?.isOwner) out.push(settingsRow(T('New ideas'), T('When someone sends an idea through the idea box.'),
       toggle(p.pushIdea !== false, (v) => saveMe({ pushIdea: v }), T('Notify about new ideas'))));
     if (state.me?.isOwner) out.push(settingsRow(T('Agents'), T('When a script or AI agent on your home machines asks for your attention.'),
