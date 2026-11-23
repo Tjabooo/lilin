@@ -1088,3 +1088,123 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   background-image:
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)),
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)); }
+
+/* ================= Edit profile as a control panel (ebi 11-23: "make it look better and eva-ish") =================
+   The editor was the last screen still built from the old rounded cards. Now it reads like the profile it edits:
+   the live preview is a chamfered hairline panel on a faint dot grid with the face in a ticked target ring; field rows
+   are numbered readouts (01 NAME …) in one cut-corner frame, an accent bar marks the row being typed in; block labels
+   are tracked caps with a square bullet and a ticked hairline; options, switches, swatches, sliders and the
+   favourite slots all take the same cut. Save is a tracked-caps command on a ticked footer. */
+.pf-editor :is(.pf-ed-card, .pf-ed-group, .pf-order, .pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note, .pf-switch, .pf-swatch, .pf-x, .pf-move, .pf-slot) {
+  --bl: var(--hairline-2);
+  --ph-cut: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px));
+  border-radius: 0; }
+/* heading: the display title over a short accent bar with a square end-notch */
+.picker h2.pf-ed-heading { font-size: clamp(26px, 22px + 1vw, 34px); line-height: 1.02; }
+.picker h2.pf-ed-heading::after { content: ""; display: block; width: 46px; height: 4px; margin-top: 12px;
+  background: linear-gradient(var(--ph-you), var(--ph-you)) left bottom / calc(100% - 6px) 2px no-repeat,
+    linear-gradient(var(--ph-you), var(--ph-you)) right bottom / 4px 4px no-repeat; }
+/* the live card */
+.pf-editor .pf-ed-card { --c: 16px; border: 0; box-shadow: none;
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+  background: radial-gradient(circle, var(--ph-ghost) .8px, transparent 1.2px) 0 0 / 12px 12px, var(--surface-2); }
+.pf-editor .pf-ed-card.pf-painted { background: var(--pf-page); }
+.pf-editor .pf-ed-card.pf-paint-grad { background: linear-gradient(160deg, var(--pf-page), var(--pf-page2)); }
+.pf-editor .pf-ed-card::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: var(--ph-cut) left top / var(--c) var(--c) no-repeat, var(--ph-cut) right bottom / var(--c) var(--c) no-repeat,
+    linear-gradient(var(--ph-you), var(--ph-you)) left calc(var(--c) + 4px) top 0 / 22px 2px no-repeat,
+    linear-gradient(var(--ph-sq), var(--ph-sq)) right 10px top 10px / 4px 4px no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl); }
+.pf-editor .pf-ed-card.pf-ed-drag::after { background-size: var(--c) var(--c), var(--c) var(--c), 22px 2px, 0 0; } /* the hint takes that corner */
+.pf-ed-face { position: relative; }
+.pf-ed-face::before { content: ""; position: absolute; inset: -11px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(var(--hairline-2) 0 1.6deg, transparent 1.6deg 12deg);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); }
+.pf-ed-who { margin-top: -30px; }
+.pf-ed-sub { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.pf-ed-drag-hint { top: 9px; right: 9px; padding: 6px 10px 6px 9px; border-radius: 0; font: 700 9px/1 var(--body); letter-spacing: .2em; text-transform: uppercase;
+  background: rgb(0 0 0 / .62); -webkit-backdrop-filter: none; backdrop-filter: none;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+.pf-status { border-radius: 0; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
+/* field rows: one framed panel, numbered readouts, accent bar on the row being typed in */
+.pf-editor .pf-ed-group, .pf-editor .pf-order { --c: 14px; position: relative; overflow: visible; border: 0; background: var(--ph-pnl);
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+.pf-editor .pf-ed-group::after, .pf-editor .pf-order::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: var(--ph-cut) left top / var(--c) var(--c) no-repeat, var(--ph-cut) right bottom / var(--c) var(--c) no-repeat,
+    linear-gradient(var(--ph-you), var(--ph-you)) left calc(var(--c) + 4px) top 0 / 18px 1px no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl); }
+.pf-ed-group { counter-reset: ph-row; }
+.pf-ed-row { position: relative; counter-increment: ph-row; gap: 6px; padding: 13px 16px 12px; }
+.pf-ed-row + .pf-ed-row, .pf-order li + li { border-top-color: var(--hairline); }
+.pf-ed-row:focus-within { background: var(--ph-pnl2); box-shadow: inset 2px 0 0 var(--ph-you); }
+.pf-ed-label { font: 700 10px/1.2 var(--body); letter-spacing: .2em; text-transform: uppercase; color: var(--text-2); }
+.pf-ed-row > .pf-ed-label > span:first-child::before { content: counter(ph-row, decimal-leading-zero); margin-right: 10px;
+  font: 800 11px/1 var(--display); letter-spacing: .06em; color: var(--ph-warn); }
+.pf-ed-row:focus-within .pf-ed-label > span:first-child { color: var(--ph-you); }
+.pf-count { font: 700 10px/1 var(--body); letter-spacing: .12em; color: var(--text-3); }
+.pf-ed-note { font-size: 12px; }
+/* block labels and section titles: square bullet · tracked caps · ticked hairline */
+.pf-ed-block > .pf-ed-label, .pf-editor .pf-ed-title { display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
+.pf-ed-block > .pf-ed-label::before, .pf-editor .pf-ed-title::before { content: ""; flex: none; width: 4px; height: 4px; background: currentColor; }
+.pf-ed-block > .pf-ed-label::after, .pf-editor .pf-ed-title::after { content: ""; flex: 1 1 20px; min-width: 20px; height: 7px; background: var(--ph-ticks); }
+.pf-editor .pf-ed-title { font: 700 11px/1.2 var(--body); letter-spacing: .22em; text-transform: uppercase; color: var(--text); }
+.pf-editor .pf-ed-title::before { width: 6px; height: 6px; background: var(--ph-you); }
+/* options (who can see it, pinned review), the Gradient row, text boxes: cut-corner hairline cells */
+.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note) { --c: 12px; border-color: transparent; background-color: var(--ph-pnl);
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+  background-image: var(--ph-cut), var(--ph-cut); background-position: left top, right bottom; background-size: var(--c) var(--c); background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl); }
+.pf-editor .invite-note { --c: 9px; }
+.pf-editor .invite-note:focus { --bl: var(--ph-you); outline: none; }
+.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt):hover { --bl: color-mix(in srgb, var(--text) 40%, transparent); }
+.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt)[aria-checked="true"] { --bl: var(--ph-you); border-color: transparent;
+  background-color: color-mix(in srgb, var(--ph-you) 8%, transparent); box-shadow: inset 0 0 0 1px var(--bl), inset 3px 0 0 var(--ph-you); }
+.pf-editor .pf-ed-vis-opt[aria-checked="true"] svg { color: var(--ph-you); }
+.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
+.pf-ed-switch-text strong, .pf-ed-vis-text strong { font-size: 14.5px; }
+.pf-pin-opt img, .pf-pin-blank, .pf-result img, .pf-result .pf-poster-title { border-radius: 0; }
+.pf-lb-mark { border-radius: 0; }
+/* switch: a chamfered track, a square knob */
+.pf-editor .pf-switch { --c: 6px; background: var(--ph-cut) left top / var(--c) var(--c) no-repeat, var(--ph-cut) right bottom / var(--c) var(--c) no-repeat, var(--ph-pnl2);
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); box-shadow: inset 0 0 0 1px var(--bl); }
+.pf-editor .pf-switch span { top: 5px; left: 5px; width: 16px; height: 16px; border-radius: 0; background: var(--text-2); }
+.pf-editor .pf-switch[aria-checked="true"] { --bl: transparent; background-color: var(--ph-you); }
+.pf-editor .pf-switch[aria-checked="true"] span { transform: translateX(18px); background: var(--on-bulb); }
+.pf-editor .pf-switch:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
+/* sections list: numbered rows, square move buttons */
+.pf-order { counter-reset: ph-ord; }
+.pf-order li { counter-increment: ph-ord; }
+.pf-order-name::before { content: counter(ph-ord, decimal-leading-zero); display: inline-block; min-width: 2.2ch; margin-right: 12px; font: 800 11px/1 var(--display); letter-spacing: .06em; font-variant-numeric: tabular-nums; color: var(--ph-warn); }
+.pf-order li.off .pf-order-name::before { color: var(--text-3); }
+.pf-editor .pf-move { --c: 7px; clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+/* swatches: chamfered colour cells; the pick gets an inset bone frame */
+.pf-editor .pf-swatch { --c: 8px; clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+.pf-editor .pf-swatch:is([aria-pressed="true"], .on) { box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--surface-1); }
+.pf-swatches { gap: 10px 8px; }
+/* look choices (name font, posters, banner gradients): the pick is a bright frame with an accent top edge */
+.pf-choice[aria-pressed="true"], .pf-gradbtn[aria-pressed="true"] { --bl: var(--text); --hl: var(--ph-you); }
+.pf-choice[aria-pressed="true"] { color: var(--text); background-color: var(--ph-pnl2); }
+.pf-gradbtn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--text) !important; }
+/* banner position: a ticked ruler with a chamfered accent cursor */
+.pf-editor .pf-range { -webkit-appearance: none; appearance: none; height: 28px; background: transparent; }
+.pf-editor .pf-range::-webkit-slider-runnable-track { height: 9px;
+  background: linear-gradient(var(--hairline-2), var(--hairline-2)) center / 100% 1px no-repeat, repeating-linear-gradient(90deg, var(--hairline-2) 0 1px, transparent 1px 10px); }
+.pf-editor .pf-range::-moz-range-track { height: 9px;
+  background: linear-gradient(var(--hairline-2), var(--hairline-2)) center / 100% 1px no-repeat, repeating-linear-gradient(90deg, var(--hairline-2) 0 1px, transparent 1px 10px); }
+.pf-editor .pf-range::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 22px; margin-top: -6.5px; border: 0; border-radius: 0; background: var(--ph-you);
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); }
+.pf-editor .pf-range::-moz-range-thumb { width: 12px; height: 22px; border: 0; border-radius: 0; background: var(--ph-you);
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); }
+.pf-range-row { font: 700 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; }
+/* favourites: empty slots are hairline frames with corner marks (the poster frame), remove/move are small cut cells */
+.pf-editor .pf-fav-edit .pf-slot { border: 0; background: var(--ph-pnl); color: var(--text-2); }
+.pf-editor .pf-fav-edit .pf-slot:hover { background: var(--ph-pnl2); color: var(--ph-you); }
+.pf-editor .pf-x { --c: 6px; width: 26px; height: 26px; border: 0; box-shadow: inset 0 0 0 1px var(--bl);
+  background: var(--ph-cut) left top / var(--c) var(--c) no-repeat, var(--ph-cut) right bottom / var(--c) var(--c) no-repeat, var(--surface-1);
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+.pf-editor .pf-x:hover { --bl: var(--text); }
+/* the footer: a ticked top edge, Save as a tracked-caps command */
+.pf-save-bar { border-top: 0; box-shadow: 0 -14px 28px -14px rgb(0 0 0 / .5);
+  background: linear-gradient(var(--hairline-2), var(--hairline-2)) left top / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--hairline-2) 0 1px, transparent 1px 12px) left top / 100% 4px no-repeat, var(--surface-2); }
+.pf-save-bar .play-btn { font: 800 12.5px/1 var(--body); letter-spacing: .26em; text-transform: uppercase; }
