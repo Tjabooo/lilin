@@ -56,6 +56,20 @@ export function finishedEpisodes(userId) {
   return out;
 }
 
+// Mark one episode watched (a finished, zero-time watch_log row, so Wrapped's hours don't change) or not watched
+// (every finished row for it goes back to unfinished; the watch time stays).
+export function markEpisode(userId, { key, season, episode, seen, title, now = Date.now() }) {
+  if (!/^tv:\d+$/.test(key)) throw fail(400, 'Which show?');
+  season = int(season); episode = int(episode);
+  if (season == null || episode == null || season < 0 || episode < 0) throw fail(400, 'Which episode?');
+  if (!seen) {
+    db().prepare('UPDATE watch_log SET finished = 0 WHERE user_id = ? AND title_key = ? AND season = ? AND episode = ? AND finished = 1')
+      .run(userId, key, season, episode);
+    return;
+  }
+  logWatch(userId, { ref: `x:${key}:${season}:${episode}`, about: { title: cleanText(title, 200) || key, titleKey: key, season, episode }, watched: 0, finished: true, now });
+}
+
 // Everything one person gave a thumbs down: "movie:603", "tv:1399". Discover leaves these out for them.
 export function dislikedKeys(userId) {
   if (userId == null) return new Set();

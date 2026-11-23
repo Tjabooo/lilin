@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-23-mark-episode-watched",
+  "date": "2026-11-23",
+  "title": "Mark an episode as watched",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Mark as watched on every episode",
+      "text": "The ⋯ next to an episode now has Mark as watched, so you can tick off episodes you saw somewhere else, even ones that aren't on Lilin. Changed your mind? The same spot says Mark as not watched."
+    },
+    {
+      "kind": "improved",
+      "title": "Neater ⋯ menus",
+      "text": "The ⋯ menus are now a numbered list with thin lines between the choices, and the row under your finger or pointer lights up with a bar on its edge."
+    }
+  ]
+},
+{
   "id": "2026-11-23-diary-sync-records",
   "date": "2026-11-23",
   "title": "Films in your diary are sync records",

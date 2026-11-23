@@ -220,3 +220,14 @@ test('Wrapped season: home card from release day to end of January, one push fro
   assert.equal(social.wrappedPushDue([2026], at('2026-12-01T18:01:00'), '12-01'), null, 'once a year');
   assert.equal(social.wrappedPushDue([], at('2026-12-10T18:01:00'), '12-01'), null, 'not days late');
 });
+
+test('episodes: marked watched by hand ticks them off without watch time; unmarking clears them', () => {
+  const { anna } = setup();
+  social.markEpisode(anna.id, { key: 'tv:4586', season: 1, episode: 3, seen: true, title: 'Gilmore Girls' });
+  social.markEpisode(anna.id, { key: 'tv:4586', season: 1, episode: 4, seen: true, title: 'Gilmore Girls' });
+  assert.deepEqual(social.finishedEpisodes(anna.id)['tv:4586'].toSorted(), ['1:3', '1:4']);
+  assert.equal(social.lastFinished(anna.id)['tv:4586'].episode, 4);
+  social.markEpisode(anna.id, { key: 'tv:4586', season: 1, episode: 4, seen: false });
+  assert.deepEqual(social.finishedEpisodes(anna.id)['tv:4586'], ['1:3']);
+  assert.throws(() => social.markEpisode(anna.id, { key: 'movie:603', season: 1, episode: 1, seen: true }));
+});

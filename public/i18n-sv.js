@@ -449,6 +449,7 @@ export default {
   "Marked as watched": "Markerad som sedd",
   "Watched": "Sedd",
   "Mark as watched": "Markera som sedd",
+  "Mark as not watched": "Markera som inte sedd",
   "Remove from Continue watching": "Ta bort från Fortsätt titta",
   "Open the title page": "Öppna titelsidan",
   "Counts as finished on all your devices": "Räknas som sett på alla dina enheter",

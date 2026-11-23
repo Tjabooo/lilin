@@ -1,4 +1,17 @@
 {
+  "2026-11-23-mark-episode-watched": {
+    "title": "Markera ett avsnitt som sett",
+    "items": {
+      "Mark as watched on every episode": {
+        "title": "Markera som sedd på varje avsnitt",
+        "text": "⋯ bredvid ett avsnitt har nu Markera som sedd, så du kan bocka av avsnitt du sett någon annanstans, även sådana som inte finns på Lilin. Ångrar du dig? På samma ställe står det Markera som inte sedd."
+      },
+      "Neater ⋯ menus": {
+        "title": "Snyggare ⋯-menyer",
+        "text": "⋯-menyerna är nu en numrerad lista med tunna linjer mellan valen, och raden under fingret eller pekaren lyser upp med en stapel i kanten."
+      }
+    }
+  },
   "2026-11-23-diary-sync-records": {
     "title": "Filmerna i dagboken är synkloggar",
     "items": {

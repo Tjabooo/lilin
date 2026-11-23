@@ -1187,6 +1187,29 @@ html.has-vt .view { animation: none; }
 .row-menu-item.is-danger, .row-menu-item.is-danger svg { color: var(--alert); }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
 .row-menu.is-up { top: auto; bottom: calc(100% + 6px); }
+/* ⋯ menus as a numbered command list (the Continue watching sheet's language): hairline rows, a display-face index,
+   a signal bar that grows in on the row under the pointer; Delete reads red down to its number */
+.row-menu { counter-reset: rm; min-width: 250px; padding: 6px 0; }
+.row-menu .row-menu-item { counter-increment: rm; position: relative; display: grid; grid-template-columns: 20px 19px minmax(0, 1fr);
+  column-gap: 12px; min-height: 50px; padding: 0 18px 0 14px; font-size: 14.5px; letter-spacing: .005em; border-radius: 0;
+  transition: background-color var(--d-1); }
+.row-menu .row-menu-item[hidden] { display: none; }
+.row-menu .row-menu-item ~ .row-menu-item:not([hidden]) { border-top: 1px solid var(--hairline); }
+.row-menu .row-menu-item::after { content: counter(rm, decimal-leading-zero); order: -1; font: 300 12.5px/1 var(--display);
+  letter-spacing: .08em; color: var(--text-2); font-variant-numeric: tabular-nums; transition: color var(--d-1); }
+.row-menu .row-menu-item::before, .row-menu .row-menu-item:hover::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px;
+  width: 2px; height: auto; margin: 0; border-radius: 0; background: var(--ph-you, var(--bulb)); transform: scaleY(0);
+  transition: transform var(--d-2) var(--ease-out); }
+.row-menu .row-menu-item svg { transition: color var(--d-1); }
+.row-menu .row-menu-item:is(:hover, :focus-visible) { background: var(--ph-pnl2, var(--surface-2)); }
+.row-menu .row-menu-item:is(:hover, :focus-visible)::before { transform: scaleY(1); }
+.row-menu .row-menu-item:is(:hover, :focus-visible)::after { color: var(--ph-you, var(--bulb)); }
+.row-menu .row-menu-item:is(:hover, :focus-visible) svg { color: var(--text); }
+.row-menu .row-menu-item:active { background: var(--ph-pnl2, var(--surface-2)); }
+.row-menu .row-menu-item.is-danger::before { background: var(--alert); }
+.row-menu .row-menu-item.is-danger::after { color: color-mix(in srgb, var(--alert) 70%, transparent); }
+.row-menu .row-menu-item.is-danger:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--alert) 10%, transparent); }
+.row-menu .row-menu-item.is-danger:is(:hover, :focus-visible) svg { color: var(--alert); }
 /* Phones: the title page's ⋯ opens across the width of its bar */
 @media (max-width: 599px) { .title-bar { position: relative; } .title-bar > .row-more { position: static; } .title-bar .row-menu { left: 0; right: 0; } }
 

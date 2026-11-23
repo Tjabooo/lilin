@@ -2599,7 +2599,8 @@ function episodeList(c) {
 // coming or not here yet gets ready in the player (the server brings the next ones along). The lightning mark says
 // it plays at once; one not aired yet shows its date. ⋯: Play on TV and To phone; the owner also Keep, Delete and the
 // download's details.
-function episodeRow(c, { k, ep, f, p, season, tvT }) {
+function episodeRow(c, row) {
+  const { k, ep, f, p, season, tvT } = row;
   const name = k == null ? ep.name : `${k}. ${ep.name || f?.episodeName || T('Episode {0}', k)}`;
   const art = wideArt([ep.still || f?.still, c.t.backdrop]);
   const date = ep.airDate && new Date(`${ep.airDate}T12:00:00`);
@@ -2613,6 +2614,10 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
     titleDetails.episodeCredits(ep)); // details: the episode's director, writers and guests, folded
   const seen = seenEpisode(tvT.id != null ? `tv:${tvT.id}` : titleKeyOf(f), season, k);
   const bolt = () => h('span', { class: 'instant-mark' }, icon('bolt'), h('span', { class: 'sr-only' }, T('Plays instantly')));
+  // Watched / not watched by hand, for any episode that has aired (copy or not).
+  const showKey = tvT.id != null ? `tv:${tvT.id}` : null;
+  const mark = (file) => showKey && k != null && season != null && !airs && [icon(seen ? 'eyeOff' : 'check'),
+    seen ? T('Mark as not watched') : T('Mark as watched'), (o) => markEpisodeSeen(showKey, season, k, !seen, c.t.title, file, () => o.closest('li.ep')?.replaceWith(episodeRow(c, row)))];
   if (f) {
     const file = libraryFile(f), saved = savedProgress(file);
     const pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
@@ -2626,6 +2631,7 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
       body([freshEpisode(ep.airDate) && !done && newMark(), done && watchedMark(), !f.converting && pct <= 1 && !done && bolt(), ep.runtime && fmtRuntime(ep.runtime), day, f.converting ? T('Getting ready to play') : pct > 1 && T('{0}% watched', Math.round(pct)),
         tools && f.versions?.length > 1 && f.versionLabel]),
       rowMenu(T('More for {0}', name), [
+        mark(file),
         [icon('tv'), T('Play on TV'), (o) => openPicker(file, o)],
         [icon('phone'), T('Download to phone'), (o) => openTravel(file, o)],
         tools && [icon('trash'), T('Delete'), (o) => openDelete(file, o), 'is-danger'],
@@ -2651,11 +2657,37 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
   return h('li', { class: `ep ${here ? 'is-here' : 'is-missing'}${seen ? ' is-watched' : ''}`, 'data-episode': k },
     press || h('div', { class: 'ep-art' }, art),
     body([freshEpisode(ep.airDate) && !seen && newMark(), seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]),
-    copy && rowMenu(T('More for {0}', name), [
-      [icon('tv'), T('Play on TV'), (o) => openPicker(copy, o)],
-      [icon('phone'), T('Download to phone'), (o) => openTravel(copy, o)],
-      tools && [icon('trash'), T('Delete'), (o) => openDelete(copy, o), 'is-danger'],
+    (copy || mark()) && rowMenu(T('More for {0}', name), [
+      mark(),
+      copy && [icon('tv'), T('Play on TV'), (o) => openPicker(copy, o)],
+      copy && [icon('phone'), T('Download to phone'), (o) => openTravel(copy, o)],
+      copy && tools && [icon('trash'), T('Delete'), (o) => openDelete(copy, o), 'is-danger'],
     ]));
+}
+// The ⋯ Mark as watched on an episode: ticks it at once, the server keeps it (src/social.js markEpisode). Marking
+// one you're partway through also drops its resume point, so it reads as watched rather than 40% in.
+async function markEpisodeSeen(key, season, episode, seen, title, file, redrawRow) {
+  const tag = `${season}:${episode}`, before = state.seen?.[key] || [];
+  const redraw = () => { invalidateLibraryProgress(); libraryRenderPending = true; redrawRow?.(); };
+  state.seen = { ...state.seen, [key]: seen ? [...new Set([...before, tag])] : before.filter((x) => x !== tag) };
+  if (seen && file) {
+    const ref = progressRef(file);
+    if (state.progress[ref]) {
+      delete state.progress[ref];
+      api('/api/me/progress', jsonPost({ ref, time: null, duration: 0, watched: 0 })).catch(() => {});
+    }
+    try { localStorage.removeItem(resumeKey(file)); } catch { /* blocked */ }
+  }
+  redraw();
+  try {
+    const r = await api('/api/me/seen', jsonPost({ key, season, episode, seen, title }));
+    if (r.seen) state.seen = r.seen;
+    if (r.finished) state.finished = r.finished;
+  } catch {
+    state.seen = { ...state.seen, [key]: before };
+    toast(T('Couldn’t save that. Try again.'));
+  }
+  redraw();
 }
 // "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
 function airsLabel(airDate) {

@@ -4576,6 +4576,12 @@ async function handleApi(req, res, url) {
       seen: social.finishedEpisodes(user.id),
       hidden: accounts.continueHiddenOf(user.id) });
   }
+  // Mark one episode watched or not watched by hand (the ⋯ on an episode row), copy or no copy.
+  if (p === '/api/me/seen' && req.method === 'POST') {
+    const { key, season, episode, seen, title } = await readJson(req);
+    social.markEpisode(user.id, { key: String(key || ''), season, episode, seen: Boolean(seen), title });
+    return sendJson(res, 200, { ok: true, seen: social.finishedEpisodes(user.id), finished: social.lastFinished(user.id) });
+  }
   // Remove from Continue watching, everywhere this person signs in. at: only for moving an older hide over.
   if (p === '/api/me/continue/hide' && req.method === 'POST') {
     const { key, at } = await readJson(req);
@@ -6352,7 +6358,7 @@ async function handleRequest(req, res) {
         || url.pathname === '/api/me/username' // Account → Switch to a username
         || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
-        || /^\/api\/(me|me\/progress|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
+        || /^\/api\/(me|me\/progress|me\/seen|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
         || /^\/api\/admin\/notes(?:\/import|\/\d+(?:\/(?:trash|restore|share|unshare))?)?$/.test(url.pathname)
         || /^\/api\/admin\/notes\/uploads(?:\/[a-f0-9]{32}(?:\/(?:finish|cancel))?)?$/.test(url.pathname)
