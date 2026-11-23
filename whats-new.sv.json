@@ -1,4 +1,13 @@
 {
+  "2026-11-23-liklok-taste": {
+    "title": "LikLok lär sig vad du gillar",
+    "items": {
+      "More of the genres you stay on": {
+        "title": "Mer av genrerna du stannar på",
+        "text": "LikLok märker nu hur länge du stannar på varje klipp. Genrer du ser klart, spelar om eller trycker Fortsätt titta på dyker upp oftare; genrer du sveper förbi direkt dyker upp mer sällan. Med några klipps mellanrum slinker det ändå in något annat så att flödet inte fastnar. Varför det här klippet berättar när ett klipp valdes för dig."
+      }
+    }
+  },
   "2026-11-23-queue-scroll": {
     "title": "Bläddra bland trendande titlar",
     "items": {
@@ -166,7 +175,8 @@
         "text": "Filmer med en scen under eller efter eftertexterna säger det nu: en liten rad på filmens sida och när du pausar, och när eftertexterna börjar säger slutkortet \"Stanna kvar: det kommer en scen efter eftertexterna\" innan bilden blir stor igen. I Titta tillsammans ser alla i rummet det också, så ingen går för tidigt. Filmer utan raden kan ändå ha en scen: Lilin säger det bara när den vet."
       }
     }
-  },  "2026-11-22-new-episodes": {
+  },
+  "2026-11-22-new-episodes": {
     "title": "Nya avsnitt som precis kommit ut",
     "items": {
       "New episodes this week shows what actually aired": {

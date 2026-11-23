@@ -2864,6 +2864,8 @@ export default {
   "Tap for sound": "Tryck för ljud",
   "That’s every clip for now": "Det var alla klipp för nu",
   "Why this clip": "Varför det här klippet",
+  "For you: you stay longer on {0} clips.": "För dig: du stannar längre på {0}-klipp.",
+  "Something different, so your feed doesn't get stuck on one genre.": "Något annat, så att flödet inte fastnar i en genre.",
   // lines: quote search
   "Lines": "Repliker",
   "Also at": "Även vid",

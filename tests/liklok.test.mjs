@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickClips, parseSrt, episodeQueue, planClip, pickSubtitleTrack, enabled, allowed } from '../src/liklok.js';
+import { pickClips, parseSrt, episodeQueue, planClip, pickSubtitleTrack, enabled, allowed, dwellSignal, tasteOf, genreFit } from '../src/liklok.js';
 import { parseVtt } from '../public/liklok.js';
 
 // A made-up 22-minute episode: a cut every 8 s, quiet talk, and one lively scene at 10:00-10:50 that ends on a laugh.
@@ -97,4 +97,28 @@ test('LikLok is on for everyone unless LIKLOK=off or LIKLOK_EMAILS names who', (
     process.env.LIKLOK = 'off';
     assert.equal(enabled(), false);
   } finally { process.env = env; }
+});
+
+test('taste: genres you stay on rise, genres you flick past sink', () => {
+  const now = Date.now(), ev = (kind, ms, genres, ago = 0) => ({ kind, ms, at: now - ago, length: 40, genres });
+  assert.ok(dwellSignal('skip', 500, 40) < dwellSignal('skip', 2800, 40));
+  assert.ok(dwellSignal('left', 4000, 40) < 0 && dwellSignal('left', 30000, 40) > 0);
+  assert.ok(dwellSignal('done', 80000, 40) > dwellSignal('done', 40000, 40));
+  const events = [];
+  for (let i = 0; i < 6; i++) events.push(ev('done', 40000, ['Comedy']), ev('skip', 800, ['Crime', 'Drama']));
+  const taste = tasteOf(events, { now });
+  assert.ok(taste.get('Comedy').score > 0.3);
+  assert.ok(taste.get('Crime').score < -0.2);
+  const comedy = genreFit(['Comedy'], taste), crime = genreFit(['Crime', 'Drama'], taste);
+  assert.ok(comedy.mult > 1.4 && crime.mult < 0.8);
+  assert.equal(comedy.because, 'Comedy');
+  assert.equal(crime.because, null);
+  assert.equal(genreFit(['Western'], taste).mult, 1);
+  // One long watch isn't enough to take over, and old events fade.
+  assert.ok(tasteOf([ev('watch', 0, ['Horror'])], { now }).get('Horror').score < 0.5);
+  const fresh = tasteOf([ev('done', 40000, ['Comedy'])], { now }).get('Comedy').score;
+  const stale = tasteOf([ev('done', 40000, ['Comedy'], 60 * 86400000)], { now }).get('Comedy').score;
+  assert.ok(stale < fresh / 4);
+  // What you really watch pulls a little.
+  assert.ok(tasteOf([], { now, watchedGenres: new Map([['Animation', 2]]) }).get('Animation').score > 0);
 });

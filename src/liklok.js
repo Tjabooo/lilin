@@ -17,6 +17,10 @@
 // The feed is ranked per person: the clip's own score, how it did with everyone (watched to the end, Keep
 // watching, swiped away within 3 s), shows you haven't started first, never a show you said Not for me to, never
 // the same show twice within a few swipes, and clips you saw in the last three weeks only once nothing else is left.
+// On top of that, a per-person genre taste (tasteOf): how long you stay on each clip (swiped away in a second, left
+// halfway, watched to the end or looped, Keep watching, My list, Not for me), fading with a two-week half-life and
+// spread over the clip's genres, plus a lighter pull from the shows you really watch. Genres you stay on rise,
+// genres you flick past sink, and every fifth clip ignores the taste so the feed doesn't close in on one genre.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -32,7 +36,10 @@ const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE || 'ffprobe';
 const DAY = 86400000;
 const SEEN_DAYS = 21;
-const KINDS = new Set(['view', 'skip', 'done', 'watch', 'save', 'nope']);
+const KINDS = new Set(['view', 'skip', 'left', 'done', 'watch', 'save', 'nope']);
+const TASTE_DAYS = 90;
+const TASTE_HALF_LIFE = 14 * DAY;
+const EXPLORE_EVERY = 5;
 
 const emails = () => String(process.env.LIKLOK_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const episodesPerShow = () => Math.max(1, Math.min(10, Number(process.env.LIKLOK_EPISODES) || 3));
@@ -415,16 +422,63 @@ async function cut(file, info, audio, start, end, id) {
   await run(['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', '-ss', '1', '-i', fileOf(id, 'mp4'), '-frames:v', '1', '-vf', 'scale=480:-2', '-q:v', '5', fileOf(id, 'jpg')]).catch(() => {});
 }
 
+// ---------- taste ----------
+// What one event says about liking a clip, from −1.5 (Not for me) to +1.5 (tapped through to the episode).
+// left = moved on after 3 s but before the end: staying 3 s of a 40 s clip is mildly negative, 60 % mildly positive.
+export function dwellSignal(kind, ms, lengthSec) {
+  const frac = lengthSec > 0 ? (Number(ms) || 0) / (lengthSec * 1000) : 0;
+  switch (kind) {
+    case 'watch': return 1.5;
+    case 'save': return 1.2;
+    case 'nope': return -1.5;
+    case 'skip': return -0.6 - 0.4 * clamp(1 - (Number(ms) || 0) / 3000); // gone within a second: −1
+    case 'done': return 0.6 + 0.4 * clamp(frac - 1); // looped: up to +1
+    case 'left': return 1.6 * clamp(frac) - 0.6;
+    default: return 0;
+  }
+}
+
+// Genre → { score, n } from events ({ kind, ms, at, length, genres }) and watchedGenres (genre → shows watched).
+// Each event counts less the older it is and is split over the clip's genres; score is shrunk towards 0 until a
+// genre has a few events behind it, so one long watch doesn't take over the feed.
+export function tasteOf(events, { now = Date.now(), watchedGenres = new Map() } = {}) {
+  const sum = new Map(), weight = new Map();
+  const add = (g, v, w) => { sum.set(g, (sum.get(g) || 0) + v * w); weight.set(g, (weight.get(g) || 0) + w); };
+  for (const e of events) {
+    const v = dwellSignal(e.kind, e.ms, e.length);
+    if (!v || !e.genres?.length) continue;
+    const w = 0.5 ** (Math.max(0, now - e.at) / TASTE_HALF_LIFE) / Math.sqrt(e.genres.length);
+    for (const g of e.genres) add(g, v, w);
+  }
+  for (const [g, n] of watchedGenres) add(g, 0.4, Math.min(3, n)); // real watching: a steady, small pull
+  const taste = new Map();
+  for (const [g, w] of weight) taste.set(g, { score: sum.get(g) / (w + 3), n: w });
+  return taste;
+}
+
+// How much a clip's genres fit this person's taste: a multiplier (0.45–2.4) and the genre that pulled it up.
+export function genreFit(genres, taste) {
+  const known = (genres || []).map((g) => ({ g, t: taste.get(g) })).filter((x) => x.t);
+  if (!known.length) return { mult: 1, because: null, unknown: true };
+  const scores = known.map((x) => x.t.score);
+  const best = Math.max(...scores), worst = Math.min(...scores), mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const fit = 0.5 * best + 0.3 * mean + 0.2 * worst; // one loved genre carries a clip, one disliked one drags a bit
+  const top = known.reduce((a, b) => (b.t.score > a.t.score ? b : a));
+  return { mult: clamp(Math.exp(1.4 * fit), 0.45, 2.4), because: top.t.score > 0.15 && top.t.n >= 1.5 ? top.g : null, unknown: known.length < (genres || []).length };
+}
+
 // ---------- the feed ----------
 // The next `n` clips for this person. items: liveLibrary (only clips of what's still on the server, with its
 // library ids); progress: accounts.progressOf; skip: clip ids the page already has.
-export function feed(user, { items, progress = {}, skip = [], n = 8, random = Math.random } = {}) {
+export function feed(user, { items, progress = {}, skip = [], n = 8, random = Math.random, now = Date.now() } = {}) {
   const byKey = new Map(items.map((i) => [i.key, i]));
   const firstOf = new Map();
+  const showGenres = new Map();
   for (const i of items) {
     if (i.kind !== 'episode' || !i.season) continue;
     const k = showKeyOf(i), f = firstOf.get(k);
     if (!f || i.season < f.season || (i.season === f.season && i.episode < f.episode)) firstOf.set(k, i);
+    if (i.genres?.length && !showGenres.has(k)) showGenres.set(k, i.genres);
   }
   // Shows this person already watches: episodes with more than a minute watched.
   const watched = new Map();
@@ -433,14 +487,18 @@ export function feed(user, { items, progress = {}, skip = [], n = 8, random = Ma
     const i = byKey.get(ref.slice(2));
     if (i?.kind === 'episode') watched.set(showKeyOf(i), (watched.get(showKeyOf(i)) || 0) + 1);
   }
+  const watchedGenres = new Map();
+  for (const k of watched.keys()) for (const g of showGenres.get(k) || []) watchedGenres.set(g, (watchedGenres.get(g) || 0) + 1);
   const nope = new Set(db().prepare('SELECT show_key FROM liklok_nope WHERE user_id = ?').all(user.id).map((r) => r.show_key));
-  const since = Date.now() - SEEN_DAYS * DAY;
+  const since = now - SEEN_DAYS * DAY;
   const seenAt = new Map(db().prepare("SELECT clip_id, MAX(at) AS at FROM liklok_events WHERE user_id = ? AND at > ? GROUP BY clip_id").all(user.id, since).map((r) => [r.clip_id, r.at]));
-  const mySkips = new Map(); // show → swiped away fast, minus watched through
-  for (const r of db().prepare(`SELECT c.show_key AS k, e.kind AS kind FROM liklok_events e JOIN liklok_clips c ON c.id = e.clip_id
-    WHERE e.user_id = ? AND e.at > ? AND e.kind IN ('skip', 'done', 'watch')`).all(user.id, since)) {
-    mySkips.set(r.k, (mySkips.get(r.k) || 0) + (r.kind === 'skip' ? 1 : -1));
-  }
+  // This person's own events: genre taste, and per show how they took its clips.
+  const mine = db().prepare(`SELECT e.kind AS kind, e.ms AS ms, e.at AS at, c.show_key AS k, c.start AS s, c.end AS e
+    FROM liklok_events e JOIN liklok_clips c ON c.id = e.clip_id
+    WHERE e.user_id = ? AND e.at > ? AND e.kind IN ('skip', 'left', 'done', 'watch', 'save', 'nope')`).all(user.id, now - TASTE_DAYS * DAY);
+  const taste = tasteOf(mine.map((r) => ({ kind: r.kind, ms: r.ms, at: r.at, length: r.e - r.s, genres: showGenres.get(r.k) })), { now, watchedGenres });
+  const showFeel = new Map(); // show → summed dwell signal of the last three weeks
+  for (const r of mine) if (r.at > since) showFeel.set(r.k, (showFeel.get(r.k) || 0) + dwellSignal(r.kind, r.ms, r.e - r.s));
   const stats = new Map();
   for (const r of db().prepare("SELECT clip_id, kind, COUNT(*) AS n FROM liklok_events WHERE kind IN ('view', 'skip', 'done', 'watch') GROUP BY clip_id, kind").all()) {
     if (!stats.has(r.clip_id)) stats.set(r.clip_id, { view: 0, skip: 0, done: 0, watch: 0 });
@@ -454,29 +512,44 @@ export function feed(user, { items, progress = {}, skip = [], n = 8, random = Ma
     const st = stats.get(c.id) || { view: 0, skip: 0, done: 0, watch: 0 };
     const fb = (st.done + 2 * st.watch - st.skip) / (st.view + 3);
     const w = watched.get(c.show_key) || 0;
-    const showWeight = (w === 0 ? 1 : w < 3 ? 0.6 : 0.25) * ((mySkips.get(c.show_key) || 0) >= 2 ? 0.35 : 1);
-    const rank = (c.score + 1.5 * fb + 0.5) * showWeight * (0.7 + 0.6 * random());
-    pool.push({ c, item, rank, seen: seenAt.get(c.id) || 0 });
+    const feel = showFeel.get(c.show_key) || 0;
+    const showWeight = (w === 0 ? 1 : w < 3 ? 0.6 : 0.25) * clamp(Math.exp(0.5 * feel), 0.3, 1.5);
+    const genres = item.genres?.length ? item.genres : showGenres.get(c.show_key) || [];
+    const fit = genreFit(genres, taste);
+    const base = (c.score + 1.5 * fb + 0.5) * showWeight;
+    const jitter = 0.7 + 0.6 * random();
+    // Explore rank: no taste, a nudge towards genres this person hasn't seen much of.
+    pool.push({ c, item, genres, fit, rank: base * fit.mult * jitter, explore: base * (fit.unknown ? 1.4 : 1) * jitter, seen: seenAt.get(c.id) || 0 });
   }
   const fresh = pool.filter((p) => !p.seen).sort((a, b) => b.rank - a.rank);
   const old = pool.filter((p) => p.seen).sort((a, b) => a.seen - b.seen); // longest ago first
   const out = [];
   const recent = [];
+  const lastGenres = () => out.slice(-2).map((o) => o.genres[0]);
   for (const list of [fresh, old]) {
     const left = [...list];
     while (out.length < n && left.length) {
-      let at = left.findIndex((p) => !recent.slice(-5).includes(p.c.show_key));
+      const exploring = list === fresh && out.length % EXPLORE_EVERY === EXPLORE_EVERY - 1;
+      const okShow = (p) => !recent.slice(-5).includes(p.c.show_key);
+      // Not three of the same main genre in a row, however much it fits.
+      const okGenre = (p) => { const l = lastGenres(); return !(l.length === 2 && l[0] && l[0] === l[1] && p.genres[0] === l[0]); };
+      let at = -1;
+      if (exploring) {
+        for (let i = 0; i < left.length; i++) if (okShow(left[i]) && okGenre(left[i]) && (at < 0 || left[i].explore > left[at].explore)) at = i;
+      } else at = left.findIndex((p) => okShow(p) && okGenre(p));
+      if (at < 0) at = left.findIndex(okShow);
       if (at < 0) at = 0;
       const [p] = left.splice(at, 1);
       if (out.some((o) => o.c.id === p.c.id)) continue;
-      out.push(p); recent.push(p.c.show_key);
+      out.push({ ...p, exploring }); recent.push(p.c.show_key);
     }
   }
-  return out.map(({ c, item }) => {
+  return out.map(({ c, item, fit, exploring }) => {
     const first = firstOf.get(c.show_key);
     return { id: c.id, video: `/api/liklok/v/${c.id}.mp4`, poster: `/api/liklok/v/${c.id}.jpg`, vtt: c.subs ? `/api/liklok/v/${c.id}.vtt` : null,
       showTitle: c.show_title, titleKey: c.title_key, season: c.season, episode: c.episode, episodeName: c.episode_name,
       start: c.start, end: c.end, why: c.why, score: c.score,
+      forYou: exploring ? { explore: true } : fit.because ? { genre: fit.because } : null,
       play: { libId: item.id, mediaKey: item.key, title: item.title, season: item.season, episode: item.episode, episodeName: item.episodeName || null },
       first: first && first.key !== item.key ? { libId: first.id, mediaKey: first.key, title: first.title, season: first.season, episode: first.episode, episodeName: first.episodeName || null } : null,
       genres: item.genres || [] };

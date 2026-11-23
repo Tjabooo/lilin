@@ -136,7 +136,9 @@ export function createLikLok({ h, api, jsonPost, toast, root, play, openShow, is
     const stage = h('div', { class: 'lk-stage' }, h('img', { class: 'lk-poster', src: c.poster, alt: '', loading: i < 3 ? 'eager' : 'lazy', decoding: 'async' }));
     const cap = h('div', { class: 'lk-cap', 'aria-hidden': 'true' });
     const bar = h('i', { class: 'lk-bar-fill' });
-    const why = h('p', { class: 'lk-why', hidden: true }, c.why || '');
+    const forYou = c.forYou?.genre ? T('For you: you stay longer on {0} clips.', T(c.forYou.genre))
+      : c.forYou?.explore ? T('Something different, so your feed doesn\'t get stuck on one genre.') : '';
+    const why = h('p', { class: 'lk-why', hidden: true }, [forYou, c.why || ''].filter(Boolean).join(' '));
     const s = { c, stage, cap, bar, cues: null };
     s.save = c.card ? railButton(isSaved(c.card) ? 'check' : 'plus', T('My list'), () => saveClip(s)) : null;
     if (s.save && isSaved(c.card)) s.save.classList.add('is-on');
@@ -150,7 +152,7 @@ export function createLikLok({ h, api, jsonPost, toast, root, play, openShow, is
         h('div', { class: 'lk-actions' },
           h('button', { type: 'button', class: 'lk-keep', onclick: (e) => { e.stopPropagation(); keepWatching(i); } }, icon('play'), T('Keep watching')),
           h('button', { type: 'button', class: 'lk-first', onclick: (e) => { e.stopPropagation(); fromStart(i); } }, c.first ? T('From episode 1') : T('From the start'))),
-        c.why ? h('button', { type: 'button', class: 'lk-why-btn', onclick: (e) => { e.stopPropagation(); why.hidden = !why.hidden; } }, T('Why this clip')) : null,
+        (c.why || forYou) ? h('button', { type: 'button', class: 'lk-why-btn', onclick: (e) => { e.stopPropagation(); why.hidden = !why.hidden; } }, T('Why this clip')) : null,
         why),
       h('div', { class: 'lk-rail' },
         s.save,
@@ -186,6 +188,7 @@ export function createLikLok({ h, api, jsonPost, toast, root, play, openShow, is
     const { id, played, loops, length } = watch;
     if (loops > 0 || played >= length * 0.9) event(id, 'done', played * 1000);
     else if (played < 3) event(id, 'skip', played * 1000);
+    else event(id, 'left', played * 1000); // how far in you moved on: this is what tunes the genres you get
     watch = null;
   }
 

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-liklok-taste",
+  "date": "2026-11-23",
+  "title": "LikLok learns what you like",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "More of the genres you stay on",
+      "text": "LikLok now notices how long you stay on each clip. Genres you watch to the end, loop or tap Keep watching on show up more; genres you swipe past right away show up less. Every few clips it still slips in something different so your feed doesn't get stuck. Why this clip tells you when a clip was picked for you."
+    }
+  ]
+},
+{
   "id": "2026-11-23-queue-scroll",
   "date": "2026-11-23",
   "title": "Scroll the trending titles",
