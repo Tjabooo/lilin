@@ -4576,10 +4576,14 @@ async function handleApi(req, res, url) {
       seen: social.finishedEpisodes(user.id),
       hidden: accounts.continueHiddenOf(user.id) });
   }
-  // Mark one episode watched or not watched by hand (the ⋯ on an episode row), copy or no copy.
+  // Mark episodes watched or not watched by hand (the ⋯ on an episode row or a season), copy or no copy.
   if (p === '/api/me/seen' && req.method === 'POST') {
-    const { key, season, episode, seen, title } = await readJson(req);
-    social.markEpisode(user.id, { key: String(key || ''), season, episode, seen: Boolean(seen), title });
+    const { key, season, episode, episodes, seen, title } = await readJson(req);
+    // episodes: a whole season at once (the season's ⋯); episode: just one
+    const list = Array.isArray(episodes) ? episodes.slice(0, 500) : [episode];
+    // in episode order, a millisecond apart, so the last one counts as the last finished (Up next goes by it)
+    const at = Date.now();
+    list.map(Number).sort((a, b) => a - b).forEach((e, i) => social.markEpisode(user.id, { key: String(key || ''), season, episode: e, seen: Boolean(seen), title, now: at + i }));
     return sendJson(res, 200, { ok: true, seen: social.finishedEpisodes(user.id), finished: social.lastFinished(user.id) });
   }
   // Remove from Continue watching, everywhere this person signs in. at: only for moving an older hide over.

@@ -7,7 +7,7 @@
     {
       "kind": "new",
       "title": "Mark as watched on every episode",
-      "text": "The ⋯ next to an episode now has Mark as watched, so you can tick off episodes you saw somewhere else, even ones that aren't on Lilin. Changed your mind? The same spot says Mark as not watched."
+      "text": "The ⋯ next to an episode now has Mark as watched, so you can tick off episodes you saw somewhere else, even ones that aren't on Lilin. Changed your mind? The same spot says Mark as not watched. A season's ⋯ can mark the whole season at once, with Undo."
     },
     {
       "kind": "improved",

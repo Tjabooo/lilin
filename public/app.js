@@ -2563,7 +2563,13 @@ function episodeList(c) {
     const packs = forSeason.filter((d) => !(d.episodes || []).some((ep) => ep.season === n));
     const complete = se.total && readyCount >= se.total;
     const tools = Boolean(state.status.admin); // the season's download tools are the owner's
+    // Mark the whole season (the episodes that have aired) watched, or not watched once they all are.
+    const showKey = tvT.id != null ? `tv:${tvT.id}` : null;
+    const aired = [...numbers].filter((k) => !airsLabel(info.get(k)?.airDate)).sort((a, b) => a - b);
+    const allSeen = aired.length > 0 && aired.every((k) => seenEpisode(showKey, n, k));
     const seasonItems = [
+      showKey && aired.length > 0 && [icon(allSeen ? 'eyeOff' : 'check'), allSeen ? T('Mark season as not watched') : T('Mark season as watched'),
+        () => markSeasonSeen(showKey, n, aired, !allSeen, t.title, [...mine.values()], () => draw())],
       tools && serverOnly.length > 0 && [icon('plus'), T('Add season'), async () => { try { await addFromServer(serverOnly); } catch (err) { toast(err.message); } }],
       tools && upgrade?.offered && !upgrade.started && [icon('upgrade'), upgradeLabel(upgrade), async () => {
         toast(T('Looking for better quality…'));
@@ -2617,7 +2623,7 @@ function episodeRow(c, row) {
   // Watched / not watched by hand, for any episode that has aired (copy or not).
   const showKey = tvT.id != null ? `tv:${tvT.id}` : null;
   const mark = (file) => showKey && k != null && season != null && !airs && [icon(seen ? 'eyeOff' : 'check'),
-    seen ? T('Mark as not watched') : T('Mark as watched'), (o) => markEpisodeSeen(showKey, season, k, !seen, c.t.title, file, () => o.closest('li.ep')?.replaceWith(episodeRow(c, row)))];
+    seen ? T('Mark as not watched') : T('Mark as watched'), (o) => markEpisodeSeen(showKey, season, [k], !seen, c.t.title, file ? [file] : [], () => o.closest('li.ep')?.replaceWith(episodeRow(c, row)))];
   if (f) {
     const file = libraryFile(f), saved = savedProgress(file);
     const pct = saved?.duration ? Math.min(100, saved.time / saved.duration * 100) : 0;
@@ -2664,13 +2670,14 @@ function episodeRow(c, row) {
       copy && tools && [icon('trash'), T('Delete'), (o) => openDelete(copy, o), 'is-danger'],
     ]));
 }
-// The ⋯ Mark as watched on an episode: ticks it at once, the server keeps it (src/social.js markEpisode). Marking
-// one you're partway through also drops its resume point, so it reads as watched rather than 40% in.
-async function markEpisodeSeen(key, season, episode, seen, title, file, redrawRow) {
-  const tag = `${season}:${episode}`, before = state.seen?.[key] || [];
-  const redraw = () => { invalidateLibraryProgress(); libraryRenderPending = true; redrawRow?.(); };
-  state.seen = { ...state.seen, [key]: seen ? [...new Set([...before, tag])] : before.filter((x) => x !== tag) };
-  if (seen && file) {
+// The ⋯ Mark as watched on an episode or a whole season: ticks them at once, the server keeps it (src/social.js
+// markEpisode). Marking one you're partway through also drops its resume point, so it reads as watched, not 40% in.
+// files: the copies of those episodes here (for the resume points). redraw: repaints what shows the ticks.
+async function markEpisodeSeen(key, season, episodes, seen, title, files, redraw) {
+  const tags = episodes.map((e) => `${season}:${e}`), before = state.seen?.[key] || [];
+  const paint = () => { invalidateLibraryProgress(); libraryRenderPending = true; redraw?.(); };
+  state.seen = { ...state.seen, [key]: seen ? [...new Set([...before, ...tags])] : before.filter((x) => !tags.includes(x)) };
+  if (seen) for (const file of files) {
     const ref = progressRef(file);
     if (state.progress[ref]) {
       delete state.progress[ref];
@@ -2678,16 +2685,26 @@ async function markEpisodeSeen(key, season, episode, seen, title, file, redrawRo
     }
     try { localStorage.removeItem(resumeKey(file)); } catch { /* blocked */ }
   }
-  redraw();
+  paint();
   try {
-    const r = await api('/api/me/seen', jsonPost({ key, season, episode, seen, title }));
+    const r = await api('/api/me/seen', jsonPost({ key, season, episodes, seen, title }));
     if (r.seen) state.seen = r.seen;
     if (r.finished) state.finished = r.finished;
   } catch {
     state.seen = { ...state.seen, [key]: before };
     toast(T('Couldn’t save that. Try again.'));
+    paint();
+    return false;
   }
-  redraw();
+  paint();
+  return true;
+}
+// The season's ⋯: every aired episode at once, with Undo (it only puts back the ones this changed).
+async function markSeasonSeen(key, season, episodes, seen, title, files, redraw) {
+  const changed = episodes.filter((e) => seenEpisode(key, season, e) !== seen);
+  if (!changed.length || !(await markEpisodeSeen(key, season, changed, seen, title, files, redraw))) return;
+  actionToast(seen ? T('Season marked as watched') : T('Season marked as not watched'), T('Undo'),
+    () => markEpisodeSeen(key, season, changed, !seen, title, [], redraw));
 }
 // "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
 function airsLabel(airDate) {
