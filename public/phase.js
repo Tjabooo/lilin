@@ -198,7 +198,7 @@ function fit(box, { max = 110, min = 26, maxH = 220, S = 0.78 } = {}) {
   if (!W) return false;
   const lines = $$('.ln:not(.sm)', box).map((ln) => {
     const fi = ln.firstElementChild;
-    fi.style.fontSize = '100px'; fi.style.transform = 'none';
+    fi.style.fontSize = '100px'; fi.style.transform = 'none'; fi.style.marginRight = '0';
     return { ln, fi, w: (fi.getBoundingClientRect().width || 1) / 100, sub: ln.classList.contains('sub') };
   });
   const size = (l, cap) => {
@@ -218,6 +218,9 @@ function fit(box, { max = 110, min = 26, maxH = 220, S = 0.78 } = {}) {
     const { fs, s } = sizes[i];
     l.fi.style.fontSize = `${fs.toFixed(1)}px`;
     l.fi.style.transform = `scaleX(${s.toFixed(3)})`;
+    // scaleX only shrinks the picture: the box keeps its unsqueezed width (~1.3x the column) and made phones pan
+    // sideways on title pages. A negative margin gives the squeezed-away width back to the layout.
+    l.fi.style.marginRight = `${(-l.w * fs * (1 - s)).toFixed(1)}px`;
     l.fi.dataset.s = s.toFixed(3);
     l.ln.style.height = `${(fs * 0.8).toFixed(1)}px`;
   });

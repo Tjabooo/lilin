@@ -919,7 +919,7 @@ html.has-vt .view { animation: none; }
 :root[data-scheme="light"] .sheet-backdrop { background: rgb(40 28 20 / .42); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 41;
-  max-height: calc(100dvh - var(--safe-top) - 24px); overflow-y: auto; overscroll-behavior: contain;
+  max-height: calc(100dvh - var(--safe-top) - 24px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   padding: 0 0 calc(var(--safe-bottom) + var(--s5));
   background: var(--surface-1);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -1681,7 +1681,7 @@ body.in-player:has(#player.room-docked) .toast { left: calc((100% - clamp(300px,
 .remote {
   position: fixed; inset: 0; z-index: 55;
   display: flex; flex-direction: column;
-  overflow-y: auto;
+  overflow-x: hidden; overflow-y: auto;
   padding: calc(var(--safe-top) + 8px) var(--gutter) calc(var(--safe-bottom) + 20px);
   background: var(--room); background-color: var(--velvet);
   animation: view-in var(--d-3) var(--ease-out);
@@ -3666,7 +3666,7 @@ html.wrapped-on { overflow: hidden; }
 .password-gate {
   position: fixed; inset: 0; z-index: 10000;
   display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: var(--s5);
-  overflow-y: auto; overscroll-behavior: contain;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   padding: calc(var(--s6) + var(--safe-top)) var(--gutter) calc(var(--s6) + var(--safe-bottom));
   background: var(--room); background-color: var(--velvet);
   animation: view-in var(--d-3) var(--ease-out);
