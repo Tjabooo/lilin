@@ -772,7 +772,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .pf-face::before { content: ""; position: absolute; left: -14px; top: -14px; right: -14px; bottom: -14px; border-radius: 50%; pointer-events: none;
   background: repeating-conic-gradient(var(--hairline-2) 0 1.4deg, transparent 1.4deg 10deg);
   -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); }
-.pf-face .face { box-shadow: 0 0 0 4px var(--velvet), 0 0 0 5px var(--ph-you); }
+.pf-face .face { box-shadow: 0 0 0 4px var(--velvet), 0 0 0 5px var(--pf-accent); }
 .pf-name { font-weight: 800; letter-spacing: -.02em; }
 .pf-name::before { content: var(--ph-l-profile, "PROFILE"); display: block; margin-bottom: 8px; font: 700 9px/1 var(--body); letter-spacing: .28em; color: var(--text-2); }
 .pf-sub { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-ring-accent",
+  "date": "2026-11-23",
+  "title": "Your ring, your colour",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Picture ring follows your accent",
+      "text": "The ring around your picture on your profile now takes the accent you picked in Edit profile instead of the app theme's colour."
+    }
+  ]
+},
+{
   "id": "2026-11-23-anime-lists",
   "date": "2026-11-23",
   "title": "Your anime list on your profile",

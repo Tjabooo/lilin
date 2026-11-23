@@ -1,4 +1,13 @@
 {
+  "2026-11-23-ring-accent": {
+    "title": "Din ring, din färg",
+    "items": {
+      "Picture ring follows your accent": {
+        "title": "Ringen runt bilden följer din accentfärg",
+        "text": "Ringen runt din bild på profilen har nu accentfärgen du valt i Redigera profil i stället för appens temafärg."
+      }
+    }
+  },
   "2026-11-23-anime-lists": {
     "title": "Din animelista på din profil",
     "items": {
