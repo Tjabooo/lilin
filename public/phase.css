@@ -270,10 +270,10 @@ html.ph-hidden .ph-loader .ph-lw > span { animation-play-state: paused; }
 .ph-cells-key b { color: var(--ph-film); font-weight: 800; }
 .ph-cells-key b.n { color: var(--ph-you); }
 
-/* B7 countdown band: rounded, slanted, outlined; filled only on the day it airs */
+/* B7 countdown band: rounded, outlined; filled only on the day it airs */
 .ph-cd { position: relative; height: 70px; margin: 22px 0 8px; pointer-events: none; }
-.ph-cd > div { position: absolute; left: -4%; right: -4%; top: 6px; height: 56px; transform: rotate(-2deg); border-radius: 999px;
-  box-shadow: inset 0 0 0 1.5px var(--ph-warn); display: flex; align-items: center; gap: 12px; padding: 0 calc(4% + 22px); color: var(--ph-warn); overflow: hidden; }
+.ph-cd > div { position: absolute; left: 0; right: 0; top: 7px; height: 56px; border-radius: 999px;
+  box-shadow: inset 0 0 0 1.5px var(--ph-warn); display: flex; align-items: center; gap: 12px; padding: 0 22px; color: var(--ph-warn); overflow: hidden; }
 .ph-cd small { display: block; font: 700 10px/1.35 var(--body); letter-spacing: .14em; text-transform: uppercase; }
 .ph-cd small + small { color: var(--text-2); font-weight: 600; letter-spacing: .06em; text-transform: none; font-size: 12px; }
 .ph-cd b { margin-left: auto; font: 800 40px/1 var(--display); font-variant-numeric: tabular-nums; transform: scaleX(.72); transform-origin: 100% 50%; white-space: nowrap; }
