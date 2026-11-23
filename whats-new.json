@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-friend-accept-visible",
+  "date": "2026-11-23",
+  "title": "Accept button you can see",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Friend request buttons are visible again",
+      "text": "The Accept button on the friend request popup, and the Add friend button on profiles, had lost their colour and were almost invisible. They're filled again."
+    }
+  ]
+},
+{
   "id": "2026-11-23-tv-reviews-away",
   "date": "2026-11-23",
   "title": "TV reviews away from home",

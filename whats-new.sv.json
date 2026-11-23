@@ -1,4 +1,13 @@
 {
+  "2026-11-23-friend-accept-visible": {
+    "title": "En Godkänn-knapp som syns",
+    "items": {
+      "Friend request buttons are visible again": {
+        "title": "Knapparna för vänförfrågningar syns igen",
+        "text": "Godkänn-knappen i rutan för vänförfrågningar, och Lägg till vän-knappen på profiler, hade tappat sin färg och var nästan osynliga. Nu är de ifyllda igen."
+      }
+    }
+  },
   "2026-11-23-tv-reviews-away": {
     "title": "Recensioner på TV:n hemifrån",
     "items": {

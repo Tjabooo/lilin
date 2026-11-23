@@ -900,6 +900,9 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .chip:hover:not(:disabled) { background-color: color-mix(in srgb, var(--paper) 6%, transparent); }
 .chip[aria-pressed="true"] { --bl: var(--paper); --hl: var(--velvet); }
 .chip.primary { --bl: transparent; --hl: rgb(255 255 255 / .6); }
+/* filled chips (friend Accept, profile Add friend) keep their fill: the transparent .chip above made them dark text on dark */
+.chip.friend-yes, .chip.friend-yes:hover:not(:disabled) { --bl: transparent; --hl: rgb(255 255 255 / .6); background-color: var(--bulb); }
+.chip.pf-friend, .chip.pf-friend:hover:not(:disabled) { --bl: transparent; --hl: rgb(255 255 255 / .6); background-color: var(--pf-accent); }
 /* filter words stay words; only the current one is outlined */
 .dc-line .chip:not(.genres-toggle):not(.instant-toggle) { --bl: transparent; --hl: transparent; }
 .dc-line .chip[aria-pressed="true"] { --bl: color-mix(in srgb, var(--text) 55%, transparent); --hl: var(--text); }
