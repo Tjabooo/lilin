@@ -1129,7 +1129,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
    are numbered readouts (01 NAME …) in one cut-corner frame, an accent bar marks the row being typed in; block labels
    are tracked caps with a square bullet and a ticked hairline; options, switches, swatches, sliders and the
    favourite slots all take the same cut. Save is a tracked-caps command on a ticked footer. */
-.pf-editor :is(.pf-ed-card, .pf-ed-group, .pf-order, .pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note, .pf-switch, .pf-swatch, .pf-x, .pf-move, .pf-slot) {
+.pf-editor :is(.pf-ed-card, .pf-ed-group, .pf-order, .pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note, .pf-switch, .pf-swatch, .pf-fav-act, .pf-move, .pf-slot) {
   --bl: var(--hairline-2);
   --ph-cut: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px));
   border-radius: 0; }
@@ -1184,7 +1184,7 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .pf-editor .pf-ed-title { font: 700 11px/1.2 var(--body); letter-spacing: .22em; text-transform: uppercase; color: var(--text); }
 .pf-editor .pf-ed-title::before { width: 6px; height: 6px; background: var(--ph-you); }
 /* options (who can see it, pinned review), the Gradient row, text boxes: cut-corner hairline cells */
-.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note) { --c: 12px; border-color: transparent; background-color: var(--ph-pnl);
+.pf-editor :is(.pf-ed-vis-opt, .pf-pin-opt, .pf-ed-switch-row, .invite-note, .pf-fav-act) { --c: 12px; border-color: transparent; background-color: var(--ph-pnl);
   clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
   background-image: var(--ph-cut), var(--ph-cut); background-position: left top, right bottom; background-size: var(--c) var(--c); background-repeat: no-repeat;
   box-shadow: inset 0 0 0 1px var(--bl); }
@@ -1230,13 +1230,15 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .pf-editor .pf-range::-moz-range-thumb { width: 12px; height: 22px; border: 0; border-radius: 0; background: var(--ph-you);
   clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); }
 .pf-range-row { font: 700 10px/1 var(--body); letter-spacing: .18em; text-transform: uppercase; }
-/* favourites: empty slots are hairline frames with corner marks (the poster frame), remove/move are small cut cells */
+/* favourites: empty slots are hairline frames with corner marks (the poster frame), the picked one gets an accent bar and a cut-corner action panel */
 .pf-editor .pf-fav-edit .pf-slot { border: 0; background: var(--ph-pnl); color: var(--text-2); }
 .pf-editor .pf-fav-edit .pf-slot:hover { background: var(--ph-pnl2); color: var(--ph-you); }
-.pf-editor .pf-x { --c: 6px; width: 26px; height: 26px; border: 0; box-shadow: inset 0 0 0 1px var(--bl);
-  background: var(--ph-cut) left top / var(--c) var(--c) no-repeat, var(--ph-cut) right bottom / var(--c) var(--c) no-repeat, var(--surface-1);
+.pf-editor .pf-fav-act { border-radius: 0; box-shadow: inset 0 0 0 1px var(--bl), inset 3px 0 0 var(--ph-you); }
+.pf-editor .pf-fav-edit li.is-sel::after { left: 0; right: 0; height: 2px; border-radius: 0; background: var(--ph-you); }
+.pf-editor .pf-fav-btn { --c: 7px; border: 0; border-radius: 0; background: var(--ph-pnl2); box-shadow: inset 0 0 0 1px var(--hairline-2);
   clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
-.pf-editor .pf-x:hover { --bl: var(--text); }
+.pf-editor .pf-fav-btn:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--text); }
+.pf-editor .pf-fav-del { color: var(--ph-warn); font: 700 11px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; }
 /* the footer: a ticked top edge, Save as a tracked-caps command */
 .pf-save-bar { border-top: 0; box-shadow: 0 -14px 28px -14px rgb(0 0 0 / .5);
   background: linear-gradient(var(--hairline-2), var(--hairline-2)) left top / 100% 1px no-repeat,

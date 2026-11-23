@@ -1,4 +1,13 @@
 {
+  "2026-11-23-favourites-editor": {
+    "title": "Enklare favoriter",
+    "items": {
+      "Picking your four favourites fits on screen again": {
+        "title": "Dina fyra favoriter får plats på skärmen igen",
+        "text": "I Redigera profil → Favoriter ligger de fyra affischerna bredvid varandra igen i stället för att rinna ut över kanten. Tryck på en för att välja den: du kan flytta den åt vänster eller höger, ta bort den eller söka (eller trycka på en anime) för att byta ut den."
+      }
+    }
+  },
   "2026-11-23-drag-sections": {
     "title": "Dra för att ändra ordning",
     "items": {

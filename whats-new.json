@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-favourites-editor",
+  "date": "2026-11-23",
+  "title": "Easier favourites",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Picking your four favourites fits on screen again",
+      "text": "In Edit profile → Favourites the four posters sit side by side again instead of spilling off the edge. Tap one to select it: you can move it left or right, remove it, or search (or tap an anime) to swap it for something else."
+    }
+  ]
+},
+{
   "id": "2026-11-23-drag-sections",
   "date": "2026-11-23",
   "title": "Drag to reorder",
