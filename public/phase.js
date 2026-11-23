@@ -399,6 +399,8 @@ function enhanceBillboard(bb) {
     btn.append(q);
     btn.classList.add('ph-q-on');
   });
+  queueFade();
+  D.fonts?.ready.then(queueFade);
   fitBillboard();
   BB.rb = ribbon(rb, { lines: 8 });
   placeRibbon();
@@ -486,7 +488,13 @@ function queueTo(i) {
   if (!btn) return;
   const left = Math.max(0, btn.offsetLeft - bulbs.offsetLeft - 4);
   bulbs.scrollLeft = left;
+  queueFade();
   hairline();
+}
+// the queue's right edge fades only while more titles hide past it, so the last one isn't cut for nothing
+function queueFade() {
+  const q = BB.root && $('.bb-bulbs', BB.root);
+  if (q) q.classList.toggle('ph-more', q.scrollWidth - q.scrollLeft - q.clientWidth > 1);
 }
 // the auto-advance timer (billboard.js advances every 9 s on wide screens, paused on hover/focus/hidden)
 function hairline() {
@@ -993,6 +1001,7 @@ addEventListener('resize', () => {
   clearTimeout(resizeT);
   resizeT = setTimeout(() => {
     fitBillboard();
+    queueFade();
     if (BB.root) { BB.rb = ribbon($('.ph-ribbon', BB.root), { lines: 8 }); placeRibbon(); }
     const sheet = $('#sheet.open'); if (sheet) { const h = $('.sheet-hero', sheet); if (h) delete h.dataset.phW; enhanceSheet(sheet); }
   }, 200);

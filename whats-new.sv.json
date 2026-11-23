@@ -1,4 +1,13 @@
 {
+  "2026-11-23-queue-fade": {
+    "title": "Liten fix på Upptäck",
+    "items": {
+      "The last trending title isn't cut off": {
+        "title": "Den sista trendande titeln klipps inte av",
+        "text": "Raden med trendande titlar under den stora bilden på Upptäck tonar bara ut i kanten när det finns fler titlar bortom den. När alla får plats syns den sista helt."
+      }
+    }
+  },
   "2026-11-23-profile-style": {
     "title": "Gör din profil till din egen",
     "items": {

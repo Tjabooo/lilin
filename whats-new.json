@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-queue-fade",
+  "date": "2026-11-23",
+  "title": "Small fix on Discover",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "The last trending title isn't cut off",
+      "text": "The row of trending titles under the big picture on Discover only fades at the edge when there are more titles past it. When they all fit, the last one shows in full."
+    }
+  ]
+},
+{
   "id": "2026-11-23-profile-style",
   "date": "2026-11-23",
   "title": "Make your profile look like you",

@@ -147,7 +147,8 @@ html.ph .view { animation: none; }
   .bb-foot { bottom: 26px; }
   .bb-copy { bottom: clamp(76px, 12vh, 136px); }
 }
-.bb-bulbs { gap: 18px; max-width: 100%; overflow: hidden; scroll-behavior: auto;
+.bb-bulbs { gap: 18px; max-width: 100%; overflow: hidden; scroll-behavior: auto; }
+.bb-bulbs.ph-more {
   -webkit-mask: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
 .bb-bulb.ph-q-on { width: auto; height: 28px; flex: none; display: block; border-radius: 6px; padding: 0; }
 .bb-bulb.ph-q-on::before { display: none; }
