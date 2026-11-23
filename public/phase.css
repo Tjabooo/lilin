@@ -1060,3 +1060,31 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
     linear-gradient(var(--ph-you), var(--ph-you)) left calc(var(--c) + 4px) top 0 / 18px 1px no-repeat;
   box-shadow: inset 0 0 0 1px var(--bl); }
 .swatch-preview, .swatch-preview i:not(.sw-dot) { border-radius: 0; }
+
+/* clip editor (trim page): tools, undo, Preview, play, game-event markers and the timeline lose their last round corners */
+:is(.edit-tool, .retry, .edit-play, .edit-event) {
+  --c: 8px; --bl: var(--hairline-2); --hl: color-mix(in srgb, var(--text) 70%, transparent);
+  border-radius: 0 !important; border-color: transparent !important;
+  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(var(--hl), var(--hl));
+  background-position: left top, right bottom, left calc(var(--c) + 2px) top 0;
+  background-size: var(--c) var(--c), var(--c) var(--c), 12px 1px;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--bl) !important;
+}
+.edit-tool:hover:not(:disabled), .retry:hover:not(:disabled) { --bl: color-mix(in srgb, var(--text) 45%, transparent); }
+.edit-tool.is-restore { --bl: color-mix(in srgb, var(--bulb) 60%, transparent); --hl: var(--bulb); }
+.edit-play.edit-play { --c: 10px; --bl: transparent; --hl: rgb(255 255 255 / .55); }
+.edit-event.edit-event { --c: 6px; --bl: color-mix(in srgb, var(--mark) 55%, transparent); --hl: transparent; }
+.edit-event.edit-event:hover, .edit-event.edit-event:focus-visible { --bl: var(--mark); outline: none; }
+:is(.edit-tool, .retry, .edit-play):active { --bl: var(--ph-you); --hl: var(--ph-you); }
+:is(.edit-tool, .retry, .edit-play):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--text) !important; }
+.edit-track, .edit-piece.is-kept, .edit-hover, .edit-timeline:focus-visible { border-radius: 0; }
+.edit-head::before { border-radius: 0; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); }
+.edit-event.edit-event.is-hs { background-color: color-mix(in srgb, var(--bulb) 16%, var(--curtain));
+  background-image:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)); }
