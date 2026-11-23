@@ -96,14 +96,15 @@ function page({ home, found, address, prefix = '' }) {
   ];
   let body;
   if (!home) {
-    body = `<section class="card note"><h2>${esc(tr('Open this page at home.'))}</h2><p>${esc(tr('The Android TV app installs and runs on the home network, where Lilin is.'))}</p></section>`;
+    body = `<section class="panel note"><h2>${esc(tr('Open this page at home.'))}</h2><p>${esc(tr('The Android TV app installs and runs on the home network, where Lilin is.'))}</p></section>`;
   } else if (!found) {
-    body = `<section class="card note"><h2>${esc(tr('The Android TV app isn’t on this server yet.'))}</h2><p>${esc(tr('Whoever runs Lilin can build it with tv/android/build.sh (see docs/android-tv.md).'))}</p></section>`;
+    body = `<section class="panel note"><h2>${esc(tr('The Android TV app isn’t on this server yet.'))}</h2><p>${esc(tr('Whoever runs Lilin can build it with tv/android/build.sh (see docs/android-tv.md).'))}</p></section>`;
   } else {
     const size = `${(found.size / 1048576).toFixed(1)} MB`;
-    body = `<ol class="steps">${steps.map(([title, text], i) => `<li class="card"><span class="n">${i + 1}</span><div><h2>${esc(title)}</h2>${text}</div></li>`).join('')}</ol>
-      <p class="after">${esc(tr('Lilin is now among the TV’s apps. It keeps itself up to date: when there’s a new version, the TV offers it as the app starts. Downloader may offer to delete the file it fetched; the app stays.'))}</p>
-      ${found.anywhere ? '' : `<p class="after">${esc(tr('The TV has to be on the same network as Lilin.'))}</p>`}
+    const two = (n) => String(n).padStart(2, '0');
+    body = `<ol class="steps">${steps.map(([title, text], i) => `<li class="panel step"><span class="n" aria-hidden="true">${two(i + 1)}</span><span class="of" aria-hidden="true">${two(i + 1)} / ${two(steps.length)}</span><div><h2>${esc(title)}</h2>${text}</div></li>`).join('')}</ol>
+      <div class="after"><p>${esc(tr('Lilin is now among the TV’s apps. It keeps itself up to date: when there’s a new version, the TV offers it as the app starts. Downloader may offer to delete the file it fetched; the app stays.'))}</p>
+      ${found.anywhere ? '' : `<p>${esc(tr('The TV has to be on the same network as Lilin.'))}</p>`}</div>
       <a class="download" href="${prefix}/android.apk" download="Lilin.apk">${esc(tr('Download the app ({0} · version {1})', size, found.versionName))}</a>`;
   }
   return `<!doctype html>
@@ -111,43 +112,91 @@ function page({ home, found, address, prefix = '' }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#140A14">
+<meta name="theme-color" content="#15112B">
 <meta name="robots" content="noindex">
 <title>${esc(tr('Lilin on Android TV'))}</title>
 <link rel="icon" href="/c/favicon.svg" type="image/svg+xml">
 <style>
   @font-face { font-family: "Bricolage Grotesque"; font-weight: 200 800; font-display: swap; src: url("/c/fonts/bricolage-grotesque-latin.woff2") format("woff2"); }
-  :root { --velvet: #140A14; --curtain: #1D121C; --seat: #2A1C28; --paper: #EFE8E1; --dust: #B8AAB2; --bulb: #FB2C16; --on-bulb: #140A14; --hair: rgba(246, 234, 223, .1);
-    --display: "Bricolage Grotesque", system-ui, sans-serif; color-scheme: dark; }
+  /* The app's default look (phase skin, preset "Lilin"): purple-black, acid green, lilac; hairline chamfered panels. */
+  :root { --bg: #15112B; --surface: #1E1939; --line: #3D3666; --text: #F1EEFA; --muted: #B6AFCF;
+    --accent: #A0DE59; --support: #B89BE2; --alert: #FF9B85; --on-accent: #15112B;
+    --display: "Bricolage Grotesque", system-ui, sans-serif; --sx: .78; color-scheme: dark; }
   * { box-sizing: border-box; }
-  html { background: radial-gradient(ellipse 120% 60% at 50% -10%, #3D2234 0%, rgba(61, 34, 52, 0) 100%), linear-gradient(#140A14, #160B12) fixed; min-height: 100%; }
-  body { margin: 0; color: var(--paper); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
-  main { max-width: 680px; margin: 0 auto; padding: max(40px, env(safe-area-inset-top)) 20px max(48px, env(safe-area-inset-bottom)); }
-  .mark { font: 800 26px/1 var(--display); letter-spacing: -.03em; color: var(--bulb); text-shadow: 0 0 18px rgba(251, 44, 22, .45); }
-  .mark::before { content: ''; display: block; width: 150px; height: 10px; margin-bottom: 14px;
-    background: radial-gradient(circle, #FB2C16 3px, rgba(251, 44, 22, .35) 4px, rgba(251, 44, 22, 0) 6px) 0 50% / 15px 10px repeat-x; }
-  h1 { margin: 26px 0 8px; font: 800 clamp(34px, 8vw, 50px)/1.02 var(--display); letter-spacing: -.025em; }
-  .lead { margin: 0 0 30px; color: var(--dust); }
-  .steps { list-style: none; margin: 0; padding: 0; counter-reset: none; }
-  .card { display: flex; gap: 18px; padding: 22px 22px 20px; margin-bottom: 14px; border-radius: 22px; background: linear-gradient(var(--seat), var(--curtain)); border: 1px solid var(--hair); }
-  .card.note { display: block; }
-  .n { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--bulb); color: var(--on-bulb);
-    font: 800 20px/1 var(--display); box-shadow: 0 0 22px rgba(251, 44, 22, .35); }
+  html { min-height: 100%; background-color: var(--bg); background-image:
+    radial-gradient(rgba(241, 238, 250, .07) 1px, transparent 1.4px),
+    radial-gradient(ellipse 110% 55% at 50% -12%, #2A2257 0%, rgba(42, 34, 87, 0) 100%);
+    background-size: 22px 22px, 100% 100%; background-attachment: fixed; }
+  body { margin: 0; color: var(--text); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 680px; margin: 0 auto; padding: max(36px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom)); overflow-x: hidden; }
+  .cond { display: inline-block; transform: scaleX(var(--sx)); transform-origin: 0 50%; }
+  .label { font: 700 11px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* header: wordmark, a micro-label, a ticked hairline rule with the accent notch */
+  .top { display: flex; align-items: center; gap: 12px; }
+  .mark { font: 800 28px/1 var(--display); letter-spacing: -.02em; color: var(--accent); }
+  .top .label { margin-left: auto; color: var(--support); }
+  .rule { height: 9px; margin-top: 14px; background:
+    linear-gradient(var(--accent), var(--accent)) 0 100% / 28px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 34px 100% / 4px 2px no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 100% / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 12px) 0 0 / 100% 5px no-repeat; }
+  h1 { margin: 26px 0 0; font: 800 clamp(38px, 10.5vw, 64px)/.95 var(--display); letter-spacing: -.02em; text-transform: uppercase; }
+  h1 .cond { width: calc(100% / var(--sx)); }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { margin: 16px 0 30px; padding-left: 14px; color: var(--muted); border-left: 2px solid var(--support); }
+
+  /* panels: top-left + bottom-right cut, hairline frame drawn in ::after, accent tick on top */
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .panel { --c: 16px; --bl: var(--line); position: relative; margin-bottom: 14px; padding: 22px 22px 20px; background: rgba(30, 25, 57, .9);
+    clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+  .panel::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px var(--bl); background:
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)) left top / var(--c) var(--c) no-repeat,
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)) right bottom / var(--c) var(--c) no-repeat,
+    linear-gradient(var(--tick, var(--accent)), var(--tick, var(--accent))) left calc(var(--c) + 6px) top 0 / 22px 2px no-repeat; }
+  .step { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 0 18px; }
+  .n { align-self: start; display: grid; place-items: center; width: 52px; height: 52px; margin-top: 2px;
+    font: 800 23px/1 var(--display); color: var(--accent); font-variant-numeric: tabular-nums;
+    background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--accent) calc(50% - .5px), var(--accent) calc(50% + .5px), transparent calc(50% + 1px)) left top / 10px 10px no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(160, 222, 89, .55);
+    clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
+  .of { position: absolute; right: 18px; top: 13px; font: 700 11px/1 var(--display); letter-spacing: .16em; color: var(--muted); opacity: .65; font-variant-numeric: tabular-nums; }
   h2 { margin: 6px 0 6px; font: 700 22px/1.2 var(--display); letter-spacing: -.01em; }
-  .card p { margin: 0 0 8px; color: var(--dust); }
-  .address { margin: 12px 0 12px; padding: 14px 18px; border-radius: 14px; background: rgba(22, 11, 18, .7); border: 1px solid rgba(251, 44, 22, .35);
-    font: 800 clamp(20px, 5.4vw, 28px)/1.2 var(--display); letter-spacing: .01em; color: var(--bulb); overflow-wrap: anywhere; user-select: all; }
-  .after { margin: 18px 4px 0; color: var(--dust); font-size: 15px; }
-  .download { display: block; margin-top: 28px; padding: 16px 22px; border-radius: 999px; text-align: center; text-decoration: none;
-    background: var(--paper); color: var(--on-bulb); font: 700 17px/1.2 system-ui, sans-serif; }
-  .download:focus-visible, .download:hover { background: var(--bulb); box-shadow: 0 0 0 4px rgba(251, 44, 22, .35); outline: none; }
+  .step h2 { padding-right: 56px; }
+  .panel p { margin: 0 0 8px; color: var(--muted); }
+  .panel p:last-child { margin-bottom: 0; }
+  .note { --bl: rgba(255, 155, 133, .55); --tick: var(--alert); }
+  .note h2 { margin-top: 2px; color: var(--alert); }
+
+  /* the address: a readout cell with a blinking cursor */
+  .address { --c: 10px; margin: 12px 0; padding: 14px 18px; background: rgba(21, 17, 43, .85); box-shadow: inset 0 0 0 1px rgba(160, 222, 89, .45);
+    clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+    font: 800 clamp(19px, 5.2vw, 27px)/1.2 var(--display); letter-spacing: .01em; color: var(--accent); overflow-wrap: anywhere; user-select: all; }
+  .address::after { content: ""; display: inline-block; width: .5em; height: .12em; margin-left: .14em; background: var(--accent); animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .address::after { animation: none; } }
+
+  .after { margin: 22px 0 0; padding: 2px 4px 2px 16px; border-left: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+  .after p { margin: 0 0 8px; }
+  .after p:last-child { margin-bottom: 0; }
+
+  /* the download: accent fill with chamfered ends, like the app's primary buttons */
+  .download { --c: 12px; display: block; margin-top: 28px; padding: 17px 22px; text-align: center; text-decoration: none;
+    background: var(--accent); color: var(--on-accent); font: 800 17px/1.2 var(--display); letter-spacing: .01em;
+    clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+  .download:hover { background: #B2E875; }
+  .download:focus-visible { outline: none; background: var(--text); }
+  .foot { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .foot .label { opacity: .6; }
 </style>
 </head>
 <body><main>
-<div class="mark">Lilin</div>
-<h1>${esc(tr('Lilin on Android TV'))}</h1>
+<div class="top"><span class="mark"><span class="cond">LiLiN</span></span><span class="label">Android TV</span></div>
+<div class="rule" aria-hidden="true"></div>
+<h1><span class="cond">${esc(tr('Lilin on Android TV')).replace('Android TV', '<em>Android TV</em>')}</span></h1>
 <p class="lead">${esc(tr('For TVs with Android TV or Google TV, Chromecast with Google TV, Nvidia Shield and other Android TV boxes.'))}</p>
 ${body}
+<div class="foot" aria-hidden="true"><span class="label">LiLiN · TV</span><span class="label">${home && found ? `v${esc(found.versionName)}` : '—'}</span></div>
 </main></body>
 </html>`;
 }
