@@ -37,7 +37,6 @@ const FRAME_HINTS = { panel: T('Lilin’s own look: square panels, numbered sect
 const PATTERNS = [['none', T('None')], ['dots', T('Dots')], ['grid', T('Grid')], ['stripes', T('Stripes')], ['grain', T('Grain')], ['stars', T('Stars')], ['hearts', T('Hearts')]];
 const frameOf = (look) => (FRAMES.some(([k]) => k === look?.frame) ? look.frame : 'panel');
 const patternOf = (look) => (PATTERNS.some(([k]) => k === look?.pattern) && look.pattern !== 'none' ? look.pattern : null);
-const patternLayer = (look) => { const p = patternOf(look); return p ? h('div', { class: `pf-pattern pf-pat-${p}`, 'aria-hidden': 'true' }) : null; };
 const SECTION_NAMES = { favorites: T('Favourites'), recent: T('Recent activity'), stats: T('Numbers'), ratings: T('Ratings'), match: T('Taste match'), anime: T('Anime'), reviews: T('Reviews'), lists: T('Lists'), liked: T('Liked'), friends: T('Friends') };
 const VISIBILITY = [['public', T('Everyone')], ['friends', T('Friends')], ['private', T('Only me')]];
 const VISIBILITY_HINTS = {
@@ -328,6 +327,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   }
 
   const taste = createTasteMatch({ h, icon, people, me, posterButton, sectionBox, stars }); // taste
+  // Look → Pattern: the texture layer behind the page (and the editor's card)
+  function patternLayer(look) { const p = patternOf(look); return p ? h('div', { class: `pf-pattern pf-pat-${p}`, 'aria-hidden': 'true' }) : null; }
   const SECTION = {
     favorites(ctx, d) {
       const favs = d.favorites || [];
