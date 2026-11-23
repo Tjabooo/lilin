@@ -21,7 +21,7 @@
 // export only marks as watched (no day) count as watched but stay out of the diary.
 import { database, userById, isRestricted } from './accounts.js';
 import { areFriends, friendIds, stateBetween } from './friends.js';
-import { validTitleKey } from './social.js';
+import { validTitleKey, localDay } from './social.js';
 import * as letterboxd from './letterboxd.js';
 import * as animeLists from './anime-lists.js'; // linked MyAnimeList / AniList accounts: the Anime section
 import { listsOf } from './lists.js';
@@ -308,7 +308,8 @@ function watches(userId) {
     FROM watch_log w WHERE user_id = ? AND title_key IS NOT NULL
       AND (seconds >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END
         OR (finished = 1 AND (SELECT SUM(e.seconds) FROM watch_log e WHERE e.user_id = w.user_id AND e.ref = w.ref AND e.day <= w.day)
-          >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END))
+          >= CASE WHEN title_key LIKE 'movie:%' THEN ? ELSE ? END)
+        OR (finished = 1 AND ref LIKE 'x:%'))
     ORDER BY at`).all(userId, FILM_SECONDS, EPISODE_SECONDS, FINISHED_FILM_SECONDS, FINISHED_EPISODE_SECONDS);
   for (const l of letterboxd.watchesOf(userId)) {
     if (!l.day) continue;
@@ -328,6 +329,49 @@ function watches(userId) {
       lbRewatch: Boolean(r.lbRewatch), letterboxd: Boolean(r.letterboxd) });
   }
   return out;
+}
+
+// Change when something was watched (the diary's Edit dates): every Lilin watch of `key` on `day` moves to `to`,
+// keeping its time of day, or at `time` ("HH:MM") when given. episodes: [[season, episode]] moves only those.
+// A watch already on the new day for the same video merges into it. Letterboxd logs stay as Letterboxd has them.
+// Returns how many watches moved.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export function moveWatch(userId, { key, day, to, time = null, episodes = null, now = Date.now() }) {
+  if (!validTitleKey(key)) throw fail(400, 'Which film or show?');
+  if (!DAY.test(String(day)) || !DAY.test(String(to)) || Number.isNaN(Date.parse(`${to}T12:00:00`))) throw fail(400, 'Pick a date.');
+  if (to > localDay(now + 864e5) || to < '1900-01-01') throw fail(400, 'That date hasn’t happened yet.');
+  const clock = time == null || time === '' ? null : /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(time));
+  if (time && !clock) throw fail(400, 'Pick a time.');
+  let rows = db().prepare('SELECT * FROM watch_log WHERE user_id = ? AND title_key = ? AND day = ?').all(userId, key, day);
+  if (Array.isArray(episodes)) {
+    const want = new Set(episodes.map((e) => `${Number(e?.[0])}:${Number(e?.[1])}`));
+    rows = rows.filter((r) => want.has(`${r.season}:${r.episode}`));
+  }
+  if (!rows.length) throw fail(404, 'Nothing watched here that day. Letterboxd logs change on Letterboxd.');
+  if (to === day && !clock) return 0;
+  const shift = Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${day}T12:00:00Z`)) / 864e5);
+  const move = (at) => {
+    if (at == null) return null;
+    const d = new Date(at);
+    d.setDate(d.getDate() + shift); // calendar days, so a summer-time change doesn't slide the clock
+    if (clock) d.setHours(Number(clock[1]), Number(clock[2]), 0, 0);
+    return d.getTime();
+  };
+  const put = db().prepare(`INSERT INTO watch_log (user_id, day, ref, title_key, title, season, episode, seconds, together, finished, first_at, last_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, day, ref) DO UPDATE SET seconds = seconds + excluded.seconds, together = together + excluded.together,
+      finished = MAX(finished, excluded.finished), first_at = MIN(first_at, excluded.first_at), last_at = MAX(last_at, excluded.last_at),
+      finished_at = COALESCE(excluded.finished_at, finished_at)`);
+  const drop = db().prepare('DELETE FROM watch_log WHERE user_id = ? AND day = ? AND ref = ?');
+  db().exec('BEGIN'); // node:sqlite has no transaction helper
+  try {
+    for (const r of rows) {
+      drop.run(userId, r.day, r.ref);
+      put.run(userId, to, r.ref, r.title_key, r.title, r.season, r.episode, r.seconds, r.together || 0, r.finished, move(r.first_at), move(r.last_at), move(r.finished_at));
+    }
+    db().exec('COMMIT');
+  } catch (err) { db().exec('ROLLBACK'); throw err; }
+  return rows.length;
 }
 
 // Diary lines, newest first: one per title per day. { key, type, title, day, at, episodes: [[s, e]], rewatch,

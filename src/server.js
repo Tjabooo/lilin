@@ -4994,6 +4994,12 @@ async function handleApi(req, res, url) {
         profiles.setUpload(user, await profileBanner.saveBanner(user.id, body));
         return sendJson(res, 200, await profileView(user, user));
       }
+      // Edit dates in the diary (History): move a day's watches of one title to another day (profiles.moveWatch).
+      if (p === '/api/profiles/me/diary/move' && req.method === 'POST') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+        const { key, day, to, time, episodes } = await readJson(req, 16 * 1024);
+        return sendJson(res, 200, { ok: true, moved: profiles.moveWatch(user.id, { key: String(key || ''), day: String(day || ''), to: String(to || ''), time, episodes }) });
+      }
       // Hide from my profile (profile-hidden.js): GET ?key= says whether a title is hidden, POST { key, hidden } switches it.
       if (p === '/api/profiles/me/hidden') {
         if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
@@ -6360,7 +6366,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || url.pathname === '/api/me/username' // Account → Switch to a username
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/seen|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

@@ -1,4 +1,17 @@
 {
+  "2026-11-23-diary-edit-dates": {
+    "title": "Ändra när du såg något",
+    "items": {
+      "Edit dates in your diary": {
+        "title": "Ändra datum i din dagbok",
+        "text": "I Du → Historik (och dagboken på din profil) trycker du på Ändra datum och sedan på en rad för att välja dagen du faktiskt såg den, och klockslaget för filmer. En dag med flera avsnitt kan flytta alla eller bara de du väljer, så en säsong du markerade som sedd idag kan spridas ut över dagarna du såg den. Letterboxd-loggar behåller Letterboxds datum."
+      },
+      "Episodes you mark as watched show up in your diary": {
+        "title": "Avsnitt du markerar som sedda syns i din dagbok",
+        "text": "Avsnitt du bockat av med Markera som sedd syns nu också i din Historik, på dagen du markerade dem, redo att flyttas till rätt datum."
+      }
+    }
+  },
   "2026-11-23-mark-episode-watched": {
     "title": "Markera ett avsnitt som sett",
     "items": {

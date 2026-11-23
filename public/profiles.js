@@ -586,10 +586,16 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       months.get(m).push(e);
     }
     const type = ctx.diary.type || 'all';
-    const out = h('div', { class: 'pf-diary' }, h('div', { class: 'pf-diary-head' }, h('h4', { class: 'pf-kicker pf-diary-title' }, T('Diary')),
+    // Edit dates (your own diary and History): lines then open "When did you watch it?" instead of the title.
+    const canEdit = Boolean(ctx.data?.me) && !ctx.noFilters && ctx.diary.entries.length > 0;
+    const editing = canEdit && Boolean(ctx.editDates);
+    const out = h('div', { class: `pf-diary${editing ? ' is-editing' : ''}` }, h('div', { class: 'pf-diary-head' }, h('h4', { class: 'pf-kicker pf-diary-title' }, T('Diary')),
       ctx.noFilters ? null : h('div', { class: 'pf-diary-filter', role: 'group', 'aria-label': T('Show in diary') },
         [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')]].map(([id, label]) =>
-          h('button', { type: 'button', class: 'chip', 'aria-pressed': String(type === id), onclick: () => type !== id && setDiaryType(ctx, id) }, label)))));
+          h('button', { type: 'button', class: 'chip', 'aria-pressed': String(type === id), onclick: () => type !== id && setDiaryType(ctx, id) }, label)),
+        canEdit && h('button', { type: 'button', class: 'chip pf-diary-edit', 'aria-pressed': String(editing), onclick: () => { ctx.editDates = !editing; paint(ctx); } },
+          editing ? icon('check') : icon('pencil'), h('span', {}, editing ? T('Done') : T('Edit dates'))))),
+      editing && h('p', { class: 'pf-diary-hint' }, T('Tap a line to change when you watched it. Letterboxd logs change on Letterboxd.')));
     if (!ctx.diary.entries.length && type !== 'all') out.append(h('p', { class: 'pf-empty' }, type === 'movie' ? T('No films in the diary yet.') : T('No shows in the diary yet.')));
     ctx.diaryOpen ||= new Set();
     for (const [month, list] of months) {
@@ -600,9 +606,11 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           const lines = e.lines || [e];
           const several = lines.length > 1;
           const id = `${month}|${e.key}`;
-          const open = several && ctx.diaryOpen.has(id);
+          const open = several && (editing || ctx.diaryOpen.has(id));
           const eps = e.episodes || [];
-          const row = h('button', { type: 'button', class: 'pf-entry', disabled: card?.id == null, onclick: () => card && openTitle(card, row, ctx.nested) },
+          const fixable = editing && !several && canMove(e);
+          const row = h('button', { type: 'button', class: `pf-entry${fixable ? ' is-fixable' : ''}`, disabled: editing ? !several && !fixable : card?.id == null,
+            onclick: () => (editing ? (fixable ? openWhen(ctx, e, row) : null) : card && openTitle(card, row, ctx.nested)) },
             h('span', { class: `pf-entry-day${several ? ' is-range' : ''}` }, dayRange(e.days || [Number(e.day.slice(8, 10))])),
             card?.poster ? h('img', { class: 'pf-entry-poster', src: small(card.poster, 'w92'), alt: '', loading: 'lazy' }) : h('span', { class: 'pf-entry-poster' }),
             h('span', { class: 'pf-entry-text' },
@@ -611,18 +619,79 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
             entryMarks(e, ctx));
           const li = h('li', { class: several ? 'pf-show-run' : '' }, row);
           if (several) {
-            li.append(h('button', { type: 'button', class: 'pf-run-toggle', 'aria-expanded': String(open), 'aria-label': open ? T('Hide days') : T('Show days'),
+            if (!editing) li.append(h('button', { type: 'button', class: 'pf-run-toggle', 'aria-expanded': String(open), 'aria-label': open ? T('Hide days') : T('Show days'),
               onclick: () => { if (open) ctx.diaryOpen.delete(id); else ctx.diaryOpen.add(id); paint(ctx); } }, icon('chevron')));
-            if (open) li.append(h('ol', { class: 'pf-run-days' }, lines.map((l) => h('li', {},
-              h('span', { class: 'pf-run-day' }, new Date(`${l.day}T12:00:00`).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' })),
+            const dayParts = (l) => [h('span', { class: 'pf-run-day' }, new Date(`${l.day}T12:00:00`).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric' })),
               h('span', { class: 'pf-run-eps' }, episodesText(l.episodes || [])),
-              entryMarks({ rewatch: l.rewatch, letterboxd: l.letterboxd })))));
+              entryMarks({ rewatch: l.rewatch, letterboxd: l.letterboxd })];
+            // while editing, each day is its own button
+            if (open) li.append(h('ol', { class: 'pf-run-days' }, lines.map((l) => h('li', {}, editing
+              ? h('button', { type: 'button', class: 'pf-run-fix', disabled: !canMove(l), onclick: (ev) => openWhen(ctx, l, ev.currentTarget) }, ...dayParts(l), canMove(l) ? icon('pencil') : null)
+              : dayParts(l)))));
           }
           return li;
         })));
     }
     if (ctx.diary.more) out.append(h('button', { type: 'button', class: 'pf-more', onclick: (e) => { e.currentTarget.disabled = true; openDiary(ctx, true); } }, h('span', {}, T('Older')), icon('chevron')));
     return out;
+  }
+
+  // ---------- Edit dates: "When did you watch it?" ----------
+  // Only what was watched here moves (Letterboxd's own logs keep Letterboxd's date). A day of several episodes can
+  // move all of them or just the ones ticked; a film can get its time too.
+  const canMove = (e) => e.lilin ?? !e.letterboxd;
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  function openWhen(ctx, e, opener) {
+    const film = e.type === 'movie';
+    const at = new Date(e.at);
+    const eps = e.episodes || [];
+    const picked = new Set(eps.map(([s, n]) => `${s}:${n}`));
+    const date = h('input', { type: 'date', class: 'pf-when-input', value: e.day, min: '1900-01-01', max: dayOf(new Date()), required: true });
+    const time = film ? h('input', { type: 'time', class: 'pf-when-input', value: `${pad(at.getHours())}:${pad(at.getMinutes())}` }) : null;
+    const status = h('p', { class: 'pf-when-status', role: 'status' });
+    const save = h('button', { type: 'submit', class: 'play-btn pf-when-save' }, T('Save'));
+    const epList = eps.length > 1 && h('fieldset', { class: 'pf-when-eps' }, h('legend', {}, T('Episodes')),
+      h('div', { class: 'pf-when-chips' }, eps.map(([s, n]) => {
+        const k = `${s}:${n}`;
+        const b = h('button', { type: 'button', class: 'chip', 'aria-pressed': 'true', onclick: () => {
+          if (picked.has(k)) picked.delete(k); else picked.add(k);
+          b.setAttribute('aria-pressed', String(picked.has(k)));
+          save.disabled = !picked.size;
+        } }, T('S{0} E{1}', s, n));
+        return b;
+      })));
+    const old = `${e.day}|${time?.value || ''}`;
+    const form = h('form', { class: 'pf-when', onsubmit: async (ev) => {
+      ev.preventDefault();
+      if (!date.value) { status.textContent = T('Pick a date.'); return; }
+      if (`${date.value}|${time?.value || ''}` === old) { picker.close(); return; }
+      save.disabled = true;
+      status.textContent = '';
+      try {
+        await api('/api/profiles/me/diary/move', jsonPost({ key: e.key, day: e.day, to: date.value, time: time?.value || null,
+          episodes: eps.length > 1 && picked.size < eps.length ? eps.filter(([s, n]) => picked.has(`${s}:${n}`)) : null }));
+        picker.close();
+        toast(T('Date changed'));
+        forgetMine();
+        ctx.diaryRefilter = true; // stay where you are in the list
+        openDiary(ctx).finally(() => { ctx.diaryRefilter = false; });
+      } catch (err) { status.textContent = err.message; save.disabled = false; }
+    } },
+      h('p', { class: 'pf-when-kick' }, T('Diary')),
+      h('h2', { id: 'picker-title', class: 'pf-ed-heading' }, T('When did you watch it?')),
+      h('p', { class: 'pf-when-what' }, h('strong', {}, e.card?.title || e.title), eps.length ? ` · ${episodesText(eps)}` : ''),
+      h('div', { class: 'pf-when-fields' },
+        h('label', { class: 'pf-when-field' }, h('span', {}, T('Date')), date),
+        time && h('label', { class: 'pf-when-field' }, h('span', {}, T('Time')), time)),
+      h('div', { class: 'pf-when-quick', role: 'group', 'aria-label': T('Quick dates') },
+        [[0, T('Today')], [1, T('Yesterday')]].map(([n, label]) => h('button', { type: 'button', class: 'chip', onclick: () => {
+          const d = new Date(); d.setDate(d.getDate() - n); date.value = dayOf(d);
+        } }, label))),
+      epList,
+      status,
+      h('div', { class: 'pf-when-actions' }, save, h('button', { type: 'button', class: 'chip', onclick: () => picker.close() }, T('Cancel'))));
+    picker.open([form], opener, null, ctx.nested);
   }
 
   // ---------- sync records ----------
@@ -646,8 +715,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const sep = () => h('i', { class: 'pf-rec-sep' });
     const data = [e.stub ? h('span', {}, `№${String(e.stub).padStart(4, '0')}`) : null, card?.year ? h('span', {}, String(card.year)) : null,
       time ? h('span', { class: 'pf-rec-time' }, time) : null].filter(Boolean);
-    const btn = h('button', { type: 'button', class: `pf-rec${locked ? ' is-locked' : ''}${lit ? '' : ' is-unrated'}`, disabled: card?.id == null, 'aria-label': label,
-      onclick: () => card && openTitle(card, btn, ctx.nested) },
+    const editing = Boolean(ctx.editDates && ctx.data?.me && !ctx.noFilters), fixable = editing && canMove(e);
+    const btn = h('button', { type: 'button', class: `pf-rec${locked ? ' is-locked' : ''}${lit ? '' : ' is-unrated'}${fixable ? ' is-fixable' : ''}`,
+      disabled: editing ? !fixable : card?.id == null, 'aria-label': fixable ? T('Change the date for {0}', label) : label,
+      onclick: () => (editing ? fixable && openWhen(ctx, e, btn) : card && openTitle(card, btn, ctx.nested)) },
       h('span', { class: 'pf-rec-when', 'aria-hidden': 'true' },
         h('span', { class: 'pf-rec-wd' }, date.toLocaleDateString(locale(), { weekday: 'short' }).replace('.', '')),
         h('span', { class: 'pf-rec-day' }, String(date.getDate()).padStart(2, '0'))),

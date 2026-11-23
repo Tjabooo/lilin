@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-23-diary-edit-dates",
+  "date": "2026-11-23",
+  "title": "Change when you watched something",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Edit dates in your diary",
+      "text": "In You → History (and the diary on your profile), press Edit dates and tap a line to pick the day you really watched it, and the time for films. A day of several episodes can move all of them or just the ones you pick, so a season you marked as watched today can be spread over the days you saw it. Letterboxd logs keep Letterboxd's date."
+    },
+    {
+      "kind": "improved",
+      "title": "Episodes you mark as watched show up in your diary",
+      "text": "Episodes ticked off with Mark as watched now appear in your History too, on the day you marked them, ready to be moved to the right date."
+    }
+  ]
+},
+{
   "id": "2026-11-23-mark-episode-watched",
   "date": "2026-11-23",
   "title": "Mark an episode as watched",

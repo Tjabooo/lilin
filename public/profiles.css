@@ -721,3 +721,38 @@ a.pf-anime-tile { text-decoration: none; }
 .pf-al-rows > .pf-empty { padding: 24px 0; border: 0; }
 .pf-al-more { display: flex; justify-content: center; margin: 14px 0 8px; }
 .pf-al-more:empty { display: none; }
+
+/* ---------- Edit dates (the diary's own edit mode) and "When did you watch it?" ---------- */
+.pf-diary-edit { display: inline-flex; align-items: center; gap: 6px; }
+.pf-diary-edit svg { width: 15px; height: 15px; }
+.pf-diary-hint { margin: 10px 0 2px; font-size: 13px; line-height: 1.4; color: var(--text-2); }
+/* editing: the date is what you change, so the date lights in the accent with a dashed rule under it */
+.pf-diary.is-editing :is(.pf-rec, .pf-entry, .pf-run-fix):disabled { opacity: .4; }
+.pf-diary.is-editing .is-fixable :is(.pf-rec-day, .pf-rec-wd, .pf-entry-day),
+.pf-diary.is-editing .pf-run-fix:not(:disabled) .pf-run-day { color: var(--ph-you, var(--pf-accent));
+  text-decoration: underline dashed 1px; text-underline-offset: 4px; }
+.pf-diary.is-editing .is-fixable { cursor: pointer; }
+.pf-diary.is-editing .is-fixable .pf-rec-title, .pf-diary.is-editing .pf-entry.is-fixable strong { color: var(--text); }
+.pf-run-fix { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto 16px; align-items: center; gap: 10px; width: 100%; min-height: 36px;
+  padding: 0; font: inherit; text-align: left; color: inherit; background: none; border: 0; cursor: pointer; }
+.pf-run-fix > svg { width: 14px; height: 14px; color: var(--text-2); }
+.pf-diary.is-editing .pf-run-days li { display: block; padding: 0; }
+
+.pf-when { display: grid; gap: 14px; }
+.pf-when .pf-ed-heading { margin: 0; }
+.pf-when-kick { margin: 0; font: 700 10.5px/1 var(--body); letter-spacing: .16em; text-transform: uppercase; color: var(--ph-you, var(--bulb)); }
+.pf-when-what { margin: -6px 0 0; color: var(--text-2); font-size: 14px; }
+.pf-when-what strong { color: var(--text); }
+.pf-when-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pf-when-field { display: grid; gap: 6px; }
+.pf-when-field > span { font: 700 10.5px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
+.pf-when-input { width: 100%; box-sizing: border-box; min-height: 48px; padding: 0 14px; font: 600 16px/1 var(--body); font-variant-numeric: tabular-nums;
+  color: var(--text); background: var(--velvet); border: 1px solid var(--hairline-2); border-radius: 0; }
+.pf-when-input:focus-visible { outline: none; border-color: var(--ph-you, var(--bulb)); box-shadow: inset 0 0 0 1px var(--ph-you, var(--bulb)); }
+.pf-when-quick, .pf-when-chips, .pf-when-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-when-eps { margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--hairline-2); min-width: 0; }
+.pf-when-eps legend { padding: 0 0 8px; font: 700 10.5px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
+.pf-when-status { margin: 0; min-height: 1em; font-size: 13px; color: var(--alert); }
+.pf-when-status:empty { display: none; }
+.pf-when-actions { align-items: center; padding-top: 4px; }
+.pf-when-save { min-width: 120px; justify-content: center; }
