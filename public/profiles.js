@@ -751,16 +751,24 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return { h: hue, s: Math.round(sat < 0.08 ? sat * 100 : Math.min(78, Math.max(42, sat * 130))) };
   }
 
+  // The episodes themselves, per season and in runs: "S1 E21, S2 E1", "S1 E16–18, E20". Only a long scattered
+  // list (more than four pieces) becomes a count with its first and last: "9 episodes · S1 E16 – S2 E3".
   function episodesText(eps = []) {
     if (!eps.length) return '';
-    if (eps.length === 1) return T('S{0} E{1}', eps[0][0], eps[0][1]);
-    const seasons = new Set(eps.map(([s]) => s));
-    if (seasons.size === 1) {
-      const nums = eps.map(([, e]) => e);
-      const contiguous = nums.every((n, i) => !i || n === nums[i - 1] + 1);
-      if (contiguous) return T('S{0} E{1}–{2}', eps[0][0], nums[0], nums[nums.length - 1]);
+    const sorted = [...eps].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const seasons = [];
+    for (const [s, e] of sorted) {
+      let g = seasons[seasons.length - 1];
+      if (!g || g.s !== s) seasons.push(g = { s, runs: [] });
+      const run = g.runs[g.runs.length - 1];
+      if (run && e === run[1] + 1) run[1] = e; else if (!run || e !== run[1]) g.runs.push([e, e]);
     }
-    return T('{0} episodes', eps.length);
+    const runText = ([a, z]) => (a === z ? String(a) : `${a}–${z}`);
+    if (seasons.reduce((n, g) => n + g.runs.length, 0) <= 4) {
+      return seasons.map((g) => g.runs.map((r, i) => (i ? T('E{0}', runText(r)) : T('S{0} E{1}', g.s, runText(r)))).join(', ')).join(', ');
+    }
+    const [a, z] = [sorted[0], sorted[sorted.length - 1]];
+    return `${T('{0} episodes', sorted.length)} · ${T('S{0} E{1}', a[0], a[1])} – ${T('S{0} E{1}', z[0], z[1])}`;
   }
   const episodesShort = (eps) => (eps.length === 1 ? T('S{0} E{1}', eps[0][0], eps[0][1]) : T('{0} eps', eps.length));
 

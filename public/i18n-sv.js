@@ -1981,6 +1981,7 @@ export default {
   "this season": "den här säsongen",
   "this show": "den här serien",
   "S{0} E{1}": "S{0} A{1}",
+  "E{0}": "A{0}",
   "Documentaries": "Dokumentärer",
   "Browse documentaries": "Bläddra bland dokumentärer",
   "‹ Documentaries": "‹ Dokumentärer",
