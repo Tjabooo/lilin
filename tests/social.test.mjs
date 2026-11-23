@@ -96,6 +96,20 @@ test('Popular on Lilin ranks by likes, viewers and hours, filters by type and dr
   assert.deepEqual(social.popular({ type: 'movie', now: now + 3600000 }).map((p) => p.key), ['movie:1']);
 });
 
+test('Popular on Lilin stays balanced when one person likes hundreds of titles', () => {
+  const { anna, ben, cleo } = setup();
+  const now = Date.now();
+  for (let i = 1; i <= 300; i++) social.rate(cleo.id, `movie:${1000 + i}`, 1); // a big Letterboxd import
+  social.rate(anna.id, 'movie:1', 1); social.rate(ben.id, 'movie:1', 1);
+  social.rate(anna.id, 'tv:2', 1);
+  social.rate(cleo.id, 'movie:1', 1);
+  const list = social.popular({ now: now + 3600000 });
+  assert.equal(list[0].key, 'movie:1', 'what several people like comes first');
+  assert.equal(list.filter((p) => p.likedBy.length === 1 && p.likedBy[0] === cleo.id).length, 3, 'at most 3 titles only Cleo backs');
+  assert.ok(list.some((p) => p.key === 'tv:2'), "Anna's single like still shows");
+  assert.equal(list.length, 5);
+});
+
 test('planned watch parties: countdown, auto start, creator hosts, survive a restart, cancel', () => {
   const { anna, ben } = setup();
   let now = Date.now();

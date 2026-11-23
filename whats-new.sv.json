@@ -1,4 +1,13 @@
 {
+  "2026-11-23-popular-balanced": {
+    "title": "Ett rättvisare Populärt på Lilin",
+    "items": {
+      "One person can't fill Popular on Lilin": {
+        "title": "En person kan inte fylla Populärt på Lilin",
+        "text": "Populärt på Lilin väger nu allas gillningar lika: den som gillar väldigt många titlar (till exempel efter att ha tagit in en hel Letterboxd-historik) trycker inte längre undan allt annat. Det som flera har gillat eller sett kommer först, och varje person bidrar med högst tre titlar som bara de har valt."
+      }
+    }
+  },
   "2026-11-23-diary-one-viewing": {
     "title": "Inga falska omtittningar i dagboken",
     "items": {

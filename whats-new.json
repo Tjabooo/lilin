@@ -1,5 +1,29 @@
 [
 {
+  "id": "2026-11-23-new-episode-pushes",
+  "date": "2026-11-23",
+  "title": "New episode alerts that are actually new",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Only shows you watch, only episodes that just came out",
+      "text": "You now only hear about a new episode of a show you've watched at least one episode of, and only when the episode came out in the last two weeks. Someone downloading old seasons of a show no longer sends you a pile of New episode alerts."
+    }
+  ]
+},
+{
+  "id": "2026-11-23-popular-balanced",
+  "date": "2026-11-23",
+  "title": "A fairer Popular on Lilin",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "One person can't fill Popular on Lilin",
+      "text": "Popular on Lilin now weighs everyone's likes evenly: someone who likes a lot of titles (say, after bringing in a whole Letterboxd history) no longer pushes out everything else. What several people liked or watched comes first, and each person adds at most three titles that only they picked."
+    }
+  ]
+},
+{
   "id": "2026-11-23-diary-one-viewing",
   "date": "2026-11-23",
   "title": "No more fake rewatches in your diary",

@@ -56,6 +56,12 @@ export function finishedEpisodes(userId) {
   return out;
 }
 
+// Everyone who has finished at least one episode of a show ("tv:1399"): the people a new episode is news to.
+export function showWatchers(titleKey) {
+  return db().prepare('SELECT DISTINCT user_id FROM watch_log WHERE title_key = ? AND finished = 1 AND episode IS NOT NULL')
+    .all(String(titleKey)).map((r) => r.user_id);
+}
+
 // Mark one episode watched (a finished, zero-time watch_log row, so Wrapped's hours don't change) or not watched
 // (every finished row for it goes back to unfinished; the watch time stays).
 export function markEpisode(userId, { key, season, episode, seen, title, now = Date.now() }) {
@@ -156,6 +162,10 @@ export function logWatch(userId, { ref, about = {}, watched, finished = false, c
 // Titles ranked by the household over the last `days`: likes count most, then how many people
 // watched, then (a little) hours watched; dislikes pull a title down. Only titles with a TMDB id
 // can be shown as cards. Returns [{ key, likes, viewers, hours, likedBy: [userId], watchedBy: [userId] }].
+// Kept balanced so one busy person (say a big Letterboxd import) can't fill the shelf: everyone's likes
+// share LIKE_BUDGET votes between them (5 likes count fully, 50 likes count a tenth each), and at most
+// SOLO_PER_PERSON titles that only one person backs (liked or watched) make it in per person.
+const LIKE_BUDGET = 5, SOLO_PER_PERSON = 3;
 export function popular({ days = 60, limit = 20, now = Date.now(), type = 'all' } = {}) {
   const since = now - days * DAY;
   const t = new Map();
@@ -163,9 +173,13 @@ export function popular({ days = 60, limit = 20, now = Date.now(), type = 'all' 
     if (!t.has(key)) t.set(key, { key, likes: 0, dislikes: 0, viewers: 0, seconds: 0, likedBy: [], watchedBy: [] });
     return t.get(key);
   };
-  for (const r of db().prepare('SELECT title_key, user_id, value FROM ratings WHERE updated_at >= ?').all(since)) {
+  const ratings = db().prepare('SELECT title_key, user_id, value FROM ratings WHERE updated_at >= ?').all(since)
+    .filter((r) => type === 'all' || r.title_key.startsWith(`${type}:`));
+  const likesBy = new Map();
+  for (const r of ratings) if (r.value === 1) likesBy.set(r.user_id, (likesBy.get(r.user_id) || 0) + 1);
+  for (const r of ratings) {
     const o = get(r.title_key);
-    if (r.value === 1) { o.likes++; o.likedBy.push(r.user_id); } else o.dislikes++;
+    if (r.value === 1) { o.likes++; o.likedBy.push(r.user_id); o.likeVotes = (o.likeVotes || 0) + Math.min(1, LIKE_BUDGET / likesBy.get(r.user_id)); } else o.dislikes++;
   }
   for (const r of db().prepare(`SELECT title_key, user_id, SUM(seconds) AS s FROM watch_log
       WHERE title_key IS NOT NULL AND day >= ? GROUP BY title_key, user_id`).all(localDay(since))) {
@@ -176,9 +190,16 @@ export function popular({ days = 60, limit = 20, now = Date.now(), type = 'all' 
   return [...t.values()]
     .filter((o) => type === 'all' || o.key.startsWith(`${type}:`))
     .map((o) => ({ ...o, hours: Math.round(o.seconds / 360) / 10,
-      score: o.likes * 3 - o.dislikes * 2 + o.viewers * 2 + Math.min(o.seconds / 3600, 10) * 0.3 }))
+      score: (o.likeVotes || 0) * 3 - o.dislikes * 2 + o.viewers * 2 + Math.min(o.seconds / 3600, 10) * 0.3 }))
     .filter((o) => o.score > 0 && (o.likes > 0 || o.viewers > 0))
     .sort((a, b) => b.score - a.score || b.seconds - a.seconds || a.key.localeCompare(b.key))
+    .filter(((solo) => (o) => {
+      const backers = new Set([...o.likedBy, ...o.watchedBy]);
+      if (backers.size !== 1) return true;
+      const [who] = backers;
+      solo.set(who, (solo.get(who) || 0) + 1);
+      return solo.get(who) <= SOLO_PER_PERSON;
+    })(new Map()))
     .slice(0, limit)
     .map(({ key, likes, viewers, hours, likedBy, watchedBy }) => ({ key, likes, viewers, hours, likedBy, watchedBy }));
 }
