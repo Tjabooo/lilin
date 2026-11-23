@@ -47,7 +47,9 @@ export function ensureSync(srt, video) {
   const blind = e?.state === 'unsure' && !e.reference && !e.error;
   // Couldn't be lined up before other uploads were tried: they are now, once.
   const untried = e?.state === 'unsure' && e.reference && !e.othersTried;
-  if (AUTO && !e?.trusted && e?.state !== 'undone' && !e?.manual && (e?.version !== ENGINE_VERSION || blind || untried)) return queueSync(srt, video);
+  // Failed against a video that is gone now (the upgrade's mkv, deleted by the MP4 conversion mid-check): try the file that's here.
+  const moved = e?.state === 'failed' && Boolean(e.video) && (keyOf(e.video) !== keyOf(video || '') || !fs.existsSync(e.video));
+  if (AUTO && !e?.trusted && e?.state !== 'undone' && !e?.manual && (e?.version !== ENGINE_VERSION || blind || untried || moved)) return queueSync(srt, video);
   return stateOf(srt);
 }
 
