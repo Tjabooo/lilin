@@ -1,4 +1,13 @@
 {
+  "2026-11-23-subtitle-reports": {
+    "title": "Säg till när undertexterna strular",
+    "items": {
+      "Report a subtitle problem": {
+        "title": "Rapportera problem med undertexterna",
+        "text": "Undertexter i otakt, repliker som saknas eller fel språk? Öppna undertextmenyn i spelaren och tryck på Rapportera problem med undertexterna längst ner. Välj vad som är fel, skriv några ord om du vill, så hamnar det direkt hos ägaren tillsammans med vad du tittade på och var."
+      }
+    }
+  },
   "2026-11-23-skip-recap-gaps": {
     "title": "Hoppa över sammanfattning på fler avsnitt",
     "items": {

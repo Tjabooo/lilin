@@ -2244,6 +2244,27 @@ body.has-nowbar .preview-pill { bottom: calc(var(--tabs-h) + var(--safe-bottom) 
 .cc-nudge-buttons button:active { background: var(--bulb); color: var(--on-bulb); }
 .cc-nudge-hint { font-size: 12px; color: var(--dust); }
 .cc-nudge-reset { justify-self: start; padding: 4px 0; font-size: 13px; font-weight: 600; color: var(--bulb); background: none; border: 0; }
+/* Report a subtitle problem (bottom of the player's subtitle settings) */
+.cc-report-open { gap: 10px; color: var(--dust); font-weight: 600; font-size: 14px; }
+.cc-report-open svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cc-report-open:hover, .cc-report-open:focus-visible { color: var(--paper); }
+.sub-report { display: grid; gap: 8px; padding: 4px 12px 10px; }
+.sub-report-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--dust); }
+.sub-report-issues { display: flex; flex-wrap: wrap; gap: 6px; }
+.sub-report-issue {
+  min-height: 34px; padding: 0 12px; font-size: 13px; font-weight: 700;
+  background: rgb(255 255 255 / .07); border: 1px solid rgb(255 255 255 / .1); border-radius: 999px;
+}
+.sub-report-issue[aria-checked="true"] { color: var(--on-bulb); background: var(--bulb); border-color: var(--bulb); }
+.sub-report-issue:focus-visible { outline: 2px solid var(--bulb); outline-offset: 2px; }
+.sub-report-text {
+  width: 100%; min-height: 56px; padding: 8px 10px; resize: vertical;
+  font: 14px/1.4 var(--body); color: var(--paper); background: rgb(0 0 0 / .3); border: 1px solid rgb(255 255 255 / .12); border-radius: 10px;
+}
+.sub-report-text:focus { outline: none; border-color: var(--bulb); }
+.sub-report-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sub-report-send { min-height: 36px; padding: 0 16px; font-weight: 700; color: var(--on-bulb); background: var(--bulb); border: 0; border-radius: 999px; }
+.sub-report-send:disabled { opacity: .4; }
 .remote-sync { margin-top: 12px; }
 .remote-sync .cc-nudge { padding: 0; }
 .remote-sync .remote-subs-note { margin-top: 6px; }
@@ -4084,6 +4105,15 @@ html.wrapped-on { overflow: hidden; }
 .idea-status.idea-added i { background: var(--on-bulb); }
 .idea-status.idea-notnow { color: var(--text-3); background: none; box-shadow: inset 0 0 0 1px var(--hairline-2); }
 .idea-status.idea-notnow i { opacity: .5; }
+
+/* House → Ideas: Bugs (subtitle reports, "Something's off") above the ideas */
+.idea-section { display: flex; align-items: center; gap: 8px; margin: 14px 16px 2px; font: 700 12px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--text-2); }
+.idea-section svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.idea-bugs-toggle { margin: 0 16px 6px; }
+.idea-subs { display: grid; gap: 2px; padding: 9px 12px; border-left: 2px solid var(--bulb); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--paper) 4%, transparent); min-width: 0; }
+.idea-subs-issue { font-size: 14px; color: var(--bulb); }
+.idea-subs-title { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.idea-subs-meta { font-size: 12.5px; color: var(--text-3); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 /* The owner's inbox: filters, then one row per idea */
 .idea-filters { display: flex; gap: 6px; padding: 12px 16px; overflow-x: auto; scrollbar-width: none; }

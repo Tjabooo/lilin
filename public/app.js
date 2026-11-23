@@ -117,6 +117,7 @@ const ICONS = {
   crown: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.5 3 8l5 4 4-6 4 6 5-4-1 9.5z"/></svg>',
   pip: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><rect class="fill" x="12" y="11.5" width="6.5" height="5" rx="1"/></svg>',
   info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4.5c4.5-2.5 7.5 2.5 14 0v9c-6.5 2.5-9.5-2.5-14 0"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>',
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 8 12 3.5 16.5 8M6 12.5v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
@@ -5872,7 +5873,8 @@ function renderCcMenu(f, session, message) {
     h('p', { class: 'cc-col-title' }, T('Subtitle settings')),
     ...(ccActive
       ? [...[secondSubRow(f, session)].filter(Boolean), ...subLookRows(), ...subSyncItems(f, session)]
-      : [h('p', { class: 'cc-message' }, T('Pick a language to change the size, style and timing.'))]));
+      : [h('p', { class: 'cc-message' }, T('Pick a language to change the size, style and timing.'))]),
+    ...subReportItems(f));
   ccMenu.classList.add('cc-split');
   ccMenu.replaceChildren(h('div', { class: 'cc-cols' }, langs, settings));
   ccBtn.classList.toggle('is-on', Boolean(ccActive));
@@ -5939,6 +5941,58 @@ function subSyncItems(f, session) {
     s.canUndo && s.offset != null && action(T('Undo timing fix'), 'undo'),
     s.canSync && action(['synced', 'ok', 'unsure'].includes(s.state) ? T('Check timing again') : T('Fix timing'), 'sync'),
   ].filter(Boolean);
+}
+
+// ---- subtitle reports (/api/ideas with kind 'subs', src/ideas.js) ----
+// Anyone can tell the owner the subtitles are off: pick what's wrong, add a few words if they like.
+// It lands under Bugs in House → Ideas with the title, language, timing state and the moment it was sent.
+const SUB_ISSUES = () => [['sync', T('Out of sync')], ['wrong', T('Wrong or bad lines')], ['missing', T('Lines missing')], ['language', T('Wrong language')], ['other', T('Other')]];
+const subReport = { open: false, issue: null, text: '', sending: false, key: '' };
+function subReportItems(f) {
+  const key = `${f.kind}:${mediaId(f)}`;
+  if (subReport.key !== key) Object.assign(subReport, { open: false, issue: null, text: '', sending: false, key });
+  if (!subReport.open) {
+    return [h('div', { class: 'cc-divider', role: 'separator' }),
+      h('button', { type: 'button', class: 'cc-item cc-action cc-report-open', onclick: (e) => { e.stopPropagation(); subReport.open = true; renderCcMenu(f, current); ccMenu.querySelector('.sub-report-issue')?.focus(); } },
+        icon('flag'), T('Report a subtitle problem'))];
+  }
+  const text = h('textarea', { class: 'sub-report-text', rows: '2', maxlength: '1000', placeholder: T('Anything else? (optional)'), 'aria-label': T('Describe the problem (optional)') });
+  text.value = subReport.text;
+  const send = h('button', { type: 'submit', class: 'sub-report-send', disabled: subReport.sending || !subReport.issue }, T('Send report'));
+  text.addEventListener('input', () => { subReport.text = text.value; });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } });
+  const issues = h('div', { class: 'sub-report-issues', role: 'radiogroup', 'aria-label': T('What’s wrong?') },
+    SUB_ISSUES().map(([k, label]) => {
+      const b = h('button', { type: 'button', role: 'radio', class: 'sub-report-issue', 'aria-checked': String(subReport.issue === k) }, label);
+      b.addEventListener('click', () => {
+        subReport.issue = k;
+        issues.querySelectorAll('.sub-report-issue').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        send.disabled = subReport.sending;
+      });
+      return b;
+    }));
+  const form = h('form', { class: 'sub-report' },
+    h('p', { class: 'sub-report-title' }, T('What’s wrong?')), issues, text,
+    h('div', { class: 'sub-report-actions' },
+      h('button', { type: 'button', class: 'cc-nudge-reset', onclick: () => { subReport.open = false; renderCcMenu(f, current); } }, T('Cancel')), send));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (subReport.sending || !subReport.issue) return;
+    subReport.sending = true; send.disabled = true;
+    const s = party ? null : ccSync;
+    const lang = ccLangs.find((l) => l.code === ccActive);
+    const sync = [s?.state, s?.offset != null ? `auto ${s.offset} s` : '', s?.manual ? `manual ${s.manual} s` : '', s?.replaced ? 'replaced' : '',
+      party && ccActive && party.offsets[ccActive] ? `party offset ${party.offsets[ccActive]} s` : ''].filter(Boolean).join(', ');
+    try {
+      const r = await api('/api/ideas', jsonPost({ kind: 'subs', issue: subReport.issue, text: subReport.text,
+        about: { title: $('#player-title').textContent, kind: f.kind, id: mediaId(f), lang: ccActive || '', langName: lang?.name || (ccActive ? ccActive : T('Off')), at: video.currentTime || 0, sync } }));
+      ideasView.mine = r.mine || ideasView.mine;
+      Object.assign(subReport, { open: false, issue: null, text: '' });
+      toast(T('Thanks! The owner will take a look.'));
+    } catch (err) { toast(err.message); }
+    finally { subReport.sending = false; if (current) renderCcMenu(f, current); }
+  });
+  return [h('div', { class: 'cc-divider', role: 'separator' }), form];
 }
 
 // Taps are applied one after another, so quick repeated taps all count.
@@ -8868,8 +8922,8 @@ function forYouCards() {
       h('span', { class: 'idea-bulb', 'aria-hidden': 'true' }, icon('bulb')),
       h('span', { class: 'lrow-text' },
         h('span', { class: 'set-label' }, IDEA_ANSWER_TITLE()[i.status] || T('An answer to your idea')),
-        h('span', { class: 'set-hint' }, i.reply || i.text)),
-      ideaStatusPill(i.status))));
+        h('span', { class: 'set-hint' }, i.reply || i.text || i.about?.title || '')),
+      ideaStatusPill(i.status, isBugReport(i)))));
   const cards = [...friendsUI.forYou(3), ...momentsUI.forYou(3), ...answers].slice(0, 3);
   return cards.length ? h('section', { class: 'set-group' },
     h('h3', { class: 'set-head' }, T('Waiting for you')), h('ul', { class: 'set-stack friend-list foryou-list' }, cards)) : null;
@@ -9378,7 +9432,7 @@ function ideasNeeded() {
 // scout: the idea scout's ideas sit at the top of the owner's inbox (public/scout.js)
 const scoutView = createScout({ h, api, toast, jsonPost, fmtAgo, rerender: () => renderSettings() });
 // A status with a little light: Sent (dim), Planned (ring), Added (lit), Not now (out).
-const ideaStatusPill = (status) => h('span', { class: `idea-status idea-${status}` }, h('i', { 'aria-hidden': 'true' }), IDEA_STATUS()[status] || status);
+const ideaStatusPill = (status, bug = false) => h('span', { class: `idea-status idea-${status}` }, h('i', { 'aria-hidden': 'true' }), bug && status === 'added' ? T('Fixed') : IDEA_STATUS()[status] || status);
 const IDEA_PLACEHOLDER = () => ({ feature: T('I wish Lilin could…'), fix: T('What’s off, and where?'), other: T('Anything you’d like to tell the owner…') });
 // The owner's answer under an idea, as a reply in a thread.
 const ideaReply = (text) => h('div', { class: 'idea-reply' }, h('span', { class: 'idea-reply-who' }, T('Owner')), h('p', {}, text));
@@ -9419,7 +9473,7 @@ function ideaBox() {
     finally { ideasView.sending = false; renderSettings(); }
   });
   const mine = ideasView.mine;
-  const kindNames = Object.fromEntries(IDEA_KINDS());
+  const kindNames = { ...Object.fromEntries(IDEA_KINDS()), subs: T('Subtitles') };
   return h('section', { class: 'idea-box', id: 'idea-box', 'aria-labelledby': 'idea-box-title' },
     h('div', { class: 'idea-head' },
       h('span', { class: 'idea-bulb' }, icon('bulb')),
@@ -9430,10 +9484,11 @@ function ideaBox() {
     mine.length > 0 && h('details', { class: 'idea-mine', open: mine.some((i) => i.answered && Date.now() - i.answered < 7 * 86400000) || mine.length <= 3 },
       h('summary', {}, h('span', {}, mine.length === 1 ? T('Your idea') : T('Your ideas')), h('span', { class: 'idea-n' }, String(mine.length))),
       h('ul', { class: 'idea-list' }, mine.map((i) => h('li', { class: `idea-item idea-is-${i.status}` },
-        h('div', { class: 'idea-meta' }, ideaStatusPill(i.status),
+        h('div', { class: 'idea-meta' }, ideaStatusPill(i.status, isBugReport(i)),
           i.kind !== 'feature' && h('span', {}, kindNames[i.kind] || i.kind), h('span', {}, fmtAgo(i.created)),
           i.status === 'new' && !i.reply && h('button', { type: 'button', class: 'idea-link', onclick: () => takeBackIdea(i) }, T('Take back'))),
-        h('p', { class: 'idea-body' }, i.text),
+        i.kind === 'subs' && subReportCard(i),
+        i.text && h('p', { class: 'idea-body' }, i.text),
         i.reply && ideaReply(i.reply))))));
 }
 async function takeBackIdea(idea) {
@@ -9447,8 +9502,21 @@ async function takeBackIdea(idea) {
 function ideaInbox() {
   const out = [h('h3', { class: 'set-head', 'data-anchor': 'idea-inbox' }, T('Ideas'))];
   if (!ideasView.loaded) { ideasNeeded(); out.push(h('p', { class: 'muted' }, T('Loading…'))); return out; }
+  const everything = ideasView.all || [];
+  // Bugs: subtitle reports from the player and 'Something's off' ideas, in their own list above the ideas.
+  const bugs = everything.filter(isBugReport);
+  out.push(h('h4', { class: 'idea-section', 'data-anchor': 'idea-bugs' }, icon('flag'), T('Bugs'),
+    h('span', { class: 'idea-n' }, String(bugs.filter((i) => i.status === 'new').length))));
+  const bugsShown = ideasView.bugsAll ? bugs : bugs.filter((i) => i.status === 'new');
+  if (!bugsShown.length) out.push(h('p', { class: 'idea-empty' }, bugs.length ? T('No open bugs.') : T('No bugs reported. Subtitle reports from the player land here.')));
+  else out.push(ideaInboxList(bugsShown));
+  if (bugs.length > bugsShown.length || ideasView.bugsAll) {
+    out.push(h('button', { type: 'button', class: 'idea-link idea-bugs-toggle', onclick: () => { ideasView.bugsAll = !ideasView.bugsAll; renderSettings(); } },
+      ideasView.bugsAll ? T('Only open bugs') : T('Show all {0} bugs', bugs.length)));
+  }
+  out.push(h('h4', { class: 'idea-section' }, icon('bulb'), T('Ideas')));
   out.push(...scoutView.section(ideasView.scout, (list) => { ideasView.scout = list; })); // scout
-  const all = ideasView.all || [];
+  const all = everything.filter((i) => !isBugReport(i));
   const counts = { new: 0, planned: 0, added: 0, notnow: 0, all: all.length };
   for (const i of all) counts[i.status] = (counts[i.status] || 0) + 1;
   const labels = IDEA_STATUS();
@@ -9462,8 +9530,25 @@ function ideaInbox() {
     out.push(h('p', { class: 'idea-empty' }, all.length ? T('Nothing here.') : T('No ideas yet. They show up here when someone uses the idea box in their Settings.')));
     return out;
   }
-  const kinds = Object.fromEntries(IDEA_KINDS());
-  out.push(h('ul', { class: 'idea-list idea-inbox' }, shown.map((i) => {
+  out.push(ideaInboxList(shown));
+  return out;
+}
+const isBugReport = (i) => i.kind === 'subs' || i.kind === 'fix';
+const fmtClock = (sec) => { const t = Math.max(0, Math.round(sec)); const hh = Math.floor(t / 3600), mm = Math.floor(t / 60) % 60, ss = t % 60;
+  return `${hh ? `${hh}:${String(mm).padStart(2, '0')}` : mm}:${String(ss).padStart(2, '0')}`; };
+// A subtitle report's what-was-playing card: title, language, the moment and the timing state.
+function subReportCard(i) {
+  const a = i.about || {};
+  const issue = Object.fromEntries(SUB_ISSUES())[i.issue] || T('Other');
+  return h('div', { class: 'idea-subs' },
+    h('strong', { class: 'idea-subs-issue' }, issue),
+    a.title && h('span', { class: 'idea-subs-title' }, a.title),
+    h('span', { class: 'idea-subs-meta' }, [a.langName || a.lang, a.at != null ? T('at {0}', fmtClock(a.at)) : null, a.sync].filter(Boolean).join(' · ')));
+}
+function ideaInboxList(shown) {
+  const labels = IDEA_STATUS();
+  const kinds = { ...Object.fromEntries(IDEA_KINDS()), subs: T('Subtitles') };
+  return h('ul', { class: 'idea-list idea-inbox' }, shown.map((i) => {
     const who = i.name || T('Someone');
     const answering = ideasView.answering === i.id;
     let answer = null;
@@ -9487,19 +9572,19 @@ function ideaInbox() {
         h('div', { class: 'idea-from-text' },
           h('strong', {}, who),
           h('span', {}, [i.kind !== 'feature' ? kinds[i.kind] || i.kind : null, fmtAgo(i.created)].filter(Boolean).join(' · '))),
-        ideaStatusPill(i.status),
+        ideaStatusPill(i.status, isBugReport(i)),
         h('button', { type: 'button', class: 'idea-delete', 'aria-label': T('Delete'), title: T('Delete'), onclick: () => deleteIdea(i) }, icon('trash'))),
-      h('p', { class: 'idea-body' }, i.text),
+      i.kind === 'subs' && subReportCard(i),
+      i.text && h('p', { class: 'idea-body' }, i.text),
       !answering && i.reply && ideaReply(i.reply),
       answer,
       !answering && h('div', { class: 'idea-owner' },
         h('div', { class: 'idea-marks', role: 'group', 'aria-label': T('Mark idea') },
           ['planned', 'added', 'notnow'].map((key) => h('button', { type: 'button', class: `idea-mark idea-mark-${key}`, 'aria-pressed': String(i.status === key),
-            onclick: () => answerIdea(i, { status: i.status === key ? 'new' : key }) }, labels[key]))),
+            onclick: () => answerIdea(i, { status: i.status === key ? 'new' : key }) }, key === 'added' && isBugReport(i) ? T('Fixed') : labels[key]))),
         h('button', { type: 'button', class: 'idea-answer-open', onclick: () => { ideasView.answering = i.id; renderSettings(); } },
           i.reply ? T('Edit answer') : T('Answer'))));
-  })));
-  return out;
+  }));
 }
 async function answerIdea(idea, change) {
   try {

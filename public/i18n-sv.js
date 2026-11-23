@@ -1,5 +1,23 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
+  // Subtitle reports (player subtitle menu → House → Ideas → Bugs)
+  "Out of sync": "Fel timing",
+  "Wrong or bad lines": "Fel eller dålig text",
+  "Lines missing": "Repliker saknas",
+  "Wrong language": "Fel språk",
+  "Report a subtitle problem": "Rapportera problem med undertexterna",
+  "Anything else? (optional)": "Något mer? (valfritt)",
+  "Describe the problem (optional)": "Beskriv problemet (valfritt)",
+  "Send report": "Skicka rapport",
+  "What’s wrong?": "Vad är fel?",
+  "Thanks! The owner will take a look.": "Tack! Ägaren tittar på det.",
+  "Bugs": "Buggar",
+  "No open bugs.": "Inga öppna buggar.",
+  "No bugs reported. Subtitle reports from the player land here.": "Inga buggar rapporterade. Rapporter om undertexter från spelaren hamnar här.",
+  "Only open bugs": "Bara öppna buggar",
+  "Show all {0} bugs": "Visa alla {0} buggar",
+  "at {0}": "vid {0}",
+  "Fixed": "Fixat",
   // Profile customisation (profiles.js: banner upload, page colours, status, numbers, pinned review)
   "Likes": "Gilla-markeringar",
   "Like": "Gilla-markering",

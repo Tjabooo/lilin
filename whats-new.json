@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-subtitle-reports",
+  "date": "2026-11-23",
+  "title": "Tell us when subtitles are off",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Report a subtitle problem",
+      "text": "Subtitles out of sync, missing lines or the wrong language? Open the subtitle menu in the player and tap Report a subtitle problem at the bottom. Pick what's wrong, add a few words if you like, and it goes straight to the owner together with what you were watching and where."
+    }
+  ]
+},
+{
   "id": "2026-11-23-skip-recap-gaps",
   "date": "2026-11-23",
   "title": "Skip recap on more episodes",

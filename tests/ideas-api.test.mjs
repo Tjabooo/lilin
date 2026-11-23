@@ -58,6 +58,19 @@ test('the idea box: send, list, answer and take back ideas', { timeout: 20000 },
     await request(`/api/ideas/${sent.idea.id}`, { status: 'bogus' }, 'owner@ideas.test', 400);
     assert.equal((await request('/api/ideas', undefined, 'a@ideas.test')).mine[0].reply, 'Good one, on the list.');
 
+    // Subtitle reports from the player: no words needed, the issue and what was playing come along.
+    const report = await request('/api/ideas', { kind: 'subs', issue: 'sync', text: '', about: { title: 'Show · S1 E2', kind: 'lib', id: 'abc', lang: 'en', langName: 'English', at: 754.4, sync: 'synced, auto -1.2 s' } }, 'b@ideas.test');
+    assert.equal(report.idea.kind, 'subs');
+    assert.equal(report.idea.issue, 'sync');
+    assert.equal(report.idea.about.at, 754);
+    assert.equal(report.idea.about.title, 'Show · S1 E2');
+    await request('/api/ideas', { kind: 'subs', issue: 'sync', text: '', about: { id: 'abc', lang: 'en' } }, 'b@ideas.test', 400); // the same report twice
+    const odd = await request('/api/ideas', { kind: 'subs', issue: 'bogus' }, 'b@ideas.test');
+    assert.equal(odd.idea.issue, 'other', 'unknown issues fall back');
+    assert.equal(odd.idea.about, null);
+    await request(`/api/ideas/${report.idea.id}/delete`, {}, 'owner@ideas.test');
+    await request(`/api/ideas/${odd.idea.id}/delete`, {}, 'owner@ideas.test');
+
     // Answered ideas stay; unanswered ones can be taken back, but only by whoever sent them.
     await request(`/api/ideas/${sent.idea.id}/delete`, {}, 'a@ideas.test', 403);
     await request(`/api/ideas/${other.idea.id}/delete`, {}, 'a@ideas.test', 403);

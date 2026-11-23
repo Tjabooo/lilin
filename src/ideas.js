@@ -5,7 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export const KINDS = ['feature', 'fix', 'other'];
+// 'subs' is a subtitle report from the player's subtitle menu: an issue, optional words and what was
+// playing (about). The owner sees reports (and 'fix' ideas) under Bugs in House → Ideas.
+export const KINDS = ['feature', 'fix', 'other', 'subs'];
+export const SUB_ISSUES = ['sync', 'wrong', 'missing', 'language', 'other'];
 export const STATUSES = ['new', 'planned', 'added', 'notnow'];
 const MAX_TEXT = 1000;
 const MAX_REPLY = 500;
@@ -31,7 +34,16 @@ function save() {
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 const clean = (s, max) => String(s ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
 const view = (i) => ({ id: i.id, userId: i.userId, name: i.name, kind: i.kind, text: i.text, status: i.status,
-  reply: i.reply || '', created: i.created, updated: i.updated, answered: i.answered || null });
+  reply: i.reply || '', created: i.created, updated: i.updated, answered: i.answered || null,
+  ...(i.kind === 'subs' ? { issue: i.issue || 'other', about: i.about || null } : {}) });
+const short = (s, max) => clean(s, max).replace(/\s+/g, ' ');
+// What was playing when someone reported a subtitle problem.
+function subsAbout(a) {
+  if (!a || typeof a !== 'object') return null;
+  const at = Number(a.at);
+  return { title: short(a.title, 160), kind: short(a.kind, 12), id: short(a.id, 160), lang: short(a.lang, 16), langName: short(a.langName, 40),
+    at: Number.isFinite(at) && at >= 0 ? Math.round(at) : null, sync: short(a.sync, 240) };
+}
 
 export const mine = (userId) => ideas.filter((i) => i.userId === userId).map(view);
 export const all = () => ideas.map(view);
@@ -40,15 +52,21 @@ export const byId = (id) => ideas.find((i) => i.id === id) || null;
 
 export function add(user, body) {
   const text = clean(body?.text, MAX_TEXT);
-  if (text.length < 3) throw httpError(400, 'Write a few words about your idea first.');
   const kind = KINDS.includes(body?.kind) ? body.kind : 'feature';
+  const subs = kind === 'subs';
+  if (!subs && text.length < 3) throw httpError(400, 'Write a few words about your idea first.');
   const now = Date.now();
   if (ideas.filter((i) => i.userId === user.id && now - i.created < 86400000).length >= PER_DAY) {
     throw httpError(429, 'That’s a lot of ideas for one day. Send the rest tomorrow.');
   }
-  if (ideas.some((i) => i.userId === user.id && i.text === text)) throw httpError(400, 'You’ve already sent that one.');
+  const issue = subs ? (SUB_ISSUES.includes(body?.issue) ? body.issue : 'other') : undefined;
+  const about = subs ? subsAbout(body?.about) : undefined;
+  if (subs) {
+    if (ideas.some((i) => i.userId === user.id && i.kind === 'subs' && i.status === 'new' && i.issue === issue && i.text === text
+      && (i.about?.id || '') === (about?.id || '') && (i.about?.lang || '') === (about?.lang || ''))) throw httpError(400, 'You’ve already reported that.');
+  } else if (ideas.some((i) => i.userId === user.id && i.text === text)) throw httpError(400, 'You’ve already sent that one.');
   const idea = { id: crypto.randomBytes(4).toString('hex'), userId: user.id, name: String(user.name || '').slice(0, 40),
-    kind, text, status: 'new', reply: '', created: now, updated: now, answered: null };
+    kind, text, status: 'new', reply: '', created: now, updated: now, answered: null, ...(subs ? { issue, about } : {}) };
   ideas.unshift(idea);
   if (ideas.length > MAX_KEPT) {
     const closed = ideas.map((i, n) => [i, n]).filter(([i]) => i.status !== 'new').map(([, n]) => n);

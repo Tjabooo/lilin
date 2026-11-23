@@ -4859,10 +4859,13 @@ async function handleApi(req, res, url) {
     }
     if (p === '/api/ideas' && req.method === 'POST') {
       const idea = ideas.add(user, await readJson(req));
-      activity.record(req, 'idea', idea.text.slice(0, 80));
+      const subsReport = idea.kind === 'subs'; // a subtitle report from the player (lands under Bugs)
+      const SUB_ISSUE_TEXT = { sync: 'Out of sync', wrong: 'Wrong or bad lines', missing: 'Lines missing', language: 'Wrong language', other: 'Other problem' };
+      const reportLine = subsReport ? [SUB_ISSUE_TEXT[idea.issue], idea.about?.title, idea.text].filter(Boolean).join(' · ') : idea.text;
+      activity.record(req, 'idea', reportLine.slice(0, 80));
       const owner = accounts.ownerUser();
       if (owner && owner.id !== user.id) {
-        notify([owner.id], 'idea', { title: `${idea.name || 'Someone'} has an idea for Lilin`, body: idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
+        notify([owner.id], 'idea', { title: subsReport ? `${idea.name || 'Someone'} reported a subtitle problem` : `${idea.name || 'Someone'} has an idea for Lilin`, body: reportLine.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
       }
       return sendJson(res, 200, { idea, mine: ideas.mine(user.id) });
     }
@@ -4872,10 +4875,12 @@ async function handleApi(req, res, url) {
       if (scout.byId(m[1])) return sendJson(res, 200, { idea: scout.act(m[1], await readJson(req)) });
       const { idea, changed } = ideas.answer(m[1], await readJson(req));
       if (changed && idea.userId !== user.id) {
-        const title = { planned: 'Your idea is planned', added: 'Your idea is in Lilin now', notnow: 'An answer to your idea' }[idea.status]
+        const title = (idea.kind === 'subs'
+          ? { planned: 'Your subtitle report is being looked at', added: 'The subtitles you reported are fixed', notnow: 'An answer to your subtitle report' }
+          : { planned: 'Your idea is planned', added: 'Your idea is in Lilin now', notnow: 'An answer to your idea' })[idea.status]
           || (idea.reply ? 'An answer to your idea' : null);
         // 'idea': the sender's own switch (Answers to your ideas), apart from Lilin updates (release notes only)
-        if (title) notify([idea.userId], 'idea', { title, body: idea.reply || idea.text.slice(0, 160), url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
+        if (title) notify([idea.userId], 'idea', { title, body: idea.reply || idea.text.slice(0, 160) || idea.about?.title || '', url: '/?ideas=1#settings', tag: `idea-${idea.id}` });
       }
       return sendJson(res, 200, { idea });
     }
