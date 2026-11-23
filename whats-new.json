@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-episode-more",
+  "date": "2026-11-23",
+  "title": "⋯ on every episode",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Every episode on Lilin has the ⋯ menu",
+      "text": "Episodes that are on Lilin but came through someone else had no ⋯ button, so only some episodes of a season could be sent to the TV or downloaded to your phone. Every episode that plays at once now has it."
+    }
+  ]
+},
+{
   "id": "2026-11-23-liked-dates",
   "date": "2026-11-23",
   "title": "Liked in the right order",

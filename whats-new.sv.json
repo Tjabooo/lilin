@@ -1,4 +1,13 @@
 {
+  "2026-11-23-episode-more": {
+    "title": "⋯ på varje avsnitt",
+    "items": {
+      "Every episode on Lilin has the ⋯ menu": {
+        "title": "Varje avsnitt på Lilin har ⋯-menyn",
+        "text": "Avsnitt som finns på Lilin men kom via någon annan saknade ⋯-knappen, så bara vissa avsnitt i en säsong gick att skicka till tv:n eller ladda ner till mobilen. Nu har alla avsnitt som spelas direkt den."
+      }
+    }
+  },
   "2026-11-23-liked-dates": {
     "title": "Gillat i rätt ordning",
     "items": {

@@ -2646,9 +2646,16 @@ function episodeRow(c, { k, ep, f, p, season, tvT }) {
       tools && h('div', { class: 'ep-actions' },
         h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails({ ...(c.entryNow() || { key: `title:${c.t.title}`, name: c.t.title }), transfers: [d] }, e.currentTarget) }, T('Details'))));
   }
+  // Someone else's copy on the server gets the same ⋯ as one of yours: TV, phone and (owner) delete work on any copy.
+  const copy = here && targetServerCopy(x);
   return h('li', { class: `ep ${here ? 'is-here' : 'is-missing'}${seen ? ' is-watched' : ''}`, 'data-episode': k },
     press || h('div', { class: 'ep-art' }, art),
-    body([freshEpisode(ep.airDate) && !seen && newMark(), seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]));
+    body([freshEpisode(ep.airDate) && !seen && newMark(), seen && watchedMark(), here && !seen && bolt(), ep.runtime && fmtRuntime(ep.runtime), airs || day]),
+    copy && rowMenu(T('More for {0}', name), [
+      [icon('tv'), T('Play on TV'), (o) => openPicker(copy, o)],
+      [icon('phone'), T('Download to phone'), (o) => openTravel(copy, o)],
+      tools && [icon('trash'), T('Delete'), (o) => openDelete(copy, o), 'is-danger'],
+    ]));
 }
 // "Airs 3 Dec 2026" for an episode whose air date (TMDB's YYYY-MM-DD) is still ahead, else null.
 function airsLabel(airDate) {
