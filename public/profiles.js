@@ -426,6 +426,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return h('div', { class: 'pf-anime' },
       h('p', { class: 'pf-anime-from' }, h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, many ? T('{0} on {1}', a.username, a.name) : T('From {0}', a.name)), icon('chevron')),
       h('dl', { class: 'pf-anime-stats' }, facts.map(([label, v, digits]) => h('div', {}, h('dt', {}, label), h('dd', {}, n(v, digits))))),
+      shelf(T('Favourites'), a.favorites || []),
       shelf(T('Watching now'), a.watching || []),
       shelf(T('Finished lately'), a.finished || []),
       a.fullCount > 0 && h('button', { type: 'button', class: 'chip pf-anime-all', onclick: (e) => openAnimeList(ctx, a, e.currentTarget) },
@@ -948,7 +949,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           titled(T('Anime lists'), animeEditor(ctx, { repaint, redraw })),
         ];
       },
-      favorites: () => [favoritesEditor(draft, { repaint, redraw }), titled(T('Pinned review'), pinnedEditor(ctx, draft, { repaint, redraw }))],
+      favorites: () => [favoritesEditor(ctx, draft, { repaint, redraw }), titled(T('Pinned review'), pinnedEditor(ctx, draft, { repaint, redraw }))],
       look: () => [
         block(T('Accent'), h('div', { class: 'pf-swatches' },
           h('button', { type: 'button', class: 'pf-swatch pf-swatch-auto', 'aria-pressed': String(!look.accent), 'aria-label': T('From your picture colour'), title: T('Automatic'), style: `--c:${tintOf(me()?.name)}`, onclick: () => setLook({ accent: null }) }, 'A'),
@@ -1135,22 +1136,57 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('div', { class: 'pf-pins', role: 'radiogroup', 'aria-label': T('Pinned review') }, opt(null), ...list.map(opt)));
   }
 
-  function favoritesEditor(draft, { repaint, redraw }) {
+  // Their MyAnimeList / AniList favourites that Lilin has (anime-map.js gave them a title key), in their order, one
+  // per title (a sequel season is the show itself).
+  function animeFavorites(ctx) {
+    const seen = new Set();
+    return (ctx.data?.anime || []).flatMap((a) => a.favorites || []).filter((e) => e.key && !seen.has(e.key) && seen.add(e.key));
+  }
+
+  function favoritesEditor(ctx, draft, { repaint, redraw }) {
     let target = null; // the slot being filled
-    const search = titleSearch({
-      placeholder: T('Search films and shows'),
-      onPick: (card) => {
-        const key = keyOf(card);
-        const at = draft.favorites.findIndex((f) => keyOf(f) === key);
-        if (at >= 0 && at !== target) draft.favorites.splice(at, 1);
-        const slot = target == null ? draft.favorites.length : target;
-        if (slot < draft.favorites.length) draft.favorites[slot] = { ...card, key };
-        else if (draft.favorites.length < 4) draft.favorites.push({ ...card, key });
-        else { toast(T('Four favourites at most: remove one first.')); return; }
-        target = null;
-        repaint(); redraw();
-      },
-    });
+    const place = (card) => {
+      const key = keyOf(card);
+      const at = draft.favorites.findIndex((f) => keyOf(f) === key);
+      if (at >= 0 && at !== target) draft.favorites.splice(at, 1);
+      const slot = target == null ? draft.favorites.length : target;
+      if (slot < draft.favorites.length) draft.favorites[slot] = { ...card, key };
+      else if (draft.favorites.length < 4) draft.favorites.push({ ...card, key });
+      else { toast(T('Four favourites at most: remove one first.')); return false; }
+      target = null;
+      return true;
+    };
+    const search = titleSearch({ placeholder: T('Search films and shows'), onPick: (card) => { if (place(card)) { repaint(); redraw(); } } });
+    const cardOf = (key) => { const [type, id] = key.split(':'); return api(`/api/card/${type}/${id}`); };
+    // From your anime favourites: tap one to put it in (or take it out); Fill the empty slots takes them in order.
+    const anime = animeFavorites(ctx);
+    const has = (key) => draft.favorites.some((f) => keyOf(f) === key);
+    const pickAnime = async (e, el) => {
+      if (has(e.key)) { draft.favorites.splice(draft.favorites.findIndex((f) => keyOf(f) === e.key), 1); repaint(); redraw(); return; }
+      if (target == null && draft.favorites.length >= 4) { toast(T('Four favourites at most: remove one first.')); return; }
+      el.setAttribute('aria-busy', 'true');
+      try { if (place({ ...(await cardOf(e.key)), key: e.key })) { repaint(); redraw(); } } catch { toast(T('Couldn’t find {0} right now. Try again in a bit.', e.title)); } finally { el.removeAttribute('aria-busy'); }
+    };
+    const fill = async (btn) => {
+      const todo = anime.filter((e) => !has(e.key)).slice(0, 4 - draft.favorites.length);
+      if (!todo.length) { toast(draft.favorites.length >= 4 ? T('All four slots are taken: remove one first.') : T('They’re all in already.')); return; }
+      btn.disabled = true;
+      const cards = await Promise.all(todo.map((e) => cardOf(e.key).then((c) => ({ ...c, key: e.key }), () => null)));
+      target = null;
+      for (const c of cards) if (c && draft.favorites.length < 4 && !has(c.key)) draft.favorites.push(c);
+      if (cards.some((c) => !c)) toast(T('Some of them couldn’t be found right now.'));
+      btn.disabled = false;
+      repaint(); redraw();
+    };
+    const fromAnime = anime.length > 0 && h('div', { class: 'pf-fav-anime' },
+      h('div', { class: 'pf-fav-anime-head' },
+        h('p', { class: 'pf-ed-label' }, T('From your anime favourites')),
+        draft.favorites.length < 4 && h('button', { type: 'button', class: 'chip', onclick: (ev) => fill(ev.currentTarget) }, T('Fill the empty slots'))),
+      h('ul', { class: 'pf-strip pf-fav-anime-strip' }, anime.map((e) => h('li', {},
+        h('button', { type: 'button', class: 'pf-poster', title: e.title, 'aria-label': has(e.key) ? T('Remove {0}', e.title) : T('Add {0}', e.title), 'aria-pressed': String(has(e.key)),
+          onclick: (ev) => pickAnime(e, ev.currentTarget) },
+          e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
+          has(e.key) && h('span', { class: 'pf-fav-anime-on', 'aria-hidden': 'true' }, icon('check')))))));
     const slots = h('ol', { class: 'pf-fav-edit' }, Array.from({ length: 4 }, (_, i) => {
       const f = draft.favorites[i];
       const pick = h('button', { type: 'button', class: `pf-poster${f ? '' : ' pf-slot'}`, 'aria-label': f ? T('Replace {0}', f.title) : T('Pick a favourite'),
@@ -1160,7 +1196,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         f && h('button', { type: 'button', class: 'pf-x', 'aria-label': T('Remove {0}', f.title), onclick: () => { draft.favorites.splice(i, 1); repaint(); redraw(); } }, icon('close')),
         f && i > 0 && h('button', { type: 'button', class: 'pf-x pf-left', 'aria-label': T('Move {0} left', f.title), onclick: () => { move(draft.favorites, i, -1); repaint(); redraw(); } }, icon('back')));
     }));
-    return h('div', {}, h('p', { class: 'set-hint' }, T('Four films or shows that say something about you. Tap a poster to swap it.')), slots, search.node);
+    return h('div', {}, h('p', { class: 'set-hint' }, T('Four films or shows that say something about you. Tap a poster to swap it.')), slots, search.node, fromAnime);
   }
 
   function bannerPicker(draft, { repaint, redraw }) {

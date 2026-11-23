@@ -23,6 +23,7 @@ function setup() {
   return { ebi: make('ebi@example.test', 'ebi'), anna: make('anna@example.test', 'Anna') };
 }
 
+const noProfile = async () => null; // no MAL profile page in tests (favourites)
 const malRow = (o) => ({ status: 2, score: 0, is_rewatching: 0, num_watched_episodes: 12, anime_num_episodes: 12, updated_at: 1, anime_title: 'X',
   anime_url: '/anime/1/X', anime_image_path: 'https://cdn.myanimelist.net/r/192x272/images/anime/1/1.jpg', ...o });
 
@@ -42,7 +43,7 @@ test('MyAnimeList: numbers, watching and finished, newest first, plan-to-watch l
     malRow({ status: 2, anime_title: 'Evil', anime_image_path: 'https://evil.test/x.jpg', anime_url: '/anime/9/E' }),
   ];
   const pages = [];
-  const got = await anime.readMal('ebi', { page: async (u, offset) => { pages.push(offset); return offset ? [] : rows; } });
+  const got = await anime.readMal('ebi', { profile: noProfile, page: async (u, offset) => { pages.push(offset); return offset ? [] : rows; } });
   assert.deepEqual(pages, [0], 'a short page is the last one');
   assert.deepEqual(got.stats, { completed: 3, episodes: 41, days: null, mean: 8 });
   assert.equal(got.watching[0].title, 'Frieren');
@@ -105,14 +106,14 @@ test('Show my full list: MyAnimeList statuses, kept only while it is on', async 
   const rows = [malRow({ anime_title: 'Frieren', status: 1, updated_at: 30 }), malRow({ anime_title: 'Mononoke', status: 2, score: 9, updated_at: 20 }),
     malRow({ anime_title: 'Monster', status: 3 }), malRow({ anime_title: 'Bleach', status: 4 }), malRow({ anime_title: 'Lain', status: 6 }),
     malRow({ anime_title: 'Eva', status: 2, is_rewatching: 1, updated_at: 40 })];
-  const got = await anime.readMal('ebi', { page: async () => rows, full: true });
+  const got = await anime.readMal('ebi', { profile: noProfile, page: async () => rows, full: true });
   assert.deepEqual(got.full.map((e) => [e.t, e.st]), [['Eva', 'watching'], ['Frieren', 'watching'], ['Mononoke', 'completed'], ['Monster', 'paused'], ['Bleach', 'dropped'], ['Lain', 'planning']]);
   assert.equal(got.full[2].s, 9);
-  assert.equal((await anime.readMal('ebi', { page: async () => rows })).full, null, 'not asked = not read');
+  assert.equal((await anime.readMal('ebi', { profile: noProfile, page: async () => rows })).full, null, 'not asked = not read');
 
   const { ebi } = setup();
   let asked = null;
-  const readers = { mal: async (u, o = {}) => { asked = o.full; return anime.readMal(u, { page: async () => rows, full: o.full }); } };
+  const readers = { mal: async (u, o = {}) => { asked = o.full; return anime.readMal(u, { profile: noProfile, page: async () => rows, full: o.full }); } };
   await anime.link(ebi.id, 'mal', 'ebi_chan', { readers });
   assert.equal(anime.fullListOf(ebi.id, 'mal'), null, 'off by default');
   assert.equal(profiles.view(ebi, ebi).anime[0].fullCount, 0);
@@ -150,4 +151,39 @@ test('anime map: MyAnimeList and AniList entries carry the Lilin title they are,
   assert.deepEqual(a.finished.map((e) => e.key || null), ['tv:30981', null]);
   await anime.setShowFull(ebi.id, 'mal', true, { readers: read });
   assert.equal(anime.fullListOf(ebi.id, 'mal').entries[0].key, 'tv:30981');
+});
+
+test('favourites: read from AniList and the MAL profile page, kept when the page fails, mapped to Lilin titles', async () => {
+  const html = `<div id="anime_favorites"><ul class="fav-slide">
+    <li class="btn-fav" title="Monster"><a href="https://myanimelist.net/anime/19/Monster" class="link"><span class="users">TV&middot;2004</span>
+      <img src="https://cdn.myanimelist.net/images/spacer.gif" data-src="https://cdn.myanimelist.net/r/140x220/images/anime/10/18793.jpg?s=abc" class="image lazyload"></a></li>
+    <li class="btn-fav" title="Tom &amp; Jerry&#039;s"><a href="https://myanimelist.net/anime/5/X"><img data-src="https://evil.test/x.jpg"></a></li>
+  </ul></div><ul id="manga_favorites"><li title="Berserk"><a href="https://myanimelist.net/manga/2/Berserk"></a></li></ul>`;
+  const favs = anime.malFavoritesOf(html);
+  assert.deepEqual(favs.map((e) => [e.title, e.url, e.cover]), [
+    ['Monster', 'https://myanimelist.net/anime/19/Monster', 'https://cdn.myanimelist.net/images/anime/10/18793.jpg'],
+    ["Tom & Jerry's", 'https://myanimelist.net/anime/5/X', null],
+  ]);
+  assert.deepEqual(anime.malFavoritesOf('<html>no favourites</html>'), []);
+  const mal = await anime.readMal('ebi', { page: async () => [malRow({})], profile: async () => html });
+  assert.equal(mal.favorites.length, 2);
+  assert.equal((await anime.readMal('ebi', { page: async () => [malRow({})], profile: noProfile })).favorites, null, 'page not read: null');
+
+  const al = await anime.readAnilist('ebi', { query: async () => ({ User: { name: 'ebi', statistics: { anime: {} },
+    favourites: { anime: { nodes: [{ siteUrl: 'https://anilist.co/anime/19', episodes: 74, title: { userPreferred: 'Monster' }, coverImage: { large: 'https://s4.anilist.co/x.png' } }] } } } }) });
+  assert.deepEqual(al.favorites.map((e) => e.title), ['Monster']);
+
+  const map = await import('../src/anime-map.js');
+  map.use(map.compact([{ mal_id: 19, anilist_id: 19, themoviedb_id: { tv: 30981 } }]));
+  const { ebi } = setup();
+  let page = html;
+  const readers = { mal: (u) => anime.readMal(u, { page: async () => [malRow({})], profile: async () => page }) };
+  await anime.link(ebi.id, 'mal', 'ebi_chan', { readers });
+  assert.deepEqual(profiles.view(ebi, ebi).anime[0].favorites.map((e) => e.key || null), ['tv:30981', null]);
+  page = null; // the profile page didn't answer: the favourites stay
+  await anime.sync(ebi.id, 'mal', { readers });
+  assert.equal(profiles.view(ebi, ebi).anime[0].favorites.length, 2);
+  page = '<p>no favourites now</p>';
+  await anime.sync(ebi.id, 'mal', { readers });
+  assert.equal(profiles.view(ebi, ebi).anime[0].favorites.length, 0, 'emptied on the site: empty here');
 });

@@ -2957,4 +2957,11 @@ export default {
   "Your full {0} list is on your profile": "Hela din {0}-lista finns på din profil",
   "Anime list": "Animelista",
   "Sort": "Sortera",
+  "Add {0}": "Lägg till {0}",
+  "From your anime favourites": "Från dina animefavoriter",
+  "Fill the empty slots": "Fyll de tomma platserna",
+  "Couldn’t find {0} right now. Try again in a bit.": "Hittade inte {0} just nu. Försök igen om en stund.",
+  "All four slots are taken: remove one first.": "Alla fyra platser är tagna: ta bort en först.",
+  "They’re all in already.": "Alla är redan med.",
+  "Some of them couldn’t be found right now.": "Några av dem gick inte att hitta just nu.",
 };

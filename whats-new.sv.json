@@ -1,4 +1,13 @@
 {
+  "2026-11-23-anime-favourites": {
+    "title": "Dina animefavoriter, här också",
+    "items": {
+      "Anime favourites on your profile": {
+        "title": "Animefavoriter på din profil",
+        "text": "Har du kopplat MyAnimeList eller AniList visas dina favoriter därifrån nu först i Anime-delen på din profil. Vill du ha dem som Lilin-favoriter också, öppna Redigera profil → Favoriter: tryck på de du vill ha under Från dina animefavoriter, eller tryck på Fyll de tomma platserna."
+      }
+    }
+  },
   "2026-11-23-new-episodes-real-watching": {
     "title": "Nya avsnitt bara för serier du tittar på",
     "items": {

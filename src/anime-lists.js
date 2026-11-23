@@ -5,9 +5,12 @@
 // Nothing is imported into Lilin's own diary, stars or reviews: anime sites count seasons and episodes their own way
 // (one entry per cour, absolute episode numbers), so a list only mirrors what the site says, read again every few
 // hours. Both sites hand this out on purpose without a key:
-//   - AniList: its public GraphQL API (the user's stats and their latest list entries).
+//   - AniList: its public GraphQL API (the user's stats, favourites and their latest list entries).
 //   - MyAnimeList: the JSON behind a public anime list page (myanimelist.net/animelist/USER/load.json). A private
-//     list answers 400, the same as a name that doesn't exist.
+//     list answers 400, the same as a name that doesn't exist. Favourites aren't in it: they're read off the public
+//     profile page (myanimelist.net/profile/USER), and a page that can't be read keeps the last ones.
+// Favourites show first in the Anime section, and the profile editor can put the ones Lilin has into the four
+// Lilin favourites.
 import { database } from './accounts.js';
 import { anilistQuery } from './anime.js';
 import { keyOf } from './anime-map.js'; // the Lilin title of an entry, so its poster opens the title page here
@@ -17,6 +20,7 @@ export const NAMES = { anilist: 'AniList', mal: 'MyAnimeList' };
 export const USERNAME = /^[A-Za-z0-9_-]{2,20}$/;
 export const SYNC_EVERY = 6 * 3600 * 1000;
 const SHOW = 12;                 // entries kept per shelf (watching, finished)
+const FAVS = 25;                 // favourites kept (AniList allows 25 per page; MAL shows 10)
 const MAL_PAGE = 300;            // what load.json sends per page
 const MAL_PAGES = 15;            // 4,500 entries is plenty
 const MAL_URL = process.env.MAL_URL || 'https://myanimelist.net';
@@ -71,7 +75,7 @@ const capFull = (list) => list.filter(Boolean).sort((a, b) => b.at - a.at).slice
 
 // ---------- reading the sites ----------
 const ANILIST_QUERY = `query($n:String){
-  User(name:$n){ name siteUrl statistics{ anime{ count episodesWatched minutesWatched meanScore statuses{ status count } } } }
+  User(name:$n){ name siteUrl favourites{ anime(perPage:${FAVS}){ nodes{ siteUrl episodes title{ userPreferred } coverImage{ large } } } } statistics{ anime{ count episodesWatched minutesWatched meanScore statuses{ status count } } } }
   w: Page(perPage:${SHOW}){ mediaList(userName:$n, type:ANIME, status_in:[CURRENT,REPEATING], sort:UPDATED_TIME_DESC){ progress score(format:POINT_10_DECIMAL) media{ siteUrl episodes title{ userPreferred } coverImage{ large } } } }
   d: Page(perPage:${SHOW}){ mediaList(userName:$n, type:ANIME, status:COMPLETED, sort:[UPDATED_TIME_DESC]){ progress score(format:POINT_10_DECIMAL) media{ siteUrl episodes title{ userPreferred } coverImage{ large } } } }
 }`;
@@ -109,6 +113,8 @@ export async function readAnilist(username, { query = anilistQuery, full = false
     stats: { completed: done, episodes: num(st.episodesWatched), days: Math.round(num(st.minutesWatched) / 144) / 10, mean: mean > 10 ? Math.round(mean) / 10 : mean },
     watching: (data.w?.mediaList || []).map(toEntry).filter((e) => e.title),
     finished: (data.d?.mediaList || []).map(toEntry).filter((e) => e.title),
+    favorites: (user.favourites?.anime?.nodes || []).map((m) => entry({ title: m?.title?.userPreferred, cover: m?.coverImage?.large, url: m?.siteUrl, episodes: m?.episodes }))
+      .filter((e) => e.title).slice(0, FAVS),
   };
 }
 
@@ -124,9 +130,34 @@ async function malPage(username, offset) {
   return list;
 }
 
+// The anime favourites on a MAL profile page, in their order: [{ title, cover, url }]. null when the page can't be read.
+const unescape = (s) => String(s).replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+export function malFavoritesOf(html) {
+  const at = String(html || '').indexOf('id="anime_favorites"');
+  if (at < 0) return [];
+  const end = html.indexOf('</ul>', at);
+  const out = [];
+  for (const li of html.slice(at, end < 0 ? undefined : end).split('<li').slice(1)) {
+    const url = /href="(https:\/\/myanimelist\.net\/anime\/\d+[^"]*)"/.exec(li)?.[1];
+    const title = /title="([^"]*)"/.exec(li)?.[1];
+    // the cover is lazy-loaded (data-src), a small crop: the full picture is the same path without /r/WxH
+    const img = /data-src="([^"]+)"/.exec(li)?.[1] || null;
+    if (url && title) out.push(entry({ title: unescape(title), url, cover: img && img.replace(/\/r\/\d+x\d+\//, '/').replace(/\?.*$/, '') }));
+  }
+  return out.filter((e) => e.title && e.url).slice(0, FAVS);
+}
+async function malProfile(username) {
+  try {
+    const r = await fetch(`${MAL_URL}/profile/${encodeURIComponent(username)}`, {
+      headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0 (compatible; Lilin)' }, signal: AbortSignal.timeout(15000),
+    });
+    return r.ok ? await r.text() : null;
+  } catch { return null; }
+}
+
 // MAL statuses: 1 watching, 2 completed, 3 on hold, 4 dropped, 6 plan to watch.
 const MAL_STATUS = { 1: 'watching', 2: 'completed', 3: 'paused', 4: 'dropped', 6: 'planning' };
-export async function readMal(username, { page = malPage, full = false } = {}) {
+export async function readMal(username, { page = malPage, profile = malProfile, full = false } = {}) {
   const all = [];
   for (let i = 0; i < MAL_PAGES; i++) {
     const list = await page(username, i * MAL_PAGE);
@@ -146,6 +177,7 @@ export async function readMal(username, { page = malPage, full = false } = {}) {
       mean: scored.length ? Math.round(scored.reduce((n, e) => n + num(e.score), 0) / scored.length * 10) / 10 : 0 },
     watching: all.filter((e) => e.status === 1 || e.is_rewatching).sort(newest).slice(0, SHOW).map(toEntry).filter((e) => e.title),
     finished: all.filter((e) => e.status === 2 && !e.is_rewatching).sort(newest).slice(0, SHOW).map(toEntry).filter((e) => e.title),
+    favorites: await profile(username).then((html) => (html == null ? null : malFavoritesOf(html)), () => null),
   };
 }
 
@@ -182,7 +214,7 @@ const withKey = (field) => (e) => { const key = keyOf(e[field]); return key ? { 
 export function viewOf(userId, { self = false } = {}) {
   return linksOf(userId).filter((l) => self || l.stats).map((l) => ({
     service: l.service, name: NAMES[l.service], username: l.username, url: l.url,
-    stats: l.stats || null, watching: (l.watching || []).map(withKey('url')), finished: (l.finished || []).map(withKey('url')), fullCount: l.fullCount,
+    stats: l.stats || null, favorites: (l.favorites || []).map(withKey('url')), watching: (l.watching || []).map(withKey('url')), finished: (l.finished || []).map(withKey('url')), fullCount: l.fullCount,
     ...(self ? { syncedAt: l.syncedAt, error: l.error, showFull: l.showFull } : {}),
   }));
 }
@@ -195,20 +227,24 @@ export async function link(userId, service, username, { readers = READERS, now =
   const got = await readers[service](u);
   db().prepare(`INSERT INTO anime_links (user_id, service, username, linked_at, synced_at, error, data) VALUES (?, ?, ?, ?, ?, NULL, ?)
     ON CONFLICT(user_id, service) DO UPDATE SET username = excluded.username, synced_at = excluded.synced_at, error = NULL, data = excluded.data`)
-    .run(userId, service, got.username || u, now, now, JSON.stringify({ stats: got.stats, watching: got.watching, finished: got.finished }));
+    .run(userId, service, got.username || u, now, now, JSON.stringify(dataOf(got)));
 }
+
+// What's kept of a read list. Favourites that couldn't be read this time (null) stay as they were.
+const dataOf = (got, old = null) => ({ stats: got.stats, watching: got.watching, finished: got.finished,
+  favorites: Array.isArray(got.favorites) ? got.favorites : old?.favorites || [] });
 
 export function unlink(userId, service) {
   db().prepare('DELETE FROM anime_links WHERE user_id = ? AND service = ?').run(userId, service);
 }
 
 export async function sync(userId, service, { readers = READERS, now = Date.now() } = {}) {
-  const r = db().prepare('SELECT username, show_full FROM anime_links WHERE user_id = ? AND service = ?').get(userId, service);
+  const r = db().prepare('SELECT username, show_full, data FROM anime_links WHERE user_id = ? AND service = ?').get(userId, service);
   if (!r) throw fail(404, `No ${NAMES[service] || 'anime'} account is linked.`);
   try {
     const got = await readers[service](r.username, { full: Boolean(r.show_full) });
     db().prepare('UPDATE anime_links SET synced_at = ?, error = NULL, data = ?, full = ? WHERE user_id = ? AND service = ?')
-      .run(now, JSON.stringify({ stats: got.stats, watching: got.watching, finished: got.finished }), r.show_full && got.full ? JSON.stringify(got.full) : null, userId, service);
+      .run(now, JSON.stringify(dataOf(got, parse(r.data))), r.show_full && got.full ? JSON.stringify(got.full) : null, userId, service);
   } catch (e) {
     // the last good copy stays on the profile; the error is for the owner's editor
     db().prepare('UPDATE anime_links SET synced_at = ?, error = ? WHERE user_id = ? AND service = ?').run(now, text(e.message || e), userId, service);

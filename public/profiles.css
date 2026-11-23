@@ -609,6 +609,17 @@ a.pf-anime-tile { text-decoration: none; }
   font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fff; border-radius: 0 0 var(--pf-r) var(--pf-r);
   background: linear-gradient(transparent, rgb(0 0 0 / .78)); pointer-events: none; }
 .pf-posters-polaroid .pf-anime-badge { inset: auto 5px 18px; border-radius: 0; }
+/* Favourites editor: From your anime favourites (a strip under the four slots; picked ones get a tick) */
+.pf-fav-anime { margin-top: 18px; }
+.pf-fav-anime-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.pf-fav-anime-head .pf-ed-label { margin: 0; }
+.pf-editor .pf-fav-anime-strip { grid-auto-columns: 76px; grid-template-columns: none; grid-auto-flow: column; margin: 0; padding: 2px 0 8px; overflow-x: auto; }
+.pf-fav-anime-strip .pf-poster { position: relative; width: 100%; padding: 0; border: 0; cursor: pointer; transition: opacity .15s, transform .15s; }
+.pf-fav-anime-strip .pf-poster[aria-busy="true"] { opacity: .5; }
+.pf-fav-anime-strip .pf-poster[aria-pressed="true"] { outline: 2px solid var(--pf-accent, var(--accent)); outline-offset: 2px; }
+.pf-fav-anime-on { position: absolute; top: 4px; right: 4px; z-index: 1; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--pf-accent, var(--accent)); color: #000; }
+.pf-fav-anime-on svg { width: 13px; height: 13px; }
 
 /* ---------- Look → Pattern: a faint texture over the background, in the page's own text colour ---------- */
 .pf-pattern { position: fixed; inset: 0; z-index: -1; pointer-events: none; --pf-pat: color-mix(in srgb, var(--text) 10%, transparent); }

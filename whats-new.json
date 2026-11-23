@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-anime-favourites",
+  "date": "2026-11-23",
+  "title": "Your anime favourites, here too",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Anime favourites on your profile",
+      "text": "If you've linked MyAnimeList or AniList, your favourites from there now show first in the Anime section of your profile. To make them your Lilin favourites too, open Edit profile → Favourites: tap the ones you want under From your anime favourites, or tap Fill the empty slots."
+    }
+  ]
+},
+{
   "id": "2026-11-23-new-episodes-real-watching",
   "date": "2026-11-23",
   "title": "New episodes only for shows you watch",
