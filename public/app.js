@@ -3556,11 +3556,12 @@ function transferSummary(getTransfers, name, { lead = () => true } = {}) {
       : active.every((d) => isPaused(d)) ? T('Paused') : T('Downloading · {0}', plural(active.length, 'download'));
     const soon = active.length === 1 && !attention ? playNowSoon(active[0]) : '';
     stateEl.textContent = soon ? `${label} · ${soon}` : label;
-    pct.textContent = progress == null ? '' : `${Math.floor(progress * 100)}%`;
+    pct.replaceChildren(...(progress == null ? [] : [String(Math.floor(progress * 100)), h('small', {}, '%')]));
     track.firstChild.style.width = progress == null ? '0%' : `${progress * 100}%`;
     if (progress == null) track.removeAttribute('aria-valuenow'); else track.setAttribute('aria-valuenow', String(Math.floor(progress * 100)));
     track.setAttribute('aria-valuetext', `${label}${progress == null ? '' : `, ${Math.floor(progress * 100)} percent`}`);
     el.classList.toggle('is-error', attention);
+    el.classList.toggle('is-paused', !attention && active.every((d) => isPaused(d)));
     const mine = active.filter((d) => d.canManage !== false && !transferAttention(d));
     const resume = mine.length > 0 && mine.every((d) => isPaused(d));
     pause.hidden = !mine.length;
