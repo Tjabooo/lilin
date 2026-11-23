@@ -24,6 +24,18 @@
   ]
 },
 {
+  "id": "2026-11-23-anime-posters-open-here",
+  "date": "2026-11-23",
+  "title": "Anime lists open shows here",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Anime posters open the show on Lilin",
+      "text": "On a profile's Anime section, and in a full MyAnimeList or AniList list, tapping a poster now opens that show's page here on Lilin instead of the anime site, so you can save it or start watching right away. Anything Lilin can't match still opens on the anime site."
+    }
+  ]
+},
+{
   "id": "2026-11-23-subtitle-reports",
   "date": "2026-11-23",
   "title": "Tell us when subtitles are off",

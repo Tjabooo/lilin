@@ -17,6 +17,15 @@
       }
     }
   },
+  "2026-11-23-anime-posters-open-here": {
+    "title": "Animelistor öppnar serier här",
+    "items": {
+      "Anime posters open the show on Lilin": {
+        "title": "Animeaffischer öppnar serien på Lilin",
+        "text": "I en profils Anime-del, och i en hel MyAnimeList- eller AniList-lista, öppnar en tryckning på en affisch nu seriens sida här på Lilin i stället för animesajten, så att du kan spara den eller börja titta direkt. Det Lilin inte hittar öppnas fortfarande på animesajten."
+      }
+    }
+  },
   "2026-11-23-subtitle-reports": {
     "title": "Säg till när undertexterna strular",
     "items": {

@@ -125,3 +125,29 @@ test('Show my full list: MyAnimeList statuses, kept only while it is on', async 
   assert.equal(anime.fullListOf(ebi.id, 'mal'), null, 'off forgets it');
   await assert.rejects(anime.setShowFull(ebi.id, 'anilist', true, { readers }), /No AniList/);
 });
+
+test('anime map: MyAnimeList and AniList entries carry the Lilin title they are, when the map knows it', async () => {
+  const map = await import('../src/anime-map.js');
+  map.use(map.compact([
+    { mal_id: 19, anilist_id: 19, themoviedb_id: { tv: 30981 } }, // Monster
+    { mal_id: 25777, anilist_id: 20958, themoviedb_id: { tv: 1429 } }, // a sequel season maps to the show
+    { mal_id: 199, anilist_id: 199, themoviedb_id: { movie: 129 } },
+    { mal_id: 5, anilist_id: 5 }, // no TMDB id: not kept
+  ]));
+  assert.equal(map.keyOf('https://myanimelist.net/anime/19/Monster'), 'tv:30981');
+  assert.equal(map.keyOf('https://anilist.co/anime/20958/'), 'tv:1429');
+  assert.equal(map.keyOf('https://anilist.co/anime/199'), 'movie:129');
+  assert.equal(map.keyOf('https://myanimelist.net/anime/5/Bebop'), null);
+  assert.equal(map.keyOf('https://myanimelist.net/manga/19/Monster'), null);
+  assert.equal(map.keyOf('https://evil.test/anime/19/'), null);
+
+  const { ebi } = setup();
+  const read = { mal: async (u, { full } = {}) => ({ username: u, stats: { completed: 1, episodes: 74, days: null, mean: 9 },
+    watching: [], finished: [{ title: 'Monster', cover: null, url: 'https://myanimelist.net/anime/19/Monster', progress: 74, episodes: 74, score: 9 }, { title: 'Bebop', cover: null, url: 'https://myanimelist.net/anime/5/Bebop', progress: 26, episodes: 26, score: 8 }],
+    full: full ? [{ t: 'Monster', c: null, u: 'https://myanimelist.net/anime/19/Monster', p: 74, e: 74, s: 9, st: 'completed', at: 1 }] : null }) };
+  await anime.link(ebi.id, 'mal', 'ebi_chan', { readers: read });
+  const [a] = profiles.view(ebi, ebi).anime;
+  assert.deepEqual(a.finished.map((e) => e.key || null), ['tv:30981', null]);
+  await anime.setShowFull(ebi.id, 'mal', true, { readers: read });
+  assert.equal(anime.fullListOf(ebi.id, 'mal').entries[0].key, 'tv:30981');
+});

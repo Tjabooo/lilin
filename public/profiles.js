@@ -416,7 +416,8 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   function animeList(a, many, ctx) {
     const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
     const facts = [[T('Completed'), a.stats.completed], [T('Episodes'), a.stats.episodes], a.stats.days ? [T('Days'), a.stats.days, 1] : null, a.stats.mean ? [T('Mean score'), a.stats.mean, 1] : null].filter(Boolean);
-    const tile = (e) => h('li', {}, h('a', { class: 'pf-poster pf-anime-tile', href: e.url || a.url, target: '_blank', rel: 'noopener noreferrer', title: e.title, 'aria-label': e.title },
+    const tile = (e) => h('li', {}, h('a', { class: 'pf-poster pf-anime-tile', href: e.url || a.url, target: '_blank', rel: 'noopener noreferrer', title: e.title, 'aria-label': e.title,
+      onclick: e.key ? (ev) => openAnimeTitle(ctx, e.key, ev) : null },
       e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
       (e.progress || e.score) && h('span', { class: 'pf-anime-badge' },
         e.progress && h('span', {}, e.episodes ? `${e.progress}/${e.episodes}` : T('Ep {0}', e.progress)),
@@ -429,6 +430,20 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       shelf(T('Finished lately'), a.finished || []),
       a.fullCount > 0 && h('button', { type: 'button', class: 'chip pf-anime-all', onclick: (e) => openAnimeList(ctx, a, e.currentTarget) },
         T('See the full list ({0})', Number(a.fullCount).toLocaleString(locale()))));
+  }
+
+  // An anime-list entry Lilin has (anime-map.js gave it a title key) opens its title page here, not the anime site;
+  // the link still goes to the site on a modifier click (new tab) or when TMDB doesn't answer.
+  async function openAnimeTitle(ctx, key, ev, fromSheet = false) {
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button > 0) return;
+    ev.preventDefault();
+    const link = ev.currentTarget;
+    if (link.getAttribute('aria-busy') === 'true') return;
+    link.setAttribute('aria-busy', 'true');
+    const [type, id] = key.split(':');
+    let card;
+    try { card = await api(`/api/card/${type}/${id}`); } catch { window.open(link.href, '_blank', 'noopener'); return; } finally { link.removeAttribute('aria-busy'); }
+    openTitle(card, link, ctx.nested || fromSheet);
   }
 
   // The whole list (Show my full list in the editor), in the picker sheet: a tab per status, sort, and a search box
@@ -454,7 +469,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     const more = h('div', { class: 'pf-al-more' });
     const row = (e) => {
       const pct = e.e && e.p ? Math.min(100, Math.round((e.p / e.e) * 100)) : 0;
-      return h('li', {}, h('a', { class: 'pf-al-row', href: e.u || list.url, target: '_blank', rel: 'noopener noreferrer' },
+      return h('li', {}, h('a', { class: 'pf-al-row', href: e.u || list.url, target: '_blank', rel: 'noopener noreferrer', onclick: e.key ? (ev) => openAnimeTitle(ctx, e.key, ev, true) : null },
         e.c ? h('img', { class: 'pf-al-cover', src: e.c, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-al-cover', 'aria-hidden': 'true' }),
         h('span', { class: 'pf-al-text' },
           h('span', { class: 'pf-al-title' }, e.t),

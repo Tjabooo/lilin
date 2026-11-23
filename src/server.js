@@ -43,6 +43,7 @@ import { ENV_FILE } from './env.js';
 import * as profileBanner from './profile-banner.js'; // profiles: banners people upload
 import * as profileHidden from './profile-hidden.js'; // hide from profile: titles kept off someone's profile
 import * as letterboxd from './letterboxd.js'; // profiles: a linked Letterboxd account's diary, stars and reviews
+import * as animeMap from './anime-map.js'; // MAL / AniList ids → Lilin titles (anime-list posters open the title page)
 import * as animeLists from './anime-lists.js'; // profiles: linked MyAnimeList / AniList accounts (the Anime section)
 import * as tasteMatch from './taste-match.js'; // taste: Taste match on a friend's profile
 import { titleStinger } from './stinger.js'; // stinger: a scene during or after a film's credits
@@ -306,6 +307,8 @@ startPlaybackGuard({
 });
 shows.initShows({ dataDir: DATA_DIR });
 anime.initAnime({ dataDir: DATA_DIR });
+animeMap.init({ cacheDir: CACHE_DIR }).catch(() => {});
+setInterval(() => animeMap.refresh().catch(() => {}), 6 * 3600 * 1000).unref();
 initCredits({ dataDir: DATA_DIR });
 // What's new (whats-new.js): update notes everyone sees once, and an id for the web app being served.
 whatsNew.initWhatsNew(path.join(APP_DIR, 'whats-new.json'));
@@ -4698,6 +4701,13 @@ async function handleApi(req, res, url) {
     const keys = String(url.searchParams.get('keys') || '').split(',').slice(0, 500);
     return sendJson(res, 200, { ratings: social.ratingsFor(user.id, keys) });
   }
+  // One title's card (a linked anime list's poster opens its title page: the list only knows the TMDB key).
+  { const m = /^\/api\/card\/(movie|tv)\/(\d{1,9})$/.exec(p);
+    if (m) {
+      const card = await profileCard(`${m[1]}:${m[2]}`);
+      if (!card) throw new HttpError(404, 'That title isn’t there.');
+      return sendJson(res, 200, card);
+    } }
   if (p === '/api/social/popular') {
     const type = ['movie', 'tv'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
     if (!TMDB_TOKEN && !TMDB_KEY) return sendJson(res, 200, { items: [] });

@@ -10,6 +10,7 @@
 //     list answers 400, the same as a name that doesn't exist.
 import { database } from './accounts.js';
 import { anilistQuery } from './anime.js';
+import { keyOf } from './anime-map.js'; // the Lilin title of an entry, so its poster opens the title page here
 
 export const SERVICES = ['anilist', 'mal'];
 export const NAMES = { anilist: 'AniList', mal: 'MyAnimeList' };
@@ -162,7 +163,7 @@ export function linksOf(userId) {
 export function fullListOf(userId, service) {
   const r = db().prepare('SELECT username, show_full, full FROM anime_links WHERE user_id = ? AND service = ?').get(userId, service);
   if (!r || !r.show_full || !r.full) return null;
-  return { service, name: NAMES[service], username: r.username, url: urlOf(service, r.username), entries: parse(r.full) || [] };
+  return { service, name: NAMES[service], username: r.username, url: urlOf(service, r.username), entries: (parse(r.full) || []).map(withKey('u')) };
 }
 
 // Show my full list on or off. On reads the list now (so it's there right away); off forgets the copy.
@@ -173,11 +174,15 @@ export async function setShowFull(userId, service, on, { readers = READERS, now 
   if (on) await sync(userId, service, { readers, now });
 }
 
+// key: the Lilin title ('tv:30981') of an entry whose anime-site page is at e[field], when the anime map knows it
+// (looked up as the profile is sent, so a newer map counts without reading the lists again).
+const withKey = (field) => (e) => { const key = keyOf(e[field]); return key ? { ...e, key } : e; };
+
 // What a profile shows: every linked list that has been read at least once. self adds the ones still failing, and why.
 export function viewOf(userId, { self = false } = {}) {
   return linksOf(userId).filter((l) => self || l.stats).map((l) => ({
     service: l.service, name: NAMES[l.service], username: l.username, url: l.url,
-    stats: l.stats || null, watching: l.watching || [], finished: l.finished || [], fullCount: l.fullCount,
+    stats: l.stats || null, watching: (l.watching || []).map(withKey('url')), finished: (l.finished || []).map(withKey('url')), fullCount: l.fullCount,
     ...(self ? { syncedAt: l.syncedAt, error: l.error, showFull: l.showFull } : {}),
   }));
 }
