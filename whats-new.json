@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-24-forced-subs",
+  "date": "2026-11-24",
+  "title": "Subtitles that show every line",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Full subtitles when a release mixes up its tracks",
+      "text": "Some downloads label their forced subtitles (only the odd shouted line or sign) as the main English file. Lilin now spots that and uses the full subtitles instead, keeping the short track as Forced."
+    }
+  ]
+},
+{
   "id": "2026-11-23-profile-synopsis",
   "date": "2026-11-23",
   "title": "Descriptions on profile titles",

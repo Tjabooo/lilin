@@ -1,4 +1,13 @@
 {
+  "2026-11-24-forced-subs": {
+    "title": "Undertexter som visar varje replik",
+    "items": {
+      "Full subtitles when a release mixes up its tracks": {
+        "title": "Hela undertexter när en release blandar ihop spåren",
+        "text": "Vissa nedladdningar märker sina tvingade undertexter (bara enstaka rop eller skyltar) som den vanliga engelska filen. Lilin känner nu igen det och använder hela undertexterna i stället, och behåller det korta spåret som Tvingade."
+      }
+    }
+  },
   "2026-11-23-profile-synopsis": {
     "title": "Beskrivningar på titlar från profiler",
     "items": {

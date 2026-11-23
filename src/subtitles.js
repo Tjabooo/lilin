@@ -167,9 +167,53 @@ export function localLanguages(file) {
   return found;
 }
 
+const cueCount = (p) => { try { return (fs.readFileSync(p, 'utf8').match(/-->/g) || []).length; } catch { return 0; } };
+
+// Some releases ship their forced track (only the odd shouted line or sign) as the plain "<stem>.en.srt" and the
+// real one as "<stem>.en.2.srt" / "<stem>.en.sdh.srt". When the plain file has under 100 lines and is a small fraction of a full sibling
+// (anime fansubs can split typesetting into thousands of cues, so a big ratio alone proves nothing),
+// it's renamed to "<stem>.<lang>.forced.srt" and the fullest sibling (non-SDH first) takes the plain name, so every
+// reader of sidecarPath() sees the full track. Checked once per file version.
+const promoted = new Map(); // exact path -> "size:mtime" already checked
+export function promoteFullSidecar(file, lang) {
+  const exact = sidecarPath(file, lang);
+  let st;
+  try { st = fs.statSync(exact); } catch { return exact; }
+  const key = `${st.size}:${st.mtimeMs}`;
+  if (promoted.get(exact) === key) return exact;
+  promoted.set(exact, key);
+  const dir = path.dirname(file);
+  const prefix = `${path.basename(file, path.extname(file))}.${lang}.`.toLowerCase();
+  let siblings = [];
+  try {
+    siblings = fs.readdirSync(dir).filter((e) => {
+      const l = e.toLowerCase();
+      return l.startsWith(prefix) && l.endsWith('.srt') && l !== path.basename(exact).toLowerCase() && !isAutoSidecar(e) && !/\.forced\./i.test(l);
+    });
+  } catch { return exact; }
+  if (!siblings.length) return exact;
+  const own = cueCount(exact);
+  const ranked = siblings.map((e) => ({ e, n: cueCount(path.join(dir, e)), sdh: /\.(sdh|cc|hi)\./i.test(e) }))
+    .filter((s) => own < 100 && s.n >= 50 && own < s.n * 0.25)
+    .sort((a, b) => (a.sdh - b.sdh) || (b.n - a.n));
+  if (!ranked.length) return exact;
+  const forced = `${stem(file)}.${lang}.forced.srt`;
+  if (fs.existsSync(forced)) return exact;
+  try {
+    fs.renameSync(exact, forced);
+    fs.renameSync(path.join(dir, ranked[0].e), exact);
+    console.log(`[subtitles] ${path.basename(exact)}: was a forced-only track (${own} lines), now ${ranked[0].e} (${ranked[0].n} lines)`);
+  } catch (e) {
+    if (!fs.existsSync(exact) && fs.existsSync(forced)) try { fs.renameSync(forced, exact); } catch {}
+    console.log(`[subtitles] ${path.basename(exact)}: forced-only swap failed: ${e.message}`);
+  }
+  try { const s2 = fs.statSync(exact); promoted.set(exact, `${s2.size}:${s2.mtimeMs}`); } catch {}
+  return exact;
+}
+
 export function findSidecar(file, lang) {
   const exact = sidecarPath(file, lang);
-  if (fs.existsSync(exact)) return exact;
+  if (fs.existsSync(exact)) return promoteFullSidecar(file, lang);
   const prefix = `${path.basename(file, path.extname(file))}.${lang}.`.toLowerCase();
   try {
     const hits = fs.readdirSync(path.dirname(file)).filter((e) => e.toLowerCase().startsWith(prefix) && e.toLowerCase().endsWith('.srt'));
