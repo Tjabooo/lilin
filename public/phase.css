@@ -441,6 +441,9 @@ html.ph-hidden .live-mark { animation-play-state: paused; }
    or both glyphs stack (pause bars behind the play triangle). Mouse: centre only while paused; touch: whenever the UI is up. */
 .player.ui-visible.is-paused .player-osd.is-icon { display: none; }
 @media not ((hover: hover) and (pointer: fine)) { .player.ui-visible .player-osd.is-icon { display: none; } }
+/* the flash itself wears the centre button's look: the same 56px hairline ring and outline glyph, not the old filled disc */
+.player-osd.is-icon > span { min-width: 56px; width: 56px; height: 56px; padding: 0; border-radius: 50%; background: rgb(0 0 0 / .4); box-shadow: inset 0 0 0 1px rgb(244 238 232 / .45); color: var(--ph-pb); }
+.player-osd.is-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
 
 /* the scale: a minor tick every 2.5 %, a major one every 10 % */
 
