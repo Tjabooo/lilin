@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-anime-full-list",
+  "date": "2026-11-23",
+  "title": "Your whole anime list",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Show your full anime list",
+      "text": "Linked MyAnimeList or AniList? Switch on Show my full list in Edit profile → Profile → Anime lists. Your Anime section gets a See the full list button where people can browse everything: watching, completed, on hold, dropped and plan to watch, sorted by recent, rating or A–Z. It's off unless you switch it on."
+    }
+  ]
+},
+{
   "id": "2026-11-23-liklok-taste",
   "date": "2026-11-23",
   "title": "LikLok learns what you like",

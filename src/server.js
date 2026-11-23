@@ -4982,13 +4982,14 @@ async function handleApi(req, res, url) {
       // again, /import takes the export zip (runs in the background; GET /import says how far it got).
       // Anime lists (anime-lists.js): { service, username } links and reads the list now, { service, username: '' }
       // unlinks, /sync { service } reads it again.
-      if (p === '/api/profiles/me/anime' || p === '/api/profiles/me/anime/sync') {
+      if (p === '/api/profiles/me/anime' || p === '/api/profiles/me/anime/sync' || p === '/api/profiles/me/anime/full') {
         if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
         if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
         const body = await readJson(req, 4 * 1024);
         const service = String(body.service || '');
         if (!animeLists.SERVICES.includes(service)) throw new HttpError(400, 'Pick AniList or MyAnimeList.');
         if (p.endsWith('/sync')) await animeLists.sync(user.id, service);
+        else if (p.endsWith('/full')) await animeLists.setShowFull(user.id, service, Boolean(body.on)); // { service, on }
         else if (!String(body.username ?? '').trim()) animeLists.unlink(user.id, service);
         else await animeLists.link(user.id, service, body.username);
         return sendJson(res, 200, await profileView(user, user));
@@ -5022,7 +5023,7 @@ async function handleApi(req, res, url) {
         if (p === '/api/profiles/me/letterboxd/import' && req.method === 'GET') return sendJson(res, 200, letterboxdImports.get(user.id) || { state: 'none' });
         throw new HttpError(404, 'Not found.');
       }
-      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked|banner))?$/)) && req.method === 'GET') {
+      if ((m = p.match(/^\/api\/profiles\/(?:(\d{1,9})|@([A-Za-z0-9._]{1,24}))(?:\/(diary|reviews|liked|banner|anime\/mal|anime\/anilist))?$/)) && req.method === 'GET') {
         const id = m[1] ? Number(m[1]) : profiles.idForHandle(m[2]);
         const target = id ? accounts.userById(id) : null;
         if (!target) throw new HttpError(404, 'No such profile.');
@@ -5047,6 +5048,12 @@ async function handleApi(req, res, url) {
           if (!shown('liked')) throw new HttpError(403, 'These likes are private.');
           const page = profiles.likedBy(target.id, 25, offset, sight !== 'self');
           return sendJson(res, 200, { liked: await withCards(page.slice(0, 24)), more: page.length > 24 });
+        }
+        // a linked anime list in full (anime-lists.js), when they chose to show it and the Anime section is on
+        if (m[3].startsWith('anime/')) {
+          const list = shown('anime') && animeLists.fullListOf(target.id, m[3].slice(6));
+          if (!list) throw new HttpError(404, 'This list isn’t shown.');
+          return sendJson(res, 200, list);
         }
         if (!shown('reviews')) throw new HttpError(403, 'These reviews are private.');
         const r = profiles.reviewsBy(target.id, { offset, limit: 20, others: sight !== 'self' });

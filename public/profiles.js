@@ -372,7 +372,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     anime(ctx, d) {
       const lists = (d.anime || []).filter((a) => a.stats);
       if (!lists.length) return d.me ? sectionBox('anime', T('Anime'), null, h('p', { class: 'pf-empty' }, T('Link your MyAnimeList or AniList in Edit profile and what you watch there shows up here.'))) : null;
-      return sectionBox('anime', T('Anime'), null, ...lists.map((a) => animeList(a, lists.length > 1)));
+      return sectionBox('anime', T('Anime'), null, ...lists.map((a) => animeList(a, lists.length > 1, ctx)));
     },
     reviews(ctx, d) {
       const list = ctx.allReviews?.reviews || d.reviews?.reviews || [];
@@ -413,7 +413,7 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     },
   };
 
-  function animeList(a, many) {
+  function animeList(a, many, ctx) {
     const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
     const facts = [[T('Completed'), a.stats.completed], [T('Episodes'), a.stats.episodes], a.stats.days ? [T('Days'), a.stats.days, 1] : null, a.stats.mean ? [T('Mean score'), a.stats.mean, 1] : null].filter(Boolean);
     const tile = (e) => h('li', {}, h('a', { class: 'pf-poster pf-anime-tile', href: e.url || a.url, target: '_blank', rel: 'noopener noreferrer', title: e.title, 'aria-label': e.title },
@@ -426,7 +426,51 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
       h('p', { class: 'pf-anime-from' }, h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, many ? T('{0} on {1}', a.username, a.name) : T('From {0}', a.name)), icon('chevron')),
       h('dl', { class: 'pf-anime-stats' }, facts.map(([label, v, digits]) => h('div', {}, h('dt', {}, label), h('dd', {}, n(v, digits))))),
       shelf(T('Watching now'), a.watching || []),
-      shelf(T('Finished lately'), a.finished || []));
+      shelf(T('Finished lately'), a.finished || []),
+      a.fullCount > 0 && h('button', { type: 'button', class: 'chip pf-anime-all', onclick: (e) => openAnimeList(ctx, a, e.currentTarget) },
+        T('See the full list ({0})', Number(a.fullCount).toLocaleString(locale()))));
+  }
+
+  // The whole list (Show my full list in the editor), in the picker sheet: a tab per status, sort, and a search box
+  // for long lists. Long tabs draw 150 rows at a time.
+  const ANIME_STATUS = [['watching', T('Watching now')], ['completed', T('Completed')], ['paused', T('On hold')], ['dropped', T('Dropped')], ['planning', T('Plan to watch')]];
+  async function openAnimeList(ctx, a, opener) {
+    opener.disabled = true;
+    let list;
+    try { list = await api(`/api/profiles/${ctx.data.person.id}/anime/${a.service}`); } catch (err) { toast(err.message); opener.disabled = false; return; }
+    opener.disabled = false;
+    const entries = list.entries || [];
+    const counts = Object.fromEntries(ANIME_STATUS.map(([k]) => [k, entries.filter((e) => e.st === k).length]));
+    const st = { tab: ANIME_STATUS.find(([k]) => counts[k])?.[0] || 'completed', sort: 'recent', q: '', limit: 150 };
+    const n = (v, digits = 0) => Number(v).toLocaleString(locale(), { maximumFractionDigits: digits });
+    const body = h('div', { class: 'pf-al' });
+    const search = h('input', { type: 'search', class: 'invite-note pf-al-search', placeholder: T('Search this list'), 'aria-label': T('Search this list'), autocomplete: 'off', enterkeyhint: 'search' });
+    search.addEventListener('input', () => { st.q = search.value.trim().toLowerCase(); st.limit = 150; draw(); });
+    const rows = h('ol', { class: 'pf-al-rows' });
+    const tabs = h('div', { class: 'pf-al-tabs' });
+    const sorts = h('div', { class: 'pf-al-sorts' });
+    const more = h('div', { class: 'pf-al-more' });
+    const row = (e) => h('li', {}, h('a', { class: 'pf-al-row', href: e.u || list.url, target: '_blank', rel: 'noopener noreferrer' },
+      e.c ? h('img', { src: e.c, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-al-blank', 'aria-hidden': 'true' }),
+      h('span', { class: 'pf-al-text' }, h('span', { class: 'pf-al-title' }, e.t),
+        h('span', { class: 'pf-al-meta' }, [e.p || e.e ? (e.e ? T('{0}/{1} eps', e.p || 0, e.e) : T('{0} eps', e.p)) : null].filter(Boolean).join(''))),
+      e.s ? h('span', { class: 'pf-al-score' }, `★ ${n(e.s, 1)}`) : null));
+    const draw = () => {
+      tabs.replaceChildren(segmented(ANIME_STATUS.filter(([k]) => counts[k]).map(([k, label]) => [k, `${label} ${n(counts[k])}`]), st.tab, (v) => { st.tab = v; st.limit = 150; draw(); }));
+      sorts.replaceChildren(segmented([['recent', T('Recent')], ['score', T('Top rated')], ['title', T('A–Z')]], st.sort, (v) => { st.sort = v; draw(); }));
+      let shown = entries.filter((e) => e.st === st.tab && (!st.q || e.t.toLowerCase().includes(st.q)));
+      if (st.sort === 'score') shown = [...shown].sort((x, y) => (y.s || 0) - (x.s || 0) || x.t.localeCompare(y.t));
+      else if (st.sort === 'title') shown = [...shown].sort((x, y) => x.t.localeCompare(y.t, locale()));
+      rows.replaceChildren(...shown.slice(0, st.limit).map(row));
+      if (!shown.length) rows.replaceChildren(h('li', { class: 'pf-empty' }, st.q ? T('Nothing on this list matches that.') : T('Nothing here.')));
+      more.replaceChildren(shown.length > st.limit ? h('button', { type: 'button', class: 'chip', onclick: () => { st.limit += 150; draw(); } }, T('Show more ({0} left)', n(shown.length - st.limit))) : '');
+    };
+    body.append(
+      h('h2', { id: 'picker-title', class: 'pf-al-heading' }, T('{0}’s anime', ctx.data.person.name)),
+      h('p', { class: 'pf-al-from' }, h('a', { href: list.url, target: '_blank', rel: 'noopener noreferrer' }, T('{0} on {1}', list.username, list.name)), icon('chevron')),
+      tabs, h('div', { class: 'pf-al-tools' }, entries.length > 30 && search, sorts), rows, more);
+    draw();
+    picker.open([body], opener, null, ctx.nested);
   }
 
   function reviewCard(ctx, r) {
@@ -756,6 +800,11 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
         h('p', { class: 'pf-lb-who' }, `${name}:`, ' ', h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.username)),
         h('p', { class: 'set-hint' }, a.error ? T('Last check failed: {0}', a.error)
           : a.stats ? T('{0} completed · last checked {1}', Number(a.stats.completed).toLocaleString(locale()), when) : ''),
+        h('div', { class: 'pf-ed-switch-row' },
+          h('span', { class: 'pf-ed-switch-text', id: `pf-al-${service}` }, h('strong', {}, T('Show my full list')),
+            h('span', {}, a.showFull ? T('Visitors can browse all of it, by status.') : T('Off: only what you’re watching and finished lately.'))),
+          h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(Boolean(a.showFull)), 'aria-labelledby': `pf-al-${service}`,
+            onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime/full', { service, on: !a.showFull }, a.showFull ? null : T('Your full {0} list is on your profile', name)) }, h('span', {}))),
         h('div', { class: 'pf-lb-row' },
           h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime/sync', { service }, T('Checked {0}', name)) }, icon('rewatch'), T('Check now')),
           h('button', { type: 'button', class: 'chip', onclick: (e) => run(e.currentTarget, '/api/profiles/me/anime', { service, username: '' }, T('{0} unlinked', name)) }, T('Unlink'))));

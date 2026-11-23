@@ -1,4 +1,13 @@
 {
+  "2026-11-23-anime-full-list": {
+    "title": "Hela din animelista",
+    "items": {
+      "Show your full anime list": {
+        "title": "Visa hela din animelista",
+        "text": "Har du kopplat MyAnimeList eller AniList? Slå på Visa hela min lista i Redigera profil → Profil → Animelistor. Din Anime-del får knappen Se hela listan där andra kan bläddra i allt: tittar på, klara, pausade, avbrutna och planerar att se, sorterat på senaste, betyg eller A–Ö. Det är av tills du slår på det."
+      }
+    }
+  },
   "2026-11-23-liklok-taste": {
     "title": "LikLok lär sig vad du gillar",
     "items": {

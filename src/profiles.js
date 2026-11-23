@@ -481,6 +481,6 @@ export function view(viewer, target) {
     // Their Letterboxd link for everyone who can see the page; how syncing goes only for themselves.
     letterboxd: !lb.linked ? (self ? { linked: false } : null) : self ? lb : { linked: true, username: lb.username, url: lb.url },
     // Linked anime lists (anime-lists.js): the header links always, what's on the lists only while Anime is on.
-    anime: animeLists.viewOf(target.id, { self }).map((a) => (on('anime') ? a : { service: a.service, name: a.name, username: a.username, url: a.url, stats: null, watching: [], finished: [] })),
+    anime: animeLists.viewOf(target.id, { self }).map((a) => (on('anime') ? a : { service: a.service, name: a.name, username: a.username, url: a.url, stats: null, watching: [], finished: [], fullCount: 0 })),
   };
 }

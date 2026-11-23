@@ -100,3 +100,28 @@ test('the Anime section slots in after Taste match on profiles saved before it',
   assert.deepEqual(s.map((x) => x.id).slice(4, 7), ['match', 'anime', 'reviews']);
   assert.equal(s.find((x) => x.id === 'anime').on, true);
 });
+
+test('Show my full list: MyAnimeList statuses, kept only while it is on', async () => {
+  const rows = [malRow({ anime_title: 'Frieren', status: 1, updated_at: 30 }), malRow({ anime_title: 'Mononoke', status: 2, score: 9, updated_at: 20 }),
+    malRow({ anime_title: 'Monster', status: 3 }), malRow({ anime_title: 'Bleach', status: 4 }), malRow({ anime_title: 'Lain', status: 6 }),
+    malRow({ anime_title: 'Eva', status: 2, is_rewatching: 1, updated_at: 40 })];
+  const got = await anime.readMal('ebi', { page: async () => rows, full: true });
+  assert.deepEqual(got.full.map((e) => [e.t, e.st]), [['Eva', 'watching'], ['Frieren', 'watching'], ['Mononoke', 'completed'], ['Monster', 'paused'], ['Bleach', 'dropped'], ['Lain', 'planning']]);
+  assert.equal(got.full[2].s, 9);
+  assert.equal((await anime.readMal('ebi', { page: async () => rows })).full, null, 'not asked = not read');
+
+  const { ebi } = setup();
+  let asked = null;
+  const readers = { mal: async (u, o = {}) => { asked = o.full; return anime.readMal(u, { page: async () => rows, full: o.full }); } };
+  await anime.link(ebi.id, 'mal', 'ebi_chan', { readers });
+  assert.equal(anime.fullListOf(ebi.id, 'mal'), null, 'off by default');
+  assert.equal(profiles.view(ebi, ebi).anime[0].fullCount, 0);
+  await anime.setShowFull(ebi.id, 'mal', true, { readers });
+  assert.equal(asked, true);
+  assert.equal(anime.fullListOf(ebi.id, 'mal').entries.length, 6);
+  assert.equal(profiles.view(ebi, ebi).anime[0].fullCount, 6);
+  assert.equal(profiles.view(ebi, ebi).anime[0].showFull, true);
+  await anime.setShowFull(ebi.id, 'mal', false, { readers });
+  assert.equal(anime.fullListOf(ebi.id, 'mal'), null, 'off forgets it');
+  await assert.rejects(anime.setShowFull(ebi.id, 'anilist', true, { readers }), /No AniList/);
+});
