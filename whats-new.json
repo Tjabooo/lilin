@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-queue-scroll",
+  "date": "2026-11-23",
+  "title": "Scroll the trending titles",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Swipe through the trending titles on your phone",
+      "text": "The row of trending titles under the big picture on Discover now scrolls sideways with your finger, so you can reach the ones past the edge. Tap one to jump to it."
+    }
+  ]
+},
+{
   "id": "2026-11-23-queue-fade",
   "date": "2026-11-23",
   "title": "Small fix on Discover",

@@ -1,4 +1,13 @@
 {
+  "2026-11-23-queue-scroll": {
+    "title": "Bläddra bland trendande titlar",
+    "items": {
+      "Swipe through the trending titles on your phone": {
+        "title": "Svep bland trendande titlar i mobilen",
+        "text": "Raden med trendande titlar under den stora bilden på Upptäck går nu att svepa i sidled med fingret, så du når de som ligger bortom kanten. Tryck på en för att hoppa till den."
+      }
+    }
+  },
   "2026-11-23-queue-fade": {
     "title": "Liten fix på Upptäck",
     "items": {

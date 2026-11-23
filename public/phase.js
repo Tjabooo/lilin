@@ -491,10 +491,13 @@ function queueTo(i) {
   queueFade();
   hairline();
 }
-// the queue's right edge fades only while more titles hide past it, so the last one isn't cut for nothing
+// the queue's edges fade only while titles hide past them, so the last one isn't cut for nothing
 function queueFade() {
   const q = BB.root && $('.bb-bulbs', BB.root);
-  if (q) q.classList.toggle('ph-more', q.scrollWidth - q.scrollLeft - q.clientWidth > 1);
+  if (!q) return;
+  if (!q._ph) { q._ph = true; q.addEventListener('scroll', queueFade, { passive: true }); }
+  q.classList.toggle('ph-less', q.scrollLeft > 1);
+  q.classList.toggle('ph-more', q.scrollWidth - q.scrollLeft - q.clientWidth > 1);
 }
 // the auto-advance timer (billboard.js advances every 9 s on wide screens, paused on hover/focus/hidden)
 function hairline() {

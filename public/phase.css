@@ -147,9 +147,15 @@ html.ph .view { animation: none; }
   .bb-foot { bottom: 26px; }
   .bb-copy { bottom: clamp(76px, 12vh, 136px); }
 }
-.bb-bulbs { gap: 18px; max-width: 100%; overflow: hidden; scroll-behavior: auto; }
-.bb-bulbs.ph-more {
-  -webkit-mask: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.bb-bulbs { gap: 18px; max-width: 100%; overflow-x: auto; overflow-y: hidden; scroll-behavior: auto; scrollbar-width: none;
+  overscroll-behavior-x: contain; touch-action: pan-x; --q-l: 0px; --q-r: 0px; }
+.bb-bulbs::-webkit-scrollbar { display: none; }
+/* the edges fade only while titles hide past them (phase.js queueFade); phones scroll the row sideways */
+.bb-bulbs.ph-less { --q-l: 40px; }
+.bb-bulbs.ph-more { --q-r: 40px; }
+.bb-bulbs:is(.ph-less, .ph-more) {
+  -webkit-mask: linear-gradient(90deg, transparent, #000 var(--q-l), #000 calc(100% - var(--q-r)), transparent);
+  mask: linear-gradient(90deg, transparent, #000 var(--q-l), #000 calc(100% - var(--q-r)), transparent); }
 .bb-bulb.ph-q-on { width: auto; height: 28px; flex: none; display: block; border-radius: 6px; padding: 0; }
 .bb-bulb.ph-q-on::before { display: none; }
 .ph-q { position: relative; display: block; padding: 0 0 8px; font: 750 11.5px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
