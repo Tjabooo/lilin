@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-skip-recap-gaps",
+  "date": "2026-11-23",
+  "title": "Skip recap on more episodes",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Skip recap finds more recaps",
+      "text": "Some \"Previously on\" recaps open with scenes from older episodes, and Skip recap used to miss them entirely (The Rings of Power S2 E4, for one). Those episodes get the button now."
+    }
+  ]
+},
+{
   "id": "2026-11-23-anime-full-list",
   "date": "2026-11-23",
   "title": "Your whole anime list",

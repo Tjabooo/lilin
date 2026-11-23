@@ -93,6 +93,40 @@ export function creditsGuessFromSrt(srt, duration) {
   return creditsGuess(lastDialogueEnd(srt), duration);
 }
 
+// The audio match above finds the longest stretch of music two endings share, which is the start of the credits
+// only when the whole credits song repeats. Shows that change it every episode and share only its last bars or the
+// studio logos (Rings of Power) matched almost a minute into the credits, and the subtitle guess can be early. So
+// the time found is checked against the picture: credits are light text on black, frames that are dark and nearly
+// colourless. frames: [{ t, y, s }] keyframes with average luma and saturation (8-bit). The credits-looking stretch
+// that holds the time found (or starts soon after it) gives the start, when it lasts long enough to be credits.
+const ROLL_Y = 48; // average luma: black with text, not a dark scene
+const ROLL_SAT = 3; // average saturation: white or grey text, not a coloured night scene
+const ROLL_GAP = 6; // seconds of other frames (a logo, a sting) the credits may break for
+const ROLL_MIN = 30; // seconds: a shorter dark stretch is a fade or a title card
+export const ROLL_BACK = 240; // how far before the time found the credits may start
+export const ROLL_AHEAD = 120; // how far after it
+export const creditsLook = (f) => f.y < ROLL_Y && f.s < ROLL_SAT;
+export function creditsRollStart(frames, at, duration) {
+  if (!Array.isArray(frames) || !frames.length || !Number.isFinite(at) || !Number.isFinite(duration)) return null;
+  const sorted = [...frames].sort((a, b) => a.t - b.t);
+  const runs = [];
+  let run = null;
+  for (const f of sorted) {
+    if (!creditsLook(f)) continue;
+    if (run && f.t - run.end <= ROLL_GAP) run.end = f.t;
+    else runs.push(run = { start: f.t, end: f.t });
+  }
+  const lastT = sorted[sorted.length - 1].t;
+  const found = runs.find((r) => r.start - ROLL_GAP <= at && at <= r.end + ROLL_GAP)
+    || runs.find((r) => r.start > at && r.start - at <= ROLL_AHEAD);
+  if (!found) return null;
+  // Long enough to be credits, or still running where the look stopped.
+  const long = found.end - found.start >= ROLL_MIN || (found.end >= lastT - ROLL_GAP && found.end - found.start >= ROLL_MIN / 2);
+  if (!long) return null;
+  const start = Math.ceil(found.start * 10) / 10;
+  return start > duration / 2 && start < duration - 1 && start >= at - ROLL_BACK && start <= at + ROLL_AHEAD ? start : null;
+}
+
 // The opening titles (Skip intro) are found the same two ways: an opening chapter, or the theme song
 // an episode shares with its season neighbours in the first minutes. Uncertain gives null: no button.
 export const INTRO_MIN = 10; // seconds: shorter openings are a title card, not worth a button
@@ -355,11 +389,22 @@ const RECAP_CLIP_MAX = 30;
 export function recapSpan(clips, { intro = null, said = false } = {}) {
   const limit = intro ? intro.start : Infinity;
   const list = clips.filter((c) => c.s < limit).map((c) => ({ s: c.s, e: Math.min(c.e, limit) })).sort((x, y) => x.s - y.s);
+  // A run may begin at any clip in the first RECAP_LEAD seconds: a recap's first lines are often from an
+  // episode older than the two compared, which leaves a hole that splits it from the rest.
+  for (let i = 0; i < list.length && list[i].s <= RECAP_LEAD; i++) {
+    const found = recapRun(list, i, intro, said);
+    if (found) return found;
+    if (list[i].e - list[i].s > RECAP_CLIP_MAX) break;
+  }
+  return null;
+}
+function recapRun(list, first, intro, said) {
   const run = [];
   let end = -Infinity;
-  for (const c of list) {
+  for (let i = first; i < list.length; i++) {
+    const c = list[i];
     if (c.e - c.s > RECAP_CLIP_MAX) break;
-    if (run.length ? c.s - end > RECAP_GAP : c.s > RECAP_LEAD) break;
+    if (run.length && c.s - end > RECAP_GAP) break;
     run.push(c);
     end = Math.max(end, c.e);
   }
@@ -370,8 +415,11 @@ export function recapSpan(clips, { intro = null, said = false } = {}) {
     if (c.s >= reach) { pieces++; matched += c.e - c.s; } else if (c.e > reach) matched += c.e - reach;
     reach = Math.max(reach, c.e);
   }
-  const start = run[0].s;
-  if (end - start < RECAP_MIN || end - start > RECAP_MAX || matched < 10 || matched < (end - start) * 0.25 || pieces < (said ? 2 : 3)) return null;
+  if (end - run[0].s < RECAP_MIN || end - run[0].s > RECAP_MAX || matched < 10 || matched < (end - run[0].s) * 0.25 || pieces < (said ? 2 : 3)) return null;
+  // The clips just before a recap that qualifies belong to it across a longer hole (lines from older episodes).
+  let start = run[0].s;
+  for (let i = first - 1; i >= 0 && start - list[i].e <= RECAP_GAP * 2 && list[i].e - list[i].s <= RECAP_CLIP_MAX; i--) start = Math.min(start, list[i].s);
+  if (end - start > RECAP_MAX) return null;
   // Shown from the very start when only a logo or "Previously on" comes before it; skips to the end of the last
   // clip, or straight to the opening titles when they follow within seconds (the tail of the last clip).
   const to = intro && intro.start - end <= 5 ? intro.start : end - 0.5; // a second judged as matched may run a moment past the clip
@@ -411,10 +459,47 @@ function decodeAudio(file, start, seconds, limit = 120000) {
   return task;
 }
 
+// Average luma and saturation of the keyframes between start and start + seconds, normalised to 8 bits. Only
+// keyframes are decoded, so even a 4K remux takes seconds.
+function decodeLooks(file, start, seconds, limit = 120000) {
+  const task = busy.then(() => new Promise((resolve) => {
+    const args = ['-v', 'error', '-nostdin', '-skip_frame', 'nokey', '-ss', start.toFixed(3), '-i', file, '-t', seconds.toFixed(3),
+      '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', 'scale=160:-2,format=yuv420p,signalstats,metadata=print:file=-', '-f', 'null', '-'];
+    let child;
+    try { child = spawn(FFMPEG, args, { windowsHide: true }); } catch { resolve(null); return; }
+    trackChild(child, FFMPEG, args, 'credits');
+    background(child);
+    let out = '';
+    const timer = setTimeout(() => child.kill(), limit);
+    child.stdout.on('data', (d) => { if (out.length < 4e6) out += d; });
+    child.stderr.resume();
+    child.on('error', () => { clearTimeout(timer); resolve(null); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) { resolve(null); return; }
+      resolve(parseLooks(out, start));
+    });
+  }));
+  busy = task.catch(() => {});
+  return task;
+}
+// ffmpeg's metadata print: "frame:N pts:P pts_time:T" then "lavfi.signalstats.YAVG=…" lines. Timestamps restart
+// at 0 after -ss on most files; ones that keep the original times are recognised by being past the start.
+export function parseLooks(out, start) {
+  const frames = [];
+  for (const block of String(out).split(/(?=frame:\s*\d+)/)) {
+    const t = /pts_time:\s*(-?[\d.]+)/.exec(block), y = /YAVG=([\d.]+)/.exec(block), sat = /SATAVG=([\d.]+)/.exec(block);
+    if (t && y && sat) frames.push({ t: Number(t[1]), y: Number(y[1]), s: Number(sat[1]) });
+  }
+  const shift = frames.length && start > 60 && frames[0].t >= start - 30 ? 0 : start;
+  return frames.map((f) => ({ ...f, t: f.t + shift }));
+}
+
 // ---- per-file facts, cached on disk ----
 // files[path] = { key, duration, chapter, intro, recap, vs: { siblingKey: creditsStart | null },
 //   ivs: { siblingKey: { start, end } | null }, ifar: the same, from the longer search,
-//   rvs: { siblingKey: [{ s, e }] clips of the opening heard in that earlier episode (seconds) } }  (v: what the probe recorded; older entries are probed again)
+//   rvs: { siblingKey: [{ s, e }] clips of the opening heard in that earlier episode (seconds) },
+//   roll: { time found: where the credits roll in the picture starts | null (creditsRollStart) } }  (v: what the probe recorded; older entries are probed again)
 // siblingKey = the sibling's tok and its path without the extension. tok is the file's identity: its key
 // when first seen, and kept by the MP4 copy that takes over from its original (see twinOf), so neither the
 // episode nor its neighbours have to compare their audio again when originals are removed.
@@ -431,7 +516,7 @@ export function initCredits({ dataDir } = {}) {
     const saved = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
     if (saved && typeof saved.files === 'object') state = { files: saved.files };
   } catch { /* first run */ }
-  for (const entry of Object.values(state.files)) { addIdentity(entry); entry.ifar ||= {}; entry.rvs ||= {}; }
+  for (const entry of Object.values(state.files)) { addIdentity(entry); entry.ifar ||= {}; entry.rvs ||= {}; entry.roll ||= {}; }
 }
 
 const stem = (file) => file.slice(0, file.length - path.extname(file).length);
@@ -489,13 +574,13 @@ async function facts(file) {
   if (hit?.key === key && hit.probed && hit.v === FACTS) { hit.at = Date.now(); return hit; }
   if (probing.has(file)) return probing.get(file);
   const task = probe(file).then((info) => {
-    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, recap: null, vs: {}, ivs: {}, ifar: {}, rvs: {} }; // not cached: retried next time
+    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, recap: null, vs: {}, ivs: {}, ifar: {}, rvs: {}, roll: {} }; // not cached: retried next time
     const same = hit?.key === key; // only the probe got older: keep the comparisons already made
     const twin = !same && info.duration ? twinOf(file, info.duration) : null;
     const entry = { key, tok: same && hit.tok || twin?.entry.tok || key, duration: info.duration,
       chapter: info.chapter ?? twin?.entry.chapter ?? null, intro: info.intro ?? twin?.entry.intro ?? null, recap: info.recap ?? twin?.entry.recap ?? null,
       vs: same && hit.vs || { ...twin?.entry.vs }, ivs: same && hit.ivs || { ...twin?.entry.ivs }, ifar: same && hit.ifar || { ...twin?.entry.ifar },
-      rvs: same && hit.rvs || { ...twin?.entry.rvs }, probed: true, v: FACTS, at: Date.now() };
+      rvs: same && hit.rvs || { ...twin?.entry.rvs }, roll: same && hit.roll || { ...twin?.entry.roll }, probed: true, v: FACTS, at: Date.now() };
     state.files[file] = entry;
     if (twin && !fs.existsSync(twin.file)) delete state.files[twin.file];
     save();
@@ -545,7 +630,7 @@ async function compare(fileA, a, fileB, b) {
 }
 
 // file: the episode. siblings: other episodes of the same season, nearest first (at most two are used).
-export async function creditsFor(file, siblings = []) {
+export async function creditsFor(file, siblings = [], { wait = Infinity } = {}) {
   const entry = await facts(file);
   if (!entry) return null;
   if (entry.chapter != null || !entry.duration || entry.duration < 300) return entry.chapter ?? null;
@@ -559,14 +644,41 @@ export async function creditsFor(file, siblings = []) {
     if (entry.vs[id] != null) found.push(entry.vs[id]);
   }
   // Two siblings that disagree: the later start is the safe one.
-  return found.length ? Math.max(...found) : null;
+  return found.length ? checkRoll(file, entry, Math.max(...found), wait) : null;
+}
+
+// The time found, moved to where the credits roll starts in the picture (creditsRollStart); looked at once per
+// file and time. wait: how long a caller holds on for the first look, which carries on and counts next time.
+const rolling = new Map();
+async function checkRoll(file, entry, at, wait = Infinity) {
+  const id = at.toFixed(1);
+  entry.roll ||= {};
+  if (id in entry.roll) return entry.roll[id] ?? at;
+  const job = `${file}|${id}`;
+  let task = rolling.get(job);
+  if (!task) {
+    const from = Math.max(entry.duration / 2, at - ROLL_BACK - 10), to = Math.min(entry.duration, at + ROLL_AHEAD + 40);
+    task = decodeLooks(file, from, to - from).then((frames) => {
+      if (!frames) return at; // couldn't decode: try again another time
+      entry.roll[id] = creditsRollStart(frames, at, entry.duration);
+      save();
+      return entry.roll[id] ?? at;
+    }).catch(() => at).finally(() => rolling.delete(job));
+    rolling.set(job, task);
+  }
+  if (!Number.isFinite(wait)) return task;
+  let timer;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(at), wait); });
+  return Promise.race([task, late]).finally(() => clearTimeout(timer));
 }
 
 // The guess above for one episode, from its English subtitles beside it (or any other language there).
-export async function creditsGuessFor(file, sidecar) {
+export async function creditsGuessFor(file, sidecar, { wait = Infinity } = {}) {
   const entry = await facts(file);
   if (!entry?.duration || !sidecar) return null;
-  try { return creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
+  let guess;
+  try { guess = creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
+  return guess == null ? null : checkRoll(file, entry, guess, wait);
 }
 
 // What's already known about a video for Live TV: its length, the opening titles and where the credits start.
@@ -579,7 +691,8 @@ export async function knownTimes(file, siblings = []) {
     return peer?.tok ? entry[part]?.[siblingKey(other, peer)] : undefined;
   }).filter((v) => v != null);
   const ends = stored('vs');
-  const creditsAt = entry.chapter ?? (ends.length ? Math.max(...ends) : null);
+  const found = ends.length ? Math.max(...ends) : null;
+  const creditsAt = entry.chapter ?? (found != null ? entry.roll?.[found.toFixed(1)] ?? found : null);
   const far = stored('ifar');
   const intro = entry.intro || agreeIntro(stored('ivs')) || (far.length === 2 ? agreeIntro(far) : null);
   return { duration: entry.duration, intro, creditsAt };

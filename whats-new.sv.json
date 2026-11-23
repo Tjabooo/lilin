@@ -1,4 +1,13 @@
 {
+  "2026-11-23-skip-recap-gaps": {
+    "title": "Hoppa över sammanfattning på fler avsnitt",
+    "items": {
+      "Skip recap finds more recaps": {
+        "title": "Hoppa över sammanfattning hittar fler",
+        "text": "Vissa \"Tidigare i\"-sammanfattningar börjar med scener från äldre avsnitt, och då missade Hoppa över sammanfattning dem helt (The Rings of Power S2 A4, till exempel). De avsnitten får knappen nu."
+      }
+    }
+  },
   "2026-11-23-anime-full-list": {
     "title": "Hela din animelista",
     "items": {

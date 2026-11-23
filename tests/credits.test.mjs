@@ -354,6 +354,15 @@ test('recap rules: a montage near the start, cut at the opening titles; a replay
   assert.deepEqual(recapSpan([...montage, { s: 95, e: 99 }]), { start: 0, end: 29.5 });
 });
 
+test('recap rules: a hole from lines of an older episode does not split the recap', () => {
+  // Rings of Power S02E04: two early clips, 15 s unmatched (from an episode not compared), then the rest.
+  const clips = [{ s: 1, e: 3.1 }, { s: 13.3, e: 14.3 }, { s: 29.6, e: 30.7 }, { s: 31.7, e: 32.7 }, { s: 33.7, e: 36.8 },
+    { s: 38.8, e: 42.9 }, { s: 50.1, e: 51.1 }, { s: 52.1, e: 56.2 }, { s: 65.4, e: 67.4 }, { s: 68.5, e: 74.6 }, { s: 75.6, e: 90.9 }, { s: 182.9, e: 190 }];
+  assert.deepEqual(recapSpan(clips, { intro: { start: 101.1, end: 188.2 } }), { start: 0, end: 90.4 });
+  // A later run still has to start near the beginning.
+  assert.equal(recapSpan([{ s: 1, e: 2 }, { s: 80, e: 84 }, { s: 86, e: 92 }, { s: 94, e: 100 }]), null);
+});
+
 test('recap chapters and a "Previously on" line', () => {
   const at = (title, start, end) => recapChapter({ format: { duration: '2400' }, chapters: [{ start_time: String(start), end_time: String(end), tags: { title } }] });
   assert.deepEqual(at('Recap', 0, 62), { start: 0, end: 62 });
