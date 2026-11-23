@@ -50,6 +50,69 @@ const keyOf = (c) => (c?.key || (c?.type && c?.id != null ? `${c.type}:${c.id}` 
 const small = (url, size = 'w185') => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, `/t/p/${size}/`) : null);
 const big = (url) => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w1280/') : null);
 
+// Drag to reorder an <ol> whose rows match `list` one to one: grab a row by its .pf-grip (or anywhere that isn't a
+// control, with a mouse) and drop it where it belongs. The other rows slide out of the way while it moves, and the
+// sheet scrolls when the row is held near its top or bottom. On drop `list` is reordered and done() redraws.
+// The up/down buttons stay for keyboards and screen readers. Also used by lists.js for a list's titles.
+export function dragSort(ol, list, done) {
+  ol.addEventListener('pointerdown', (e) => {
+    const li = e.target.closest('li');
+    if (!li || li.parentElement !== ol || e.button > 0 || ol.classList.contains('pf-sorting')) return;
+    if (!e.target.closest('.pf-grip') && (e.pointerType !== 'mouse' || e.target.closest('button, input, a, label, select'))) return;
+    const rows = [...ol.children];
+    const from = rows.indexOf(li);
+    if (from < 0 || rows.length < 2) return;
+    e.preventDefault();
+    const box = ol.getBoundingClientRect();
+    const slots = rows.map((r) => { const b = r.getBoundingClientRect(); return { top: b.top - box.top, h: b.height }; });
+    const own = slots[from];
+    const grab = e.clientY - box.top - own.top;
+    const lowest = slots[slots.length - 1].top + slots[slots.length - 1].h - own.h;
+    const scroller = ol.closest('.sheet') || document.scrollingElement;
+    let y = e.clientY;
+    let to = from;
+    let frame = 0;
+    try { li.setPointerCapture(e.pointerId); } catch { /* fine without */ }
+    ol.classList.add('pf-sorting');
+    li.classList.add('pf-lifted');
+    const place = () => {
+      const at = Math.max(0, Math.min(lowest, y - ol.getBoundingClientRect().top - grab));
+      li.style.transform = `translateY(${at - own.top}px)`;
+      const mid = at + own.h / 2;
+      to = slots.findIndex((s) => mid < s.top + s.h);
+      if (to < 0) to = slots.length - 1;
+      rows.forEach((r, i) => {
+        if (r === li) return;
+        const shift = from < to && i > from && i <= to ? -own.h : from > to && i >= to && i < from ? own.h : 0;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+    // Held near the edge of the scrolling sheet: scroll it, a little faster the closer the finger is.
+    const tick = () => {
+      const view = scroller === document.scrollingElement ? { top: 0, bottom: innerHeight } : scroller.getBoundingClientRect();
+      const edge = 56;
+      const by = y < view.top + edge ? -Math.ceil((view.top + edge - y) / 6) : y > view.bottom - edge ? Math.ceil((y - view.bottom + edge) / 6) : 0;
+      if (by) { scroller.scrollTop += by; place(); }
+      frame = requestAnimationFrame(tick);
+    };
+    const moveTo = (ev) => { y = ev.clientY; place(); };
+    const drop = () => {
+      cancelAnimationFrame(frame);
+      li.removeEventListener('pointermove', moveTo); li.removeEventListener('pointerup', drop); li.removeEventListener('pointercancel', drop);
+      ol.classList.remove('pf-sorting');
+      li.classList.remove('pf-lifted');
+      for (const r of rows) r.style.transform = '';
+      if (to !== from) { const [x] = list.splice(from, 1); list.splice(to, 0, x); done(); }
+    };
+    li.addEventListener('pointermove', moveTo);
+    li.addEventListener('pointerup', drop);
+    li.addEventListener('pointercancel', drop);
+    place();
+    frame = requestAnimationFrame(tick);
+  });
+  return ol;
+}
+
 export function createProfiles({ h, api, jsonPost, toast, icon, people, me, openTitle, overlay, picker, copyText, friendsChanged = () => {},
   changePicture, removePicture, saveName, mineChanged = () => {}, lists = () => null, toneOf = () => Promise.resolve(null) }) {
   const locale = () => appLocale;
@@ -1268,12 +1331,13 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
           icon(k === 'public' ? 'globe' : k === 'friends' ? 'friends' : 'lock'),
           h('span', { class: 'pf-ed-vis-text' }, h('strong', {}, label), h('span', {}, VISIBILITY_HINTS[k])))))),
         titled(T('Sections'),
-          hint(T('Choose what shows and in which order. Empty sections stay hidden from others.')),
-          h('ol', { class: 'pf-order' }, draft.sections.map((s, i) => h('li', { class: s.on ? '' : 'off' },
+          hint(T('Choose what shows and in which order: drag a section by its handle. Empty sections stay hidden from others.')),
+          dragSort(h('ol', { class: 'pf-order pf-order-drag' }, draft.sections.map((s, i) => h('li', { class: s.on ? '' : 'off' },
+            h('span', { class: 'pf-grip', title: T('Drag to move'), 'aria-hidden': 'true' }),
             h('button', { type: 'button', role: 'switch', class: 'pf-switch', 'aria-checked': String(s.on), 'aria-label': SECTION_NAMES[s.id], onclick: () => { s.on = !s.on; repaint(); redraw(); } }, h('span', {})),
             h('span', { class: 'pf-order-name' }, SECTION_NAMES[s.id]),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} up', SECTION_NAMES[s.id]), disabled: i === 0, onclick: () => { move(draft.sections, i, -1); repaint(); redraw(); } }, icon('up')),
-            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', SECTION_NAMES[s.id]), disabled: i === draft.sections.length - 1, onclick: () => { move(draft.sections, i, 1); repaint(); redraw(); } }, icon('down')))))),
+            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', SECTION_NAMES[s.id]), disabled: i === draft.sections.length - 1, onclick: () => { move(draft.sections, i, 1); repaint(); redraw(); } }, icon('down'))))), draft.sections, () => { repaint(); redraw(); })),
         titled(T('Numbers'),
           hint(T('Pick up to four to show under your name.')),
           h('div', { class: 'pf-stat-picks', role: 'group', 'aria-label': T('Numbers') }, STAT_KEYS.map((k) => {
@@ -1417,59 +1481,90 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   }
 
   function favoritesEditor(ctx, draft, { repaint, redraw }) {
-    let target = null; // the slot being filled
+    // Tap a poster to select it: a bar under the four slots moves or removes it, and whatever you pick next (search
+    // or anime strip) takes its place. Nothing selected = picks fill the next empty slot.
+    if (draft.favSel != null && !draft.favorites[draft.favSel]) draft.favSel = null;
+    const sel = draft.favSel;
+    const chosen = sel != null ? draft.favorites[sel] : null;
+    const done = () => { repaint(); redraw(); };
+    const focusSearch = () => document.querySelector('.pf-fav-editor .pf-search input')?.focus();
     const place = (card) => {
       const key = keyOf(card);
+      let slot = draft.favSel == null ? draft.favorites.length : draft.favSel;
       const at = draft.favorites.findIndex((f) => keyOf(f) === key);
-      if (at >= 0 && at !== target) draft.favorites.splice(at, 1);
-      const slot = target == null ? draft.favorites.length : target;
+      if (at >= 0 && at !== slot) { draft.favorites.splice(at, 1); if (at < slot) slot--; }
       if (slot < draft.favorites.length) draft.favorites[slot] = { ...card, key };
       else if (draft.favorites.length < 4) draft.favorites.push({ ...card, key });
-      else { toast(T('Four favourites at most: remove one first.')); return false; }
-      target = null;
+      else { toast(T('Four favourites at most: tap one to swap or remove it.')); return false; }
+      draft.favSel = null;
       return true;
     };
-    const search = titleSearch({ placeholder: T('Search films and shows'), onPick: (card) => { if (place(card)) { repaint(); redraw(); } } });
+    const search = titleSearch({ placeholder: chosen ? T('Swap {0} for…', chosen.title) : T('Search films and shows'), onPick: (card) => { if (place(card)) done(); } });
     const cardOf = (key) => { const [type, id] = key.split(':'); return api(`/api/card/${type}/${id}`); };
     // From your anime favourites: tap one to put it in (or take it out); Fill the empty slots takes them in order.
     const anime = animeFavorites(ctx);
     const has = (key) => draft.favorites.some((f) => keyOf(f) === key);
     const pickAnime = async (e, el) => {
-      if (has(e.key)) { draft.favorites.splice(draft.favorites.findIndex((f) => keyOf(f) === e.key), 1); repaint(); redraw(); return; }
-      if (target == null && draft.favorites.length >= 4) { toast(T('Four favourites at most: remove one first.')); return; }
+      if (has(e.key)) {
+        const at = draft.favorites.findIndex((f) => keyOf(f) === e.key);
+        if (chosen && at !== sel) [draft.favorites[at], draft.favorites[sel]] = [draft.favorites[sel], draft.favorites[at]]; // both in: swap places
+        else draft.favorites.splice(at, 1);
+        draft.favSel = null;
+        done();
+        return;
+      }
+      if (sel == null && draft.favorites.length >= 4) { toast(T('Four favourites at most: tap one to swap or remove it.')); return; }
       el.setAttribute('aria-busy', 'true');
-      try { if (place({ ...(await cardOf(e.key)), key: e.key })) { repaint(); redraw(); } } catch { toast(T('Couldn’t find {0} right now. Try again in a bit.', e.title)); } finally { el.removeAttribute('aria-busy'); }
+      try { if (place({ ...(await cardOf(e.key)), key: e.key })) done(); } catch { toast(T('Couldn’t find {0} right now. Try again in a bit.', e.title)); } finally { el.removeAttribute('aria-busy'); }
     };
     const fill = async (btn) => {
       const todo = anime.filter((e) => !has(e.key)).slice(0, 4 - draft.favorites.length);
       if (!todo.length) { toast(draft.favorites.length >= 4 ? T('All four slots are taken: remove one first.') : T('They’re all in already.')); return; }
       btn.disabled = true;
       const cards = await Promise.all(todo.map((e) => cardOf(e.key).then((c) => ({ ...c, key: e.key }), () => null)));
-      target = null;
+      draft.favSel = null;
       for (const c of cards) if (c && draft.favorites.length < 4 && !has(c.key)) draft.favorites.push(c);
       if (cards.some((c) => !c)) toast(T('Some of them couldn’t be found right now.'));
       btn.disabled = false;
-      repaint(); redraw();
+      done();
     };
     const fromAnime = anime.length > 0 && h('div', { class: 'pf-fav-anime' },
       h('div', { class: 'pf-fav-anime-head' },
         h('p', { class: 'pf-ed-label' }, T('From your anime favourites')),
-        draft.favorites.length < 4 && h('button', { type: 'button', class: 'chip', onclick: (ev) => fill(ev.currentTarget) }, T('Fill the empty slots'))),
+        draft.favorites.length < 4 && !chosen && h('button', { type: 'button', class: 'chip', onclick: (ev) => fill(ev.currentTarget) }, T('Fill the empty slots'))),
       h('ul', { class: 'pf-strip pf-fav-anime-strip' }, anime.map((e) => h('li', {},
-        h('button', { type: 'button', class: 'pf-poster', title: e.title, 'aria-label': has(e.key) ? T('Remove {0}', e.title) : T('Add {0}', e.title), 'aria-pressed': String(has(e.key)),
-          onclick: (ev) => pickAnime(e, ev.currentTarget) },
+        h('button', { type: 'button', class: 'pf-poster', title: e.title,
+          'aria-label': chosen && keyOf(chosen) !== e.key ? T('Swap {0} for {1}', chosen.title, e.title) : has(e.key) ? T('Remove {0}', e.title) : T('Add {0}', e.title),
+          'aria-pressed': String(has(e.key)), onclick: (ev) => pickAnime(e, ev.currentTarget) },
           e.cover ? h('img', { src: e.cover, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }) : h('span', { class: 'pf-poster-title' }, e.title),
           has(e.key) && h('span', { class: 'pf-fav-anime-on', 'aria-hidden': 'true' }, icon('check')))))));
-    const slots = h('ol', { class: 'pf-fav-edit' }, Array.from({ length: 4 }, (_, i) => {
+    const n = draft.favorites.length;
+    const slots = h('ol', { class: `pf-fav-edit${chosen ? ' has-sel' : ''}` }, Array.from({ length: 4 }, (_, i) => {
       const f = draft.favorites[i];
-      const pick = h('button', { type: 'button', class: `pf-poster${f ? '' : ' pf-slot'}`, 'aria-label': f ? T('Replace {0}', f.title) : T('Pick a favourite'),
-        onclick: () => { target = f ? i : null; search.focus(); } },
-        f?.poster ? h('img', { src: small(f.poster), alt: '' }) : f ? h('span', { class: 'pf-poster-title' }, f.title) : icon('plus'));
-      return h('li', {}, pick,
-        f && h('button', { type: 'button', class: 'pf-x', 'aria-label': T('Remove {0}', f.title), onclick: () => { draft.favorites.splice(i, 1); repaint(); redraw(); } }, icon('close')),
-        f && i > 0 && h('button', { type: 'button', class: 'pf-x pf-left', 'aria-label': T('Move {0} left', f.title), onclick: () => { move(draft.favorites, i, -1); repaint(); redraw(); } }, icon('back')));
+      const isSel = !!f && sel === i;
+      return h('li', { class: isSel ? 'is-sel' : null },
+        h('button', { type: 'button', class: `pf-poster${f ? '' : ' pf-slot'}`, 'aria-pressed': f ? String(isSel) : null,
+          'aria-label': f ? T('{0}, favourite {1} of 4', f.title, i + 1) : T('Pick a favourite'),
+          onclick: () => {
+            if (f) { draft.favSel = isSel ? null : i; redraw(); return; }
+            if (sel != null) { draft.favSel = null; redraw(); }
+            focusSearch();
+          } },
+          f?.poster ? h('img', { src: small(f.poster), alt: '' }) : f ? h('span', { class: 'pf-poster-title' }, f.title) : icon('plus')));
     }));
-    return h('div', {}, h('p', { class: 'set-hint' }, T('Four films or shows that say something about you. Tap a poster to swap it.')), slots, search.node, fromAnime);
+    const act = chosen && h('div', { class: 'pf-fav-act', role: 'group', 'aria-label': chosen.title },
+      h('div', { class: 'pf-fav-act-text' }, h('strong', {}, chosen.title), h('span', {}, T('Pick something below to put in its place.'))),
+      h('div', { class: 'pf-fav-act-btns' },
+        h('button', { type: 'button', class: 'pf-fav-btn', 'aria-label': T('Move left'), title: T('Move left'), disabled: sel === 0,
+          onclick: () => { move(draft.favorites, sel, -1); draft.favSel = sel - 1; done(); } }, icon('back')),
+        h('button', { type: 'button', class: 'pf-fav-btn', 'aria-label': T('Move right'), title: T('Move right'), disabled: sel >= n - 1,
+          onclick: () => { move(draft.favorites, sel, 1); draft.favSel = sel + 1; done(); } }, icon('chevron')),
+        h('button', { type: 'button', class: 'pf-fav-btn pf-fav-del', onclick: () => { draft.favorites.splice(sel, 1); draft.favSel = null; done(); } }, icon('trash'), T('Remove')),
+        h('button', { type: 'button', class: 'pf-fav-btn', 'aria-label': T('Done'), title: T('Done'), onclick: () => { draft.favSel = null; redraw(); } }, icon('check'))));
+    const hint = !chosen && h('p', { class: 'set-hint' }, n < 4
+      ? T('Four films or shows that say something about you. Search below to add one.')
+      : T('Tap a poster to move, swap or remove it.'));
+    return h('div', { class: 'pf-fav-editor' }, hint, slots, act, search.node, fromAnime);
   }
 
   function bannerPicker(draft, { repaint, redraw }) {

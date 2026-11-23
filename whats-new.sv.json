@@ -1,4 +1,13 @@
 {
+  "2026-11-23-drag-sections": {
+    "title": "Dra för att ändra ordning",
+    "items": {
+      "Drag your profile sections into place": {
+        "title": "Dra profilens delar dit du vill ha dem",
+        "text": "I Redigera profil → Sida håller du i det prickiga handtaget i början av en del och drar den dit du vill. Samma sak fungerar för titlarna i en lista du redigerar. Pilknapparna fungerar fortfarande."
+      }
+    }
+  },
   "2026-11-23-comment-replies": {
     "title": "Svara på kommentarer",
     "items": {

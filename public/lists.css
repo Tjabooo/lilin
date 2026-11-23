@@ -46,7 +46,7 @@
 .ls-switch-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
 .ls-switch-row > span { display: grid; gap: 2px; }
 .ls-switch-row strong { font-weight: 650; }
-.ls-order li { gap: 8px; padding-left: 6px; }
+.ls-order li { gap: 8px; padding-left: 0; }
 .ls-order-poster { flex: none; width: 28px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; background: var(--surface-1); }
 .ls-order .pf-order-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ls-delete { color: #ff8a8a; }

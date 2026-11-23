@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-drag-sections",
+  "date": "2026-11-23",
+  "title": "Drag to reorder",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Drag your profile sections into place",
+      "text": "In Edit profile → Page, hold the dotted handle at the start of a section and drag it where you want it. The same works for the titles in a list you're editing. The arrow buttons still work too."
+    }
+  ]
+},
+{
   "id": "2026-11-23-comment-replies",
   "date": "2026-11-23",
   "title": "Reply to comments",

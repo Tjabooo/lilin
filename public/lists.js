@@ -5,6 +5,7 @@
 //
 // app.js passes in its helpers; this file has no globals beyond the DOM.
 import { T, locale } from './i18n.js';
+import { dragSort } from './profiles.js'; // drag a title to its place
 
 const small = (url, size = 'w185') => (url ? String(url).replace(/\/t\/p\/(w\d+|original)\//, `/t/p/${size}/`) : null);
 const MAX_NAME = 80;
@@ -155,12 +156,13 @@ export function createLists({ h, api, jsonPost, toast, icon, people, me, openTit
             sw(T('Only me'), 'private', T('Hidden from your profile and from links.')))),
         h('section', { class: 'ls-ed-section' }, h('h3', { class: 'pf-ed-title' }, T('Titles')),
           search.node,
-          draft.items.length ? h('ol', { class: 'pf-order ls-order' }, draft.items.map((it, i) => h('li', {},
+          draft.items.length ? dragSort(h('ol', { class: 'pf-order pf-order-drag ls-order' }, draft.items.map((it, i) => h('li', {},
+            h('span', { class: 'pf-grip', title: T('Drag to move'), 'aria-hidden': 'true' }),
             it.poster ? h('img', { class: 'ls-order-poster', src: small(it.poster, 'w92'), alt: '', loading: 'lazy' }) : h('span', { class: 'ls-order-poster' }),
             h('span', { class: 'pf-order-name' }, draft.ranked ? `${i + 1}. ` : '', it.title, it.year ? h('span', { class: 'muted' }, ` ${it.year}`) : null),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} up', it.title), disabled: i === 0, onclick: () => { move(draft.items, i, -1); draw(); } }, icon('up')),
             h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Move {0} down', it.title), disabled: i === draft.items.length - 1, onclick: () => { move(draft.items, i, 1); draw(); } }, icon('down')),
-            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Take {0} off the list', it.title), onclick: () => { draft.removed.add(it.key); draft.items.splice(i, 1); draw(); } }, icon('close')))))
+            h('button', { type: 'button', class: 'pf-move', 'aria-label': T('Take {0} off the list', it.title), onclick: () => { draft.removed.add(it.key); draft.items.splice(i, 1); draw(); } }, icon('close'))))), draft.items, draw)
             : h('p', { class: 'set-hint' }, T('Search above, or tap List beside the thumbs on any title page.'))),
         h('section', { class: 'ls-ed-section' },
           h('button', { type: 'button', class: 'chip ls-delete', onclick: (e) => removeList(ctx, e.currentTarget) }, icon('trash'), T('Delete list'))),
