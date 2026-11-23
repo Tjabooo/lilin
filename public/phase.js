@@ -27,7 +27,7 @@ root.classList.add('ph');
 if (LAB.reduced) root.classList.add('ph-rm');
 
 // the skin's own words: Swedish here (the app's catalogue doesn't have them), everything else through the app's T()
-const SV = { 'In step': 'I takt', Locked: 'Låst', 'Getting in step': 'Kommer i takt', Together: 'Tillsammans', watched: 'sedda', days: 'dagar', You: 'Du', Lilin: 'Lilin' };
+const SV = { 'In step': 'I takt', Locked: 'Låst', 'Getting in step': 'Kommer i takt', Together: 'Tillsammans', watched: 'sedda', day: 'dag', days: 'dagar', You: 'Du', Lilin: 'Lilin' };
 const W_ = (s) => { const t = T(s); return t === s && /^sv\b/.test(root.lang || '') && SV[s] ? SV[s] : t; };
 const el = (tag, cls, text) => { const e = D.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const deco = (tag, cls, html) => { const e = D.createElement(tag); if (cls) e.className = cls; e.setAttribute('aria-hidden', 'true'); if (html) e.innerHTML = html; return e; };
@@ -618,7 +618,7 @@ function enhanceEpisodes(sheet) {
     const days = Number.isFinite(when) ? Math.max(0, Math.ceil((when - Date.now()) / 86400000)) : null;
     if (!band) { band = deco('div', 'ph-cd'); (keyEl || cells || list).before(band); }
     band.classList.toggle('is-today', days === 0);
-    band.innerHTML = `<div><span><small>${T('Next episode')} · ${n}</small><small>${label}</small></span>${days == null ? '' : `<b>${days === 0 ? T('Today') : `${days}<small>${W_('days')}</small>`}</b>`}</div>`;
+    band.innerHTML = `<div><span><small>${T('Next episode')} · ${n}</small><small>${label}</small></span>${days == null ? '' : `<b>${days === 0 ? T('Today') : `${days}<small>${W_(days === 1 ? 'day' : 'days')}</small>`}</b>`}</div>`;
   } else band?.remove();
 }
 function sheetOpened(sheet) {
