@@ -785,3 +785,22 @@ a.pf-anime-tile { text-decoration: none; }
 .pf-comment-del:hover { color: var(--text); }
 .pf-comment-del.is-armed { color: #fff; background: #e5484d; }
 .pf-comment-text { margin: 2px 0 0; font-size: 15px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+
+/* Comments: actions (heart, Reply, Report) and threads of replies */
+.pf-comment-acts { display: flex; align-items: center; gap: 4px; margin: 4px 0 0 -8px; }
+.pf-comment-act { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 8px; font: 600 12.5px/1 var(--body); color: var(--text-2);
+  background: none; border: 0; border-radius: var(--r-xs); transition: color var(--d-2), background var(--d-2); }
+button.pf-comment-act:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.pf-comment-act svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+.pf-comment-like.is-liked { color: var(--pf-accent); }
+.pf-comment-like.is-liked svg { fill: currentColor; animation: pf-heart-pop .32s var(--ease-out); }
+span.pf-comment-like { pointer-events: none; }
+@keyframes pf-heart-pop { 40% { transform: scale(1.3); } }
+@media (prefers-reduced-motion: reduce) { .pf-comment-like.is-liked svg { animation: none; } }
+.pf-comment-report.is-armed { color: #fff; background: #e5484d; }
+.pf-comment-report:disabled { opacity: .7; }
+.pf-replies { display: grid; margin: 6px 0 0; padding: 0 0 0 12px; list-style: none; border-left: 2px solid color-mix(in srgb, var(--pf-accent) 30%, var(--hairline)); }
+.pf-comment.is-reply { grid-template-columns: 28px minmax(0, 1fr); padding: 8px 0; border-top: 0; }
+.pf-reply-form { grid-template-columns: 28px minmax(0, 1fr) 36px; margin: 8px 0 0; }
+.pf-reply-form .pf-comment-send { width: 36px; height: 36px; }
+.pf-reply-form .pf-comment-field { min-height: 36px; padding: 7px 11px; font-size: 14px; }

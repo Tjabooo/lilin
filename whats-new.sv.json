@@ -1,4 +1,13 @@
 {
+  "2026-11-23-comment-replies": {
+    "title": "Svara på kommentarer",
+    "items": {
+      "Replies, likes and reports on profile comments": {
+        "title": "Svar, gillningar och rapporter på profilkommentarer",
+        "text": "Tryck på Svara under en kommentar på en profil för att svara; svaren hamnar direkt under den. Tryck på hjärtat för att gilla en kommentar. Är en kommentar elak eller fel trycker du två gånger på Rapportera, så får Lilins ägare den. Du får en avisering när någon svarar på din kommentar."
+      }
+    }
+  },
   "2026-11-23-profile-comments": {
     "title": "Kommentarer på profiler",
     "items": {

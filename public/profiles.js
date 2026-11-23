@@ -426,36 +426,46 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
   };
 
   const MAX_COMMENT = 500;
-  function commentForm(ctx, d) {
-    const field = h('textarea', { class: 'pf-comment-field', rows: '1', maxlength: String(MAX_COMMENT), 'aria-label': T('Comment'),
-      placeholder: d.me ? T('Write on your profile…') : T('Write something to {0}…', d.person.name) });
-    field.value = ctx.commentDraft || ''; // a repaint (the editor, More) keeps what you were typing
+  // The write box. reply: { thread, to } answers a comment (the thread is its top-level comment); else a new comment.
+  function commentForm(ctx, d, reply = null) {
+    const key = reply ? 'replyDraft' : 'commentDraft'; // a repaint (the editor, More, a like) keeps what you were typing
+    const field = h('textarea', { class: 'pf-comment-field', rows: '1', maxlength: String(MAX_COMMENT), 'aria-label': reply ? T('Reply to {0}', reply.to.author.name) : T('Comment'),
+      placeholder: reply ? T('Reply to {0}…', reply.to.author.name) : d.me ? T('Write on your profile…') : T('Write something to {0}…', d.person.name) });
+    field.value = ctx[key] || '';
     const count = h('span', { class: 'pf-comment-count', 'aria-live': 'polite' });
-    const send = h('button', { type: 'submit', class: 'pf-comment-send', 'aria-label': T('Post comment'), title: T('Post') }, icon('send'));
+    const send = h('button', { type: 'submit', class: 'pf-comment-send', 'aria-label': reply ? T('Post reply') : T('Post comment'), title: T('Post') }, icon('send'));
     const sync = () => {
-      ctx.commentDraft = field.value;
+      ctx[key] = field.value;
       field.style.height = 'auto';
       field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
       const left = MAX_COMMENT - field.value.length;
       count.textContent = left <= 60 ? String(left) : '';
       send.disabled = !field.value.trim();
     };
-    const form = h('form', { class: 'pf-comment-form', onsubmit: async (e) => {
+    const form = h('form', { class: `pf-comment-form${reply ? ' pf-reply-form' : ''}`, onsubmit: async (e) => {
       e.preventDefault();
       const text = field.value.trim();
       if (!text || send.disabled) return;
       send.disabled = true;
       field.readOnly = true;
       try {
-        const r = await api(`/api/profiles/${d.person.id}/comments`, jsonPost({ text }));
-        ctx.commentDraft = '';
-        ctx.data.comments = { comments: r.comments, more: r.more, total: r.total, canPost: true };
+        const r = await api(`/api/profiles/${d.person.id}/comments`, jsonPost({ text, replyTo: reply ? reply.to.id : null }));
+        ctx[key] = '';
+        if (reply) { // keep the pages already open; just swap in this thread
+          ctx.replyTo = null;
+          const had = ctx.data.comments;
+          const thread = r.comments.find((x) => x.id === reply.thread);
+          ctx.data.comments = { ...had, total: r.total, comments: had.comments.map((x) => (x.id === reply.thread ? { ...x, replies: thread ? thread.replies : [...(x.replies || []), r.comment] } : x)) };
+        } else ctx.data.comments = { comments: r.comments, more: r.more, total: r.total, canPost: true };
         paint(ctx);
       } catch (err) { toast(err.message); field.readOnly = false; send.disabled = false; field.focus(); }
-    } }, h('span', { class: 'pf-comment-me', 'aria-hidden': 'true' }, people.face(me(), { size: 36 })), h('div', { class: 'pf-comment-input' }, field, count), send);
+    } }, h('span', { class: 'pf-comment-me', 'aria-hidden': 'true' }, people.face(me(), { size: reply ? 28 : 36 })), h('div', { class: 'pf-comment-input' }, field, count), send);
     field.addEventListener('input', sync);
-    field.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } });
-    requestAnimationFrame(sync);
+    field.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
+      if (e.key === 'Escape' && reply) { ctx.replyTo = null; paint(ctx); }
+    });
+    requestAnimationFrame(() => { sync(); if (reply && ctx.focusReply) { ctx.focusReply = false; field.focus(); field.setSelectionRange(field.value.length, field.value.length); } });
     return form;
   }
 
@@ -471,17 +481,76 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     return date.toLocaleDateString(locale(), { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }) });
   }
 
-  function commentRow(ctx, c) {
+  function commentRow(ctx, c, thread = null) {
+    const d = ctx.data;
     const when = new Date(c.created);
     const toAuthor = (e) => open(c.author, e.currentTarget);
-    return h('li', { class: 'pf-comment' },
-      h('button', { type: 'button', class: 'pf-comment-face', 'aria-label': T('{0}’s profile', c.author.name), onclick: toAuthor }, people.face(c.author, { size: 36 })),
+    const top = thread == null; // a top-level comment (replies sit in its thread)
+    const canPost = Boolean(d.comments?.canPost);
+    const heart = canPost ? h('button', { type: 'button', class: `pf-comment-act pf-comment-like${c.liked ? ' is-liked' : ''}`, 'aria-pressed': String(c.liked),
+      'aria-label': c.liked ? T('Unlike') : T('Like'), onclick: (e) => likeComment(ctx, c, e.currentTarget) }, icon('heart'), h('span', {}, c.likes ? String(c.likes) : ''))
+      : c.likes ? h('span', { class: 'pf-comment-act pf-comment-like', role: 'img', 'aria-label': T('{0} likes', c.likes) }, icon('heart'), h('span', {}, String(c.likes))) : null;
+    const actions = [
+      heart,
+      canPost && h('button', { type: 'button', class: 'pf-comment-act', onclick: () => {
+        if (ctx.replyTo?.id !== c.id) ctx.replyDraft = !top && c.author.handle && !c.mine ? `@${c.author.handle} ` : '';
+        ctx.replyTo = { thread: top ? c.id : thread, id: c.id };
+        ctx.focusReply = true;
+        paint(ctx);
+      } }, T('Reply')),
+      !c.mine && !me()?.isOwner && h('button', { type: 'button', class: 'pf-comment-act pf-comment-report', onclick: (e) => reportComment(ctx, c, e.currentTarget) }, T('Report')),
+    ].filter(Boolean);
+    const replies = top ? c.replies || [] : [];
+    const replyTo = top && ctx.replyTo?.thread === c.id ? [c, ...replies].find((x) => x.id === ctx.replyTo.id) : null;
+    return h('li', { class: `pf-comment${top ? '' : ' is-reply'}` },
+      h('button', { type: 'button', class: 'pf-comment-face', 'aria-label': T('{0}’s profile', c.author.name), onclick: toAuthor }, people.face(c.author, { size: top ? 36 : 28 })),
       h('div', { class: 'pf-comment-body' },
         h('div', { class: 'pf-comment-meta' },
           h('button', { type: 'button', class: 'pf-comment-name', onclick: toAuthor }, c.author.name),
           h('time', { datetime: when.toISOString(), title: when.toLocaleString(locale()) }, ago(c.created)),
           c.canDelete && h('button', { type: 'button', class: 'pf-comment-del', 'aria-label': T('Delete comment'), title: T('Delete comment'), onclick: (e) => deleteComment(ctx, c, e.currentTarget) }, icon('trash'))),
-        h('p', { class: 'pf-comment-text' }, c.text)));
+        h('p', { class: 'pf-comment-text' }, c.text),
+        actions.length > 0 && h('div', { class: 'pf-comment-acts' }, actions),
+        replies.length > 0 && h('ul', { class: 'pf-replies' }, replies.map((x) => commentRow(ctx, x, c.id))),
+        replyTo && commentForm(ctx, d, { thread: c.id, to: replyTo })));
+  }
+
+  // Heart: flips at once, the server's count follows.
+  async function likeComment(ctx, c, btn) {
+    const show = () => {
+      btn.classList.toggle('is-liked', c.liked);
+      btn.setAttribute('aria-pressed', String(c.liked));
+      btn.setAttribute('aria-label', c.liked ? T('Unlike') : T('Like'));
+      btn.lastChild.textContent = c.likes ? String(c.likes) : '';
+    };
+    const on = !c.liked;
+    c.liked = on; c.likes = Math.max(0, c.likes + (on ? 1 : -1));
+    show();
+    try {
+      const r = await api(`/api/profiles/${ctx.data.person.id}/comments/${c.id}/like`, jsonPost({ on }));
+      c.liked = r.liked; c.likes = r.likes;
+    } catch (err) {
+      c.liked = !on; c.likes = Math.max(0, c.likes + (on ? -1 : 1));
+      toast(err.message);
+    }
+    show();
+  }
+
+  // Report: two taps like delete; it goes to Lilin's owner (House → Ideas → Bugs).
+  async function reportComment(ctx, c, btn) {
+    if (!btn.classList.contains('is-armed')) {
+      btn.classList.add('is-armed');
+      btn.textContent = T('Report?');
+      setTimeout(() => { if (btn.isConnected && !btn.disabled && btn.classList.contains('is-armed')) { btn.classList.remove('is-armed'); btn.textContent = T('Report'); } }, 3500);
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await api(`/api/profiles/${ctx.data.person.id}/comments/${c.id}/report`, jsonPost({}));
+      btn.classList.remove('is-armed');
+      btn.textContent = T('Reported');
+      toast(T('Thanks. Lilin’s owner will take a look.'));
+    } catch (err) { toast(err.message); btn.disabled = false; btn.classList.remove('is-armed'); btn.textContent = T('Report'); }
   }
 
   // Two taps: the bin turns into "Delete?" for a few seconds, a second tap deletes.
@@ -496,7 +565,10 @@ export function createProfiles({ h, api, jsonPost, toast, icon, people, me, open
     try {
       await api(`/api/profiles/${ctx.data.person.id}/comments/${c.id}/delete`, jsonPost({}));
       const had = ctx.data.comments;
-      ctx.data.comments = { ...had, comments: had.comments.filter((x) => x.id !== c.id), total: Math.max(0, had.total - 1) };
+      const gone = 1 + (c.replies?.length || 0); // a comment goes with its replies
+      ctx.data.comments = { ...had, total: Math.max(0, had.total - gone),
+        comments: had.comments.filter((x) => x.id !== c.id).map((x) => (x.replies?.some((y) => y.id === c.id) ? { ...x, replies: x.replies.filter((y) => y.id !== c.id) } : x)) };
+      if (ctx.replyTo && (ctx.replyTo.id === c.id || ctx.replyTo.thread === c.id)) ctx.replyTo = null;
       paint(ctx);
       toast(T('Comment deleted'));
     } catch (err) { toast(err.message); btn.disabled = false; }

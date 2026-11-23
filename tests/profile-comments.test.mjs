@@ -67,3 +67,40 @@ test('paging: 20 at a time', () => {
   assert.deepEqual(rest.comments.map((c) => c.text), ['c2', 'c1', 'c0']);
   assert.equal(rest.more, false);
 });
+
+test('replies: one level, oldest first, a reply to a reply joins the thread, deleting the comment takes them', () => {
+  const { anna, ben, cleo } = setup();
+  const top = comments.add(ben, anna.id, 'hello', 2_000_000);
+  const r1 = comments.add(anna, anna.id, 'hi ben', 2_100_000, top.id);
+  const r2 = comments.add(cleo, anna.id, 'me too', 2_200_000, r1.id);
+  assert.deepEqual(r2.replyingTo, { id: r1.id, authorId: anna.id });
+  assert.equal(r2.parent, top.id);
+  const l = comments.list(ben, anna.id);
+  assert.equal(l.total, 3);
+  assert.equal(l.comments.length, 1);
+  assert.deepEqual(l.comments[0].replies.map((x) => x.text), ['hi ben', 'me too']);
+  assert.throws(() => comments.add(ben, cleo.id, 'wrong page', 2_300_000, top.id), { status: 404 });
+  comments.like(cleo, anna.id, r1.id, true);
+  comments.remove(anna, top.id);
+  assert.equal(comments.list(anna, anna.id).total, 0);
+});
+
+test('likes: count and own mark, idempotent, only on that page', () => {
+  const { anna, ben, cleo } = setup();
+  const c = comments.add(ben, anna.id, 'like me', 3_000_000);
+  assert.deepEqual(comments.like(anna, anna.id, c.id, true), { likes: 1, liked: true });
+  assert.deepEqual(comments.like(anna, anna.id, c.id, true), { likes: 1, liked: true });
+  assert.deepEqual(comments.like(cleo, anna.id, c.id, true), { likes: 2, liked: true });
+  assert.deepEqual(comments.like(anna, anna.id, c.id, false), { likes: 1, liked: false });
+  assert.equal(comments.list(cleo, anna.id).comments[0].liked, true);
+  assert.equal(comments.list(ben, anna.id).comments[0].liked, false);
+  assert.throws(() => comments.like(anna, ben.id, c.id, true), { status: 404 });
+});
+
+test('reports: not your own, only on that page', () => {
+  const { anna, ben } = setup();
+  const c = comments.add(ben, anna.id, 'rude', 4_000_000);
+  assert.deepEqual(comments.reportable(anna, anna.id, c.id), { id: c.id, text: 'rude', author: 'Ben' });
+  assert.throws(() => comments.reportable(ben, anna.id, c.id), { status: 400 });
+  assert.throws(() => comments.reportable(anna, ben.id, c.id), { status: 404 });
+});

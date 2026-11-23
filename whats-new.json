@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-23-comment-replies",
+  "date": "2026-11-23",
+  "title": "Reply to comments",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Replies, likes and reports on profile comments",
+      "text": "Tap Reply under a comment on a profile to answer it; replies sit right under it. Tap the heart to like a comment. If a comment is mean or wrong, tap Report twice and Lilin's owner gets it. You get a notification when someone replies to your comment."
+    }
+  ]
+},
+{
   "id": "2026-11-23-profile-comments",
   "date": "2026-11-23",
   "title": "Comments on profiles",

@@ -1,6 +1,16 @@
 // Swedish for the web app, keyed by the English line in the code (T('…')). See public/i18n.js.
 export default {
   // Profile comments (the Comments section)
+  "Reply to {0}": "Svara {0}",
+  "Reply to {0}…": "Svara {0} …",
+  "Post reply": "Skicka svar",
+  "Reply": "Svara",
+  "Report": "Rapportera",
+  "Report?": "Rapportera?",
+  "Reported": "Rapporterad",
+  "Thanks. Lilin’s owner will take a look.": "Tack. Lilins ägare tittar på det.",
+  "Unlike": "Sluta gilla",
+  "{0} likes": "{0} gillningar",
   "Comments": "Kommentarer",
   "Comments people leave on your profile show up here.": "Kommentarer som andra lämnar på din profil hamnar här.",
   "No comments yet. Be the first.": "Inga kommentarer än. Bli först.",

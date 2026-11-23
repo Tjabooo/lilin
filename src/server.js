@@ -5073,24 +5073,50 @@ async function handleApi(req, res, url) {
         if (p === '/api/profiles/me/letterboxd/import' && req.method === 'GET') return sendJson(res, 200, letterboxdImports.get(user.id) || { state: 'none' });
         throw new HttpError(404, 'Not found.');
       }
-      // Comments (profile-comments.js): GET ?offset= pages, POST { text } posts, POST /comments/<id>/delete deletes.
-      if ((m = p.match(/^\/api\/profiles\/(\d{1,9})\/comments(?:\/(\d{1,12})\/delete)?$/))) {
+      // Comments (profile-comments.js): GET ?offset= pages, POST { text, replyTo } posts, POST /comments/<id>/delete
+      // deletes, /like { on } likes, /report sends it to the owner's idea box (under Bugs).
+      if ((m = p.match(/^\/api\/profiles\/(\d{1,9})\/comments(?:\/(\d{1,12})\/(delete|like|report))?$/))) {
         const target = accounts.userById(Number(m[1]));
         if (!target) throw new HttpError(404, 'No such profile.');
         const sight = profiles.access(user, target);
         const on = sight === 'self' || (sight === 'full' && profiles.profileOf(target).sections.some((s) => s.id === 'comments' && s.on));
         if (!on) throw new HttpError(403, 'Comments aren’t open on this profile.');
-        if (m[2]) {
-          if (req.method !== 'POST') throw new HttpError(404, 'Not found.');
+        if (m[2] && req.method !== 'POST') throw new HttpError(404, 'Not found.');
+        if (m[3] === 'delete') {
           profileComments.remove(user, m[2]);
-          return sendJson(res, 200, profileComments.list(user, target.id));
+          return sendJson(res, 200, { ok: true });
         }
-        if (req.method === 'POST') {
+        const writer = () => {
           if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
           if (profiles.view(user, target).ownerPeek) throw new HttpError(403, 'This profile isn’t shared with you, so you can’t comment on it.');
-          const comment = profileComments.add(user, target.id, (await readJson(req, 8 * 1024)).text);
-          if (sight !== 'self') notify([target.id], 'comment', { title: `${user.name || 'Someone'} commented on your Lilin profile`, body: comment.text.slice(0, 140),
-            url: `/#@${profiles.profileOf(target).handle}`, tag: `comment-${target.id}` });
+        };
+        if (m[3] === 'like') {
+          writer();
+          return sendJson(res, 200, profileComments.like(user, target.id, Number(m[2]), Boolean((await readJson(req, 1024)).on)));
+        }
+        if (m[3] === 'report') {
+          if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.');
+          const c = profileComments.reportable(user, target.id, Number(m[2]));
+          const handle = profiles.profileOf(target).handle;
+          const idea = ideas.add(user, { kind: 'fix', text: `Reported comment by ${c.author} on @${handle}'s profile (comment ${c.id}): “${c.text}”` });
+          activity.record(req, 'idea', `comment report @${handle}`.slice(0, 80));
+          const owner = accounts.ownerUser();
+          if (owner && owner.id !== user.id) notify([owner.id], 'idea', { title: `${user.name || 'Someone'} reported a comment`, body: `On @${handle}: ${c.text}`.slice(0, 160), url: `/#@${handle}`, tag: `idea-${idea.id}` });
+          return sendJson(res, 200, { ok: true });
+        }
+        if (req.method === 'POST') {
+          writer();
+          const body = await readJson(req, 8 * 1024);
+          const comment = profileComments.add(user, target.id, body.text, Date.now(), body.replyTo == null ? null : Number(body.replyTo));
+          const link = `/#@${profiles.profileOf(target).handle}`;
+          const told = new Set([user.id]);
+          const answered = comment.replyingTo?.authorId;
+          if (answered && !told.has(answered)) {
+            told.add(answered);
+            notify([answered], 'comment', { title: `${user.name || 'Someone'} replied to your comment`, body: comment.text.slice(0, 140), url: link, tag: `comment-${comment.parent}` });
+          }
+          if (!told.has(target.id)) notify([target.id], 'comment', { title: `${user.name || 'Someone'} commented on your Lilin profile`, body: comment.text.slice(0, 140), url: link, tag: `comment-${target.id}` });
+          delete comment.replyingTo;
           return sendJson(res, 200, { comment, ...profileComments.list(user, target.id) });
         }
         return sendJson(res, 200, profileComments.list(user, target.id, { offset: Number(url.searchParams.get('offset')) || 0 }));
@@ -6400,7 +6426,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || url.pathname === '/api/me/username' // Account → Switch to a username
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/profiles\/\d{1,9}\/comments(?:\/\d{1,12}\/delete)?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/profiles\/\d{1,9}\/comments(?:\/\d{1,12}\/(?:delete|like|report))?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/seen|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)
