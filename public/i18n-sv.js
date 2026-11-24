@@ -207,6 +207,7 @@ export default {
   "First aired": "Sändes första gången",
   "Last aired": "Sändes senast",
   "Status": "Status",
+  "Streams": "Strömmar",
   "Seasons and episodes": "Säsonger och avsnitt",
   "1 season": "1 säsong",
   "{0} seasons": "{0} säsonger",

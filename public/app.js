@@ -10694,6 +10694,7 @@ function renderHouse() {
   const body = $('#house-body');
   const sub = state.view === 'house' ? state.sub : null;
   $('#house-heading').textContent = sub ? T(ROUTES[`house/${sub}`].label) : T('House');
+  $('#house-heading').dataset.kick = sub ? `04 · ${T('House')} / ${T(ROUTES[`house/${sub}`].label)}` : `04 · ${T('House')}`;
   const filter = filterField('house', T('Filter machines'), renderHouse);
   filter.hidden = sub !== 'machines';
   if (!sub) { renderHouseHub(body); return; }
@@ -10746,10 +10747,12 @@ function renderHouseHub(body) {
     'house/screen-time': T('Time on your devices'),
   };
   const counts = { 'house/ideas': newIdeas };
-  const tile = ({ label, line, run, route, count }) => h('button', { type: 'button', class: 'tool', 'data-route': route, onclick: run },
+  const tile = ({ label, line, run, route, count }, i) => h('button', { type: 'button', class: 'tool', 'data-route': route, onclick: run },
+    h('span', { class: 'tool-top', 'aria-hidden': 'true' }, h('span', { class: 'tool-ix' }, String(i + 1).padStart(2, '0')), houseGlyph(route || 'channels')),
     h('span', { class: 'set-label' }, label || T(ROUTES[route].label)), h('span', { class: 'set-hint' }, line || lines[route]),
     (count ?? counts[route]) ? h('b', { class: 'tab-badge' }, String(count ?? counts[route])) : null);
   body.replaceChildren(
+    houseReadout(),
     needs.length > 0 && h('section', { class: 'house-needs', 'aria-labelledby': 'house-needs-head' }, h('h3', { class: 'set-head', id: 'house-needs-head' }, T('Needs you')),
       h('div', { class: 'set-stack' }, needs.map((n) => navRow(n)))),
     h('div', { class: 'tool-grid' }, tools.map(tile)),
@@ -10757,19 +10760,51 @@ function renderHouseHub(body) {
   // New ideas count here and in the dot: the inbox is read once the hub is open.
   if (!ideasView.loaded && !ideasView.loading) loadIdeas().then(() => { if (state.view === 'house' && !state.sub) renderHouse(); else updateHouseDot(); });
 }
+// Line glyphs for the House tiles (24 px grid, drawn with currentColor strokes like the ⋯ menu's).
+const HOUSE_GLYPHS = {
+  'house/activity': '<path d="M2 12h4l2.5-6 4 12 3-9 2 3H22"/>',
+  'house/notes': '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 11h7M9 15h7M9 19h4"/>',
+  'house/clips': '<rect x="3" y="5" width="18" height="14"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  'house/people': '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.6 3-5.6 6-5.6s5.4 2 6 5.6"/><path d="M15.5 4.9a3.2 3.2 0 0 1 0 6.2M17.5 14.7c1.9.7 3.1 2.5 3.5 5.3"/>',
+  'house/ideas': '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.3 1 2.2h5.2c0-.9.4-1.7 1-2.2A6 6 0 0 0 12 3z"/>',
+  'house/downloads': '<path d="M12 3v11M7.5 9.5 12 14l4.5-4.5"/><path d="M3 15v5h18v-5"/>',
+  channels: '<circle cx="12" cy="12" r="1.6"/><path d="M8.2 15.8a5.4 5.4 0 0 1 0-7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.4 18.6a9.3 9.3 0 0 1 0-13.2M18.6 5.4a9.3 9.3 0 0 1 0 13.2"/>',
+  'house/rules': '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  'house/screen-time': '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9"/>',
+  'house/machines': '<rect x="4" y="3" width="16" height="7"/><rect x="4" y="14" width="16" height="7"/><path d="M8 6.5h.01M8 17.5h.01M12 6.5h5M12 17.5h5"/>',
+};
+const houseGlyph = (key) => { const s = h('span', { class: 'tool-glyph' }); s.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${HOUSE_GLYPHS[key] || HOUSE_GLYPHS['house/machines']}</svg>`; return s; };
+// The readout at the top of House and Machines: a lamp and the house's state, when it was checked, and four
+// counters (machines answering, downloads running, streams going out, new ideas). Machines lists what's wrong.
+function houseReadout() {
+  const r = state.house;
+  if (!r) return state.houseError ? null : h('div', { class: 'hx-read is-wait' }, h('div', { class: 'hx-state' }, h('span', { class: 'hx-kick' }, T('Checking…'))));
+  const bad = r.issues.length;
+  const up = r.machines.filter((m) => !m.away).length;
+  const ideas = ideasView.loaded ? (ideasView.all || []).filter((i) => i.status === 'new').length + scoutWaiting(ideasView.scout) : null;
+  const cell = (n, label, hot, route) => h(route ? 'button' : 'div', { class: `hx-cell${hot ? ' is-hot' : ''}`, type: route ? 'button' : null, onclick: route ? () => setView(route) : null },
+    h('b', {}, n == null ? '·' : String(n)), h('small', {}, label));
+  return h('div', { class: `hx-read${bad ? ' has-issues' : ''}` },
+    h('div', { class: 'hx-state' },
+      h('span', { class: 'hx-kick' }, h('i', { class: 'hx-lamp', 'aria-hidden': 'true' }), T('Status')),
+      h('strong', { class: 'hx-word' }, bad ? (bad === 1 ? T('1 thing needs a look') : T('{0} things need a look', bad)) : T('Everything’s fine')),
+      h('span', { class: 'hx-sub' }, T('checked {0}', clock(r.checkedAt)))),
+    h('div', { class: 'hx-cells' },
+      cell(r.agents ? `${up}/${r.machines.length}` : '–', T('Machines'), r.agents && up < r.machines.length, state.sub ? null : 'house/machines'),
+      cell(state.downloads.filter((d) => !d.done).length, T('Downloads'), state.downloads.some(transferAttention), 'house/downloads'),
+      cell(state.houseLoad ? (state.houseLoad.streams || []).length : null, T('Streams')),
+      allowedRoute('house/ideas', state.me, state.status) && cell(ideas, T('Ideas'), ideas > 0, 'house/ideas')),
+    state.sub === 'machines' && bad > 0 && h('ul', { class: 'hx-issues' }, r.issues.map((i) => h('li', {}, i))));
+}
+
 // House → Machines: the server, VPN, sharing, power and every machine.
-function renderMachines(body) { body.replaceChildren(...machinesContent()); }
+function renderMachines(body) { body.replaceChildren(houseReadout(), ...machinesContent()); }
 function machinesContent() {
   if (state.houseError) return [notice(T('Couldn’t check the house'), state.houseError, () => loadHouse().then(renderHouse))];
   const r = state.house;
   if (!r) return [h('p', { class: 'muted' }, T('Checking…'))];
   const q = state.sub === 'machines' ? norm(pageFilters.house) : '';
   const out = [];
-  out.push(r.issues.length
-    ? h('div', { class: 'house-status has-issues' },
-      h('strong', {}, r.issues.length === 1 ? T('1 thing needs a look') : T('{0} things need a look', r.issues.length)),
-      h('ul', {}, r.issues.map((i) => h('li', {}, i))))
-    : h('div', { class: 'house-status' }, h('strong', {}, T('Everything’s fine')), h('span', { class: 'muted' }, T(' · checked {0}', clock(r.checkedAt)))));
 
   const sv = r.server;
   if (!q || norm(`server ${sv.name}`).includes(q)) {
