@@ -9831,7 +9831,7 @@ function showUsernameGate() {
   const form = h('form', { class: 'ug-panel', novalidate: '' },
     h('p', { class: 'ug-kick' }, T('Sign-in change')),
     h('h2', { id: 'ug-title', class: 'ug-title' }, T('Pick your username')),
-    h('p', { class: 'ug-lede' }, T('Lilin is dropping emails. You’ll sign in with a username and the password you have now, and your email is deleted. Nothing else changes.')),
+    h('p', { class: 'ug-lede' }, T('Lilin doesn’t need your email any more. Pick a username: from now on you sign in with it and the password you already have.')),
     h('ol', { class: 'ug-rows' },
       email && h('li', { class: 'ug-row' },
         h('span', { class: 'ug-label' }, T('Now')),
@@ -9840,6 +9840,7 @@ function showUsernameGate() {
         h('label', { class: 'ug-label', for: 'ug-name' }, T('Username')),
         h('span', { class: 'ug-field' }, h('span', { class: 'ug-at', 'aria-hidden': 'true' }, '@'), name))),
     h('p', { class: 'ug-rule', id: 'ug-rule' }, T('3–20 characters · letters, numbers, dots and underscores')),
+    h('p', { class: 'ug-gone' }, T('When you switch, every record of your email is deleted from Lilin: your account, sign-ins, activity and logs. Your history, friends and settings stay.')),
     msg, save, later);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -12026,8 +12027,7 @@ navigator.serviceWorker?.addEventListener('message', async (event) => {
     h('span', { class: 'preview-pill-bulb', 'aria-hidden': 'true' }), h('strong', {}, T('Preview mode')), h('span', { class: 'preview-pill-sep', 'aria-hidden': 'true' }, '·'), T('Back to live')));
   syncLanguage();
   if (state.me?.needsPassword) { showPasswordGate(); return; }
-  // Username gate paused (2026-11-23): Cloudflare Access loops for username accounts; see usernames.js.
-  if (false && state.me?.canSwitchToUsername && !sessionStorage.getItem('lilin-username-later')) { showUsernameGate(); return; }
+  if (state.me?.canSwitchToUsername && !sessionStorage.getItem('lilin-username-later')) { showUsernameGate(); return; }
   state.rules = state.status.rules;
   applyTheme(prefs().theme);
   if (state.status.admin) loadIdeas().then(updateHouseDot); // House → Needs you lights the tab

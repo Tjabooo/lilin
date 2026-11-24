@@ -431,7 +431,7 @@
     {
       "kind": "new",
       "title": "Drop your email",
-      "text": "Joined with an email? Go to You, then Account, then Switch to a username: you sign in with your username from then on and Lilin deletes your email. Your history, friends and settings stay."
+      "text": "Joined with an email? Lilin asks you to pick a username the next time you open it. You sign in with your username from then on and every record of your email is deleted. Your history, friends and settings stay."
     }
   ]
 },

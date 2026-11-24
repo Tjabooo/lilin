@@ -324,7 +324,7 @@
       },
       "Drop your email": {
         "title": "Bli av med din e-post",
-        "text": "Gick du med med e-post? Gå till Du, sedan Konto, sedan Byt till ett användarnamn: därefter loggar du in med ditt användarnamn och Lilin raderar din e-post. Din historik, dina vänner och inställningar finns kvar."
+        "text": "Gick du med med e-post? Nästa gång du öppnar Lilin får du välja ett användarnamn. Därefter loggar du in med det och allt Lilin sparat om din e-post raderas. Din historik, dina vänner och inställningar finns kvar."
       }
     }
   },

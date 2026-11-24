@@ -3015,4 +3015,6 @@ export default {
   "Show on your profile": "Visa på din profil",
   "Your favourites there. They also get a thumbs up here, once.": "Dina favoriter där. De får också en tumme upp här, en gång.",
   "Completed, episodes, days and mean score.": "Avklarade, avsnitt, dagar och snittbetyg.",
+  "Lilin doesn’t need your email any more. Pick a username: from now on you sign in with it and the password you already have.": "Lilin behöver inte din e-post längre. Välj ett användarnamn: från och med nu loggar du in med det och lösenordet du redan har.",
+  "When you switch, every record of your email is deleted from Lilin: your account, sign-ins, activity and logs. Your history, friends and settings stay.": "När du byter raderas allt Lilin sparat om din e-post: ditt konto, inloggningar, aktivitet och loggar. Din historik, dina vänner och inställningar finns kvar.",
 };
