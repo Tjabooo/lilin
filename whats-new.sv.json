@@ -1,4 +1,13 @@
 {
+  "2026-11-24-audio-timing-card": {
+    "title": "Färre kort om ljudtajming",
+    "items": {
+      "No audio timing card on films that are already in sync": {
+        "title": "Inget kort om ljudtajming på filmer som redan är i synk",
+        "text": "Vissa filmer (många 1080p-utgåvor) visade ”Korrigerar ljudtajmingen” fast ljudet var rätt. Lilin känner nu igen den lilla startfördröjningen som normal, och alla förloppskort över videon kan stängas med ×."
+      }
+    }
+  },
   "2026-11-24-subtitle-doctor": {
     "title": "Undertexter kontrolleras åt dig",
     "items": {

@@ -6608,8 +6608,16 @@ function showNoteProgress(note, pace, { title, detail, percent }) {
     card = document.createElement('span');
     card.className = 'pn-card';
     card.innerHTML = '<span class="bulb-loader" aria-hidden="true"><i></i><i></i><i></i></span>'
-      + '<span class="pn-title"></span><span class="pn-pct"></span><span class="pn-detail"></span>'
+      + '<span class="pn-title"></span><span class="pn-pct"></span><button type="button" class="pn-close">×</button><span class="pn-detail"></span>'
       + '<span class="pn-bar" aria-hidden="true"><span class="pn-fill"></span></span><span class="pn-meta"></span>';
+    const close = card.querySelector('.pn-close');
+    close.setAttribute('aria-label', T('Hide'));
+    // Hidden for the rest of this play; the copy still gets made and switches over by itself.
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      note.hidden = true;
+      if (current) current.noteClosed = true;
+    });
     note.append(card);
   }
   const waiting = percent == null;
@@ -6679,7 +6687,7 @@ async function watchAudio(f, session) {
       } else {
         note.textContent = T('This video is {0}, which this browser can’t play. {1}', a.videoCodec, a.error ? T('Lilin couldn’t convert it: {0}', a.error) : T('It should still play on a TV.'));
       }
-      note.hidden = false;
+      note.hidden = Boolean(a.fixable && session.noteClosed);
       if (!a.fixable) return;
       changed = session.compatibilityPending = true;
       await new Promise((r) => setTimeout(r, 3000));
@@ -6699,7 +6707,7 @@ async function watchAudio(f, session) {
     } else {
       showNoteProgress(note, pace, { title: T('Correcting the audio timing'), detail: T('It switches over by itself.'), percent });
     }
-    note.hidden = false;
+    note.hidden = Boolean(session.noteClosed);
     changed = session.compatibilityPending = true;
     await new Promise((r) => setTimeout(r, 3000));
   }

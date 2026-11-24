@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-24-audio-timing-card",
+  "date": "2026-11-24",
+  "title": "Fewer audio timing cards",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "No audio timing card on films that are already in sync",
+      "text": "Some films (many 1080p releases) showed “Correcting the audio timing” even though the sound was fine. Lilin now recognises that tiny start delay as normal, and any progress card over the video can be closed with ×."
+    }
+  ]
+},
+{
   "id": "2026-11-24-subtitle-doctor",
   "date": "2026-11-24",
   "title": "Subtitles checked for you",

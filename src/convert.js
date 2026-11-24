@@ -236,11 +236,16 @@ export async function cancel(file, { waitMs = 15_000 } = {}) {
 export const isBusy = (file) => isActive(file) || (needsConversion(file) && isActive(twinPath(file)));
 
 // Audio tracks of a file, default track first. Returns null when ffprobe is unavailable.
-// What counts as in sync: up to one frame at 23.976 fps (41.7 ms). MP4 copies of B-frame H.264 start
-// their video one frame after the audio; that's the encoder's own delay, not drift, and redoing the
-// copy only makes the same file again.
+// What counts as in sync. B-frame H.264 starts its video one or two frames after the audio (x264's
+// B-pyramid: 83 ms at 23.976 fps, e.g. YIFY films); that's the encoder's own delay, which browsers
+// honour, not drift, and redoing the copy only makes the same file again. So video may start up to
+// three frames late; audio starting late still gets the 50 ms limit.
 const ALIGN_TOLERANCE = 0.05;
-export const isAligned = (tracks) => !tracks?.length || Math.abs(tracks[0].offset || 0) <= ALIGN_TOLERANCE;
+const VIDEO_DELAY_TOLERANCE = 0.13;
+export const isAligned = (tracks) => {
+  const offset = tracks?.[0]?.offset || 0;
+  return offset >= -VIDEO_DELAY_TOLERANCE && offset <= ALIGN_TOLERANCE;
+};
 const audioCache = new Map();
 export async function probeAudio(file) {
   const key = failureKey(file);

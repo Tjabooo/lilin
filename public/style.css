@@ -1936,7 +1936,13 @@ body.has-nowbar .toast { bottom: calc(var(--tabs-h) + var(--safe-bottom) + 84px)
 /* A copy being made: the note turns into a small card with a bar and time left. */
 .player-note:has(.pn-card) { max-width: 480px; padding: 14px 16px 13px; }
 .player-note:has(.pn-card)::before { display: none; }
-.pn-card { display: grid; grid-template-columns: auto 1fr auto; column-gap: 11px; align-items: center; }
+.pn-card { display: grid; grid-template-columns: auto 1fr auto auto; column-gap: 11px; align-items: center; }
+.pn-close {
+  width: 28px; height: 28px; margin: -6px -8px -6px -2px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--dust); font: 400 20px/1 var(--body, inherit); cursor: pointer;
+  transition: background var(--d-2, .15s) var(--ease-out), color var(--d-2, .15s) var(--ease-out);
+}
+.pn-close:hover, .pn-close:focus-visible { background: rgb(255 255 255 / .1); color: var(--paper); }
 .pn-card .bulb-loader { padding: 0; gap: 4px; }
 .pn-card .bulb-loader i { width: 6px; height: 6px; }
 .pn-title { font: 700 15px/1.3 var(--display); color: var(--paper); }
