@@ -1,4 +1,13 @@
 {
+  "2026-11-24-continue-play-now": {
+    "title": "Fortsätt titta hänger med",
+    "items": {
+      "Continue watching shows what you just started": {
+        "title": "Fortsätt titta visar det du nyss började på",
+        "text": "En minut eller två in i en lång film räknades inte som påbörjad, och det du tittade på medan det fortfarande laddades ner syntes inte alls. Nu hamnar båda under Fortsätt titta."
+      }
+    }
+  },
   "2026-11-24-long-credits": {
     "title": "Långa eftertexter räknas",
     "items": {

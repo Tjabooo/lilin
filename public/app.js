@@ -1236,12 +1236,30 @@ function moveLegacyHidden(files) {
   }
   Promise.all(moves).then(() => { try { localStorage.removeItem(LEGACY_HIDDEN); } catch { /* blocked */ } }, () => { legacyHiddenMoved = false; });
 }
+// Play now: a video started while it was still downloading isn't in the library yet, so its card comes from the
+// download. Same media key as the finished file, so the library's own card takes over once it's done.
+function playNowContinue() {
+  const have = new Set((state.library || []).map((f) => f.mediaKey).filter(Boolean));
+  const out = [];
+  for (const d of state.downloads || []) {
+    if (d.mine === false || !d.canPlayNow || d.done) continue;
+    const picks = d.mediaType === 'tv' && d.episodes?.length ? d.episodes.filter((ep) => ep.fileIndex != null).map((ep) => [ep, ep]) : (d.files || []).map((f) => [f, null]);
+    for (const [file, ep] of picks) {
+      if (!file.mediaKey || !file.started || file.available || have.has(file.mediaKey)) continue;
+      const f = { ...playNowItem(d, file, ep), playNow: true, poster: d.poster || null, backdrop: d.backdrop || null };
+      const progress = savedProgress(f);
+      if (partlyWatched(progress) && !hiddenFromContinue(f, progress)) out.push({ f, progress, at: progress.at || 0 });
+    }
+  }
+  return out;
+}
 // What Continue watching shows (Discover and Library both use this, so they always agree): everything partway
-// plus Up next cards, newest first, one card per show (its latest), at most 12.
-function continueItems(files) {
+// plus Up next cards, newest first, one card per show (its latest), at most 12. keep: which Play now cards fit.
+function continueItems(files, keep = () => true) {
   moveLegacyHidden(state.library || []);
   const watching = [...files.map((f) => ({ f, progress: savedProgress(libraryFile(f)) }))
-    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })), ...upNextItems(files)]
+    .filter((x) => partlyWatched(x.progress) && !hiddenFromContinue(x.f, x.progress)).map((x) => ({ ...x, at: x.progress.at || 0 })),
+  ...upNextItems(files), ...playNowContinue().filter((x) => keep(x.f))]
     .sort((a, b) => b.at - a.at);
   const seen = new Set(), items = [];
   for (const x of watching) {
@@ -1252,7 +1270,7 @@ function continueItems(files) {
   return items;
 }
 function continueRow() {
-  const cards = continueItems(state.library.filter(homeType)).map(({ f, progress }) => continueCard(f, progress));
+  const cards = continueItems(state.library.filter(homeType), homeType).map(({ f, progress }) => continueCard(f, progress));
   return cards.length ? continueShelf(cards) : null;
 }
 // New episodes: shows you follow, or watch and still have in your library, whose latest episode came OUT (TMDB's
@@ -1848,7 +1866,8 @@ const seasonName = (n) => (n === 0 ? T('Specials') : T('Season {0}', n));
 
 // Library cards share the same identity as playback, including old browser resume points.
 const libraryFile = (f) => ({ ...f, kind: 'lib', key: f.id, done: true });
-const partlyWatched = (p) => p?.duration > 0 && p.time / p.duration > 0.01 && p.time / p.duration < 0.95;
+// Partway: past 1 %, or a minute in (1 % of a four-hour film is 2.5 min), and not at the end.
+const partlyWatched = (p) => p?.duration > 0 && (p.time >= 60 || p.time / p.duration > 0.01) && p.time / p.duration < 0.95;
 
 function libraryEntries(items) {
   const shows = new Map(state.libraryShows.map((s) => [s.id, s]));
@@ -1912,22 +1931,28 @@ function continueCard(f, progress) {
   const left = progress ? T('{0} min left', Math.max(1, Math.ceil((progress.duration - progress.time) / 60))) : T('Up next');
   const pct = progress ? progress.time / progress.duration * 100 : 0;
   // No countdown to the automatic delete (play first): one that leaves just gets ready again when it's played.
-  const art = f.season != null ? episodeArt(f.still, show, '', CONTINUE_SIZES) : wideArt([f.backdrop, { src: f.poster, contain: true }]);
+  const art = f.season != null && !f.playNow ? episodeArt(f.still, show, '', CONTINUE_SIZES) : wideArt([f.backdrop, { src: f.poster, contain: true }]);
   if (progress) art.append(h('span', { class: 'poster-progress', 'aria-label': T('{0}% watched', Math.round(pct)) }, h('i', { style: `width:${pct}%` })));
   if (progress?.time > 20 && f.id) stoppedFrame(f.id, progress.time, art);
   return h('li', { class: `continue-card${progress ? '' : ' is-up-next'}` },
     h('button', { type: 'button', class: 'continue-more', 'aria-label': T('More for {0}', name), title: T('More'), onclick: (e) => openContinueMenu(f, progress, name, e.currentTarget) }, icon('more')),
-    h('button', { type: 'button', class: 'title-card', 'data-library-focus': `play-${f.id}`, onclick: () => openPlayer(libraryFile(f)) },
+    h('button', { type: 'button', class: 'title-card', 'data-library-focus': `play-${f.id || f.key}`, onclick: () => openPlayer(f.playNow ? f : libraryFile(f)) },
       art, h('div', { class: 'name' }, h('span', { class: 'continue-title', title: T('Details'),
         // The name opens the title page instead of playing (the rest of the card still resumes).
-        onclick: (e) => { e.stopPropagation(); const b = e.currentTarget.closest('button'); show ? openShow(show.id, b) : openFilm(f, b); } }, name)),
+        onclick: (e) => { e.stopPropagation(); continueDetails(f, show, e.currentTarget.closest('button')); } }, name)),
       f.season != null && f.episodeName && h('div', { class: 'sub continue-episode' }, f.episodeName),
       h('div', { class: 'sub' }, [episodeLabel(f), left].filter(Boolean).join(' · '))));
 }
 
+// A Continue watching card's title page. Play now cards (still downloading) open the TMDB title.
+function continueDetails(f, show, opener) {
+  if (show) return openShow(show.id, opener);
+  if (f.playNow) return f.tmdbId != null ? openDetails({ type: f.season != null || f.show ? 'tv' : 'movie', id: Number(f.tmdbId), title: f.filmTitle || f.title }, opener) : null;
+  return openFilm(f, opener);
+}
 // The ⋯ on a Continue watching card: mark it watched (everywhere), or just take it off the row.
 function openContinueMenu(f, progress, name, opener) {
-  const file = libraryFile(f), ref = progressRef(file);
+  const file = f.playNow ? f : libraryFile(f), ref = progressRef(file);
   const label = [name, f.season != null && episodeLabel(f)].filter(Boolean).join(' · ');
   // The card goes at once (on Discover and in the library); the next library render agrees.
   const refresh = () => {
@@ -1955,7 +1980,7 @@ function openContinueMenu(f, progress, name, opener) {
   });
   // A readout (where you are) over a numbered command list, in the panel language of the rest of the skin.
   const pct = progress?.duration ? Math.min(100, progress.time / progress.duration * 100) : 0;
-  const details = () => dismissTopOverlay().catch(() => {}).then(() => { f.show != null && state.libraryShows.some((s) => s.id === f.show) ? openShow(f.show, opener) : openFilm(f, opener); });
+  const details = () => dismissTopOverlay().catch(() => {}).then(() => continueDetails(f, f.show != null && state.libraryShows.find((s) => s.id === f.show), opener));
   const act = (n, ic, text, note, onclick) => h('button', { type: 'button', class: 'cm-act', onclick },
     h('span', { class: 'cm-ix', 'aria-hidden': 'true' }, n), icon(ic),
     h('span', { class: 'cm-txt' }, h('b', {}, text), h('small', {}, note)),

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-24-continue-play-now",
+  "date": "2026-11-24",
+  "title": "Continue watching keeps up",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Continue watching shows what you just started",
+      "text": "A minute or two into a long film didn't count as started, and something you were watching while it still downloaded didn't show up at all. Both now land in Continue watching."
+    }
+  ]
+},
+{
   "id": "2026-11-24-long-credits",
   "date": "2026-11-24",
   "title": "Long credits count",
