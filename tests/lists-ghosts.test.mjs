@@ -53,7 +53,7 @@ test('lists: make, fill, reorder, keep private, delete', async () => {
 
 test('lists: a profile saved before lists gets the section in its place', () => {
   const s = profiles.cleanSections(['favorites', 'recent', 'stats', 'ratings', 'reviews', 'liked', 'friends']);
-  assert.deepEqual(s.map((x) => x.id), ['favorites', 'recent', 'stats', 'ratings', 'match', 'anime', 'reviews', 'lists', 'liked', 'friends']);
+  assert.deepEqual(s.map((x) => x.id), ['favorites', 'recent', 'stats', 'ratings', 'match', 'anime', 'reviews', 'lists', 'liked', 'friends', 'comments']);
 });
 
 test('ghosts: per film or episode, own + friends only, no doubles, limits', () => {
