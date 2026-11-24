@@ -5,7 +5,9 @@
 // Deleting a comment takes its replies with it. Lilin's owners can delete any comment too, but an owner peeking at a
 // page that isn't shared with them can't post on it. Reports go to the owner's idea box (server.js).
 // Plain text only (shown as text, never HTML), at most MAX_COMMENT characters, a few a minute per person.
-import { database, userById } from './accounts.js';
+// Restricted people (accounts.isRestricted) have no comments: what they wrote before is hidden (not deleted) while
+// they're restricted, their likes don't count, and they can't reply to, like or report anything (server.js).
+import { database, userById, restrictedIds } from './accounts.js';
 import { cleanBio } from './profiles.js';
 
 export const MAX_COMMENT = 500;
@@ -49,14 +51,14 @@ function allowed(authorId, now) {
 }
 
 const SELECT = `SELECT c.*, p.handle,
-  (SELECT COUNT(*) FROM profile_comment_likes l WHERE l.comment_id = c.id) AS likes,
+  (SELECT COUNT(*) FROM profile_comment_likes l JOIN users lu ON lu.id = l.user_id WHERE l.comment_id = c.id AND lu.restricted = 0) AS likes,
   EXISTS (SELECT 1 FROM profile_comment_likes l WHERE l.comment_id = c.id AND l.user_id = @viewer) AS liked
   FROM profile_comments c LEFT JOIN profiles p ON p.user_id = c.author_id`;
 
 // What a comment looks like to the viewer: who wrote it, the text, when, likes, and whether the viewer may delete it.
-function shape(r, viewer) {
+function shape(r, viewer, hidden = restrictedIds()) {
   const a = userById(r.author_id);
-  if (!a) return null;
+  if (!a || hidden.has(a.id)) return null;
   return {
     id: r.id, parent: r.parent_id || null, text: r.body, created: r.created_at,
     author: { id: a.id, name: a.name, avatar: a.avatar, handle: r.handle || null },
@@ -69,6 +71,7 @@ function shape(r, viewer) {
 // total counts replies too; paging (offset, more) goes by top-level comments.
 export function list(viewer, profileId, { offset = 0, limit = PAGE } = {}) {
   const off = Math.max(0, Math.floor(Number(offset)) || 0);
+  const hidden = restrictedIds();
   const rows = db().prepare(`${SELECT} WHERE c.profile_id = @profile AND c.parent_id IS NULL ORDER BY c.created_at DESC, c.id DESC LIMIT @limit OFFSET @offset`)
     .all({ viewer: viewer.id, profile: profileId, limit: limit + 1, offset: off });
   const top = rows.slice(0, limit);
@@ -76,15 +79,19 @@ export function list(viewer, profileId, { offset = 0, limit = PAGE } = {}) {
   if (top.length) {
     const ids = top.map((r) => r.id);
     for (const r of db().prepare(`${SELECT} WHERE c.parent_id IN (${ids.map(() => '?').join(',')}) ORDER BY c.created_at, c.id`).all({ viewer: viewer.id }, ...ids.map(Number))) {
-      const s = shape(r, viewer);
+      const s = shape(r, viewer, hidden);
       if (s) replies.get(r.parent_id).push(s);
     }
   }
-  const total = db().prepare('SELECT COUNT(*) AS n FROM profile_comments WHERE profile_id = ?').get(profileId).n;
-  return { comments: top.map((r) => { const s = shape(r, viewer); return s && { ...s, replies: replies.get(r.id) }; }).filter(Boolean), more: rows.length > limit, total };
+  const total = db().prepare('SELECT author_id, parent_id FROM profile_comments WHERE profile_id = ?').all(profileId).filter((r) => !hidden.has(r.author_id)).length;
+  return { comments: top.map((r) => { const s = shape(r, viewer, hidden); return s && { ...s, replies: replies.get(r.id) }; }).filter(Boolean), more: rows.length > limit, total };
 }
 
-const rowOf = (id) => db().prepare('SELECT * FROM profile_comments WHERE id = ?').get(Number(id)) || null;
+// A comment's row, or null (also for one written by someone restricted: hidden while they are).
+const rowOf = (id) => {
+  const r = db().prepare('SELECT * FROM profile_comments WHERE id = ?').get(Number(id));
+  return r && !restrictedIds().has(r.author_id) ? r : null;
+};
 // One comment as the viewer sees it, or null.
 export function get(viewer, id) {
   const r = db().prepare(`${SELECT} WHERE c.id = @id`).get({ viewer: viewer.id, id: Number(id) });

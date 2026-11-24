@@ -37,11 +37,24 @@ test('the owner restricts people; restricted likes and sight stay out of social 
     assert.equal(mum.restricted, false);
     assert.equal(owner.restricted, false);
 
+    // A comment Mum leaves before she's restricted.
+    await request(`/api/profiles/me`, { visibility: 'public' });
+    await request(`/api/profiles/${owner.id}/comments`, { text: 'hej' }, 'mum@r.test');
+
     await request(`/api/admin/users/${owner.id}`, { restricted: true }, undefined, 400);
     await request(`/api/admin/users/${mum.id}`, { restricted: true }, 'pal@r.test', 403);
     await request(`/api/admin/users/${mum.id}`, { restricted: true });
     assert.equal((await request('/api/me', undefined, 'mum@r.test')).me.restricted, true);
     assert.equal((await request('/api/admin/users')).users.find((u) => u.id === mum.id).restricted, true);
+
+    // Comments: what she wrote is hidden, she can't post, read, like or report, and can't edit a profile.
+    const ownPage = await request('/api/profiles/me');
+    assert.equal(ownPage.comments.total, 0, 'a restricted person’s old comment is hidden');
+    assert.deepEqual(ownPage.comments.comments, []);
+    await request(`/api/profiles/${owner.id}/comments`, { text: 'again' }, 'mum@r.test', 403);
+    await request(`/api/profiles/${mum.id}/comments`, undefined, 'mum@r.test', 403);
+    assert.equal((await request('/api/profiles/me', undefined, 'mum@r.test')).comments ?? null, null);
+    await request('/api/profiles/me', { bio: 'hi' }, 'mum@r.test', 403);
 
     // Everyone likes the same film.
     for (const who of ['owner@r.test', 'mum@r.test', 'pal@r.test']) await request('/api/social/rate', { key: 'movie:603', value: 1 }, who);
@@ -55,6 +68,7 @@ test('the owner restricts people; restricted likes and sight stay out of social 
 
     await request(`/api/admin/users/${mum.id}`, { restricted: false });
     assert.equal((await request('/api/social/title?key=movie:603', undefined, 'pal@r.test')).likedBy.length, 2);
+    assert.equal((await request('/api/profiles/me')).comments.total, 1, 'unrestricting brings the comment back');
   } finally {
     child.kill();
     await exited;

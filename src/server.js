@@ -2213,7 +2213,7 @@ async function profileView(viewer, target) {
     // the editor shows your uploaded banner even while the banner is set to something else
     uploadUrl: v.me ? profileBanner.bannerUrl(target.id, look.upload) : undefined,
     // Comments (profile-comments.js): the first page while the section is on; an owner peeking can read, not post
-    comments: v.me || v.sections.some((s) => s.id === 'comments' && s.on) ? { ...profileComments.list(viewer, target.id), canPost: v.me || !v.ownerPeek } : null };
+    comments: !accounts.isRestricted(viewer) && (v.me || v.sections.some((s) => s.id === 'comments' && s.on)) ? { ...profileComments.list(viewer, target.id), canPost: v.me || !v.ownerPeek } : null };
 }
 
 const mayAutoDownload = (u) => Boolean(u && u.canDownload && QBIT_URL && tmdbOn() && torrents.torrentsEnabled());
@@ -4989,6 +4989,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/profiles' || p.startsWith('/api/profiles/')) {
     try {
       if (p === '/api/profiles/me' && req.method === 'POST') {
+        if (!profiles.canHaveProfile(user)) throw new HttpError(403, 'Profiles aren’t available on this account.'); // friends: Restrict
         await profiles.save(user, await readJson(req, 64 * 1024), { resolve: profileCard });
         return sendJson(res, 200, await profileView(user, user));
       }
@@ -5080,6 +5081,8 @@ async function handleApi(req, res, url) {
       if ((m = p.match(/^\/api\/profiles\/(\d{1,9})\/comments(?:\/(\d{1,12})\/(delete|like|report))?$/))) {
         const target = accounts.userById(Number(m[1]));
         if (!target) throw new HttpError(404, 'No such profile.');
+        // friends: Restrict. Restricted people have no comments at all, not even on their own page.
+        if (accounts.isRestricted(user)) throw new HttpError(403, 'Comments aren’t available on your account.');
         const sight = profiles.access(user, target);
         const on = sight === 'self' || (sight === 'full' && profiles.profileOf(target).sections.some((s) => s.id === 'comments' && s.on));
         if (!on) throw new HttpError(403, 'Comments aren’t open on this profile.');
