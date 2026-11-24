@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-24-support-lilin",
+  "date": "2026-11-24",
+  "title": "Support Lilin",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Support Lilin on Ko-fi",
+      "text": "If you'd like to chip in for the server and the work behind Lilin, there's now a Support Lilin tile at the bottom of You. It opens Lilin's Ko-fi page. Completely optional: everything stays free."
+    }
+  ]
+},
+{
   "id": "2026-11-24-audio-timing-card",
   "date": "2026-11-24",
   "title": "Fewer audio timing cards",

@@ -1,4 +1,13 @@
 {
+  "2026-11-24-support-lilin": {
+    "title": "Stöd Lilin",
+    "items": {
+      "Support Lilin on Ko-fi": {
+        "title": "Stöd Lilin via Ko-fi",
+        "text": "Vill du bidra till servern och arbetet bakom Lilin finns nu rutan Stöd Lilin längst ner under Du. Den öppnar Lilins Ko-fi-sida. Helt frivilligt: allt förblir gratis."
+      }
+    }
+  },
   "2026-11-24-audio-timing-card": {
     "title": "Färre kort om ljudtajming",
     "items": {

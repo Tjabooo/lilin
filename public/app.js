@@ -99,6 +99,7 @@ const ICONS = {
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   bulb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z"/></svg>',
+  cup: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h11v5.5a4.5 4.5 0 0 1-4.5 4.5h-2A4.5 4.5 0 0 1 5 14.5z"/><path d="M16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8.5 3.5c-.6.9.6 1.6 0 2.5M12 3.5c-.6.9.6 1.6 0 2.5"/></svg>',
   send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   upgrade: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>',
@@ -9103,11 +9104,15 @@ function renderYouRows() {
           trail: friends.length ? people.faces(friends, { size: 24, max: 3, cls: 'you-faces' }) : null,
           count: sub === 'friends' && sharesSocial() ? friendsUI.incomingCount() : sub === 'moments' ? momentsUI.unseenCount() : sub === 'ideas' ? newIdeaAnswers().length : 0 });
       }))];
+      // Last tile, beside Ideas: Lilin's Ko-fi page, for people who'd like to chip in (not on restricted profiles).
+      if (key === 'ideas' && !restricted) body[0].append(navRow({ label: T('Support Lilin'), meta: T('Buy Oliver a coffee on Ko-fi'), cls: 'you-support',
+        lead: youIcon('cup'), run: () => window.open(KOFI_URL, '_blank', 'noopener') }));
     }
-    return ids.length && h('section', { class: `set-group you-group you-group-${key}` }, title && h('h3', { class: 'set-head' }, title), ...body.filter(Boolean));
+    return (ids.length || (key === 'ideas' && !restricted)) && h('section', { class: `set-group you-group you-group-${key}` }, title && h('h3', { class: 'set-head' }, title), ...body.filter(Boolean));
   });
   $('#you-rows').replaceChildren(h('div', { class: 'set-stack you-me' }, me), ...groups.filter(Boolean));
 }
+const KOFI_URL = 'https://ko-fi.com/tjabo';
 const YOU_ICONS = { history: 'clock', ratings: 'star', liked: 'heart', friends: 'friends', moments: 'camera', activity: 'bell', invite: 'send',
   account: 'lock', look: 'palette', watching: 'play', devices: 'tv', 'download-settings': 'volume', ideas: 'bulb' };
 const youIcon = (name) => h('span', { class: 'you-icon', 'aria-hidden': 'true' }, icon(name));

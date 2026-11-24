@@ -2606,6 +2606,8 @@ export default {
   "Open {0}’s profile": "Öppna {0}s profil",
   // You: the list's groups and lines, For you, your own lists
   "Your watching": "Ditt tittande",
+  "Support Lilin": "Stöd Lilin",
+  "Buy Oliver a coffee on Ko-fi": "Bjud Oliver på en kaffe via Ko-fi",
   "Ratings and reviews": "Betyg och recensioner",
   "View public page": "Visa din offentliga sida",
   "Home network": "Hemnätverket",

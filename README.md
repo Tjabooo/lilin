@@ -3,6 +3,7 @@
 [![CI](https://github.com/Tjabooo/lilin/actions/workflows/ci.yml/badge.svg)](https://github.com/Tjabooo/lilin/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Tjabooo/lilin)](https://github.com/Tjabooo/lilin/releases)
 [![Image](https://img.shields.io/badge/ghcr.io-tjabooo%2Flilin-blue)](https://github.com/Tjabooo/lilin/pkgs/container/lilin)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support%20Lilin-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/tjabo)
 
 ![Lilin](public/og-lilin.jpg)
 
@@ -160,6 +161,11 @@ node scripts/ci/smoke.mjs      # setup, start, health check and clean stop in a 
 
 The server is plain ES modules in `src/`, the web app plain JavaScript in `public/`; there is no
 build step.
+
+## Support
+
+Lilin is free and stays free. If it's useful to you and you'd like to chip in, you can
+[buy me a coffee on Ko-fi](https://ko-fi.com/tjabo).
 
 ## Disclaimer
 
