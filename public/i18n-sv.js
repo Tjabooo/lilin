@@ -1890,6 +1890,8 @@ export default {
   "Starts {0}. Send the invite to whoever's watching; the party also waits for you in Live.": "Startar {0}. Skicka inbjudan till dem som ska titta. Tittarkvällen väntar också på dig i Live.",
   "Copy invite": "Kopiera inbjudan",
   "Started": "Startad",
+  "Started by {0}": "Startad av {0}",
+  "the server": "servern",
   "{0} {1} in the room": "{0} {1} i rummet",
   "You planned this": "Du planerade den här",
   "Planned by {0}": "Planerad av {0}",

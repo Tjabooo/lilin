@@ -12,7 +12,7 @@ function harness({ view = 'library', request = async () => ({ items: [], shows: 
   const body = { contains: () => false, querySelectorAll: () => [] };
   const context = vm.createContext({ T: englishT, AbortSignal,
     state: { view, status: { library: true, downloads: true }, library: [], server: [], libraryShows: [], libraryError: null,
-      downloads: [], downloadsError: null, dlScope: 'mine', convert: null, sessions: [], me: {} },
+      downloads: [], downloadsError: null, convert: null, sessions: [], me: {} },
     current: null, overlayStack: [],
     document: { hidden: false, activeElement: {}, addEventListener: (event, fn) => listeners.set(event, fn) },
     window: { scrollX: 12, scrollY: 456, scrollTo: (x, y) => logs.push(['scroll', x, y]), addEventListener: (event, fn) => listeners.set(event, fn) },
@@ -108,15 +108,15 @@ test('changed library data preserves open overlays and restores focus and scroll
   assert.ok(h.logs.some(x => x[0] === 'scroll' && x[1] === 12 && x[2] === 456));
 });
 
-test('a late downloads response for the previous scope cannot overwrite the new scope', async () => {
-  const mine = deferred(); const all = deferred();
-  const h = harness({ request: path => path.includes('?all=1') ? all.promise : mine.promise });
-  const old = h.run('loadDownloads()');
-  h.context.state.dlScope = 'all';
-  const fresh = h.run('loadDownloads()');
-  all.resolve({ items: [{ hash: 'all', done: false, mine: false }] }); await fresh;
-  mine.resolve({ items: [{ hash: 'mine', done: true, mine: true }] }); await old;
+test('owners load every download on the server; members only their own', async () => {
+  const paths = [];
+  const h = harness({ request: async path => { paths.push(path); return { items: [{ hash: path.includes('?all=1') ? 'all' : 'mine', done: true }] }; } });
+  await h.run('loadDownloads()');
+  assert.equal(h.context.state.downloads[0].hash, 'mine');
+  h.context.state.me = { isOwner: true };
+  await h.run('loadDownloads()');
   assert.equal(h.context.state.downloads[0].hash, 'all');
+  assert.deepEqual(paths, ['/api/downloads', '/api/downloads?all=1']);
 });
 
 test('byte progress polls patch cards without reading full library; partial-pack membership refreshes immediately', async () => {

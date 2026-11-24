@@ -242,7 +242,6 @@ const state = {
   libraryError: null,
   downloads: [],
   downloadsError: null,
-  dlScope: 'mine',  // the owner can switch Downloads to everyone's
   server: [],       // videos on the server that aren't in this person's library
   me: null,         // who's signed in, with their settings (accounts.js)
   rules: null,      // the server's rules (owner settings)
@@ -1736,7 +1735,7 @@ function renderLibrary() {
     libraryUI = { root, content: root, dl: null };
     body.replaceChildren(root);
   }
-  renderLibraryDownloads(unifiedLibrary());
+  renderLibraryDownloads(state.me?.isOwner ? libraryUnion(state.library, state.libraryShows, state.downloads, { everyone: true }) : unifiedLibrary());
   updateOpenTitle();
 }
 
@@ -1755,8 +1754,7 @@ const touchDevice = () => matchMedia('(hover: none) and (pointer: coarse)').matc
 function renderLibraryDownloads(all) {
   if (!libraryUI.dl) {
     const actions = h('div', { class: 'lib-actions' },
-      state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => findTorrents('', e.currentTarget) }, icon('search'), T('Find torrents')),
-      state.me?.isOwner && h('button', { type: 'button', class: 'chip', onclick: (e) => openTransferDetails(null, e.currentTarget) }, T('All server downloads')));
+      state.status.torrents && canDownload() && h('button', { type: 'button', class: 'chip', onclick: (e) => findTorrents('', e.currentTarget) }, icon('search'), T('Find torrents')));
     const section = (title, cls = 'rn-list') => { const list = h('ul', { class: cls }); return { list, node: h('section', { class: 'shelf dl-section', 'aria-label': title, hidden: true }, h('h3', { class: 'lib-subhead' }, title), list) }; };
     libraryUI.dl = { attention: section(T('Needs attention')), onway: section(T('On the way')), phone: section(T('On this phone'), 'rows travel-list'),
       rows: new Map(), notices: h('div'), empty: h('div'), foot: h('div', { class: 'library-foot' }) };
@@ -1811,6 +1809,13 @@ function downloadRow(e) {
     h('span', { class: 'rn-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, h('i')));
   return row;
 }
+// "Started by ebi", "Started by Oliver and ebi" (owners see every download, so each row says whose it is).
+function startedBy(e) {
+  const list = e.active.length ? e.active : e.transfers;
+  if (!state.me?.isOwner || !list.length) return '';
+  const names = [...new Set(list.map((d) => (d.owner && d.owner === state.me?.name ? T('you') : d.owner || T('the server'))))];
+  return T('Started by {0}', nameList(names));
+}
 function updateDownloadRow(row, e) {
   const old = row._entry;
   row._entry = e;
@@ -1818,7 +1823,7 @@ function updateDownloadRow(row, e) {
   const pct = e.progress == null ? null : Math.floor(e.progress * 100);
   row.querySelector('.rn-title').textContent = e.name;
   const sub = row.querySelector('.rn-sub');
-  sub.textContent = [e.state, pct != null && `${pct}%`, e.speed > 0 && `${fmtBytes(e.speed)}/s`].filter(Boolean).join(' · ');
+  sub.textContent = [e.state, pct != null && `${pct}%`, e.speed > 0 && `${fmtBytes(e.speed)}/s`, startedBy(e)].filter(Boolean).join(' · ');
   row.classList.toggle('is-alert', e.attention);
   row.classList.toggle('is-paused', e.state === T('Paused'));
   row.querySelector('.rn-more').setAttribute('aria-label', T('Download details for {0}', e.name));
@@ -2774,13 +2779,14 @@ function downloadsChangedLibrary(before, after) {
 }
 function loadDownloads() {
   if (!state.status.downloads) return Promise.resolve();
-  const scope = state.dlScope;
+  // Owners (Oliver and ebi) see every download on the server, with who started it; everyone else sees their own.
+  const scope = state.me?.isOwner ? 'all' : 'mine';
   if (downloadsRequest?.scope === scope) return downloadsRequest.promise;
   const generation = ++downloadsGeneration;
   const promise = (async () => {
     try {
       const data = await api(`/api/downloads${scope === 'all' ? '?all=1' : ''}`, { signal: AbortSignal.timeout(15000) });
-      if (generation !== downloadsGeneration || state.dlScope !== scope) return;
+      if (generation !== downloadsGeneration) return;
       libraryRefreshNeeded ||= downloadsChangedLibrary(state.downloads, data.items);
       state.downloads = data.items;
       state.downloadsError = null;
@@ -2937,7 +2943,7 @@ function updateDlCard(el, d) {
   r.title.textContent = [d.canonicalTitle || d.title, scope ? `${seasonName(d.season)} · ${scope}` : d.season != null && d.episode == null ? T('{0} pack', seasonName(d.season)) : episodeLabel(d), d.year && !d.season ? `(${d.year})` : null].filter(Boolean).join(' ');
   r.title.title = d.name;
   const soon = playNowSoon(d);
-  r.state.textContent = [state.dlScope === 'all' && d.owner ? T('{0} · for {1}', label, d.owner) : label, soon].filter(Boolean).join(' · ');
+  r.state.textContent = [d.owner ? T('{0} · for {1}', label, d.owner) : label, soon].filter(Boolean).join(' · ');
   r.state.classList.toggle('is-error', d.state === 'error' || d.state === 'missingFiles');
   const playNow = playNowFile(d);
   r.actions.hidden = !playNow && (!d.ready || d.mediaType === 'tv' && d.episode == null);
@@ -2984,12 +2990,10 @@ function pickerManagerSubview(opener) {
 function renderDownloads() { patchTransferNodes(); }
 function openTransferDetails(entry, opener) {
   const list = h('ul', { class: 'rows transfer-detail-list' });
-  const scope = h('div');
-  $('#picker-body').replaceChildren(h('h2', { id: 'picker-title' }, entry ? T('{0} downloads', entry.name) : T('Manage server downloads')), scope, list);
-  managerView = { list, entryKey: entry?.key || null, hashes: entry?.transfers.map(d => d.hash) || null, scope };
-  if (!entry && state.me?.isOwner) scope.append(segmented([['mine', T('Mine')], ['all', T('Everyone')]], state.dlScope, async v => { state.dlScope = v; scope.querySelectorAll('button').forEach((b,i) => b.setAttribute('aria-pressed', String((i ? 'all' : 'mine') === v))); await loadDownloads(); drawTransferDetails(); }, T('Whose downloads')));
+  $('#picker-body').replaceChildren(h('h2', { id: 'picker-title' }, entry ? T('{0} downloads', entry.name) : T('Manage server downloads')), list);
+  managerView = { list, entryKey: entry?.key || null, hashes: entry?.transfers.map(d => d.hash) || null };
   drawTransferDetails();
-  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { managerView = null; if (state.dlScope !== 'mine') { state.dlScope = 'mine'; loadDownloads().then(patchUnifiedLibrary); } opener?.focus({ preventScroll: true }); }));
+  pushOverlay(showSheet($('#picker'), $('#picker-backdrop'), () => { managerView = null; opener?.focus({ preventScroll: true }); }));
 }
 function drawTransferDetails() {
   if (!managerView || managerView.suspended) return;

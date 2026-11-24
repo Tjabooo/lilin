@@ -34,7 +34,8 @@ function identity(x, ready = false) {
   if (x.tmdbId != null) return `${type === 'tv' ? 'tv' : 'movie'}:${type === 'tv' ? `tv-${x.tmdbId}` : x.tmdbId}`;
   return `${ready ? 'file' : 'hash'}:${ready ? x.mediaKey || x.id : x.hash}`;
 }
-export function libraryUnion(files = [], shows = [], downloads = []) {
+// everyone: the owners' Downloads page also counts other people's transfers (normally only your own are in it).
+export function libraryUnion(files = [], shows = [], downloads = [], { everyone = false } = {}) {
   const grouped = new Map(), byFile = new Map(), byShow = new Map(shows.map(s => [s.id, s]));
   const get = (key, x, ready) => {
     if (!grouped.has(key)) {
@@ -47,7 +48,7 @@ export function libraryUnion(files = [], shows = [], downloads = []) {
     return entry;
   };
   for (const f of files) { const entry = get(identity(f, true), f, true); byFile.set(f.id, entry); }
-  for (const d of downloads.filter(d => d.mine !== false)) {
+  for (const d of downloads.filter(d => everyone || d.mine !== false)) {
     const match = (d.libraryIds || []).map(id => byFile.get(id)).find(Boolean);
     const entry = match || get(identity(d), d, false);
     if (match) { entry.transfers.push(d); entry.aliases.push(`hash:${d.hash}`); }
