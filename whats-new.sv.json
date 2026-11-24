@@ -1,4 +1,17 @@
 {
+  "2026-11-24-subtitle-doctor": {
+    "title": "Undertexter kontrolleras åt dig",
+    "items": {
+      "Lilin checks every video's subtitles by itself": {
+        "title": "Lilin kontrollerar alla videors undertexter själv",
+        "text": "I bakgrunden går Lilin nu igenom hela biblioteket och lagar undertexter som saknas, inte går att läsa, slutar halvvägs eller hör till en annan version, så att de fungerar innan du trycker på play. Nedladdningar som misslyckades (till exempel när dagens gräns var slut) provas igen senare i stället för att ges upp."
+      },
+      "Built-in English tracks with only a few lines are skipped": {
+        "title": "Inbyggda engelska spår med bara några få repliker hoppas över",
+        "text": "Vissa videor har ett engelskt spår med bara enstaka rop. Lilin byter inte längre ut dina hela undertexter mot det."
+      }
+    }
+  },
   "2026-11-24-forced-subs": {
     "title": "Undertexter som visar varje replik",
     "items": {

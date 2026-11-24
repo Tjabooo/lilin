@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-24-subtitle-doctor",
+  "date": "2026-11-24",
+  "title": "Subtitles checked for you",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Lilin checks every video's subtitles by itself",
+      "text": "In the background Lilin now goes through the whole library and fixes subtitles that are missing, unreadable, stop halfway or belong to a different cut, so they work before you press play. Downloads that failed (for example when the day's limit was used up) are tried again later instead of given up on."
+    },
+    {
+      "kind": "fix",
+      "title": "Built-in English tracks with only a few lines are skipped",
+      "text": "Some videos carry an English track with only the odd shouted line. Lilin no longer swaps your full subtitles for it."
+    }
+  ]
+},
+{
   "id": "2026-11-24-forced-subs",
   "date": "2026-11-24",
   "title": "Subtitles that show every line",

@@ -332,10 +332,17 @@ export async function embeddedLanguages(file) {
   return out;
 }
 
-async function extractTo(src, out) {
+// Fewer lines than this in a whole (finished) video means a forced track that isn't tagged as one: only the odd
+// shouted line or sign (Rings of Power S03 WEB-DLs carry exactly that as their one English track).
+export const FORCED_LIKE = 50;
+async function extractTo(src, out, { min = 1, before = null } = {}) {
   const text = decode(await run(FFMPEG, ['-v', 'error', '-i', src.file, '-map', `0:${src.index}`, '-f', 'srt', 'pipe:1'], { timeoutMs: 5 * 60 * 1000 }));
   const count = parseCues(text).length;
-  if (!count) return 0;
+  if (count < min) {
+    if (count) console.log(`[subsync] ${path.basename(out)}: the video's own track has only ${count} lines (forced only), not used`);
+    return 0;
+  }
+  before?.();
   // A read of a file that's still arriving can come out shorter than the last one (pieces fetched out of order).
   try { if (parseCues(decode(fs.readFileSync(out))).length > count && registry[keyOf(out)]?.growing) return 0; } catch { /* first copy */ }
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -350,8 +357,7 @@ async function extractTo(src, out) {
 export async function useOwnTrack(source, out, lang, { growing = false } = {}) {
   const src = await ownTrack(growing ? [source] : sourcesOf(source), lang);
   if (!src) return null;
-  if (fs.existsSync(out)) retire(out);
-  const count = await extractTo(src, out).catch((e) => { console.warn(`[subsync] reading ${lang} from ${path.basename(src.file)}: ${e.message}`); return 0; });
+  const count = await extractTo(src, out, { min: growing ? 1 : FORCED_LIKE, before: () => { if (fs.existsSync(out)) retire(out); } }).catch((e) => { console.warn(`[subsync] reading ${lang} from ${path.basename(src.file)}: ${e.message}`); return 0; });
   if (!count) return null;
   registry[keyOf(out)] = { path: out, trusted: true, stamp: stamp(out), ...(growing && { growing: { lang, at: Date.now() } }) };
   save();
@@ -369,7 +375,7 @@ export function refreshOwnTrack(srt, source, partial) {
   if (partial && Date.now() - (e.growing.at || 0) < 120 * 1000) return Promise.resolve(false);
   const job = (async () => {
     const src = await ownTrack(partial ? [source] : sourcesOf(source), e.growing.lang);
-    const count = src ? await extractTo(src, srt).catch(() => 0) : 0;
+    const count = src ? await extractTo(src, srt, { min: partial ? 1 : FORCED_LIKE }).catch(() => 0) : 0;
     registry[k] = partial ? { ...e, stamp: stamp(srt), growing: { ...e.growing, at: Date.now() } }
       : { path: srt, trusted: true, stamp: stamp(srt) }; // complete now (or the track wasn't found: the copy stays)
     save();

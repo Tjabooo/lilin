@@ -84,6 +84,7 @@ async function osFetchNow(endpoint, { method = 'GET', body } = {}) {
   }
   if (r.status === 429) throw fail(429, 'OpenSubtitles is busy. Try again in a few seconds.');
   if (r.status === 406 || (endpoint === '/download' && data.remaining != null && !data.link)) {
+    noteDownloadsLeft(data.remaining ?? 0);
     const reset = data.reset_time ? tr(' It resets in {0}.', data.reset_time) : '';
     throw Object.assign(fail(429, `Today’s subtitle download limit is used up.${reset}${USER ? '' : tr(' Adding a free OpenSubtitles login to .env raises it.')}`), { quota: true });
   }
@@ -390,7 +391,17 @@ async function download(file, info, lang, { properOnly = false } = {}) {
   if (!best) throw fail(404, `OpenSubtitles has no ${name} subtitles for this.`);
 
   await login().catch((e) => console.warn(`[subtitles] ${e.message} Continuing without login.`));
-  const dl = await osFetch('/download', { method: 'POST', body: { file_id: best.entry.file_id } });
+  let dl;
+  try {
+    dl = await osFetch('/download', { method: 'POST', body: { file_id: best.entry.file_id } });
+  } catch (e) {
+    // A 401 here is nearly always a stale login token (searches worked with the same key a moment ago):
+    // log in again and try once more before calling it a bad key.
+    if (e.status !== 502 || !/API key/.test(e.message)) throw e;
+    token = null; tokenAt = 0;
+    await login().catch(() => {});
+    dl = await osFetch('/download', { method: 'POST', body: { file_id: best.entry.file_id } });
+  }
   if (!dl.link) throw fail(502, 'OpenSubtitles didn’t return a download link.');
   let r;
   try { r = await fetch(dl.link, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) }); } catch {
@@ -521,6 +532,8 @@ const REF_WAIT_MS = 5000;
 const DAY = 24 * 3600 * 1000;
 const refReserve = () => Math.max(0, Number(process.env.SUBTITLE_REFERENCE_RESERVE ?? 10) || 0);
 
+// Downloads left today as OpenSubtitles last reported them (null when unknown or a day old).
+export const downloadsLeftToday = () => (downloadsLeft != null && Date.now() - downloadsLeftAt < DAY ? downloadsLeft : null);
 function noteDownloadsLeft(n) {
   if (n == null || !Number.isFinite(Number(n))) return;
   downloadsLeft = Number(n);

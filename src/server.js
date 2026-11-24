@@ -19,6 +19,7 @@ import { createQuoteSearch } from './quote-search.js'; // lines: quote search ov
 import { cleanSubtitle } from './subfix.js'; // lines: OCR'd English is tidied before it's indexed
 import { applyProofread } from './subllm.js'; // lines
 import * as subsync from './subsync.js';
+import { SubDoctor } from './subdoctor.js';
 import * as activity from './activity.js';
 import * as house from './house.js';
 import { createTvPairing } from './tv.js';
@@ -6864,6 +6865,25 @@ async function checkSubtitleWants() {
 }
 setTimeout(checkSubtitleWants, 20_000);
 setInterval(checkSubtitleWants, 2 * 60 * 1000);
+
+// ---------- subtitle doctor (subdoctor.js) ----------
+// Every 30 min a background pass checks the library's English subtitles (missing, unreadable, forced-only,
+// stopping early, running past the end) and repairs what it can, newest videos first.
+const subDoctor = new SubDoctor({
+  dataDir: DATA_DIR,
+  videos: async () => { await scanLibrary(); return (libraryCache.items || []).map((i) => i.full); },
+  infoFor,
+  findSidecar: subtitles.findSidecar,
+  ensureSubtitle: subtitles.ensureSubtitle,
+  otherUploads: subtitles.otherUploads,
+  parseCues: subsync.parseCues,
+  duration: (file) => converter.probeDuration(file),
+  sync: (srt, file) => subsync.ensureSync(srt, file),
+  quotaLow: () => { const n = subtitles.downloadsLeftToday(); return n != null && n <= 10; }, // leaves room for people pressing play
+});
+const subDoctorRound = () => { if (MEDIA_DIR && subtitles.subtitlesConfigured()) subDoctor.round().catch((e) => console.warn(`[subdoctor] ${e.message}`)); };
+setTimeout(subDoctorRound, 5 * 60_000).unref();
+setInterval(subDoctorRound, 30 * 60_000).unref();
 
 // ---------- finished downloads: no seeding ----------
 // QBIT_REMOVE_FINISHED=on (default): a finished download is removed from qBittorrent with its files
