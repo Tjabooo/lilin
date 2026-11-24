@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-24-long-credits",
+  "date": "2026-11-24",
+  "title": "Long credits count",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Films with very long credits count as watched",
+      "text": "Films with extra-long credits, like the extended Lord of the Rings, stayed in Continue watching with half an hour left when you stopped at the credits. Lilin now spots where those credits start, so stopping there counts as finished."
+    }
+  ]
+},
+{
   "id": "2026-11-24-support-lilin",
   "date": "2026-11-24",
   "title": "Support Lilin",

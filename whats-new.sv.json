@@ -1,4 +1,13 @@
 {
+  "2026-11-24-long-credits": {
+    "title": "Långa eftertexter räknas",
+    "items": {
+      "Films with very long credits count as watched": {
+        "title": "Filmer med väldigt långa eftertexter räknas som sedda",
+        "text": "Filmer med extra långa eftertexter, som de förlängda Sagan om ringen-filmerna, låg kvar under Fortsätt titta med en halvtimme kvar när du slutade vid eftertexterna. Nu hittar Lilin var de eftertexterna börjar, så att sluta där räknas som färdigsett."
+      }
+    }
+  },
   "2026-11-24-support-lilin": {
     "title": "Stöd Lilin",
     "items": {

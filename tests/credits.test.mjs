@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { creditsStart, lastDialogueEnd, creditsGuess, creditsGuessFromSrt, creditsSongStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP,
+import { creditsStart, lastDialogueEnd, creditsGuess, creditsGuessFromSrt, longCredits, creditsSongStart, creditsFor, introFor, introChapter, agreeIntro, initCredits, fingerprint, matchEndings, matchOpenings, RATE, HOP,
   recapChapter, saysPreviously, recapSpan, matchClips } from '../src/credits.js';
 
 const info = (title, start = '1900') => ({ format: { duration: '2100' }, chapters: [{ start_time: start, tags: { title } }] });
@@ -302,6 +302,17 @@ test('the end of the dialogue gives a guessed credits start, skipping music and 
   assert.equal(creditsGuess(4100, 4162.5), null, 'a short tail is a closing scene');
   assert.equal(creditsGuess(1000, 4162.5), null, 'dialogue ending in the first half is broken subtitles');
   assert.equal(creditsGuess(null, 4162.5), null);
+});
+
+test('very long film credits count only with a chapter starting right after the last line', () => {
+  // The extended Fellowship of the Ring: last line 3:20:15.8, unnamed "Chapter 20" at 3:20:43.9, file 3:48:18.
+  const srt = "1\n02:00:00,000 --> 02:00:02,000\nFly, you fools.\n\n2\n03:20:13,222 --> 03:20:15,849\nI'm glad you are with me.\n";
+  const marks = [11067.694, 11503.463, 11665.75, 12043.878, 12504.713];
+  assert.equal(creditsGuessFromSrt(srt, 13698.368, marks), 12044);
+  assert.equal(creditsGuessFromSrt(srt, 13698.368, []), null, 'a long tail alone may be subtitles that stop early');
+  assert.equal(creditsGuessFromSrt(srt, 13698.368, [12300]), null, 'a chapter well after the last line is a scene');
+  assert.equal(longCredits(12015.849, 12015.849 + 50 * 60, [12043.878]), null, 'longer than any credits');
+  assert.equal(longCredits(3865.375, 4162.5, [3870]), null, 'short tails stay with the normal guess');
 });
 
 test('a sung credits song at the end of the subtitles starts the credits with its first line', () => {

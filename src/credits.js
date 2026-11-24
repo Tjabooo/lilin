@@ -84,13 +84,34 @@ export function creditsSongStart(srt) {
   return run >= SONG_LINES && cues[cues.length - 1].end - cues[k].start >= SONG_MIN ? cues[k].start : null;
 }
 
-export function creditsGuessFromSrt(srt, duration) {
+// marks: chapter starts in the second half (chapterMarks), named or not.
+export function creditsGuessFromSrt(srt, duration, marks = []) {
   const song = creditsSongStart(srt);
   if (song != null && Number.isFinite(duration) && duration >= 300 && song > duration / 2) {
     const tail = duration - song;
     if (tail >= GUESS_MIN_TAIL && tail <= GUESS_MAX_TAIL) return Math.floor(song);
   }
-  return creditsGuess(lastDialogueEnd(srt), duration);
+  const last = lastDialogueEnd(srt);
+  return creditsGuess(last, duration) ?? longCredits(last, duration, marks);
+}
+
+// Some films roll credits for far longer than GUESS_MAX_TAIL (the extended Lord of the Rings: 28 minutes of fan
+// club names). A tail that long alone could be subtitles that stop early, so it needs a second witness: a chapter
+// (Blu-ray chapters are usually unnamed, "Chapter 20") starting just after the last line. The credits start there.
+const LONG_MAX_TAIL = 45 * 60;
+const LONG_CHAPTER_AFTER = 90; // seconds from the last line to that chapter
+export function longCredits(lastLine, duration, marks = []) {
+  if (!Number.isFinite(lastLine) || !Number.isFinite(duration) || lastLine <= duration / 2) return null;
+  const tail = duration - lastLine;
+  if (tail <= GUESS_MAX_TAIL || tail > LONG_MAX_TAIL) return null;
+  const mark = (marks || []).find((at) => at >= lastLine && at <= lastLine + LONG_CHAPTER_AFTER);
+  return mark == null ? null : Math.ceil(mark);
+}
+// Chapter starts in the second half of the file, whatever their titles.
+export function chapterMarks(info) {
+  const duration = Number(info?.format?.duration);
+  if (!Number.isFinite(duration) || duration <= 0 || !Array.isArray(info?.chapters)) return [];
+  return info.chapters.map((c) => Number(c.start_time)).filter((at) => Number.isFinite(at) && at > duration / 2 && at < duration - 1).sort((a, b) => a - b);
 }
 
 // The audio match above finds the longest stretch of music two endings share, which is the start of the credits
@@ -192,7 +213,8 @@ function probe(file) {
       try {
         const info = JSON.parse(stdout);
         const duration = Number(info?.format?.duration);
-        resolve({ duration: Number.isFinite(duration) && duration > 0 ? duration : null, chapter: creditsStart(info), intro: introChapter(info), recap: recapChapter(info) });
+        resolve({ duration: Number.isFinite(duration) && duration > 0 ? duration : null, chapter: creditsStart(info), intro: introChapter(info), recap: recapChapter(info),
+          marks: chapterMarks(info) });
       } catch { resolve(null); }
     });
   });
@@ -575,7 +597,7 @@ function save() {
   saveTimer.unref?.();
 }
 
-const FACTS = 3; // 2: opening chapters, 3: recap chapters
+const FACTS = 4; // 2: opening chapters, 3: recap chapters, 4: chapter marks (long film credits)
 const probing = new Map();
 async function facts(file) {
   const stat = await fsp.stat(file).catch(() => null);
@@ -585,11 +607,11 @@ async function facts(file) {
   if (hit?.key === key && hit.probed && hit.v === FACTS) { hit.at = Date.now(); return hit; }
   if (probing.has(file)) return probing.get(file);
   const task = probe(file).then((info) => {
-    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, recap: null, vs: {}, ivs: {}, ifar: {}, rvs: {}, roll: {} }; // not cached: retried next time
+    if (!info) return { key, tok: key, duration: null, chapter: null, intro: null, recap: null, marks: [], vs: {}, ivs: {}, ifar: {}, rvs: {}, roll: {} }; // not cached: retried next time
     const same = hit?.key === key; // only the probe got older: keep the comparisons already made
     const twin = !same && info.duration ? twinOf(file, info.duration) : null;
     const entry = { key, tok: same && hit.tok || twin?.entry.tok || key, duration: info.duration,
-      chapter: info.chapter ?? twin?.entry.chapter ?? null, intro: info.intro ?? twin?.entry.intro ?? null, recap: info.recap ?? twin?.entry.recap ?? null,
+      chapter: info.chapter ?? twin?.entry.chapter ?? null, marks: info.marks?.length ? info.marks : twin?.entry.marks || [], intro: info.intro ?? twin?.entry.intro ?? null, recap: info.recap ?? twin?.entry.recap ?? null,
       vs: same && hit.vs || { ...twin?.entry.vs }, ivs: same && hit.ivs || { ...twin?.entry.ivs }, ifar: same && hit.ifar || { ...twin?.entry.ifar },
       rvs: same && hit.rvs || { ...twin?.entry.rvs }, roll: same && hit.roll || { ...twin?.entry.roll }, probed: true, v: FACTS, at: Date.now() };
     state.files[file] = entry;
@@ -687,7 +709,7 @@ async function checkRoll(file, entry, at, wait = Infinity) {
 export async function creditsGuessFor(file, sidecar) {
   const entry = await facts(file);
   if (!entry?.duration || !sidecar) return null;
-  try { return creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration); } catch { return null; }
+  try { return creditsGuessFromSrt(await fsp.readFile(sidecar, 'utf8'), entry.duration, entry.marks); } catch { return null; }
 }
 
 // What's already known about a video for Live TV: its length, the opening titles and where the credits start.
