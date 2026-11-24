@@ -11,6 +11,8 @@ and watch them in the browser, on your phone or on the TV, with subtitles that f
 Think of it as a lighter, phone-first alternative to Plex, Jellyfin or Emby for a small circle
 of friends and family, with Watch Together, DLNA/AirPlay casting and TV apps built in.
 
+![Lilin on a phone: Discover, MAGIc search, playing a film and Live TV](docs/demo.gif)
+
 Lilin is one Node.js process with no npm dependencies. It runs on Windows, Linux, macOS and in
 Docker, and installs as a web app on your phone's home screen.
 
