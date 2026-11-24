@@ -11232,11 +11232,21 @@ async function openTrim(c, opener) {
   let tracks = [];        // the clip's audio tracks (from the server); the mix isn't offered
   const removed = new Set();
   // Camera overlay (clips recorded with the OBS virtual camera): a box you drag and resize on the
-  // picture, burned into the copy when it's on. Place and on/off are remembered for the next clip.
+  // picture, burned into the copy when it's on. Hold Alt (or turn on Crop) and drag a side to crop
+  // it, like in OBS. Place, crop and on/off are remembered for the next clip.
   let cam = null;         // { offset, duration, width, height } from the server
   let events = [];        // [{ t, type, label, hs }] game events in the clip, from the server
   let frameW = 16, frameH = 9;
-  const camPlace = (() => { try { const v = JSON.parse(localStorage.getItem('clip:cam:place')); if (v && [v.x, v.y, v.w].every(Number.isFinite)) return v; } catch { /* default */ } return { x: 0.73, y: 0.04, w: 0.24 }; })();
+  const noCrop = () => ({ l: 0, t: 0, r: 0, b: 0 });
+  const camPlace = (() => {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem('clip:cam:place')); } catch { /* default */ }
+    if (!v || ![v.x, v.y, v.w].every(Number.isFinite)) v = { x: 0.73, y: 0.04, w: 0.24 };
+    const c = v.crop;
+    v.crop = c && ['l', 't', 'r', 'b'].every((k) => Number.isFinite(c[k]) && c[k] >= 0) && c.l + c.r <= 0.95 && c.t + c.b <= 0.95 ? c : noCrop();
+    return v;
+  })();
+  let cropMode = false;   // drag the sides to crop without holding Alt (phones)
   let camOn = (() => { try { return localStorage.getItem('clip:cam:on') !== '0'; } catch { return true; } })();
   const undo = [];
   let busy = false;
@@ -11368,13 +11378,18 @@ async function openTrim(c, opener) {
   const info = h('p', { class: 'edit-info', role: 'status' }, T('Loading the clip…'));
   const camVideo = h('video', { class: 'edit-cam-video', muted: true, playsinline: true, preload: 'auto', 'aria-hidden': 'true' });
   const camHandle = h('div', { class: 'edit-cam-size', title: T('Drag to resize the camera') });
-  const camBox = h('div', { class: 'edit-cam', title: T('Drag to move the camera') }, camVideo, camHandle);
+  const camView = h('div', { class: 'edit-cam-view' }, camVideo);
+  const camBox = h('div', { class: 'edit-cam', title: T('Drag to move the camera · Alt+drag a side to crop it') }, camView, camHandle);
   const camFrame = h('div', { class: 'edit-cam-frame', hidden: true }, camBox);
   const camRow = h('div', { class: 'edit-tracks', hidden: true });
-  const camH = () => (cam ? (camPlace.w * frameW * cam.height) / cam.width / frameH : 0); // height as a fraction of the picture
+  // the part of the camera that's shown, in camera pixels
+  const camSrcW = () => cam.width * (1 - camPlace.crop.l - camPlace.crop.r);
+  const camSrcH = () => cam.height * (1 - camPlace.crop.t - camPlace.crop.b);
+  const camH = () => (cam ? (camPlace.w * frameW * camSrcH()) / camSrcW() / frameH : 0); // height as a fraction of the picture
+  const cropped = () => camPlace.crop.l + camPlace.crop.t + camPlace.crop.r + camPlace.crop.b > 0.0005;
   function clampCam() {
     camPlace.w = Math.min(Math.max(camPlace.w, 0.05), 1);
-    if (camH() > 1) camPlace.w = (frameH * cam.width) / cam.height / frameW;
+    if (camH() > 1) camPlace.w = (frameH * camSrcW()) / camSrcH() / frameW;
     camPlace.x = Math.min(Math.max(camPlace.x, 0), 1 - camPlace.w);
     camPlace.y = Math.min(Math.max(camPlace.y, 0), 1 - camH());
   }
@@ -11388,7 +11403,30 @@ async function openTrim(c, opener) {
     Object.assign(camFrame.style, { left: `${video.offsetLeft + (bw - w) / 2}px`, top: `${video.offsetTop + (bh - hgt) / 2}px`, width: `${w}px`, height: `${hgt}px` });
     clampCam();
     Object.assign(camBox.style, { left: `${camPlace.x * 100}%`, top: `${camPlace.y * 100}%`, width: `${camPlace.w * 100}%`, height: `${camH() * 100}%` });
+    // the whole camera, scaled so the kept part fills the box
+    const { l, t, r, b } = camPlace.crop, sx = 1 - l - r, sy = 1 - t - b;
+    Object.assign(camVideo.style, { width: `${100 / sx}%`, height: `${100 / sy}%`, left: `${(-l / sx) * 100}%`, top: `${(-t / sy) * 100}%` });
+    camBox.classList.toggle('is-cropping', cropMode);
   }
+  // which sides a crop drag pulls: the ones within a third of the box from the pointer, else the nearest
+  function cropSides(e) {
+    const r = camBox.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    const sides = [];
+    if (fx < 1 / 3) sides.push('l'); else if (fx > 2 / 3) sides.push('r');
+    if (fy < 1 / 3) sides.push('t'); else if (fy > 2 / 3) sides.push('b');
+    if (!sides.length) {
+      const d = { l: fx, r: 1 - fx, t: fy, b: 1 - fy };
+      sides.push(Object.keys(d).reduce((a, k) => (d[k] < d[a] ? k : a)));
+    }
+    return sides;
+  }
+  const CROP_CURSOR = { l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize', lt: 'nwse-resize', rb: 'nwse-resize', rt: 'nesw-resize', lb: 'nesw-resize' };
+  camBox.addEventListener('pointermove', (e) => {
+    if (e.buttons || e.target === camHandle) return;
+    camBox.style.cursor = e.altKey || cropMode ? CROP_CURSOR[cropSides(e).join('')] : '';
+  });
+  camBox.addEventListener('pointerleave', () => { if (!camBox.classList.contains('is-dragging')) camBox.style.cursor = ''; });
   new ResizeObserver(layoutCam).observe(video);
   const rememberCam = () => { try { localStorage.setItem('clip:cam:place', JSON.stringify(camPlace)); localStorage.setItem('clip:cam:on', camOn ? '1' : '0'); } catch { /* private mode */ } };
   camBox.addEventListener('pointerdown', (e) => {
@@ -11396,16 +11434,32 @@ async function openTrim(c, opener) {
     e.preventDefault();
     camBox.setPointerCapture(e.pointerId);
     const r = camFrame.getBoundingClientRect();
-    const start = { ...camPlace, px: e.clientX, py: e.clientY };
+    const start = { ...camPlace, crop: { ...camPlace.crop }, px: e.clientX, py: e.clientY };
     const resizing = e.target === camHandle;
+    const sides = !resizing && (e.altKey || cropMode) ? cropSides(e) : null;
+    // a crop drag keeps the camera's scale and the opposite side where they are (OBS's Alt+drag)
+    const fullW = start.w / (1 - start.crop.l - start.crop.r);
+    const fullH = camH() / (1 - start.crop.t - start.crop.b);
+    const MIN_SHOWN = 0.05;
     camBox.classList.add('is-dragging');
     const move = (ev) => {
       const dx = (ev.clientX - start.px) / r.width, dy = (ev.clientY - start.py) / r.height;
-      if (resizing) camPlace.w = start.w + Math.max(dx, (dy * frameH * cam.width) / cam.height / frameW);
-      else { camPlace.x = start.x + dx; camPlace.y = start.y + dy; }
+      if (resizing) camPlace.w = start.w + Math.max(dx, (dy * frameH * camSrcW()) / camSrcH() / frameW);
+      else if (sides) {
+        const c = { ...start.crop };
+        const clamp = (v, other) => Math.min(Math.max(v, 0), 1 - MIN_SHOWN - other);
+        if (sides.includes('l')) c.l = clamp(start.crop.l + dx / fullW, c.r);
+        if (sides.includes('r')) c.r = clamp(start.crop.r - dx / fullW, c.l);
+        if (sides.includes('t')) c.t = clamp(start.crop.t + dy / fullH, c.b);
+        if (sides.includes('b')) c.b = clamp(start.crop.b - dy / fullH, c.t);
+        camPlace.crop = c;
+        camPlace.x = start.x + (c.l - start.crop.l) * fullW;
+        camPlace.y = start.y + (c.t - start.crop.t) * fullH;
+        camPlace.w = fullW * (1 - c.l - c.r);
+      } else { camPlace.x = start.x + dx; camPlace.y = start.y + dy; }
       layoutCam();
     };
-    const up = () => { camBox.removeEventListener('pointermove', move); camBox.classList.remove('is-dragging'); rememberCam(); };
+    const up = () => { camBox.removeEventListener('pointermove', move); camBox.classList.remove('is-dragging'); rememberCam(); if (sides) renderCam(); };
     camBox.addEventListener('pointermove', move);
     camBox.addEventListener('pointerup', up, { once: true });
     camBox.addEventListener('pointercancel', up, { once: true });
@@ -11424,10 +11478,21 @@ async function openTrim(c, opener) {
   function renderCam() {
     camRow.hidden = !cam;
     if (!cam) return;
-    camRow.replaceChildren(h('span', { class: 'edit-tracks-label' }, T('Overlay')),
+    camRow.replaceChildren(...[h('span', { class: 'edit-tracks-label' }, T('Overlay')),
       h('button', { type: 'button', class: `edit-chip${camOn ? '' : ' is-off'}`, 'aria-pressed': String(camOn),
         title: camOn ? T('Leave the camera out of the copy') : T('Put the camera in the copy'),
-        onclick: () => { if (busy) return; camOn = !camOn; rememberCam(); renderCam(); layoutCam(); syncCam(); render(); } }, T('Camera')));
+        onclick: () => { if (busy) return; camOn = !camOn; if (!camOn) cropMode = false; rememberCam(); renderCam(); layoutCam(); syncCam(); render(); } }, T('Camera')),
+      camOn && h('button', { type: 'button', class: `edit-chip${cropMode ? '' : ' is-off'}`, 'aria-pressed': String(cropMode),
+        title: T('Drag the camera’s sides to crop it (or hold Alt while dragging)'),
+        onclick: () => { if (busy) return; cropMode = !cropMode; renderCam(); layoutCam(); } }, T('Crop')),
+      camOn && cropped() && h('button', { type: 'button', class: 'edit-chip is-off', title: T('Show the whole camera again'),
+        onclick: () => {
+          if (busy) return;
+          const fullW = camPlace.w / (1 - camPlace.crop.l - camPlace.crop.r);
+          camPlace.x -= camPlace.crop.l * fullW; camPlace.y -= camPlace.crop.t * (camH() / (1 - camPlace.crop.t - camPlace.crop.b));
+          camPlace.w = fullW; camPlace.crop = noCrop();
+          rememberCam(); renderCam(); layoutCam();
+        } }, T('Uncrop'))].filter(Boolean));
   }
   // Audio: keep or leave out each separate track. Track 1 (the mix every player plays) is rebuilt.
   const trackRow = h('div', { class: 'edit-tracks', hidden: true });
@@ -11535,7 +11600,7 @@ async function openTrim(c, opener) {
     if (problem(list)) return;
     busy = true; render();
     try {
-      const overlay = cam && camOn ? { x: camPlace.x, y: camPlace.y, w: camPlace.w } : undefined;
+      const overlay = cam && camOn ? { x: camPlace.x, y: camPlace.y, w: camPlace.w, crop: { ...camPlace.crop } } : undefined;
       const r = await api(`/api/clips/${c.id}/trim`, jsonPost({ segments: list.map(({ start, end }) => ({ start, end })), removeTracks: [...removed], deleteOriginal: delOrig.checked, overlay }));
       if (r.job) { toast(T('Putting the camera in… “{0}” shows up in Trimmed Clips in a few minutes', c.title)); followRender(r.job); }
       else toast(T('Saved “{0}” in Trimmed Clips', r.title));

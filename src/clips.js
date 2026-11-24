@@ -658,7 +658,9 @@ export function planTracks(layout, remove = []) {
 }
 // ---------- camera overlay ----------
 // The editor places the camera as fractions of the picture: x, y (top-left corner) and w (width);
-// the height follows from the camera's own shape. In pixels, even (4:2:0), kept inside the frame.
+// the height follows from the shape of the part of the camera that's shown. crop { l, t, r, b } cuts
+// that share of the camera off each side first (Alt+drag a side in the editor, like OBS). In pixels,
+// even (4:2:0), kept inside the frame; crop is { x, y, w, h } in camera pixels, or null.
 export function planOverlay(overlay, frame, cam) {
   if (overlay == null) return null;
   if (!cam) throw bad('This clip has no camera to overlay.');
@@ -667,10 +669,20 @@ export function planOverlay(overlay, frame, cam) {
   const W = frame.width, H = frame.height;
   if (!(W > 0 && H > 0)) throw bad('Couldn’t read the clip’s picture size.');
   const even = (n) => Math.max(2, 2 * Math.round(n / 2));
-  let cw = even(w * W), ch = even((cw * cam.height) / cam.width);
-  if (ch > H) { ch = even(H); cw = even((ch * cam.width) / cam.height); }
+  let crop = null;
+  if (overlay.crop != null) {
+    const { l, t, r, b } = Object.fromEntries(['l', 't', 'r', 'b'].map((k) => [k, Number(overlay.crop[k] ?? 0)]));
+    if (![l, t, r, b].every((n) => Number.isFinite(n) && n >= 0 && n < 1) || l + r > 0.95 || t + b > 0.95) throw bad('Leave some of the camera uncropped.');
+    if (l + t + r + b > 0) {
+      const cx = Math.min(2 * Math.floor((l * cam.width) / 2), cam.width - 2), cy = Math.min(2 * Math.floor((t * cam.height) / 2), cam.height - 2);
+      crop = { x: cx, y: cy, w: Math.min(even(cam.width * (1 - l - r)), cam.width - cx), h: Math.min(even(cam.height * (1 - t - b)), cam.height - cy) };
+    }
+  }
+  const sw = crop ? crop.w : cam.width, sh = crop ? crop.h : cam.height;
+  let cw = even(w * W), ch = even((cw * sh) / sw);
+  if (ch > H) { ch = even(H); cw = even((ch * sw) / sh); }
   const px = Math.min(Math.max(0, Math.round(x * W)), W - cw), py = Math.min(Math.max(0, Math.round(y * H)), H - ch);
-  return { x: px, y: py, w: cw, h: ch };
+  return { x: px, y: py, w: cw, h: ch, crop };
 }
 // Where the camera goes in the edited copy: for each kept part (original time from..end, joined in
 // order), the stretch of the camera that covers it ({ ss, t } in camera time) and when it starts
@@ -710,7 +722,8 @@ async function burnCamWith(encoder, stage, camSrc, box, spans, v, out, signal, o
   const graph = [];
   let last = '0:v';
   spans.forEach((s, i) => {
-    graph.push(`[${i + 1}:v]setpts=PTS-STARTPTS+${secs(s.at)}/TB,scale=${box.w}:${box.h}:flags=lanczos[c${i}]`);
+    const crop = box.crop ? `crop=${box.crop.w}:${box.crop.h}:${box.crop.x}:${box.crop.y},` : '';
+    graph.push(`[${i + 1}:v]setpts=PTS-STARTPTS+${secs(s.at)}/TB,${crop}scale=${box.w}:${box.h}:flags=lanczos[c${i}]`);
     graph.push(`[${last}][c${i}]overlay=${box.x}:${box.y}:eof_action=pass:repeatlast=0[o${i}]`);
     last = `o${i}`;
   });

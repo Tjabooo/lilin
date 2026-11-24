@@ -5283,7 +5283,7 @@ async function handleApi(req, res, url) {
       const { start, end, segments, deleteOriginal, removeTracks, overlay } = await readJson(req);
       // segments: the parts to keep, in order. A single start/end is one part (older pages).
       // removeTracks: audio tracks to leave out (the mix is rebuilt from the rest).
-      // overlay: { x, y, w } burns the clip's camera in there (a re-encode: runs in the background).
+      // overlay: { x, y, w, crop?: { l, t, r, b } } burns the clip’s camera in there, cropped (a re-encode: runs in the background).
       const options = { deleteOriginal: Boolean(deleteOriginal), removeTracks: removeTracks ?? [], overlay: overlay ?? null };
       if (options.overlay) {
         activity.record(req, 'trim', await clips.checkTrim(m[1], segments ?? [{ start, end }], options));

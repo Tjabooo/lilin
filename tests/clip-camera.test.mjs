@@ -11,9 +11,9 @@ const clips = await import('../src/clips.js');
 
 const cam = { width: 1920, height: 1080, duration: 10, offset: 0 };
 test('the camera box becomes even pixel sizes inside the picture', () => {
-  assert.deepEqual(clips.planOverlay({ x: 0.75, y: 0.05, w: 0.25 }, { width: 2560, height: 1440 }, cam), { x: 1920, y: 72, w: 640, h: 360 });
+  assert.deepEqual(clips.planOverlay({ x: 0.75, y: 0.05, w: 0.25 }, { width: 2560, height: 1440 }, cam), { x: 1920, y: 72, w: 640, h: 360, crop: null });
   // pushed back inside when it hangs over the edge
-  assert.deepEqual(clips.planOverlay({ x: 0.9, y: 0.9, w: 0.3 }, { width: 2560, height: 1440 }, cam), { x: 1792, y: 1008, w: 768, h: 432 });
+  assert.deepEqual(clips.planOverlay({ x: 0.9, y: 0.9, w: 0.3 }, { width: 2560, height: 1440 }, cam), { x: 1792, y: 1008, w: 768, h: 432, crop: null });
   // a tall camera never gets taller than the picture
   const tall = clips.planOverlay({ x: 0, y: 0, w: 1 }, { width: 1920, height: 1080 }, { ...cam, width: 1080, height: 1920 });
   assert.equal(tall.h, 1080); assert.equal(tall.w, 608);
@@ -21,6 +21,15 @@ test('the camera box becomes even pixel sizes inside the picture', () => {
   assert.throws(() => clips.planOverlay({ x: 0, y: 0, w: 0.3 }, { width: 2560, height: 1440 }, null), /no camera/);
   assert.throws(() => clips.planOverlay({ x: 0, y: 0, w: 0.01 }, { width: 2560, height: 1440 }, cam), /inside the picture/);
   assert.throws(() => clips.planOverlay({ x: 'a', y: 0, w: 0.3 }, { width: 2560, height: 1440 }, cam), /inside the picture/);
+});
+
+test('a cropped camera keeps the shape of the part that is shown', () => {
+  // the stream scene's old crop: 633 px off the left, 133 off the right of a 1920 camera
+  const box = clips.planOverlay({ x: 0.75, y: 0.05, w: 0.25, crop: { l: 633 / 1920, t: 0, r: 133 / 1920, b: 0 } }, { width: 2560, height: 1440 }, cam);
+  assert.deepEqual(box, { x: 1920, y: 72, w: 640, h: 598, crop: { x: 632, y: 0, w: 1154, h: 1080 } });
+  assert.equal(clips.planOverlay({ x: 0, y: 0, w: 0.3, crop: { l: 0, t: 0, r: 0, b: 0 } }, { width: 2560, height: 1440 }, cam).crop, null);
+  assert.throws(() => clips.planOverlay({ x: 0, y: 0, w: 0.3, crop: { l: 0.5, t: 0, r: 0.5, b: 0 } }, { width: 2560, height: 1440 }, cam), /uncropped/);
+  assert.throws(() => clips.planOverlay({ x: 0, y: 0, w: 0.3, crop: { l: -0.1 } }, { width: 2560, height: 1440 }, cam), /uncropped/);
 });
 
 test('each kept part gets the stretch of camera that was recording then', () => {
