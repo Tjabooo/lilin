@@ -198,6 +198,19 @@ test('titles after a very long cold open are found once both neighbours agree', 
   assert.deepEqual(await introFor(late, [a, b]), i, 'the longer search survives a restart');
 });
 
+test('when the nearest two neighbours miss the titles, the next ones are asked', async (t) => {
+  const encode = await longEpisodes(t);
+  if (!encode) return;
+  const theme = synth(1).music(48);
+  const ep = await encode('ep2', 7, [390, theme, 1362]); // titles inside the usual window
+  const premiere = await encode('ep1', 99, [1800]); // no titles at all
+  const later = await encode('ep3', 5, [640, theme, 1112]); // titles past the usual window
+  const after = await encode('ep4', 11, [380, theme, 1372]);
+  const i = await introFor(ep, [later, premiere, after]);
+  assert.ok(i && Math.abs(i.start - 390) < 1 && i.end <= 438 && i.end > 436.5, `intro ${JSON.stringify(i)}`);
+  assert.equal(await introFor(premiere, [ep, later]), null, 'an episode without titles still gets none');
+});
+
 test('a long scene repeated late on never counts as the intro', async (t) => {
   const encode = await longEpisodes(t);
   if (!encode) return;

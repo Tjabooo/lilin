@@ -4069,7 +4069,7 @@ async function creditPeers(file) {
     .map((i) => ({ episode: i.episode, full: converter.originalFor(i.full) || i.full }))
     .sort((a, b) => rank(a) - rank(b) || a.full.localeCompare(b.full))
     .filter((i) => !seen.has(i.episode) && seen.add(i.episode));
-  return { siblings: siblings.slice(0, 2).map((i) => i.full), next: siblings.find((i) => i.episode === here.episode + 1)?.full };
+  return { siblings: siblings.slice(0, 4).map((i) => i.full), next: siblings.find((i) => i.episode === here.episode + 1)?.full };
 }
 
 // Skip recap: the one or two episodes before this one in the show's order (originals, nearest first), across

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-25-skip-intro-premiere",
+  "date": "2026-11-25",
+  "title": "Skip intro on more episodes",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Skip intro shows up on more episodes",
+      "text": "Some episodes had no Skip intro button when the episodes right next to them opened differently, like a season premiere without the usual titles. Lilin now checks a couple more episodes of the season before giving up."
+    }
+  ]
+},
+{
   "id": "2026-11-25-ask-to-invite",
   "date": "2026-11-25",
   "title": "Ask to invite a friend",

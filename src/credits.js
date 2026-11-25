@@ -460,6 +460,7 @@ function recapRun(list, first, intro, said) {
 // ---- decoding ----
 const WINDOW = 360; // seconds of each ending to compare
 const INTRO_WINDOW = 480; // seconds from the start where the opening titles are looked for, past long cold opens
+const INTRO_PEERS = 4; // siblings introFor may compare with, two at a time
 const INTRO_FAR_WINDOW = 900; // searched only when that finds nothing, with stricter rules (see introFor)
 let busy = Promise.resolve(); // one decode at a time: it reads hundreds of MB from the media drive
 
@@ -717,15 +718,15 @@ export async function creditsGuessFor(file, sidecar) {
 export async function knownTimes(file, siblings = []) {
   const entry = await facts(file);
   if (!entry?.duration) return null;
-  const stored = (part) => siblings.map((other) => {
+  const stored = (part, n = siblings.length) => siblings.slice(0, n).map((other) => {
     const peer = state.files[other];
     return peer?.tok ? entry[part]?.[siblingKey(other, peer)] : undefined;
   }).filter((v) => v != null);
-  const ends = stored('vs');
+  const ends = stored('vs', 2);
   const found = ends.length ? Math.max(...ends) : null;
   const creditsAt = entry.chapter ?? (found != null ? entry.roll?.[found.toFixed(1)] ?? found : null);
   const far = stored('ifar');
-  const intro = entry.intro || agreeIntro(stored('ivs')) || (far.length === 2 ? agreeIntro(far) : null);
+  const intro = entry.intro || agreeIntro(stored('ivs')) || (far.length >= 2 ? agreeIntro(far) : null);
   return { duration: entry.duration, intro, creditsAt };
 }
 
@@ -783,24 +784,32 @@ export async function introFor(file, siblings = []) {
   if (!entry) return null;
   if (entry.intro) return entry.intro;
   if (!entry.duration || entry.duration < 300) return null;
-  const found = [], peers = [];
-  for (const other of siblings.slice(0, 2)) {
+  const peers = [];
+  for (const other of siblings.slice(0, INTRO_PEERS)) {
     if (path.resolve(other) === path.resolve(file)) continue;
     const peer = await facts(other);
-    if (!peer?.duration || peer.duration < 300) continue;
-    peers.push([other, peer]);
-    const id = siblingKey(other, peer);
-    if (!(id in entry.ivs)) await compareOpenings(file, entry, other, peer);
-    if (entry.ivs[id]) found.push(entry.ivs[id]);
+    if (peer?.duration >= 300) peers.push([other, peer]);
   }
-  if (found.length || peers.length < 2 || entry.duration / 3 <= INTRO_WINDOW) return agreeIntro(found);
+  // Two siblings at a time, nearest first: the next two are only decoded when the nearest find nothing (a
+  // premiere without the usual titles, a neighbour whose titles start past the far window).
   const far = [];
-  for (const [other, peer] of peers) {
-    const id = siblingKey(other, peer);
-    if (!(id in entry.ifar)) await compareOpenings(file, entry, other, peer, true);
-    if (entry.ifar[id]) far.push(entry.ifar[id]);
+  for (let i = 0; i < peers.length; i += 2) {
+    const round = peers.slice(i, i + 2), found = [];
+    for (const [other, peer] of round) {
+      const id = siblingKey(other, peer);
+      if (!(id in entry.ivs)) await compareOpenings(file, entry, other, peer);
+      if (entry.ivs[id]) found.push(entry.ivs[id]);
+    }
+    if (found.length) return agreeIntro(found);
+    if (peers.length < 2 || entry.duration / 3 <= INTRO_WINDOW) continue;
+    for (const [other, peer] of round) {
+      const id = siblingKey(other, peer);
+      if (!(id in entry.ifar)) await compareOpenings(file, entry, other, peer, true);
+      if (entry.ifar[id]) far.push(entry.ifar[id]);
+    }
+    if (far.length >= 2) return agreeIntro(far);
   }
-  return far.length === 2 ? agreeIntro(far) : null;
+  return null;
 }
 
 // ---- recaps ----

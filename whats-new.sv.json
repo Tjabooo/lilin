@@ -1,4 +1,13 @@
 {
+  "2026-11-25-skip-intro-premiere": {
+    "title": "Hoppa över intro på fler avsnitt",
+    "items": {
+      "Skip intro shows up on more episodes": {
+        "title": "Hoppa över intro syns på fler avsnitt",
+        "text": "Vissa avsnitt saknade knappen Hoppa över intro när avsnitten bredvid började annorlunda, till exempel en säsongspremiär utan de vanliga förtexterna. Lilin kollar nu ett par avsnitt till i säsongen innan den ger upp."
+      }
+    }
+  },
   "2026-11-25-ask-to-invite": {
     "title": "Fråga om att bjuda in en vän",
     "items": {
