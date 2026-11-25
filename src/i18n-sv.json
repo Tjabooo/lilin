@@ -860,5 +860,20 @@
  "This account has no id yet. Reload and try again.": "Kontot har inget id än. Ladda om och försök igen.",
  "Usernames need Lilin to be the sign-in for Cloudflare (OIDC_* in .env).": "Användarnamn kräver att Lilin är inloggningen för Cloudflare (OIDC_* i .env).",
  "Switching to a username is paused for now.": "Bytet till användarnamn är pausat just nu.",
-  "That title isn’t there.": "Den titeln finns inte här."
+  "That title isn’t there.": "Den titeln finns inte här.",
+ "New K-dramas": "Nya K-dramer",
+ "Popular K-dramas right now": "Populära K-dramer just nu",
+ "New J-dramas": "Nya J-dramer",
+ "Most-loved K-dramas": "Mest älskade K-dramer",
+ "Most-loved J-dramas": "Mest älskade J-dramer",
+ "Romcoms and comedies": "Romcoms och komedier",
+ "Crime and mystery": "Brott och mysterier",
+ "Fantasy and sci-fi": "Fantasy och sci-fi",
+ "Sageuk: palace and period dramas": "Sageuk: palats- och historiska dramer",
+ "School days": "Skoltiden",
+ "Revenge": "Hämnd",
+ "Korean films": "Koreanska filmer",
+ "Japanese films": "Japanska filmer",
+ "Top rated K-dramas": "Högst betygsatta K-dramer",
+ "Top rated J-dramas": "Högst betygsatta J-dramer"
 }

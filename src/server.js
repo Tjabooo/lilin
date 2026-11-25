@@ -790,6 +790,15 @@ const ANIME_KEYWORDS = {
   'time-travel': '4379',
   school: '190116|317537',
 };
+// Discover → K & J drama: Korean and Japanese live-action series and films. Daily wrestling, variety and
+// tokusatsu top TMDB's popularity for these languages, so rows sort by votes or stick to recent shows.
+const DRAMA_NOT = '16,99,10762,10763,10764,10767'; // Animation, Documentary, Kids, News, Reality, Talk
+const DRAMA = (lang) => ({ with_original_language: lang, with_genres: '18|35', without_genres: DRAMA_NOT, include_adult: 'false' });
+const DRAMA_ANY = (lang) => ({ with_original_language: lang, without_genres: DRAMA_NOT, include_adult: 'false' });
+const DRAMA_FILM = (lang) => ({ with_original_language: lang, without_genres: '16,99', include_adult: 'false', sort_by: 'popularity.desc', 'vote_count.gte': '50', 'primary_release_date.lte': daysFromNow(0) });
+const dramaNew = (lang) => ({ ...DRAMA(lang), sort_by: 'popularity.desc', 'first_air_date.gte': daysFromNow(-120), 'first_air_date.lte': daysFromNow(0) });
+// TMDB keyword IDs (looked up 2026-11-25): romance, joseon | joseon dynasty | historical drama, high school, revenge.
+const DRAMA_KEYWORDS = { romance: '9840', sageuk: '276156|232421|192772', school: '6270', revenge: '9748' };
 // Curated lists: [TMDB endpoint, media type, params()?]. Also the whitelist for "See all".
 const LISTS = {
   'trending-all': ['/trending/all/week', null],
@@ -812,6 +821,22 @@ const LISTS = {
   // Anime categories: series with that TMDB keyword (| = any of them), the most watched first (popularity puts
   // long-running kids' shows like Detective Conan on top of everything).
   ...Object.fromEntries(Object.entries(ANIME_KEYWORDS).map(([k, kw]) => [`anime-${k}`, ['/discover/tv', 'tv', () => ({ ...ANIME, with_keywords: kw, sort_by: 'vote_count.desc' })]])),
+  // K & J drama
+  'kdrama-new': ['/discover/tv', 'tv', () => dramaNew('ko')],
+  'jdrama-new': ['/discover/tv', 'tv', () => dramaNew('ja')],
+  // This week's episodes of shows that started in the last year (keeps out decades-long daily shows).
+  'drama-airing': ['/discover/tv', 'tv', () => ({ ...DRAMA('ko|ja'), sort_by: 'popularity.desc', 'air_date.gte': daysFromNow(-7), 'air_date.lte': daysFromNow(0), 'first_air_date.gte': daysFromNow(-365) })],
+  'kdrama-hot': ['/discover/tv', 'tv', () => ({ ...DRAMA('ko'), sort_by: 'popularity.desc', 'first_air_date.gte': daysFromNow(-730), 'first_air_date.lte': daysFromNow(0), 'vote_count.gte': '10' })],
+  'kdrama-loved': ['/discover/tv', 'tv', () => ({ ...DRAMA('ko'), sort_by: 'vote_count.desc' })],
+  'jdrama-loved': ['/discover/tv', 'tv', () => ({ ...DRAMA('ja'), sort_by: 'vote_count.desc' })],
+  'drama-comedy': ['/discover/tv', 'tv', () => ({ ...DRAMA_ANY('ko|ja'), with_genres: '35', sort_by: 'vote_count.desc' })],
+  'drama-crime': ['/discover/tv', 'tv', () => ({ ...DRAMA_ANY('ko|ja'), with_genres: '80|9648', sort_by: 'vote_count.desc' })],
+  'drama-fantasy': ['/discover/tv', 'tv', () => ({ ...DRAMA_ANY('ko|ja'), with_genres: '10765', sort_by: 'vote_count.desc' })],
+  ...Object.fromEntries(Object.entries(DRAMA_KEYWORDS).map(([k, kw]) => [`drama-${k}`, ['/discover/tv', 'tv', () => ({ ...DRAMA_ANY(k === 'sageuk' ? 'ko' : 'ko|ja'), with_keywords: kw, sort_by: 'vote_count.desc' })]])),
+  'korean-films': ['/discover/movie', 'movie', () => DRAMA_FILM('ko')],
+  'japanese-films': ['/discover/movie', 'movie', () => DRAMA_FILM('ja')],
+  'kdrama-top': ['/discover/tv', 'tv', () => ({ ...DRAMA('ko'), sort_by: 'vote_average.desc', 'vote_count.gte': '200' })],
+  'jdrama-top': ['/discover/tv', 'tv', () => ({ ...DRAMA('ja'), sort_by: 'vote_average.desc', 'vote_count.gte': '100' })],
 };
 const daysFromNow = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const HOME_ROWS = {
@@ -826,6 +851,10 @@ const HOME_ROWS = {
     ['anime-popular-movie', 'Anime films'], ['anime-dark-fantasy', 'Dark fantasy'], ['anime-slice-of-life', 'Slice of life'], ['anime-romance', 'Romance'], ['anime-sports', 'Sports'],
     ['anime-mecha', 'Mecha'], ['anime-psychological', 'Psychological'], ['anime-supernatural', 'Supernatural'], ['anime-iyashikei', 'Iyashikei: cosy and calm'], ['anime-magical-girl', 'Magical girls'], ['anime-idols', 'Idols'],
     ['anime-cyberpunk', 'Cyberpunk'], ['anime-martial-arts', 'Martial arts'], ['anime-time-travel', 'Time travel'], ['anime-school', 'School life'], ['anime-top-tv', 'Top rated series'], ['anime-top-movie', 'Top rated films']],
+  drama: [['kdrama-new', 'New K-dramas'], ['drama-airing', 'New episodes this week'], ['kdrama-hot', 'Popular K-dramas right now'], ['jdrama-new', 'New J-dramas'],
+    ['kdrama-loved', 'Most-loved K-dramas'], ['jdrama-loved', 'Most-loved J-dramas'], ['drama-romance', 'Romance'], ['drama-comedy', 'Romcoms and comedies'],
+    ['drama-crime', 'Crime and mystery'], ['drama-fantasy', 'Fantasy and sci-fi'], ['drama-sageuk', 'Sageuk: palace and period dramas'], ['drama-school', 'School days'],
+    ['drama-revenge', 'Revenge'], ['korean-films', 'Korean films'], ['japanese-films', 'Japanese films'], ['kdrama-top', 'Top rated K-dramas'], ['jdrama-top', 'Top rated J-dramas']],
 };
 // comingsoon: films and shows about to come out, ranked by closeness and buzz (src/coming-soon.js)
 const TMDB_REGION = (process.env.TMDB_REGION || TMDB_LANG.split('-')[1] || 'US').trim().toUpperCase();
@@ -1010,12 +1039,14 @@ const SORTS = {
 async function discoverGenre({ type, movieGenre, tvGenre, sort, page }) {
   const order = SORTS[sort] || SORTS.popular;
   const anime = type === 'anime';
-  if (anime) type = 'all';
+  const drama = type === 'drama'; // K & J drama: Korean and Japanese, no animation
+  if (anime || drama) type = 'all';
   const today = new Date().toISOString().slice(0, 10);
   const fetchType = async (t, genre) => {
     if (!genre) return { results: [], totalPages: 0 };
     const params = { ...order[t], with_genres: String(genre), page: String(page), include_adult: 'false' };
     if (anime) Object.assign(params, { with_genres: genre === 16 ? '16' : `16,${genre}`, with_original_language: 'ja' });
+    if (drama) Object.assign(params, { with_original_language: 'ko|ja', without_genres: t === 'tv' ? DRAMA_NOT : '16,99' });
     if (t === 'movie') params['primary_release_date.lte'] = today;
     else params['first_air_date.lte'] = today;
     const data = await cachedTmdb(`/discover/${t}`, params);
@@ -5543,7 +5574,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { genres: await genres() });
   }
   if (p === '/api/discover/genre') {
-    const type = ['movie', 'tv', 'anime'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
+    const type = ['movie', 'tv', 'anime', 'drama'].includes(url.searchParams.get('type')) ? url.searchParams.get('type') : 'all';
     const id = (k) => (/^\d+$/.test(url.searchParams.get(k) || '') ? Number(url.searchParams.get(k)) : null);
     const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page')) || 1));
     return sendJson(res, 200, withoutDisliked(user, await discoverGenre({
