@@ -14,6 +14,7 @@ import * as profiles from '../src/profiles.js';
 import * as letterboxd from '../src/letterboxd.js';
 import * as lists from '../src/lists.js';
 import * as taste from '../src/taste-match.js';
+import { killTree } from './kill-tree.mjs';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lilin-taste-'));
@@ -125,7 +126,7 @@ test('profiles API: match on a friend’s profile only', { timeout: 20000 }, asy
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -156,7 +157,7 @@ test('profiles API: match on a friend’s profile only', { timeout: 20000 }, asy
     assert.ok('card' in seen.match.theirs[0], 'title cards are added (null without TMDB)');
     assert.equal((await request('/api/profiles/me', undefined, 'ebi@t.test')).match, null, 'not on your own page');
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fsp.rm(app, { recursive: true, force: true });
   }

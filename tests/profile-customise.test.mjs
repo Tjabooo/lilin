@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { cleanLook, cleanExtras, liveStatus, LOOK_DEFAULTS, STATS_DEFAULT } from '../src/profiles.js';
 import { imageSize, checkImage, encodeArgs, allowUpload, resetLimits, UPLOADS_PER_HOUR, bannerUrl } from '../src/profile-banner.js';
 import { profilePaint, readable, contrast, parseColor, partnerOf } from '../public/profile-colors.js';
+import { killTree } from './kill-tree.mjs';
 
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
 const hasFfmpeg = spawnSync(FFMPEG, ['-hide_banner', '-version'], { windowsHide: true }).status === 0;
@@ -136,7 +137,7 @@ test('profile customisation over HTTP: banner upload, visibility, status, number
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -220,7 +221,7 @@ test('profile customisation over HTTP: banner upload, visibility, status, number
     assert.equal(mine.look.banner, 'auto');
     await send(`/api/profiles/${ebi.id}/banner`, { email: 'ebi@c.test', status: 404 });
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
   }

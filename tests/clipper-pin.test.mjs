@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { treeHash, downloadClipper } from '../src/setup/clipper.js';
+import { treeHash, downloadClipper, defaultTar } from '../src/setup/clipper.js';
 
 function fakeClipper(t, extra = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clipper-pin-'));
@@ -18,7 +18,7 @@ function fakeClipper(t, extra = {}) {
   fs.writeFileSync(path.join(src, 'install.sh'), 'echo hi\n');
   for (const [k, v] of Object.entries(extra)) fs.writeFileSync(path.join(src, k), v);
   const tgz = path.join(root, 'c.tar.gz');
-  assert.equal(spawnSync('tar', ['-czf', tgz, '-C', root, 'clipper-abc']).status, 0);
+  assert.equal(spawnSync(defaultTar(), ['-czf', tgz, '-C', root, 'clipper-abc']).status, 0);
   const fetchImpl = async () => new Response(fs.readFileSync(tgz));
   return { root, src, fetchImpl };
 }

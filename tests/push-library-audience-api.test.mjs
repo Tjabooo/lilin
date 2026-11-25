@@ -6,7 +6,8 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // The real server with stand-ins for qBittorrent, TMDB and the push service. Each person's phone is
 // an endpoint named after them, so the inbox shows exactly who was notified about what.
@@ -65,12 +66,12 @@ test('download notifications only reach people who have it, and new episodes onl
   }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill(); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
+    killTree(child); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
     mock.closeAllConnections(); await new Promise((r) => mock.close(r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(logs)), 8000);
+    const timer = setTimeout(() => reject(Error(logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });

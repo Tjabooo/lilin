@@ -8,6 +8,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { previewDir, previewProblem, staticFile, previewRoute, staticRoots } from '../src/preview.js';
+import { killTree } from './kill-tree.mjs';
 
 test('preview helpers', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-preview-unit-'));
@@ -80,14 +81,14 @@ test('PREVIEW_DIR serves a second web app to browsers that opt in, and title pag
   child.stdout.on('data', (c) => { logs += c; });
   child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill();
+    killTree(child);
     await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
     mock.closeAllConnections();
     await new Promise((r) => mock.close(r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 9000);
+    const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('error', reject);
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });

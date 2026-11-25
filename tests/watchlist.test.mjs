@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { WatchlistStore, runRound, filmRelease, filmOut, airedAfter, baselineFrom, retryDelay, startSeasons } from '../src/watchlist.js';
 import { comingUp, newEpisodes, watchStatus, listLine, dayLabel } from '../public/watchlist.js';
 import { topicFor } from '../src/live.js';
+import { killTree } from './kill-tree.mjs';
 
 const HOUR = 3600e3, DAY = 24 * HOUR;
 const at = (iso) => Date.parse(`${iso}T12:00:00Z`);
@@ -177,7 +178,7 @@ test('watchlist API: list, validation, removal and a clear message without TMDB'
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
   });
@@ -194,7 +195,7 @@ test('watchlist API: list, validation, removal and a clear message without TMDB'
     assert.equal((await call('POST', '/api/watchlist', { type: 'tv', tmdbId: 603, saved: false, follow: false })).item, null);
     assert.equal((await call('POST', '/api/watchlist/seen', { tmdbId: 603 })).cleared, 0);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
   }
 });

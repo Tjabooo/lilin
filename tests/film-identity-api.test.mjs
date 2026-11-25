@@ -6,6 +6,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 const movies = [
   { id: 1283515, title: 'Verity', release_date: '2026-09-30', poster_path: '/a.jpg', overview: 'A novelist.' },
@@ -49,7 +50,7 @@ test('film identification API requires owner access and changes only the selecte
   let logs = ''; child.stdout.on('data', (c) => { logs += c; }); child.stderr.on('data', (c) => { logs += c; });
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 7000);
+      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
       child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
     });
@@ -146,7 +147,7 @@ test('film identification API requires owner access and changes only the selecte
       await request(`${base}/leave`, { clientId: guestClient }, 'member@test.local');
     } finally { await Promise.all(streams.map((s) => s.cancel().catch(() => {}))); }
   } finally {
-    child.kill();
+    killTree(child);
     mock.closeAllConnections();
     await new Promise((r) => mock.close(r));
   }

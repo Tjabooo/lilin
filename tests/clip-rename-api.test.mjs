@@ -6,6 +6,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 test('clip renames persist without moving files or breaking public links; download preferences persist and the old recommendation route is gone', { timeout: 20000 }, async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
@@ -39,7 +40,7 @@ test('clip renames persist without moving files or breaking public links; downlo
     child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     exited = new Promise((r) => child.once('exit', r));
     await new Promise((resolve, reject) => {
-      let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+      let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); base = `http://127.0.0.1:${port}`; clearTimeout(timer); resolve(); } });
       child.stderr.on('data', (c) => { logs += c; });
       child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -66,7 +67,7 @@ test('clip renames persist without moving files or breaking public links; downlo
     assert.equal(await (await fetch(`${base}/c/${token}/video.mp4`)).text(), content);
     const page = await (await fetch(`${base}/c/${token}`)).text();
     assert.ok(page.includes('Clutch &lt;ace &amp; win&gt; / Nuke')); assert.ok(!page.includes('<ace & win>'));
-    child.kill(); await exited; await start();
+    killTree(child); await exited; await start();
     assert.equal((await request('/api/clips')).clips[0].title, title, 'Rename survives a real server restart');
 
     // Download preferences: a chosen profile replaces an older fixed resolution and survives restarts.
@@ -75,13 +76,13 @@ test('clip renames persist without moving files or breaking public links; downlo
     assert.deepEqual([prefs.downloadProfile, prefs.maxSize, prefs.audioLang, prefs.quality], ['save', 8, 'sv', 'all']);
     const ignored = (await request('/api/me', { downloadProfile: 'huge', maxSize: 7, audioLang: 'Swedish!' })).me.settings;
     assert.deepEqual([ignored.downloadProfile, ignored.maxSize, ignored.audioLang], ['save', 8, '']);
-    child.kill(); await exited; await start();
+    killTree(child); await exited; await start();
     assert.equal((await request('/api/me')).me.settings.downloadProfile, 'save');
     // The single Download command: never available without qBittorrent; the old parallel routes are gone.
     assert.match((await request('/api/downloads/smart', { type: 'movie', tmdbId: 603 }, undefined, 503)).error, /Downloads aren’t connected/);
     await request('/api/torrents/recommend?title=The+Matrix&year=1999&type=movie', undefined, undefined, 404);
   } finally {
-    if (child?.exitCode === null) child.kill(); if (exited) await exited;
+    if (child?.exitCode === null) killTree(child); if (exited) await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });

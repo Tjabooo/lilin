@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // Restrict (People): restricted people keep Watch Together but see nobody else's likes, nobody sees theirs,
 // and only the owner can switch it (never for the owner).
@@ -20,7 +21,7 @@ test('the owner restricts people; restricted likes and sight stay out of social 
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -70,7 +71,7 @@ test('the owner restricts people; restricted likes and sight stay out of social 
     assert.equal((await request('/api/social/title?key=movie:603', undefined, 'pal@r.test')).likedBy.length, 2);
     assert.equal((await request('/api/profiles/me')).comments.total, 1, 'unrestricting brings the comment back');
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Windows keeps the dead server's files locked briefly
   }

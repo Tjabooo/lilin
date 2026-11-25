@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { decrypt } from '../src/push.js';
+import { killTree } from './kill-tree.mjs';
 
 // The real server with a stand-in push service: every POST to fcm.googleapis.com is written to a
 // file instead of leaving the machine, so the test can decrypt what a phone would have received.
@@ -34,7 +35,7 @@ test('devices turn notifications on and off, get a test, and only room members c
   const child = spawn(process.execPath, ['--import', pathToFileURL(stub).href, 'server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -105,7 +106,7 @@ test('devices turn notifications on and off, get a test, and only room members c
     const off = await request('/api/push/unsubscribe', { endpoint: sub(phone, 'phone').endpoint });
     assert.deepEqual(off.devices, []);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }).catch(() => {});
   }

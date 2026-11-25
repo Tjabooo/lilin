@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tvPlay, playTarget, transfersFor, partFor } from '../src/tv-play.js';
+import { killTree } from './kill-tree.mjs';
 
 const user = { id: 'u1', canDownload: true };
 function deps(over = {}) {
@@ -89,12 +90,12 @@ test('POST /api/tv/play is let through on a running server', { timeout: 30000 },
   child.stdout.on('data', (c) => { logs += c; });
   child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill();
+    killTree(child);
     await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(`Startup timeout: ${logs}`)), 9000);
+    const timer = setTimeout(() => reject(Error(`Startup timeout: ${logs}`)), 60000);
     child.stdout.on('data', () => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });

@@ -6,6 +6,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { NotesStore } from '../src/notes.js';
+import { killTree } from './kill-tree.mjs';
 
 test('notes API denies non-admins and shares messages safely between admins', { timeout: 20000 }, async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
@@ -25,7 +26,7 @@ test('notes API denies non-admins and shares messages safely between admins', { 
   let logs = ''; child.stdout.on('data', (c) => { logs += c; }); child.stderr.on('data', (c) => { logs += c; });
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
       child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
     });
@@ -87,8 +88,8 @@ test('notes API denies non-admins and shares messages safely between admins', { 
     assert.match(inline.headers.get('content-disposition'),/^inline;/); assert.equal((await inline.arrayBuffer()).byteLength,8);
     assert.equal((await fs.stat(fileDir)).isDirectory(),true);
   } finally {
-    child.kill(); await new Promise((r) => child.once('exit', r));
-    await fs.rm(app, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    await fs.rm(fileDir,{recursive:true,force:true,maxRetries:5,retryDelay:100});
+    const exited = new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r)); killTree(child); await exited;
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    await fs.rm(fileDir,{recursive:true,force:true,maxRetries:20,retryDelay:100});
   }
 });

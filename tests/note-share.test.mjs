@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { NotesStore } from '../src/notes.js';
 import { previewOf, PREVIEW_BOT } from '../src/note-share.js';
+import { killTree } from './kill-tree.mjs';
 
 test('preview text uses the first line as title and the rest as description', () => {
   const p = previewOf({ text: 'Buy milk\nand eggs\n\nsoon', attachments: [] });
@@ -38,7 +39,7 @@ test('shared notes give bots a preview and send people to the protected app', { 
   const discord = { 'user-agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)' };
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); base = `http://127.0.0.1:${port}`; clearTimeout(timer); resolve(); } });
       child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
     });
@@ -76,8 +77,8 @@ test('shared notes give bots a preview and send people to the protected app', { 
     assert.equal((await fetch(base + link, { headers: discord })).status, 404);
     assert.equal((await fetch(`${base}${link}/image/0`)).status, 404);
   } finally {
-    child.kill(); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
-    await fs.rm(app, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    const exited = new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r)); killTree(child); await exited;
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }
 });
 
@@ -106,7 +107,7 @@ test('a shared video gets a Discord-friendly MP4 and thumbnail anyone can load',
   const discord = { 'user-agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)' };
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+      const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); base = `http://127.0.0.1:${port}`; clearTimeout(timer); resolve(); } });
       child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
     });
@@ -135,7 +136,7 @@ test('a shared video gets a Discord-friendly MP4 and thumbnail anyone can load',
     assert.equal((await fetch(`${base}${link}/video.mp4`)).status, 404);
     assert.deepEqual(await fs.readdir(path.join(app, 'cache', 'notes-share')), [], 'copies are removed when the link goes');
   } finally {
-    child.kill(); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
-    await fs.rm(app, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    const exited = new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r)); killTree(child); await exited;
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }
 });

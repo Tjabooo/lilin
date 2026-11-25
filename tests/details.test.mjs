@@ -13,6 +13,7 @@ import {
   pickRelease, shapeAlbum, albumKind, albumOrder, readWikidata, createDetails,
 } from '../src/details.js';
 import { songQuery, fmtLength, SERVICES } from '../public/details.js';
+import { killTree } from './kill-tree.mjs';
 
 const FILM = {
   id: 27205, title: 'Inception', original_title: 'Inception', release_date: '2010-07-15', original_language: 'en',
@@ -298,14 +299,14 @@ test('GET /api/title/:type/:id/details against a running server', { timeout: 300
   child.stdout.on('data', (c) => { logs += c; });
   child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill();
+    killTree(child);
     await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
     mock.closeAllConnections();
     await new Promise((r) => mock.close(r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(`Startup timeout: ${logs}`)), 9000);
+    const timer = setTimeout(() => reject(Error(`Startup timeout: ${logs}`)), 60000);
     child.stdout.on('data', () => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });

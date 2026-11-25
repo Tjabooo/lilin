@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 const summary = (total, apps, extra = {}) => ({
   version: 1, total, generated: 1793800000, complete: false,
@@ -30,7 +31,7 @@ test('screentime daemons push daily summaries; the owner sees days, weeks and al
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
   });
@@ -83,7 +84,7 @@ test('screentime daemons push daily summaries; the owner sees days, weeks and al
     const html = await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
     assert.match(html, /function screenTimeView/);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }

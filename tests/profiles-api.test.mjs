@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { cleanHandle, handleFromName, cleanLook, cleanSections, cleanBio, LOOK_DEFAULTS, SECTIONS } from '../src/profiles.js';
+import { killTree } from './kill-tree.mjs';
 
 test('usernames, looks and sections are cleaned', () => {
   assert.equal(cleanHandle(' @Ebi.Cat '), 'ebi.cat');
@@ -39,7 +40,7 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -144,7 +145,7 @@ test('profiles: privacy, usernames and the diary', { timeout: 20000 }, async () 
     await request('/api/profiles/99999', undefined, 'ebi@p.test', 404);
     await request('/api/profiles/@nobody', undefined, 'ebi@p.test', 404);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }

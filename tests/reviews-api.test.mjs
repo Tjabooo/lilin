@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // Reviews over HTTP: write, read, the thumb that follows the stars, owner removal and restricted people.
 test('reviews API: write, read, remove, and restricted people neither write nor see', { timeout: 20000 }, async () => {
@@ -19,7 +20,7 @@ test('reviews API: write, read, remove, and restricted people neither write nor 
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -77,7 +78,7 @@ test('reviews API: write, read, remove, and restricted people neither write nor 
     assert.equal(forA.ratings, 1, 'their stars leave the average too');
     assert.equal(forA.average, null);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true }).catch(() => {});
   }

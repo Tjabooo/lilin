@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileLayout, readableBytes, fileProgress, startBytes, readyToStart, packPriorities, parsePartialId, PartialStreams, roomGate, ROOM_LEAD, ROOM_STOP } from '../src/partial-stream.js';
 import { BufferNotice, RebufferHold, pastDownloaded, progressLine, startLine, fmtEta } from '../public/player-partial.js';
 import { PhoneStreams } from '../src/phone-stream.js';
+import { killTree } from './kill-tree.mjs';
 
 const PIECE = 1024;
 
@@ -348,12 +349,12 @@ test('downloads list Play now and only the people it belongs to can open it', { 
   }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stdout.on('data', (c) => { logs += c; }); child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill(); await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
+    killTree(child); await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
     mock.closeAllConnections(); await new Promise((r) => mock.close(r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 10000);
+    const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 60000);
     child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('error', reject); child.once('exit', () => { clearTimeout(timer); reject(new Error(logs)); });
   });

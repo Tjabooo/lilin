@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // Members make invite links only after the owner allows it, a few at a time, and cancel only their own.
 // The real invites.js runs with dummy Cloudflare settings: making and cancelling links never calls Cloudflare.
@@ -21,7 +22,7 @@ test('members the owner allows can make, list and cancel their own invite links'
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -68,7 +69,7 @@ test('members the owner allows can make, list and cancel their own invite links'
     await request(`/api/admin/users/${member.id}`, { canInvite: false });
     await request('/api/invites', { note: 'x' }, 'member@inv.test', 403);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true }).catch(() => {});
   }

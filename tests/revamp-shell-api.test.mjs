@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as accounts from '../src/accounts.js';
 import { WatchRooms } from '../src/watch.js';
+import { killTree } from './kill-tree.mjs';
 
 // Every face can open a profile: room faces carry the account id for signed-in views, never on the public share page.
 test('room faces carry account ids, except on the public share page', () => {
@@ -40,7 +41,7 @@ test('the shared home account opens its own profile and diary; start views inclu
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -71,7 +72,7 @@ test('the shared home account opens its own profile and diary; start views inclu
     }
     assert.equal((await request('/api/me', { startView: 'house' }, 'ebi@p.test')).me.settings.startView, 'discover', 'unknown start views are ignored');
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fsp.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }

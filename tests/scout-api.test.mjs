@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 const TOKEN = 'scout-test-token-0123456789abcdef';
 const idea = (title, extra = {}) => ({ title, pitch: 'A short pitch about what this is like to use.', fit: 'Fits the player menu.', size: 'small',
@@ -25,7 +26,7 @@ test('the idea scout: token API, owner decisions and build reports', { timeout: 
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -122,7 +123,7 @@ test('the idea scout: token API, owner decisions and build reports', { timeout: 
     assert.equal((await user(`/api/ideas/${member.idea.id}`, { status: 'planned' })).idea.status, 'planned');
     await bot('/api/scout/ideas/00000000', { comment: 'hi' }, 404);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true }).catch(() => {});
   }

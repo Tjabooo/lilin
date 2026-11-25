@@ -5,7 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { topicFor } from '../src/live.js';
+import { topicFor } from '../src/live.js';
+import { killTree } from './kill-tree.mjs';
 
 test('pick routes tell the person’s other pages', () => {
   const id = 'Pk3x9QmZ2aBcDeFgHiJkLm';
@@ -30,7 +31,7 @@ test('the pick API is wired up and needs TMDB', { timeout: 30000 }, async () => 
     SERVER_IP: '127.0.0.1', PREPARE_NEXT_EPISODES: '0', TMDB_TOKEN: '', TMDB_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stderr.on('data', (c) => { logs += c; });
   const port = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(logs)), 10000);
+    const timer = setTimeout(() => reject(Error(logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const m = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (m) { clearTimeout(timer); resolve(Number(m[1])); } });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });
@@ -51,7 +52,7 @@ test('the pick API is wired up and needs TMDB', { timeout: 30000 }, async () => 
     r = await request('/api/match', undefined, { 'x-lilin-lang': 'sv' });
     assert.match(r.data.error, /Välj tillsammans behöver TMDB/);
   } finally {
-    child.kill();
+    killTree(child);
     await fs.rm(app, { recursive: true, force: true }).catch(() => {});
   }
 });

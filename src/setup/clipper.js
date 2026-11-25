@@ -172,7 +172,14 @@ export function localInstallCommand({ src, clipsDir, lilinUrl, quality, yes = fa
 // Download Clipper's source (a GitHub tarball of the pinned commit) into `dest`, replacing what's
 // there, after checking it against CLIPPER_TREE_SHA256. Another `ref` is only installed with
 // `expectTree: null`, which cli.js allows for --clipper-ref after a warning.
-export async function downloadClipper(dest, { fetchImpl = fetch, tar = 'tar', spawn, ref = CLIPPER_REF, expectTree = CLIPPER_TREE_SHA256 } = {}) {
+// Windows ships bsdtar in System32. A GNU tar earlier on PATH (Git Bash's) reads C:\... as a remote host:path.
+export function defaultTar(platform = process.platform, systemRoot = process.env.SystemRoot) {
+  if (platform !== 'win32' || !systemRoot) return 'tar';
+  const own = path.join(systemRoot, 'System32', 'tar.exe');
+  return fs.existsSync(own) ? own : 'tar';
+}
+
+export async function downloadClipper(dest, { fetchImpl = fetch, tar = defaultTar(), spawn, ref = CLIPPER_REF, expectTree = CLIPPER_TREE_SHA256 } = {}) {
   const res = await fetchImpl(clipperTarball(ref), { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`Downloading Clipper failed: HTTP ${res.status}`);
   const tmp = `${dest}.download`;

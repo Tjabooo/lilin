@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // Friends (friends.js): search by name, requests need a yes, removing works both ways, and
 // restricted people can neither be found nor have friends.
@@ -20,7 +21,7 @@ test('friend requests, search and restricted people', { timeout: 20000 }, async 
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -75,7 +76,7 @@ test('friend requests, search and restricted people', { timeout: 20000 }, async 
     await request('/api/friends/request', { id: alva.id }, 'bo@f.test');
     assert.equal((await request('/api/friends/request', { id: bo.id }, 'alva@f.test')).state, 'friend');
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Windows keeps the dead server's files locked briefly
   }

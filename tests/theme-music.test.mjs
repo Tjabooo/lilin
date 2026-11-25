@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { themeSpan, themeOrder, themeArgs, createThemeMusic, THEME_SECONDS } from '../src/theme-music.js';
 import { initCredits, storedIntro } from '../src/credits.js';
 import { themeLevel, saveThemeLevel, resumeAt, envelope, themeUrl, createThemeMusic as createPlayer, LEVELS, RESUME_WITHIN } from '../public/theme-music.js';
+import { killTree } from './kill-tree.mjs';
 
 const run = promisify(execFile);
 const FFMPEG = process.env.FFMPEG || 'ffmpeg', FFPROBE = process.env.FFPROBE || 'ffprobe';
@@ -102,7 +103,8 @@ test('a theme is cut once into the cache, and unknown intros are looked for in t
 
 test('GET /api/media/lib/<id>/theme serves the show’s theme, or 204 without one', { timeout: 40000 }, async (t) => {
   if (!(await haveFfmpeg())) { t.skip('FFmpeg unavailable'); return; }
-  const app = await tmp(t, 'lilin-theme-api-');
+  // Removed after the server has exited (below): after-hooks run in the order they were added.
+  const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-theme-api-'));
   const root = fileURLToPath(new URL('../', import.meta.url));
   const media = path.join(app, 'media');
   const show = path.join(media, 'Example Show', 'Season 1'), quiet = path.join(media, 'Quiet Show');
@@ -124,9 +126,15 @@ test('GET /api/media/lib/<id>/theme serves the show’s theme, or 204 without on
     CONVERT: 'off', SUBSYNC: 'off', TORRENTS: 'off', CAST_APPLETV: 'off', SERVER_IP: '127.0.0.1', PREPARE_NEXT_EPISODES: '0',
   }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stdout.on('data', (c) => { logs += c; }); child.stderr.on('data', (c) => { logs += c; });
-  t.after(async () => { child.kill(); await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r))); });
+  t.after(async () => {
+    const exited = new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
+    // killTree(child) on Windows ends only node: ffmpeg/ffprobe it started would keep the temp folder open (EBUSY).
+    killTree(child);
+    await exited;
+    await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  });
   const port = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 10000);
+    const timer = setTimeout(() => reject(new Error(`Startup timeout: ${logs}`)), 60000);
     child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { clearTimeout(timer); resolve(Number(ready[1])); } });
     child.once('exit', () => { clearTimeout(timer); reject(new Error(logs)); });
   });

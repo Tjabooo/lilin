@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // The Jellyfin plugin's whole conversation with Lilin: pair with a code, read the library, stream a
 // video and its subtitles through signed URLs, report progress, and lose access when disconnected.
@@ -26,11 +27,11 @@ test('a Jellyfin server pairs, syncs, streams signed files and reports progress'
   }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stdout.on('data', (c) => { logs += c; }); child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill(); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
+    killTree(child); await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(logs)), 8000);
+    const timer = setTimeout(() => reject(Error(logs)), 60000);
     child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });

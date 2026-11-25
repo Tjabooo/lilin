@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { ROUTES, pagesOf, resolve, linkRoute } from '../public/routes.js';
+import { killTree } from './kill-tree.mjs';
 
 // The You tab's root list: which rows each kind of person gets, in which group. A miscopied rule would show a row
 // someone may not use (or hide one they need), so every role is spelled out here.
@@ -85,7 +86,7 @@ test('You → Liked: every title, a page at a time; private to others when switc
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((done, fail) => {
-    let logs = ''; const timer = setTimeout(() => fail(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => fail(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); done(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); fail(Error(logs)); });
@@ -121,7 +122,7 @@ test('You → Liked: every title, a page at a time; private to others when switc
     assert.deepEqual((await request(`/api/profiles/${home.id}/liked`, undefined, null)).liked.map((l) => l.title), ['Home film']);
     await request(`/api/profiles/${home.id}/liked`, undefined, 'ebi@p.test', 404);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fsp.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }

@@ -10,6 +10,7 @@ import {
   createAuth, createLimiter, hashPassword, verifyPassword, hostAllowed, isPrivateAddress, isRemote, safeNext, signInPage, COOKIE,
 } from '../src/auth.js';
 import { userCommand } from '../src/setup/users.js';
+import { killTree } from './kill-tree.mjs';
 
 const fakeReq = ({ ip = '192.168.1.20', headers = {}, method = 'GET' } = {}) => ({ method, headers: { host: '192.168.1.5:8080', ...headers }, socket: { remoteAddress: ip } });
 const fakeRes = () => { const h = {}; return { h, setHeader: (k, v) => { h[k.toLowerCase()] = v; } }; };
@@ -171,7 +172,7 @@ test('server: sign-in gate, form login, CSRF and host checks end to end', { time
   const exited = new Promise((r) => child.once('exit', r));
   try {
     await new Promise((resolve, reject) => {
-      let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 10000);
+      let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
       child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
       child.stderr.on('data', (c) => { logs += c; });
     });
@@ -210,7 +211,7 @@ test('server: sign-in gate, form login, CSRF and host checks end to end', { time
     assert.equal(r.status, 200); assert.match(r.headers.get('set-cookie'), /Max-Age=0/);
     assert.equal((await go('/api/me', { headers: { ...outside, cookie } })).status, 401, 'signed out for good');
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }

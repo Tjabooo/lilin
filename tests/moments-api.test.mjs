@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 let ffmpeg = true;
 try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); execFileSync('ffprobe', ['-version'], { stdio: 'ignore' }); } catch { ffmpeg = false; }
@@ -25,7 +26,7 @@ test('moments are cut, sent to friends only and shared by link', { timeout: 6000
     SERVER_IP: '127.0.0.1', PREPARE_NEXT_EPISODES: '0' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let logs = ''; child.stderr.on('data', (c) => { logs += c; });
   const port = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error(logs)), 10000);
+    const timer = setTimeout(() => reject(Error(logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const m = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (m) { clearTimeout(timer); resolve(Number(m[1])); } });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
   });
@@ -109,7 +110,7 @@ test('moments are cut, sent to friends only and shared by link', { timeout: 6000
     assert.equal((await fetch(base + pagePath)).status, 404);
     assert.equal((await fetch(`${base}${pagePath}/video.mp4`)).status, 404);
   } finally {
-    child.kill();
+    killTree(child);
     await new Promise((r) => (child.exitCode !== null ? r() : child.once('exit', r)));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }

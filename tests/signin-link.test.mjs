@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { matrix, rows, svg, png } from '../src/qr.js';
 import { deviceOf, scanLink } from '../src/signin-link.js';
 import { createTvPairing } from '../src/tv.js';
+import { killTree } from './kill-tree.mjs';
 
 test('QR codes have the right size, finder patterns and format bits', () => {
   // byte mode at level Q: 32 bytes fit version 3 (29×29), 33 need version 4
@@ -73,7 +74,7 @@ test('a computer signs in by a QR code a signed-in phone approves', { timeout: 2
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -125,7 +126,7 @@ test('a computer signs in by a QR code a signed-in phone approves', { timeout: 2
     const html = await (await fetch(`http://127.0.0.1:${port}/signin`, { headers: { 'cf-connecting-ip': '203.0.113.9' } })).text();
     assert.ok(html.includes('id="qr-side"') || html.includes('<html'), 'sign-in page renders');
   } finally {
-    child.kill(); await exited;
+    killTree(child); await exited;
     await fs.rm(app, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {}); // Windows keeps the dead server's files locked briefly
   }
 });

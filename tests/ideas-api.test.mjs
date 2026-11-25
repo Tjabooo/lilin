@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { killTree } from './kill-tree.mjs';
 
 // The idea box: people send ideas, see only their own, take back unanswered ones; the owner sees all and answers.
 test('the idea box: send, list, answer and take back ideas', { timeout: 20000 }, async () => {
@@ -19,7 +20,7 @@ test('the idea box: send, list, answer and take back ideas', { timeout: 20000 },
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 8000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -78,7 +79,7 @@ test('the idea box: send, list, answer and take back ideas', { timeout: 20000 },
     await request(`/api/ideas/${sent.idea.id}/delete`, {}, 'owner@ideas.test');
     assert.equal((await request('/api/ideas', undefined, 'owner@ideas.test')).all.length, 1);
   } finally {
-    child.kill();
+    killTree(child);
     await exited;
     await fs.rm(app, { recursive: true, force: true }).catch(() => {});
   }

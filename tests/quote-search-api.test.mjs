@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createQuoteSearch } from '../src/quote-search.js';
+import { killTree } from './kill-tree.mjs';
 
 // Over HTTP: /api/status says there's something to find, and /api/lines answers with the film, the line and the
 // lines around it, without the file's path. The index is built beforehand (the server's first round waits 90 s).
@@ -34,7 +35,7 @@ test('lines API: a quote finds its film', { timeout: 30000 }, async () => {
   const child = spawn(process.execPath, ['server.js'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const exited = new Promise((r) => child.once('exit', r));
   await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 10000);
+    let logs = ''; const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { logs += c; const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(logs); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.stderr.on('data', (c) => { logs += c; });
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
@@ -56,8 +57,9 @@ test('lines API: a quote finds its film', { timeout: 30000 }, async () => {
     assert.deepEqual((await get('/api/lines?q=i')).results, []);
     assert.deepEqual((await get('/api/lines?q=nothing%20like%20this')).results, []);
   } finally {
-    child.kill();
+    // killTree(child) on Windows ends only node: helpers it started would keep the temp folder open (EBUSY).
+    killTree(child);
     await exited;
-    await fsp.rm(app, { recursive: true, force: true });
+    await fsp.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }
 });

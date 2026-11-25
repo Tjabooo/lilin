@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { VIBES, KEYWORDS, discoverParams, poolFrom, scoreTitle, vibeTypes, inSeason, createVibes } from '../src/vibes.js';
 import { orderVibe, rotateVibes, dailySeed, glyphNames, genreForMood, GENRE_MOODS } from '../public/vibes.js';
+import { killTree } from './kill-tree.mjs';
 
 const keywordIds = new Set(Object.values(KEYWORDS).map(([id]) => id));
 const idsIn = (value) => String(value || '').split(/[|,]/).filter(Boolean).map(Number);
@@ -198,14 +199,14 @@ test('API: /api/vibes lists the moods and /api/vibes/<id> sends one mood without
   child.stdout.on('data', (c) => { logs += c; });
   child.stderr.on('data', (c) => { logs += c; });
   t.after(async () => {
-    child.kill();
+    killTree(child);
     await new Promise((r) => child.exitCode !== null ? r() : child.once('exit', r));
     mock.closeAllConnections();
     await new Promise((r) => mock.close(r));
     await fs.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 9000);
+    const timer = setTimeout(() => reject(Error('Startup timeout: ' + logs)), 60000);
     child.stdout.on('data', (c) => { const ready = /Lilin is running: http:\/\/localhost:(\d+)/.exec(String(c)); if (ready) { port = Number(ready[1]); clearTimeout(timer); resolve(); } });
     child.once('error', reject);
     child.once('exit', () => { clearTimeout(timer); reject(Error(logs)); });
