@@ -4,6 +4,8 @@ rem An empty .lilin-stopped file in this folder keeps Lilin stopped (the task's 
 cd /d "%~dp0"
 if exist ".lilin-stopped" exit /b 0
 if not exist logs mkdir logs
+rem Streams, probes and copies all read files through Node's thread pool (4 threads by default): give it more.
+if not defined UV_THREADPOOL_SIZE set UV_THREADPOOL_SIZE=16
 :loop
 if exist ".lilin-stopped" exit /b 0
 echo [%date% %time%] starting Lilin>> "logs\lilin.log"

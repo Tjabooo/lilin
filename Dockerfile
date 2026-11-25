@@ -19,7 +19,8 @@ ENV NODE_ENV=production \
     MEDIA_DIR=/media \
     LILIN_ENV_FILE=/data/.env \
     HOST=0.0.0.0 \
-    PORT=8080
+    PORT=8080 \
+    UV_THREADPOOL_SIZE=16
 
 RUN mkdir -p /data /media && chown node:node /data /media
 USER node

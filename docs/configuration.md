@@ -127,6 +127,8 @@ that is a hard disk shared with downloads and conversions.
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `STREAM_READ_KB` | `4096` | How much of a file a stream reads at a time (64–65536). Large reads keep a busy hard drive from making a player wait in its queue once per 64 KB. |
+| `KEEP_ALIVE_SECONDS` | `120` | How long an idle connection stays open. Keep it longer than your reverse proxy keeps idle connections (Cloudflare Tunnel: 90 s), or the proxy sometimes reuses one just as it closes and shows a 502. |
+| `UV_THREADPOOL_SIZE` | `16` | Threads Node reads files with (Node's own default is 4). `start-lilin.cmd` and the Docker image set 16; with many streams from a hard drive, 4 makes players wait on each other. Must be set before Node starts. |
 | `PHONE_STREAMS_MAX` | `3` | Phone-quality streams (a live 1080p or 720p version of a big file, for phones) that may run at once. Each uses one GPU encoder session; a new one stops the one idle longest. |
 | `PLAY_NOW_ENGINE` | `auto` | Play now's helper, [playhead](https://github.com/Tjabooo/playhead). It runs next to qBittorrent (which still downloads, seeds and files the video) and fetches what the player needs next first: the start, the spot you seek to, and pieces stuck on a slow peer. Lilin downloads its pinned release (checksum checked) into `DATA_DIR/bin`, and binds it to qBittorrent's interface address. If that binding can't be mirrored, it stays off. `qbit` turns it off. |
 | `PLAYHEAD_BIND_ADDRESS` / `PLAYHEAD_BIND_INTERFACE` / `PLAYHEAD_UNBOUND` | from qBittorrent | Where playhead may connect, when qBittorrent's binding can't be mirrored (Windows interface IDs). playhead refuses to start when that address is missing, and closes every connection when it goes away. |

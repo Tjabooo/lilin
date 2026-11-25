@@ -6402,6 +6402,11 @@ async function handleAuth(req, res, p) {
 }
 
 const server = http.createServer((req, res) => inLanguage(languageOf(req), () => handleRequest(req, res)));
+// Behind a reverse proxy (Cloudflare Tunnel keeps idle origin connections for 90 s), Node's default 5 s keep-alive
+// closes connections the proxy still means to reuse: a request sent on one as it closes comes back as a 502.
+// Idle connections are kept longer than the proxy keeps them instead.
+server.keepAliveTimeout = Math.max(5, Number(process.env.KEEP_ALIVE_SECONDS) || 120) * 1000;
+server.headersTimeout = server.keepAliveTimeout + 5000;
 async function handleRequest(req, res) {
   try {
     let url = new URL(req.url, 'http://localhost');
