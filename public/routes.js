@@ -32,7 +32,7 @@ export const ROUTES = {
   'you/moments': { view: 'you', tab: 'you', sub: 'moments', group: 'people', label: 'Moments', allowed: (me) => Boolean(me) },
   // Owners read Activity in House; a member with "Can see activity" keeps it here (House is owners only).
   'you/activity': { view: 'activity', tab: 'you', sub: 'activity', group: 'people', label: 'Activity', allowed: (me, s) => Boolean(!s?.admin && me?.canSeeActivity) },
-  'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite someone to Lilin', allowed: (me, s) => Boolean(s?.admin || (me?.canInvite && me.email && !me.restricted)) },
+  'you/invite': { view: 'you', tab: 'you', sub: 'invite', group: 'people', label: 'Invite someone to Lilin', allowed: (me, s) => Boolean(s?.admin || (me?.email && !me.restricted)) }, // no Can invite: ask the owners
   'you/account': { view: 'you', tab: 'you', sub: 'account', group: 'settings', label: 'Account' },
   'you/look': { view: 'you', tab: 'you', sub: 'look', group: 'settings', label: 'Language and look' },
   'you/watching': { view: 'you', tab: 'you', sub: 'watching', group: 'settings', label: 'Watching' },

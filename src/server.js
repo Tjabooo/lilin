@@ -34,6 +34,7 @@ import * as clips from './clips.js';
 import { createStaticFiles } from './static-files.js';
 import { createAssetVersions, VERSION_LENGTH } from './asset-versions.js';
 import * as invites from './invites.js';
+import * as inviteRequests from './invite-requests.js'; // members ask the owners for an invite link
 import * as ideas from './ideas.js';
 import * as notices from './notices.js'; // owner popups shown once on next open
 import * as friends from './friends.js'; // friends
@@ -215,6 +216,14 @@ lists.initLists(); // lists: own tables in the accounts database
 ghosts.initGhosts(); // ghost reactions: own table in the accounts database
 // Notifications (push.js): a download is ready, a new episode arrived, a Watch Together invite.
 const push = new PushStore(DATA_DIR);
+// A member's invite requests, with the link and how it's doing once an owner said yes (invites.js state).
+function inviteRequestsView(req, list) {
+  const byId = new Map(invites.listInvites().map((i) => [i.id, i]));
+  return list.map(({ token, ...r }) => {
+    const inv = r.inviteId && byId.get(r.inviteId);
+    return { ...r, invite: inv ? { state: inv.state, expires: inv.expires, url: `${clips.baseUrl(req)}/c/i/${inv.token}` } : r.inviteId ? { state: 'gone' } : null };
+  });
+}
 // Sends `kind` to each person who has it switched on, in the background.
 function notify(userIds, kind, message) {
   const ids = [...new Set(userIds)].filter((id) => id != null && push.hasDevice(id)
@@ -439,6 +448,7 @@ const match = createMatch({
   },
 });
 invites.initInvites({ dataDir: DATA_DIR, onEvent: activity.record, passwordFor: (email) => Boolean(oidc.configured) && auth.hasPassword(email) });
+inviteRequests.initInviteRequests({ dataDir: DATA_DIR });
 // Lilin as the sign-in provider for Cloudflare Access (oidc.js): with it set up, invites sign people
 // straight in and everyone signing in through Access is asked to pick a Lilin password.
 const oidc = createOidc({
@@ -5215,10 +5225,47 @@ async function handleApi(req, res, url) {
       let members = null;
       let error = null;
       try { members = await invites.members(); } catch (e) { error = e.message; }
+  // Ask to invite a friend (invite-requests.js): members without "Can invite people" ask the owners, who say yes or no
+  // in the Invite sheet. A yes makes a one-time link in the member's name; they send it on from the same sheet.
+  if (p === '/api/invite-requests' || p.startsWith('/api/invite-requests/')) {
+    if (!user?.email || accounts.isRestricted(user)) throw new HttpError(403, 'You can’t invite people.');
+    if (!invites.invitesConfigured()) throw new HttpError(503, 'Invites aren’t set up on this server.');
+    if (p === '/api/invite-requests' && req.method === 'GET') {
+      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)), max: inviteRequests.MAX_PENDING });
+    }
+    if (p === '/api/invite-requests' && req.method === 'POST') {
+      if (user.canInvite) throw new HttpError(400, 'You can make invite links yourself.');
+      const r = inviteRequests.ask(user, await readJson(req));
+      activity.record(req, 'invite', `asked to invite ${r.name}`);
+      const owners = activity.adminEmails().map((e) => accounts.idForEmail(e)).filter((id) => id != null && id !== user.id);
+      notify(owners, 'idea', { title: `${user.name || 'Someone'} wants to invite ${r.name}`, body: r.why || 'Say yes or no in Invite someone to Lilin.', url: '/#you/invite', tag: `invite-request-${r.id}` });
+      live.publish('invites', { audience: 'admin' });
+      return sendJson(res, 200, { request: r, requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
+    }
+    if ((m = p.match(/^\/api\/invite-requests\/([a-f0-9]{8})\/cancel$/)) && req.method === 'POST') {
+      inviteRequests.cancel(m[1], user.id);
+      live.publish('invites', { audience: 'admin' });
+      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
+    }
+    throw new HttpError(404, 'Not found.');
+  }
       const names = Object.fromEntries((members || []).map((email) => [email, accounts.displayNameFor(email)]));
       const logins = Object.fromEntries((members || []).filter((id) => isAccountId(id)).map((id) => [id, usernames.signInName(id)]));
       return sendJson(res, 200, { configured: true, members, names, logins, error, owners: activity.adminEmails(), invites: invites.listInvites(),
-        passwords: oidc.configured ? auth.store.emails() : null });
+        passwords: oidc.configured ? auth.store.emails() : null,
+        requests: inviteRequests.pending().map((r) => ({ ...r, avatar: accounts.userById(r.userId)?.avatar || null })) });
+    }
+    // Ask to invite a friend: an owner says yes (a link in the member's name) or no; the member hears either way.
+    if ((m = p.match(/^\/api\/access\/requests\/([a-f0-9]{8})\/(accept|decline)$/)) && req.method === 'POST') {
+      const yes = m[2] === 'accept';
+      const r = inviteRequests.answer(m[1], yes, user, (q) => invites.createInvite(req, q.name, null, { id: q.userId, name: q.userName }));
+      activity.record(req, 'invite', `${yes ? 'said yes to' : 'said no to'} ${r.userName || 'someone'} inviting ${r.name}`);
+      notify([r.userId], 'friend', yes
+        ? { title: `You can invite ${r.name} now`, body: 'Your link is ready in Invite someone to Lilin. Send it to them.', url: '/#you/invite', tag: `invite-request-${r.id}` }
+        : { title: `No invite for ${r.name} this time`, body: 'An owner said no to this one.', url: '/#you/invite', tag: `invite-request-${r.id}` });
+      live.publish('invites', { audience: 'user', userId: r.userId });
+      live.publish('invites', { audience: 'admin' });
+      return sendJson(res, 200, { request: r, requests: inviteRequests.pending() });
     }
     if (p === '/api/access/rename' && req.method === 'POST') {
       const body = await readJson(req);
@@ -5258,7 +5305,7 @@ async function handleApi(req, res, url) {
       auth.store.remove(String(email || '')); // their Lilin password and sessions go too
       invites.revokeAccess(String(email || '')).catch((e) => console.warn('[invites] revoke:', e.message)); // and their Cloudflare sign-ins
       const gone = accounts.listUsers().find((u) => u.email && u.email === String(email || '').trim().toLowerCase());
-      if (gone) { push.forgetUser(gone.id); jellyfin.store.removeUser(gone.id); } // their devices stop getting notifications, their Jellyfin servers lose access
+      if (gone) { push.forgetUser(gone.id); jellyfin.store.removeUser(gone.id); inviteRequests.forgetUser(gone.id); } // their devices stop getting notifications, their Jellyfin servers lose access
       activity.record(req, 'revoke', String(email || '').toLowerCase());
       return sendJson(res, 200, { members: left });
     }
@@ -6436,7 +6483,7 @@ async function handleRequest(req, res) {
         || /^\/api\/(house\/(report|boot|power)|screentime|agent\/notify)$/.test(url.pathname) || /^\/api\/clips\/[\w-]+\/(share|unshare|delete|trim|rename)$/.test(url.pathname)
         || /^\/api\/scout\/ideas(?:\/[a-f0-9]{8})?$/.test(url.pathname) // scout: the idea scout runner (token)
         || url.pathname === '/api/me/username' // Account → Switch to a username
-        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke)$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/profiles\/\d{1,9}\/comments(?:\/\d{1,12}\/(?:delete|like|report))?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
+        || /^\/api\/access\/(invite|remove|rename|password-link|invite\/\w+\/revoke|requests\/[a-f0-9]{8}\/(?:accept|decline))$/.test(url.pathname) || /^\/api\/invites(?:\/[a-f0-9]{8}\/revoke)?$/.test(url.pathname) || /^\/api\/invite-requests(?:\/[a-f0-9]{8}\/cancel)?$/.test(url.pathname) || /^\/api\/ideas(?:\/[a-f0-9]{8}(?:\/delete)?)?$/.test(url.pathname) || /^\/api\/notices(?:\/[a-f0-9]{8}\/(seen|stop|delete))?$/.test(url.pathname) || /^\/api\/friends\/(request|accept|remove)$/.test(url.pathname) || url.pathname === '/api/profiles/me' || /^\/api\/profiles\/me\/(?:hidden|diary\/move|banner|letterboxd(?:\/sync|\/import)?|anime(?:\/sync|\/full|\/parts)?)$/.test(url.pathname) || /^\/api\/profiles\/\d{1,9}\/comments(?:\/\d{1,12}\/(?:delete|like|report))?$/.test(url.pathname) || /^\/api\/moments(?:\/[a-f0-9]{12}\/(send|delete|seen))?$/.test(url.pathname) || /^\/api\/match(?:\/[A-Za-z0-9_-]{22}\/(join|vote|more|invite|leave|watch))?$/.test(url.pathname) || /^\/c\/i\/[\w-]+\/?$/.test(url.pathname)
         || /^\/api\/auth\/(login|logout|password|first-password|devices\/sign-out)$/.test(url.pathname) || /^\/c\/oidc\/(login|token|userinfo)$/.test(url.pathname) || url.pathname === '/c/qr/start'
         || /^\/api\/(me|me\/progress|me\/seen|me\/continue\/hide|me\/avatar|library\/add|library\/identify|admin\/settings|admin\/users\/\d+|admin\/users\/\d+\/avatar|push\/subscribe|push\/unsubscribe|push\/test)$/.test(url.pathname)
         || /^\/api\/title\/(movie|tv)\/\d+\/dub$/.test(url.pathname) || /^\/api\/watchlist(?:\/seen)?$/.test(url.pathname) || /^\/api\/travel(?:\/remove)?$/.test(url.pathname)

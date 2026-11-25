@@ -23,7 +23,8 @@ test('Invite sheet: who gets which context, and who gets people or only the link
   // Invite someone to Lilin: the owner and members the owner lets invite; never restricted people or the home account
   assert.equal(access('lilin', 'owner').ok, true);
   assert.equal(access('lilin', 'memberInv').ok, true);
-  for (const role of ['member', 'restricted', 'home']) assert.equal(access('lilin', role).ok, false, role);
+  assert.equal(access('lilin', 'member').ok, true, 'members without Can invite ask the owners instead');
+  for (const role of ['restricted', 'home']) assert.equal(access('lilin', role).ok, false, role);
   // Add a friend: people with email who aren't restricted
   for (const role of ['owner', 'member', 'memberInv']) assert.deepEqual(access('friend', role), { ok: true, people: true }, role);
   for (const role of ['restricted', 'home']) assert.equal(access('friend', role).ok, false, role);

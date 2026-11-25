@@ -1,7 +1,8 @@
 // One Invite sheet for every way of asking someone in. Five contexts, one order: a title with its own verb, the people
 // you can ask (tap = ask them), the link (Copy link, Share…) and one hint line. "Invite" means bringing someone into
 // Lilin; the other titles say what they do.
-//   lilin   Invite someone to Lilin: one-time links (the owner: /api/access; members with Can invite: /api/invites)
+//   lilin   Invite someone to Lilin: one-time links (the owner: /api/access; members with Can invite: /api/invites);
+//           other members ask the owners for a link first (/api/invite-requests), and owners answer here too
 //   friend  Add a friend: requests waiting for you, then find someone by name; the link is your profile
 //   room    Ask people to join: a Watch Together room (/api/watch/<token>/invitees); channels have none
 //   pick    Ask people to pick: a Pick together going on (/api/match/<id>/invitees), or choosing who to ask first
@@ -26,7 +27,7 @@ export function inviteAccess(kind, me, { admin = false, live = false, canInvite 
   if (!me) return { ok: false, people: false };
   const social = Boolean(me.email && !me.restricted);
   switch (kind) {
-    case 'lilin': return { ok: Boolean(admin || (social && me.canInvite)), people: false };
+    case 'lilin': return { ok: Boolean(admin || social), people: false }; // without Can invite: ask the owners first
     case 'friend': return { ok: social, people: social };
     case 'room': return { ok: !live, people: !live && !me.restricted }; // a channel: everyone can tune in already
     case 'pick': return { ok: true, people: Boolean(canInvite && !me.restricted) };
@@ -159,9 +160,12 @@ export function createInvite({ h, api, jsonPost, toast, icon, people, me, admin,
       }, title: T('{0} on Lilin', me()?.name || ''), copied: T('Link copied. It opens for people who can see your profile.') }));
     },
 
-    // Invite someone to Lilin: a one-time link per person, and the links still waiting to be used.
-    lilin(ctx, access, { people: slot, link, hint }) {
+    // Invite someone to Lilin: a one-time link per person, and the links still waiting to be used. Members without
+    // Can invite ask the owners for a link instead (asking() below); owners see those requests above their own links.
+    lilin(ctx, access, parts) {
+      const { people: slot, link, hint } = parts;
       const owner = admin();
+      if (!owner && !me()?.canInvite) { asking(ctx, parts); return; }
       const paths = owner ? { list: '/api/access', make: '/api/access/invite', revoke: (i) => `/api/access/invite/${i.id}/revoke` }
         : { list: '/api/invites', make: '/api/invites', revoke: (i) => `/api/invites/${i.id}/revoke` };
       link.remove();
@@ -196,7 +200,24 @@ export function createInvite({ h, api, jsonPost, toast, icon, people, me, admin,
             try { await api(paths.revoke(i), jsonPost({})); } catch (err) { toast(err.message); }
             load();
           } }, T('Cancel')));
-        slot.replaceChildren(h('div', { class: 'invite-make' }, note, make),
+        const requests = owner ? data.requests || [] : [];
+        const answer = (r, yes) => async (e) => {
+          e.currentTarget.closest('li').querySelectorAll('button').forEach((b) => { b.disabled = true; });
+          try {
+            await api(`/api/access/requests/${r.id}/${yes ? 'accept' : 'decline'}`, jsonPost({}));
+            toast(yes ? T('{0} gets the link to send to {1}', r.userName || T('They'), r.name) : T('Said no to {0}', r.name));
+          } catch (err) { toast(err.message); }
+          load();
+        };
+        const ask = (r) => h('li', { class: 'invite-open' },
+          h('span', { class: 'invite-open-what' }, h('strong', {}, T('{0} wants to invite {1}', r.userName || T('Someone'), r.name)),
+            h('small', {}, [r.why, date(r.created)].filter(Boolean).join(' · '))),
+          h('button', { type: 'button', class: 'chip', onclick: answer(r, true) }, icon('check'), T('Yes')),
+          h('button', { type: 'button', class: 'chip', onclick: answer(r, false) }, T('No')));
+        slot.replaceChildren(
+          requests.length > 0 && h('p', { class: 'invite-open-head' }, T('Asking to invite someone')),
+          requests.length > 0 && h('ul', { class: 'invite-open-list invite-asks' }, requests.map(ask)),
+          h('div', { class: 'invite-make' }, note, make),
           open.length > 0 && h('p', { class: 'invite-open-head' }, T('Waiting to be used')),
           open.length > 0 && h('ul', { class: 'invite-open-list' }, open.map(row)),
           data.error && hintLine(T('Couldn’t read the access list: {0}', data.error)));
@@ -215,7 +236,63 @@ export function createInvite({ h, api, jsonPost, toast, icon, people, me, admin,
       load();
     },
   };
-  const cache = { lilin: null, handle: null };
+  const cache = { lilin: null, handle: null, asks: null };
+
+  // Ask to invite a friend (members without Can invite): name them, an owner says yes or no, and a yes turns the
+  // request into a link to send on. Requests still waiting can be taken back.
+  function asking(ctx, { people: slot, link, hint }) {
+    link.remove();
+    const date = (ms) => new Date(ms).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+    const paint = (data) => {
+      if (data.error && !data.requests) { slot.replaceChildren(); hint.textContent = data.error; return; }
+      const list = data.requests || [];
+      const waiting = list.filter((r) => r.state === 'pending');
+      const full = data.max != null && waiting.length >= data.max;
+      const name = h('input', { class: 'invite-note', type: 'text', maxlength: '60', placeholder: T('Who’s it for?'), 'aria-label': T('Who’s it for?') });
+      const why = h('input', { class: 'invite-note', type: 'text', maxlength: '140', placeholder: T('How do you know them? (optional)'), 'aria-label': T('How do you know them? (optional)') });
+      const send = h('button', { type: 'button', class: 'play-btn', disabled: full }, icon('send'), T('Ask'));
+      const go = async () => {
+        if (!name.value.trim()) { name.focus(); toast(T('Who’s it for? Enter their name.')); return; }
+        send.disabled = true;
+        try {
+          paint(cache.asks = await api('/api/invite-requests', jsonPost({ name: name.value.trim(), why: why.value.trim() })));
+          toast(T('Asked. You’ll get a notification when an owner answers.'));
+        } catch (err) { toast(err.message); send.disabled = false; }
+      };
+      send.addEventListener('click', go);
+      for (const input of [name, why]) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      const status = (r) => {
+        if (r.state === 'pending') return T('Waiting for an owner · asked {0}', date(r.created));
+        if (r.state === 'declined') return T('An owner said no');
+        const st = r.invite?.state;
+        if (st === 'open') return T('Yes! Send them the link · expires {0}', date(r.invite.expires));
+        if (st === 'used') return T('Joined with your link');
+        return T('The link expired. Ask again if they still want in.');
+      };
+      const row = (r) => h('li', { class: 'invite-open', 'data-state': r.state },
+        h('span', { class: 'invite-open-what' }, h('strong', {}, r.name), h('small', {}, status(r))),
+        ...(r.state === 'accepted' && r.invite?.state === 'open'
+          ? linkButtons({ link: r.invite.url, copied: T('Invite link copied: send it to {0}', r.name), title: T('Invite someone to Lilin'), compact: true }) : []),
+        r.state === 'pending' && h('button', { type: 'button', class: 'chip', onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try { paint(cache.asks = await api(`/api/invite-requests/${r.id}/cancel`, jsonPost({}))); } catch (err) { toast(err.message); load(); }
+        } }, T('Cancel')));
+      slot.replaceChildren(h('div', { class: 'invite-make invite-ask' }, name, why, send),
+        list.length > 0 && h('p', { class: 'invite-open-head' }, T('Your requests')),
+        list.length > 0 && h('ul', { class: 'invite-open-list' }, list.map(row)));
+      hint.textContent = [T('An owner says yes first. Then you get a one-time link to send them (valid 7 days).'),
+        full && T('Up to {0} requests waiting at a time.', data.max)].filter(Boolean).join(' ');
+    };
+    const load = async () => {
+      let data;
+      try { data = await api('/api/invite-requests'); } catch (err) { data = { error: err.message }; }
+      cache.asks = data;
+      ctx.onChange?.(data);
+      paint(data);
+    };
+    if (cache.asks) paint(cache.asks); else slot.replaceChildren(hintLine(T('Loading…')));
+    load();
+  }
 
   // Draws a context into container (its children are replaced). title: false leaves the title to the container.
   function mount(container, ctx, { sheet: inSheet = false } = {}) {
@@ -247,5 +324,5 @@ export function createInvite({ h, api, jsonPost, toast, icon, people, me, admin,
     if (typing) box.querySelector('input')?.focus({ preventScroll: true });
   }
 
-  return { open, mount, refresh, forget: () => { cache.lilin = null; } };
+  return { open, mount, refresh, forget: () => { cache.lilin = null; cache.asks = null; } };
 }

@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-25-ask-to-invite",
+  "date": "2026-11-25",
+  "title": "Ask to invite a friend",
+  "items": [
+    {
+      "kind": "new",
+      "title": "Ask to invite a friend",
+      "text": "Want a friend on Lilin? Open You → Invite someone to Lilin, type their name and tap Ask. An owner says yes or no, you get a notification, and a yes gives you a one-time link to send them."
+    }
+  ]
+},
+{
   "id": "2026-11-24-continue-play-now",
   "date": "2026-11-24",
   "title": "Continue watching keeps up",

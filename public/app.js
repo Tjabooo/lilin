@@ -3156,6 +3156,7 @@ async function applyLive() {
   if (has('friends') || has('people')) { friendsUI.invalidate(); jobs.push(friendsUI.load().then(() => { updateYouDot(); if (settingsOpen()) renderSettingsWhenStill(); else maybeAskFriends(); })); }
   if (has('ideas')) { ideasView.loaded = false; if (settingsOpen() || !state.me?.isOwner) jobs.push(loadIdeas().then(() => { updateYouDot(); if (settingsOpen() && !editingSettings()) renderSettingsWhenStill(); })); }
   if (has('social') || has('avatars')) social.refreshRates();
+  if (has('invites')) { invite.forget(); invite.refresh('lilin'); if (state.view === 'you' && location.hash.includes('invite')) renderSettingsWhenStill(); } // asking to invite someone
   if (has('reviews') || has('social') || has('avatars') || has('people')) reviews.refresh(); // reviews
   if ((has('parties') || has('avatars') || has('match')) && view === 'live') jobs.push(loadParties().then(() => { if (state.view === 'live') renderLive(); }));
   if (has('me') || has('people') || has('avatars')) {

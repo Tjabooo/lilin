@@ -1,4 +1,13 @@
 {
+  "2026-11-25-ask-to-invite": {
+    "title": "Fråga om att bjuda in en vän",
+    "items": {
+      "Ask to invite a friend": {
+        "title": "Fråga om att bjuda in en vän",
+        "text": "Vill du ha med en vän på Lilin? Öppna Du → Bjud in någon till Lilin, skriv deras namn och tryck på Fråga. En ägare svarar ja eller nej, du får en notis, och vid ett ja får du en engångslänk att skicka till dem."
+      }
+    }
+  },
   "2026-11-24-continue-play-now": {
     "title": "Fortsätt titta hänger med",
     "items": {
