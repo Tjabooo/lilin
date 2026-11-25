@@ -573,9 +573,9 @@ export const VIBES = [
       { movie: { with_genres: g(M.comedy, M.animation, M.family), 'with_runtime.gte': '60', 'with_runtime.lte': '95', without_genres: g(M.horror, M.thriller, M.crime, M.war, M.drama) },
         tv: { with_genres: g(TV.comedy), with_keywords: kw('sitcom', 'workplaceComedy', 'mockumentary'), 'with_runtime.lte': '32', without_genres: g(TV.crime, TV.drama, TV.mystery) } },
     ],
-    anchors: [film(8392, 'My Neighbor Totoro'), film(116149, 'Paddington'), film(533, 'Wallace & Gromit: The Curse of the Were-Rabbit'), film(7443, 'Chicken Run'),
-      film(10315, 'Fantastic Mr. Fox'), film(120467, 'The Grand Budapest Hotel'),
-      show(8592, 'Parks and Recreation'), show(48891, 'Brooklyn Nine-Nine'), show(61662, "Schitt's Creek"), show(66573, 'The Good Place'), show(125935, 'Abbott Elementary')],
+    anchors: [film(9377, "Ferris Bueller's Day Off"), film(872, "Singin' in the Rain"), film(346648, 'Paddington 2'), film(16859, "Kiki's Delivery Service"),
+      film(4951, '10 Things I Hate About You'), film(9603, 'Clueless'), film(2493, 'The Princess Bride'), film(8835, 'Legally Blonde'),
+      film(11631, 'Mamma Mia!'), film(4523, 'Enchanted')],
   },
   {
     // Films only: TMDB's runtime filter doesn't hold for shows (Breaking Bad got in), so "under 95 min" would lie.
