@@ -104,7 +104,7 @@ function loadDetails(id, seasons, tmdb) {
         backdrop: img('w780', d.backdrop_path),
         // Japanese animation (same test as anime.js isAnimeDetails): its files get anime numbering.
         anime: (d.genres || []).some((g) => g.id === 16) && (d.original_language === 'ja' || (d.origin_country || []).includes('JP')),
-        language: d.original_language || null, // Discover → K & J drama
+        language: d.original_language || null, // Discover → Asian drama
         seasons: Object.fromEntries((d.seasons || []).map((x) => [x.season_number, {
           name: x.name || null, poster: img('w342', x.poster_path), total: x.episode_count || null,
         }])),
@@ -275,7 +275,7 @@ export async function groupShows(items, tmdb, { wait = 2500 } = {}) {
       rating: d?.rating || null,
       genres: genresOf('tv', grp.tmdbId) || art?.genres || null,
       anime: Boolean(d?.anime),
-      drama: !d?.anime && ['ko', 'ja'].includes(d?.language), // K & J drama (live action)
+      drama: !d?.anime && ['ko', 'zh', 'cn', 'ja'].includes(d?.language), // Asian drama (live action)
       poster: d?.poster || art?.poster || null,
       backdrop: d?.backdrop || art?.backdrop || null,
       seasons,

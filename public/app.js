@@ -786,7 +786,7 @@ function openTravelList(opener) {
 // ---------- Discover ----------
 let searchCtrl;
 const disc = { type: 'all', genre: null, sort: 'popular', list: null, genres: null, cache: new Map() };
-const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['anime', T('Anime')], ['drama', T('K & J drama')], ['docs', T('Documentaries')]];
+const TYPE_LABELS = [['all', T('All')], ['movie', T('Films')], ['tv', T('Shows')], ['anime', T('Anime')], ['drama', T('Asian drama')], ['docs', T('Documentaries')]];
 // Types the Instant page has no filter of its own for (it shows everything instead).
 const allOnInstant = (type) => (['docs', 'anime', 'drama'].includes(type) ? 'all' : type);
 const SORT_LABELS = [['popular', T('Popular')], ['rating', T('Top rated')], ['newest', T('Newest')]];
@@ -951,7 +951,7 @@ const genreNames = (t) => (disc.genres || [])
   .map((g) => g.name).slice(0, 2);
 const genreFits = (g) => (disc.type === 'movie' ? g.movie : disc.type === 'tv' ? g.tv : disc.type === 'docs' ? false
   : disc.type === 'anime' ? Boolean(g.movie || g.tv) && g.movie !== 16 // anime: all of it is Animation already
-  : disc.type === 'drama' ? Boolean(g.movie || g.tv) && g.movie !== 16 && g.movie !== 99 : g.movie || g.tv); // K & J drama: live action
+  : disc.type === 'drama' ? Boolean(g.movie || g.tv) && g.movie !== 16 && g.movie !== 99 : g.movie || g.tv); // Asian drama: live action
 
 function segmented(options, value, onPick, label) {
   return h('div', { class: 'segmented', role: 'group', 'aria-label': label },
@@ -1165,7 +1165,7 @@ new MutationObserver(() => document.body.classList.toggle('has-billboard', state
 // ---------- Discover: rows of your own ----------
 // Anime: episodes of library shows TMDB calls anime (films carry no such flag, so they stay out).
 const animeShow = (id) => state.libraryShows.some((s) => s.id === id && s.anime);
-// K & J drama: library shows made in Korean or Japanese that aren't anime (films carry no language, so they stay out).
+// Asian drama: library shows made in Korean, Chinese or Japanese that aren't anime (films carry no language, so they stay out).
 const dramaShow = (id) => state.libraryShows.some((s) => s.id === id && s.drama);
 const homeType = (f) => (disc.type === 'all' ? true : disc.type === 'anime' ? Boolean(f.show) && animeShow(f.show)
   : disc.type === 'drama' ? Boolean(f.show) && dramaShow(f.show) : disc.type === 'tv' ? f.season != null || Boolean(f.show) : f.season == null && !f.show);
@@ -1542,7 +1542,7 @@ async function renderDiscover() {
     const data = await cachedApi(`/api/discover/home?type=${disc.type}`, signal);
     // Popular on Lilin arrives separately (it's quick, but shouldn't hold up TMDB's rows).
     const popularSlot = h('div', { class: 'popular-slot' });
-    // Anime and K & J drama: no Moods, daypart, For you or Popular on Lilin (they can't tell what's anime or a K-drama)
+    // Anime and Asian drama: no Moods, daypart, For you or Popular on Lilin (they can't tell what's anime or a K-drama)
     const anime = disc.type === 'anime' || disc.type === 'drama';
     const seeds = anime ? [] : watchedSeeds();
     const rows = (disc.type === 'all' ? mergeHomeRows(data.rows) : data.rows).map((r) => (comingSoon.handles(r.key) ? comingSoon.row(r) : row(r))); // comingsoon: dated cards

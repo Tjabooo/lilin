@@ -922,8 +922,10 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
 .new-badge, .svt-mark { border-radius: 0; box-shadow: none; clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
 /* the segmented switches (All/Films/Shows, Newest/A–Z) follow the same rule as the filter words */
+/* The clip reaches 1px past the right and bottom edges (same diagonal): with a fractional width (K & J drama) the
+   painted right hairline landed just outside a clip at exactly 100% and vanished (ebi, 11-25). */
 .segmented button { --c: 8px; border-radius: 0; --bl: transparent;
-  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+  clip-path: polygon(var(--c) 0, calc(100% + 1px) 0, calc(100% + 1px) calc(100% - var(--c) - 1px), calc(100% - var(--c) - 1px) calc(100% + 1px), 0 calc(100% + 1px), 0 var(--c));
   background-image: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px)),
     linear-gradient(to bottom right, transparent calc(50% - 1px), var(--bl) calc(50% - .5px), var(--bl) calc(50% + .5px), transparent calc(50% + 1px));
   background-position: left top, right bottom; background-size: var(--c) var(--c), var(--c) var(--c); background-repeat: no-repeat; }
