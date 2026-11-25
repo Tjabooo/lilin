@@ -6,7 +6,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { killTree } from './kill-tree.mjs';
 
 // The real server with stand-ins for qBittorrent, TMDB and the push service. Each person's phone is

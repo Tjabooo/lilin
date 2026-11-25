@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { killTree } from './kill-tree.mjs';
 
 const HASH = 'e'.repeat(40);

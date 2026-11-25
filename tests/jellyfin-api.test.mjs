@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { killTree } from './kill-tree.mjs';
 
 // The Jellyfin plugin's whole conversation with Lilin: pair with a code, read the library, stream a

@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { topicFor } from '../src/live.js';
+import { topicFor } from '../src/live.js';
 import { killTree } from './kill-tree.mjs';
 
 test('pick routes tell the person’s other pages', () => {
