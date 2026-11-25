@@ -396,7 +396,8 @@ export const VIBES = [
       { movie: { with_keywords: kw('christmas', 'christmasEve', 'santaClaus'), without_genres: g(M.horror, M.thriller, M.crime, M.action, M.war) },
         tv: { with_keywords: kw('christmas'), without_genres: g(TV.crime, TV.mystery) } },
     ],
-    skip: ['tv:52083'],
+    // Series where Christmas is only the backdrop, not a December watch (Smiley, La Palma, This Is England '88).
+    skip: ['tv:52083', 'tv:214609', 'tv:242977', 'tv:42174'],
     anchors: [film(771, 'Home Alone'), film(10719, 'Elf'), film(508, 'Love Actually'), film(1581, 'The Holiday'), film(1585, "It's a Wonderful Life"),
       film(508965, 'Klaus'), film(562, 'Die Hard'), film(10437, 'The Muppet Christmas Carol'), film(51052, 'Arthur Christmas'), film(840430, 'The Holdovers')],
   },
