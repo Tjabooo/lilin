@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-26-shadow-subs",
+  "date": "2026-11-26",
+  "title": "Subtitles with a shadow",
+  "items": [
+    {
+      "kind": "improved",
+      "title": "Shadow is the subtitle look now",
+      "text": "Subtitles now use the Shadow look instead of the dark box behind the text, on every device. You can still pick Box or Outline in the player's subtitle menu."
+    }
+  ]
+},
+{
   "id": "2026-11-26-dub-mark",
   "date": "2026-11-26",
   "title": "See which anime have an English dub",

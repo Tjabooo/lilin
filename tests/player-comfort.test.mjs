@@ -5,9 +5,9 @@ import { subLook, subRaise, secondChoices, sleepTimer, sleepSecondsLeft, sleepFa
   SLEEP_FADE_SECONDS, createNightAudio, NIGHT, autoMakeup } from '../public/player-comfort.js';
 
 test('subtitle look falls back to the defaults for anything unknown', () => {
-  assert.deepEqual(subLook(), { size: 1, background: 'box', position: 'low' });
+  assert.deepEqual(subLook(), { size: 1, background: 'shadow', position: 'low' });
   assert.deepEqual(subLook({ size: '1.25', background: 'outline', position: 'high' }), { size: 1.25, background: 'outline', position: 'high' });
-  assert.deepEqual(subLook({ size: '3', background: 'neon', position: 'top' }), { size: 1, background: 'box', position: 'low' });
+  assert.deepEqual(subLook({ size: '3', background: 'neon', position: 'top' }), { size: 1, background: 'shadow', position: 'low' });
   assert.equal(subRaise('low'), 0);
   assert.ok(subRaise('high') > subRaise('mid'));
   assert.equal(subRaise('nope'), 0);

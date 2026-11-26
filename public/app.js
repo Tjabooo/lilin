@@ -7772,7 +7772,12 @@ for (const ev of ['playing', 'canplay', 'pause', 'emptied', 'error']) video.addE
 // Size, background and position are kept on this device (player-comfort.js): a phone and a TV
 // usually want different ones.
 let look = subLook();
-try { look = subLook({ size: localStorage.getItem('subs:size'), background: localStorage.getItem('subs:look'), position: localStorage.getItem('subs:position') }); } catch { /* blocked */ }
+try {
+  // Shadow became the default look on 2026-11-26 (Oliver) and every device switched to it once; picking another
+  // look afterwards sticks.
+  if (!localStorage.getItem('subs:look-shadow-20261126')) { localStorage.setItem('subs:look', 'shadow'); localStorage.setItem('subs:look-shadow-20261126', '1'); }
+  look = subLook({ size: localStorage.getItem('subs:size'), background: localStorage.getItem('subs:look'), position: localStorage.getItem('subs:position') });
+} catch { /* blocked */ }
 function applySubLook() {
   for (const [v] of SUB_BACKGROUNDS) subsEl.classList.toggle(`look-${v}`, look.background === v);
 }

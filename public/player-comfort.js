@@ -15,7 +15,7 @@ export function subLook({ size, background, position } = {}) {
   const n = Number(size);
   return {
     size: SUB_SIZES.some(([, v]) => v === n) ? n : 1,
-    background: SUB_BACKGROUNDS.some(([v]) => v === background) ? background : 'box',
+    background: SUB_BACKGROUNDS.some(([v]) => v === background) ? background : 'shadow',
     position: SUB_POSITIONS.some(([v]) => v === position) ? position : 'low',
   };
 }

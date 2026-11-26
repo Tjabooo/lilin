@@ -1,4 +1,13 @@
 {
+  "2026-11-26-shadow-subs": {
+    "title": "Undertexter med skugga",
+    "items": {
+      "Shadow is the subtitle look now": {
+        "title": "Skugga är nu utseendet för undertexter",
+        "text": "Undertexter använder nu utseendet Skugga i stället för den mörka rutan bakom texten, på alla enheter. Du kan fortfarande välja Ruta eller Kontur i spelarens undertextmeny."
+      }
+    }
+  },
   "2026-11-26-dub-mark": {
     "title": "Se vilka anime som har engelskt tal",
     "items": {
