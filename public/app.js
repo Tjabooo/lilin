@@ -8402,7 +8402,7 @@ function updateUpNext() {
   // "End of episode" on the sleep timer: pause where Up next would start (the credits, or the end).
   if (sleep?.kind === 'episode' && session?.ready && !party && seeking == null && !video.seeking
     && isNextEpisodeTime({ ended: video.ended, time: video.currentTime, duration: video.duration, creditsAt: session.creditsAt })) sleepPause();
-  const next = session && nextLibraryEpisode(session, state.library, state.libraryShows);
+  const next = session && nextLibraryEpisode(session, state.library, state.libraryShows, state.server);
   const externalPlayer = nativeSubs || video.webkitDisplayingFullscreen || inPip()
     || video.webkitCurrentPlaybackTargetIsWireless || video.remote?.state === 'connected' || onTvVersion;
   const show = Boolean(session?.ready && next && !party && !session.upNextDismissed && !externalPlayer && seeking == null && !video.seeking
@@ -8486,7 +8486,7 @@ function stopAutoplay(session) {
 async function playNextEpisode() {
   const session = current;
   if (!session || session.upNextBusy || party || session.upNextDismissed) return;
-  const next = nextLibraryEpisode(session, state.library, state.libraryShows);
+  const next = nextLibraryEpisode(session, state.library, state.libraryShows, state.server);
   if (!next) { updateUpNext(); return; }
   session.upNextBusy = true; // synchronous, including a second click before the first await
   session.upNextError = '';
@@ -8497,11 +8497,16 @@ async function playNextEpisode() {
   session.nextAbort = new AbortController();
   const timeout = setTimeout(() => session.nextAbort?.abort(), 15000);
   try {
+    // Someone else's download: into your library first, like playing it from its title page.
+    if (next.fromServer) {
+      await api('/api/library/add', jsonPost({ ids: [next.id] }));
+      loadLibrary().catch(() => {});
+    }
     // Keep the paused current file available if signing or checking the next stream fails.
     const file = libraryFile(next);
     const prepared = await preparePlayerSource(file, null, session.nextAbort.signal);
     if (current !== session || party || session.upNextDismissed) return;
-    const stillNext = nextLibraryEpisode(session, state.library, state.libraryShows);
+    const stillNext = nextLibraryEpisode(session, state.library, state.libraryShows, state.server);
     if (stillNext?.id !== next.id) throw new Error(T('This episode is no longer available. Try again in a moment.'));
     await loadPlayerMedia(file, { prepared });
   } catch (error) {

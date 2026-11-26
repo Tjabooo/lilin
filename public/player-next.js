@@ -5,15 +5,25 @@ const positiveInteger = (n) => Number.isSafeInteger(n) && n > 0;
 const usableEpisode = (f) => Boolean(f?.id && f.show && positiveInteger(f.season) && positiveInteger(f.episode)
   && f.done !== false);
 
-export function nextLibraryEpisode(playing, library, shows) {
+// server: episodes on the server that aren't in this person's library yet (someone else downloaded them).
+// Your own copy wins; a server one is marked fromServer so the player adds it to your library first.
+export function nextLibraryEpisode(playing, library, shows, server = []) {
   if (playing?.kind !== 'lib') return null;
   // Group IDs can change when a delayed TMDB lookup resolves. Resolve the current file afresh.
   const current = library.find((f) => f.id === (playing.id || playing.key));
   if (!usableEpisode(current)) return null;
-  const episodes = library.filter((f) => usableEpisode(f) && f.show === current.show);
-  const choose = (season, episode) => episodes.filter((f) => f.season === season && f.episode === episode)
+  const sameShow = (list) => (list || []).filter((f) => usableEpisode(f) && f.show === current.show);
+  const episodes = sameShow(library);
+  const others = sameShow(server);
+  const pick = (list, season, episode) => list.filter((f) => f.season === season && f.episode === episode)
     .sort((a, b) => Number(Boolean(a.converting)) - Number(Boolean(b.converting))
       || String(a.file || '').localeCompare(String(b.file || '')) || String(a.id).localeCompare(String(b.id)))[0] || null;
+  const choose = (season, episode) => {
+    const own = pick(episodes, season, episode);
+    if (own) return own;
+    const other = pick(others, season, episode);
+    return other ? { ...other, fromServer: true } : null;
+  };
   const next = choose(current.season, current.episode + 1);
   if (next) return next;
   const total = shows.find((s) => s.id === current.show)?.seasons?.find((s) => s.number === current.season)?.total;

@@ -354,3 +354,18 @@ test('a guessed credits start shows Up next only when the real one is unknown', 
   assert.equal(upNextShowing({ ended: false, time: 3870, duration: 4162, creditsAt: null, creditsGuess: 3881 }), false);
   assert.equal(upNextShowing({ ended: false, time: 3890, duration: 4162, creditsAt: 4000, creditsGuess: 3881 }), false, 'the real start wins');
 });
+
+test('the next episode can be one someone else downloaded (on the server, not in your library yet)', () => {
+  const playing = { kind: 'lib', id: 'e6' };
+  const e6 = { id: 'e6', show: 's', season: 3, episode: 6 };
+  const e7 = { id: 'e7', show: 's', season: 3, episode: 7 };
+  const mine7 = { id: 'm7', show: 's', season: 3, episode: 7 };
+  const other = { id: 'x7', show: 'other', season: 3, episode: 7 };
+  const next = nextLibraryEpisode(playing, [e6], [], [e7, other]);
+  assert.equal(next.id, 'e7');
+  assert.equal(next.fromServer, true);
+  assert.equal(nextLibraryEpisode(playing, [e6, mine7], [], [e7]).id, 'm7', 'your own copy wins');
+  assert.equal(nextLibraryEpisode(playing, [e6, mine7], [], [e7]).fromServer, undefined);
+  assert.equal(nextLibraryEpisode(playing, [e6], [], [other]), null);
+  assert.equal(nextLibraryEpisode(playing, [e6], []), null, 'no server list = library only');
+});

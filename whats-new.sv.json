@@ -1,4 +1,13 @@
 {
+  "2026-11-26-up-next-server": {
+    "title": "Nästa hittar nya avsnitt",
+    "items": {
+      "Up next works when someone else downloaded the next episode": {
+        "title": "Nästa fungerar när någon annan laddat ner avsnittet",
+        "text": "Om nästa avsnitt fanns på servern men inte i ditt bibliotek än (någon annan laddade ner det) visade eftertexterna inget Nästa. Nu syns det, och när du trycker läggs avsnittet till i ditt bibliotek och spelas upp."
+      }
+    }
+  },
   "2026-11-26-shadow-subs": {
     "title": "Undertexter med skugga",
     "items": {

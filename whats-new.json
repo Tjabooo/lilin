@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-26-up-next-server",
+  "date": "2026-11-26",
+  "title": "Up next finds new episodes",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Up next works when someone else downloaded the next episode",
+      "text": "If the next episode was on the server but not in your library yet (someone else downloaded it), the credits had no Up next. Now it shows, and pressing it adds the episode to your library and plays it."
+    }
+  ]
+},
+{
   "id": "2026-11-26-shadow-subs",
   "date": "2026-11-26",
   "title": "Subtitles with a shadow",
