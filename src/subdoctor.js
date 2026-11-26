@@ -86,7 +86,15 @@ export class SubDoctor {
   setAside(srt) {
     if (!this.asideDir) return fs.rmSync(srt, { force: true });
     fs.mkdirSync(this.asideDir, { recursive: true });
-    fs.renameSync(srt, path.join(this.asideDir, `${Date.now()}-${path.basename(srt)}`));
+    const dest = path.join(this.asideDir, `${Date.now()}-${path.basename(srt)}`);
+    try {
+      fs.renameSync(srt, dest);
+    } catch (e) {
+      if (e.code !== 'EXDEV') throw e;
+      // the library lives on other drives than the cache: copy, then delete
+      fs.copyFileSync(srt, dest);
+      fs.rmSync(srt, { force: true });
+    }
   }
 
   async round() {
