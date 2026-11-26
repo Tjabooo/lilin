@@ -305,31 +305,56 @@ export async function playPartial(session, ctx) {
   for (const [name, fn] of events) video.addEventListener(name, fn);
   statusTimer = setTimeout(pollStatus, STATUS_MS);
   const onMetadata = () => ctx.onMetadata(session);
-  sourceUrl = opened.url;
   const appleHls = Boolean(video.canPlayType('application/vnd.apple.mpegurl')) && 'webkitShowPlaybackTargetPicker' in video;
   let Hls = null;
   if (!appleHls) Hls = await loadHls().catch(() => null);
   if (signal.aborted || !ctx.isCurrent(session)) return;
-  if (Hls?.isSupported()) {
-    const hls = new Hls(HLS_CONFIG);
-    session.hlsPlayer = hls;
-    hls.on(Hls.Events.ERROR, (_, data) => {
-      if (!data.fatal || !ctx.isCurrent(session)) return;
-      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-      else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-      else {
-        ctx.setSpinner(false);
-        ctx.showError(T('This video can’t keep playing right now. Press Play again in a few minutes.'));
-      }
-    });
-    ctx.setHlsSource(hls, opened.url, session, onMetadata);
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.addEventListener('error', onNativeError);
-    ctx.setSource(opened.url, session, onMetadata);
-  } else {
+  if (!Hls?.isSupported() && !video.canPlayType('application/vnd.apple.mpegurl')) {
     ctx.setSpinner(false);
     ctx.showError(T('This browser can’t play a video that’s still on its way. Try again in a while, or in another browser.'));
     return;
+  }
+  // (Re)starts the stream: first with the link from open, then again on another audio track, from where it was.
+  const attach = (url, after) => {
+    sourceUrl = url;
+    if (Hls?.isSupported()) {
+      session.hlsPlayer?.destroy();
+      const hls = new Hls(HLS_CONFIG);
+      session.hlsPlayer = hls;
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal || !ctx.isCurrent(session) || session.hlsPlayer !== hls) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        else {
+          ctx.setSpinner(false);
+          ctx.showError(T('This video can’t keep playing right now. Press Play again in a few minutes.'));
+        }
+      });
+      ctx.setHlsSource(hls, url, session, after);
+    } else {
+      video.removeEventListener('error', onNativeError);
+      video.addEventListener('error', onNativeError);
+      ctx.setSource(url, session, after);
+    }
+  };
+  attach(opened.url, onMetadata);
+  // Several audio tracks (a dual-audio anime): the player's Audio menu. Picking one makes the live stream again with
+  // that track and carries on at the same spot.
+  if (!room() && opened.tracks?.length > 1) {
+    ctx.partAudio?.(session, opened.tracks, opened.audio, async (index) => {
+      let link;
+      try {
+        for (let tries = 0; ; tries++) {
+          link = await api(`/api/part/open?${query}&audio=${index}`, { signal });
+          if (link.ready || tries >= 10 || signal.aborted) break;
+          await sleep(OPEN_MS, signal);
+        }
+      } catch { return false; }
+      if (!link?.ready || link.audio !== index || signal.aborted || !ctx.isCurrent(session)) return false;
+      const at = video.currentTime || 0, playing = !video.paused;
+      attach(link.url, () => { if (at > 1) video.currentTime = at; if (playing) video.play().catch(() => {}); });
+      return true;
+    });
   }
   if (!room()) video.play().catch(() => { /* autoplay blocked: the controls are there */ });
 }

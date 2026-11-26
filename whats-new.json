@@ -11,6 +11,11 @@
     },
     {
       "kind": "fix",
+      "title": "Pick the audio while it's still downloading",
+      "text": "Play now (watching something that's still downloading) only played the default audio and had no Audio menu. It has one now, so a dual-audio anime can be watched in English straight away. If you asked for it dubbed, it starts in English by itself."
+    },
+    {
+      "kind": "fix",
       "title": "Later anime arcs no longer play as episode 1",
       "text": "Asking for Black Butler episode 1 could start the first episode of a much later arc, because Lilin didn't know about the later arcs. It now follows a show's seasons even when they branch, so each arc lands in its own season."
     }

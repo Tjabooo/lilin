@@ -6,6 +6,10 @@
         "title": "En DUB-märkning på anime med engelskt tal",
         "text": "Anime som har engelskt ljud på servern visar nu en liten DUB i hörnet av affischen. Lilin kollar även själva filerna, så en säsong med dubbelt ljud räknas även när filnamnen inte säger det. Byt till engelska i ljudmenyn i spelaren."
       },
+      "Pick the audio while it's still downloading": {
+        "title": "Välj ljud medan det fortfarande laddas ner",
+        "text": "Spela nu (titta på något som fortfarande laddas ner) spelade bara standardljudet och hade ingen ljudmeny. Nu finns den, så en anime med dubbelt ljud kan ses på engelska direkt. Har du bett om den dubbad startar den på engelska av sig själv."
+      },
       "Later anime arcs no longer play as episode 1": {
         "title": "Senare anime-arcs spelas inte längre som avsnitt 1",
         "text": "Om du bad om Black Butler avsnitt 1 kunde det första avsnittet av en mycket senare arc starta, eftersom Lilin inte kände till de senare delarna. Nu följer Lilin en series säsonger även när de förgrenar sig, så varje arc hamnar i sin egen säsong."

@@ -6562,6 +6562,19 @@ async function remapBridgedAudio(session, a, index) {
 async function selectAudioTrack(index) {
   const session = current, a = session?.audio;
   if (!a || audioSuppressed() || !a.tracks.some(t => t.index === index)) return;
+  // Play now (still downloading): the live stream is made again with this track.
+  if (a.partPick) {
+    if (index === a.actual || a.pending != null) return;
+    a.error = ''; a.failed = null; a.pending = index; a.swap = true;
+    renderAudioControls(); announceAudio(T('Switching to {0} audio…', audioLabel(a, index)));
+    const ok = await a.partPick(index);
+    if (current !== session || session.audio !== a) return;
+    a.pending = null; a.swap = null;
+    if (ok) { a.actual = index; a.activeLabel = audioLabel(a, index); a.userChoice = index !== a.default; announceAudio(T('{0} audio selected.', a.activeLabel)); }
+    else { a.error = T('This audio couldn’t play. Restoring your previous audio.'); a.failed = index; }
+    renderAudioControls();
+    return;
+  }
   cancelAudioIntent(session);
   a.error = ''; a.failed = null;
   if (index === a.actual && session.bridge?.track !== index) {
@@ -8140,6 +8153,15 @@ async function loadPlayerMedia(f, opts = {}) {
       },
       showError: (text) => showPlayerError(text, { title: T('Can’t play this yet') }),
       fullItem: (id) => state.library.find((x) => x.id === id && !x.converting) || null,
+      // The Audio menu for a video that's still downloading (player-partial.js remakes the stream on a pick).
+      partAudio: (s, tracks, actual, pick) => {
+        if (current !== s) return;
+        const list = tracks.filter((t) => Number.isSafeInteger(t.index) && Number.isSafeInteger(t.audioIndex));
+        const a = s.audio = { generation: 0, source: `part:${s.key}`, actual, default: actual, tracks: list, pending: null, failed: null, error: '',
+          usingFallback: true, sourceMatches: false, userChoice: false, partPick: pick };
+        a.activeLabel = audioLabel(a, actual);
+        renderAudioControls();
+      },
       // Asking also moves its sound/video copy to the front of the queue. Nothing Lilin can fix = offer it anyway.
       fullPlays: async (id) => {
         try {

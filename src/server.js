@@ -111,7 +111,7 @@ import { createAuth, signInPage, safeNext, clientAddress } from './auth.js';
 import { checkConfig } from './config-check.js';
 import { raiseServer } from './priority.js';
 import { startPlaybackGuard } from './playback-guard.js';
-import { PhoneStreams, segmentIndex, isHeavy, probe as probePhone } from './phone-stream.js';
+import { PhoneStreams, segmentIndex, isHeavy, pickAudio, probe as probePhone } from './phone-stream.js';
 import { creditsSong } from '../public/credits-song.js';
 import { PartialStreams, parsePartialId, roomGate } from './partial-stream.js';
 import { ColdStarts, THROTTLE_BPS } from './cold-start.js';
@@ -3442,7 +3442,9 @@ async function partialAccess(user, id) {
   return t;
 }
 // The signed Play now stream once the start of the video is there; { ready: false, status } before that.
-async function partialLink(req, id) {
+// audio: a stream index from `tracks` (the player's Audio menu); without one, someone who asked for this anime dubbed
+// gets the English track, everyone else the file's default.
+async function partialLink(req, id, { audio = null, user = null } = {}) {
   let opened;
   try { opened = await partialStreams.open(id); }
   catch (e) { throw new HttpError(e.status || 500, e.message); }
@@ -3450,11 +3452,19 @@ async function partialLink(req, id) {
   const status = partialStreams.status(entry);
   if (!ready) return { ready: false, status };
   if (!entry.announced) { entry.announced = true; activity.record(req, 'play', titleOf(entry.file), { quietMs: 3 * 3600 * 1000 }); }
-  const variant = 'phone1080';
+  const tracks = partialTracks(entry.info);
+  let chosen = tracks.find((t) => t.index === Number(audio)) || null;
+  if (!chosen && audio == null && user && tracks.length > 1 && wantsDub(user, infoFor(entry.file)?.title)) chosen = tracks.find((t) => /^(en|eng|english)$/i.test(t.language || '')) || null;
+  const variant = chosen ? `phone1080-a${chosen.index}` : 'phone1080';
   const exp = Math.floor(Date.now() / 1000) + PLAY_LINK_HOURS * 3600;
   return { ready: true, status, url: `/play/part/${id}/${variant}/${exp}/${signPlay('part', id, variant, exp)}/index.m3u8`,
     adaptiveUrl: `/play/part/${id}/abr/${exp}/${signPlay('part', id, 'abr', exp)}/master.m3u8`,
-    sourceHeight: entry.info.height || null };
+    sourceHeight: entry.info.height || null, tracks, audio: chosen ? chosen.index : (pickAudio(entry.info.audios || [])?.index ?? null) };
+}
+// A still-downloading video's audio tracks, the way the player's Audio menu lists them.
+function partialTracks(info) {
+  return (info?.audios || []).map((a, i) => ({ index: a.index, audioIndex: i, language: a.tags?.language || null,
+    title: a.tags?.title || null, codec: a.codec_name || null, channels: a.channels || null, default: Boolean(a.disposition?.default) }));
 }
 // The library copy of a finished download (by media key), if the library has it yet.
 async function libraryItemFor(key) {
@@ -3822,7 +3832,7 @@ const PIECE_HOLD_MS = 20_000;
 const PIECE_BEAT_MS = 15_000;
 async function sendPartialPiece(req, res, url, { id, variant }) {
   const name = url.pathname.split('/').pop();
-  const [, quality] = PHONE_VARIANT.exec(variant);
+  const [, quality, audio] = PHONE_VARIANT.exec(variant);
   const sig = url.pathname.split('/').at(-2);
   let opened;
   try { opened = await partialStreams.open(id); }
@@ -3831,7 +3841,7 @@ async function sendPartialPiece(req, res, url, { id, variant }) {
   if (!entry.info) throw new HttpError(503, 'This video is still starting.');
   const input = await partialStreams.inputUrl(entry);
   const label = `${streamLabel(entry.file)} · ${quality}p`;
-  const session = await phoneStreams.open(sig, { file: input, info: entry.info, quality, label, linear: () => partialStreams.linearStart(entry) });
+  const session = await phoneStreams.open(sig, { file: input, info: entry.info, quality, audioIndex: audio == null ? null : Number(audio), label, linear: () => partialStreams.linearStart(entry) });
   const headers = { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
   if (name === 'index.m3u8') {
     const body = phoneStreams.playlist(session);
@@ -5917,7 +5927,8 @@ async function handleApi(req, res, url) {
     const id = resolvePartId(url.searchParams.get('id') || ''); // (a first-time watch may have moved to a spare)
     await partialAccess(user, id);
     if (p === '/api/part/open') {
-      const link = await partialLink(req, id);
+      const audio = url.searchParams.get('audio');
+      const link = await partialLink(req, id, { audio: audio != null && /^\d{1,5}$/.test(audio) ? Number(audio) : null, user });
       return sendJson(res, link.ready ? 200 : 202, link);
     }
     let opened;
