@@ -5267,6 +5267,30 @@ async function handleApi(req, res, url) {
     }
     throw new HttpError(404, 'Not found.');
   }
+  // Ask to invite a friend (invite-requests.js): members without "Can invite people" ask the owners, who say yes or no
+  // in the Invite sheet. A yes makes a one-time link in the member's name; they send it on from the same sheet.
+  if (p === '/api/invite-requests' || p.startsWith('/api/invite-requests/')) {
+    if (!user?.email || accounts.isRestricted(user)) throw new HttpError(403, 'You can’t invite people.');
+    if (!invites.invitesConfigured()) throw new HttpError(503, 'Invites aren’t set up on this server.');
+    if (p === '/api/invite-requests' && req.method === 'GET') {
+      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)), max: inviteRequests.MAX_PENDING });
+    }
+    if (p === '/api/invite-requests' && req.method === 'POST') {
+      if (user.canInvite) throw new HttpError(400, 'You can make invite links yourself.');
+      const r = inviteRequests.ask(user, await readJson(req));
+      activity.record(req, 'invite', `asked to invite ${r.name}`);
+      const owners = activity.adminEmails().map((e) => accounts.idForEmail(e)).filter((id) => id != null && id !== user.id);
+      notify(owners, 'idea', { title: `${user.name || 'Someone'} wants to invite ${r.name}`, body: r.why || 'Say yes or no in Invite someone to Lilin.', url: '/#you/invite', tag: `invite-request-${r.id}` });
+      live.publish('invites', { audience: 'admin' });
+      return sendJson(res, 200, { request: r, requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
+    }
+    if ((m = p.match(/^\/api\/invite-requests\/([a-f0-9]{8})\/cancel$/)) && req.method === 'POST') {
+      inviteRequests.cancel(m[1], user.id);
+      live.publish('invites', { audience: 'admin' });
+      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
+    }
+    throw new HttpError(404, 'Not found.');
+  }
   // Invite links made by members the owner allows to invite ("Can invite people" in People).
   // Same one-time links as the owner's, at most a few open at a time, and only their own.
   if (p === '/api/invites' || p.startsWith('/api/invites/')) {
@@ -5298,30 +5322,6 @@ async function handleApi(req, res, url) {
       let members = null;
       let error = null;
       try { members = await invites.members(); } catch (e) { error = e.message; }
-  // Ask to invite a friend (invite-requests.js): members without "Can invite people" ask the owners, who say yes or no
-  // in the Invite sheet. A yes makes a one-time link in the member's name; they send it on from the same sheet.
-  if (p === '/api/invite-requests' || p.startsWith('/api/invite-requests/')) {
-    if (!user?.email || accounts.isRestricted(user)) throw new HttpError(403, 'You can’t invite people.');
-    if (!invites.invitesConfigured()) throw new HttpError(503, 'Invites aren’t set up on this server.');
-    if (p === '/api/invite-requests' && req.method === 'GET') {
-      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)), max: inviteRequests.MAX_PENDING });
-    }
-    if (p === '/api/invite-requests' && req.method === 'POST') {
-      if (user.canInvite) throw new HttpError(400, 'You can make invite links yourself.');
-      const r = inviteRequests.ask(user, await readJson(req));
-      activity.record(req, 'invite', `asked to invite ${r.name}`);
-      const owners = activity.adminEmails().map((e) => accounts.idForEmail(e)).filter((id) => id != null && id !== user.id);
-      notify(owners, 'idea', { title: `${user.name || 'Someone'} wants to invite ${r.name}`, body: r.why || 'Say yes or no in Invite someone to Lilin.', url: '/#you/invite', tag: `invite-request-${r.id}` });
-      live.publish('invites', { audience: 'admin' });
-      return sendJson(res, 200, { request: r, requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
-    }
-    if ((m = p.match(/^\/api\/invite-requests\/([a-f0-9]{8})\/cancel$/)) && req.method === 'POST') {
-      inviteRequests.cancel(m[1], user.id);
-      live.publish('invites', { audience: 'admin' });
-      return sendJson(res, 200, { requests: inviteRequestsView(req, inviteRequests.mine(user.id)) });
-    }
-    throw new HttpError(404, 'Not found.');
-  }
       const names = Object.fromEntries((members || []).map((email) => [email, accounts.displayNameFor(email)]));
       const logins = Object.fromEntries((members || []).filter((id) => isAccountId(id)).map((id) => [id, usernames.signInName(id)]));
       return sendJson(res, 200, { configured: true, members, names, logins, error, owners: activity.adminEmails(), invites: invites.listInvites(),

@@ -34,10 +34,10 @@ test('You: each role gets exactly its rows, group by group', () => {
   // owners (co-owners too) invite from You as well as House → People
   assert.deepEqual(rows('owner'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: [...SETTINGS, 'download-settings'] });
   assert.deepEqual(rows('coOwner'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
-  assert.deepEqual(rows('member'), { watching: WATCHING, people: ['friends', 'moments'], settings: SETTINGS, ideas: ['ideas'] });
-  assert.deepEqual(rows('memberAct'), { watching: WATCHING, people: ['friends', 'moments', 'activity'], settings: SETTINGS, ideas: ['ideas'] });
+  assert.deepEqual(rows('member'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: SETTINGS, ideas: ['ideas'] });
+  assert.deepEqual(rows('memberAct'), { watching: WATCHING, people: ['friends', 'moments', 'activity', 'invite'], settings: SETTINGS, ideas: ['ideas'] });
   assert.deepEqual(rows('memberInv'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: SETTINGS, ideas: ['ideas'] });
-  assert.deepEqual(rows('memberDl'), { watching: WATCHING, people: ['friends', 'moments'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
+  assert.deepEqual(rows('memberDl'), { watching: WATCHING, people: ['friends', 'moments', 'invite'], settings: [...SETTINGS, 'download-settings'], ideas: ['ideas'] });
   // restricted: no stars to give, no friends; their own moments (link-only sharing) stay
   assert.deepEqual(rows('restricted'), { watching: ['history', 'liked'], people: ['moments'], settings: SETTINGS, ideas: ['ideas'] });
   // the shared home account: its own history and moments, no friends or public page

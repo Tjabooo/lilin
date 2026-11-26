@@ -82,8 +82,8 @@ test('You pages per role keep today’s rules', () => {
   const pages = (role) => pagesOf('you', ROLES[role].me, ROLES[role].status).map((id) => ROUTES[id].sub);
   const watching = ['history', 'ratings', 'liked'];
   assert.deepEqual(pages('home'), [...watching, 'moments', 'account', 'look', 'watching', 'devices', 'download-settings', 'ideas']);
-  assert.deepEqual(pages('member'), [...watching, 'friends', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
-  assert.deepEqual(pages('memberAct'), [...watching, 'friends', 'moments', 'activity', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('member'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
+  assert.deepEqual(pages('memberAct'), [...watching, 'friends', 'moments', 'activity', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('memberInv'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('restricted'), ['history', 'liked', 'moments', 'account', 'look', 'watching', 'devices', 'ideas']);
   assert.deepEqual(pages('owner'), [...watching, 'friends', 'moments', 'invite', 'account', 'look', 'watching', 'devices', 'download-settings']);
