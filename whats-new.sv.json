@@ -1,4 +1,17 @@
 {
+  "2026-11-26-dub-mark": {
+    "title": "Se vilka anime som har engelskt tal",
+    "items": {
+      "A DUB mark on anime with an English dub": {
+        "title": "En DUB-märkning på anime med engelskt tal",
+        "text": "Anime som har engelskt ljud på servern visar nu en liten DUB i hörnet av affischen. Lilin kollar även själva filerna, så en säsong med dubbelt ljud räknas även när filnamnen inte säger det. Byt till engelska i ljudmenyn i spelaren."
+      },
+      "Later anime arcs no longer play as episode 1": {
+        "title": "Senare anime-arcs spelas inte längre som avsnitt 1",
+        "text": "Om du bad om Black Butler avsnitt 1 kunde det första avsnittet av en mycket senare arc starta, eftersom Lilin inte kände till de senare delarna. Nu följer Lilin en series säsonger även när de förgrenar sig, så varje arc hamnar i sin egen säsong."
+      }
+    }
+  },
   "2026-11-25-skip-intro-premiere": {
     "title": "Hoppa över intro på fler avsnitt",
     "items": {

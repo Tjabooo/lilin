@@ -805,12 +805,13 @@ async function cachedApi(url, signal) {
 const instantCache = { library: null, server: null, list: [], keys: new Set() };
 function instantTitles() {
   if (instantCache.library === state.library && instantCache.server === state.server) return instantCache.list;
-  const films = new Map(), shows = new Map(), keys = new Set();
+  const films = new Map(), shows = new Map(), keys = new Set(), dubbed = new Set();
   const added = (f) => f.addedAt || f.added || 0;
   for (const f of [...state.library, ...state.server]) {
     if (f.season != null || f.show) {
       const id = /^tv-(\d+)$/.exec(String(f.show || ''))?.[1];
       if (!id) continue;
+      if (f.hasDub) dubbed.add(`tv:${id}`);
       const x = shows.get(id) || { added: 0, episodes: 0 };
       x.added = Math.max(x.added, added(f)); x.episodes++;
       shows.set(id, x);
@@ -818,6 +819,7 @@ function instantTitles() {
     }
     if (f.movieAmbiguous || (!f.tmdbId && !f.filmTitle)) continue;
     const key = f.tmdbId ? `movie:${f.tmdbId}` : `name:${norm(f.filmTitle)}:${f.year || ''}`;
+    if (f.hasDub && f.tmdbId) dubbed.add(key);
     const old = films.get(key);
     if (old) { old.added = Math.max(old.added, added(f)); continue; }
     films.set(key, { added: added(f), t: { type: 'movie', id: f.tmdbId ?? null, title: f.filmTitle || f.title, year: f.year, poster: f.poster,
@@ -832,7 +834,7 @@ function instantTitles() {
   }
   for (const { t } of list) if (t.id != null) keys.add(`${t.type}:${t.id}`);
   list.sort((a, b) => b.added - a.added);
-  Object.assign(instantCache, { library: state.library, server: state.server, list, keys });
+  Object.assign(instantCache, { library: state.library, server: state.server, list, keys, dubbed });
   return list;
 }
 const instantKey = (t) => t?.id != null && (t.type === 'movie' || t.type === 'tv') && (instantTitles(), instantCache.keys.has(`${t.type}:${t.id}`));
@@ -842,6 +844,9 @@ function isInstant(t) {
   if (t.type === 'svt') { const n = norm(t.title); return [...state.library, ...state.server].some((f) => norm(f.filmTitle || f.title) === n); }
   return instantKey(t) || (t.id == null && matchesFor(t).some((f) => f.done));
 }
+// An anime with an English track on the server (dual audio, a grafted dub or English found in the file): DUB on its card.
+const hasDubOnServer = (t) => t?.id != null && (t.type === 'movie' || t.type === 'tv') && (instantTitles(), Boolean(instantCache.dubbed?.has(`${t.type}:${t.id}`)));
+const dubMark = (t) => (hasDubOnServer(t) ? h('span', { class: 'dub-mark', title: T('English dub'), 'aria-label': T('English dub') }, T('Dub')) : null);
 function ownershipBadge(t, { words = false } = {}) {
   if (!isInstant(t)) return null;
   return h('span', { class: `instant-mark${words ? ' has-words' : ''}`, title: T('Plays instantly'), 'aria-label': words ? null : T('Plays instantly') },
@@ -920,6 +925,7 @@ function titleCard(t) {
         ? toneArt(art, tone)
         : h('div', { class: 'poster-fallback' }, t.title),
       ownershipBadge(t),
+      dubMark(t),
       t.fresh && h('span', { class: 'new-badge' }, freshTag(t.fresh)),
       svt && h('span', { class: 'svt-mark' }, 'SVT Play')),
     h('div', { class: 'name' }, t.title),
@@ -3704,7 +3710,7 @@ function advancedOptions(key, { exact, onExact, browse }) {
 // stateOf: where the page reads the film's files and downloads (titleState, or the Library entry for a video
 // without a TMDB id).
 // A copy with an English dub: a dual-audio release, or one the dub was added to (src/dub-graft.js).
-const isDubbedCopy = (f) => Boolean(f.versionDubbed || f.dubGrafted || f.versions?.some((v) => v.versionDubbed || v.dubGrafted));
+const isDubbedCopy = (f) => Boolean(f.hasDub || f.versionDubbed || f.dubGrafted || f.versions?.some((v) => v.hasDub || v.versionDubbed || v.dubGrafted));
 const filmExact = new Map(); // tmdb id -> exact resolution for this session
 function filmActions(t, { stateOf = () => titleState(t) } = {}) {
   const body = () => ({ type: 'movie', tmdbId: t.id, ...(filmExact.get(t.id) ? { quality: filmExact.get(t.id) } : {}) });

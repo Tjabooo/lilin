@@ -17,7 +17,7 @@ import path from 'node:path';
 import { showKey } from './shows.js';
 
 const ANILIST = process.env.ANILIST_URL || 'https://graphql.anilist.co';
-const VERSION = 3;
+const VERSION = 4; // 4: branching sequel chains (Black Butler), arc names kept out of the show's own
 const DAY = 24 * 60 * 60 * 1000;
 const LATIN = /^[\p{Script=Latin}\p{N}\p{P}\p{S}\s]+$/u;
 
@@ -214,25 +214,30 @@ async function anilistChain(names, year, keys, type) {
     if (first) break;
   }
   if (!first || type === 'movie') return first ? [first] : [];
+  // Sequels can branch: Kuroshitsuji's sequels are both Kuroshitsuji II (2010, a dead end) and Book of Circus (2014,
+  // which leads on to Public School and Emerald Witch). Every sequel found waits in `pending` and the earliest is
+  // taken next, so a dead end doesn't end the chain. Films and OVAs are walked through but not counted.
   const chain = [first];
   const seen = new Set([first.id]);
-  const sequel = (edges) => (edges || []).filter((e) => e.relationType === 'SEQUEL' && e.node?.type === 'ANIME' && !seen.has(e.node.id))
-    .map((e) => e.node).sort((a, b) => (a.startDate?.year || 9999) - (b.startDate?.year || 9999))[0] || null;
-  const take = (m) => {
-    seen.add(m.id);
-    if (TV_FORMATS.includes(m.format) && !['NOT_YET_RELEASED', 'CANCELLED'].includes(m.status)) chain.push(m);
+  const pending = [];
+  const yearOf = (m) => m.startDate?.year || 9999;
+  const queue = (edges) => {
+    for (const e of edges || []) {
+      if (e.relationType !== 'SEQUEL' || e.node?.type !== 'ANIME' || seen.has(e.node.id)) continue;
+      seen.add(e.node.id);
+      pending.push(e.node);
+    }
+    pending.sort((a, b) => yearOf(a) - yearOf(b));
   };
-  let at = first;
-  for (let hop = 0; hop < 8 && at; hop++) {
-    const next = sequel((await anilist(SEQUELS, { id: at.id }))?.Media?.relations?.edges);
-    if (!next) break;
-    take(next);
-    const after = sequel(next.relations?.edges);
-    if (!after) break;
-    take(after);
-    at = after;
+  queue((await anilist(SEQUELS, { id: first.id }))?.Media?.relations?.edges);
+  for (let requests = 1; pending.length && requests < 12;) {
+    const m = pending.shift();
+    if (TV_FORMATS.includes(m.format) && !['NOT_YET_RELEASED', 'CANCELLED'].includes(m.status)) chain.push(m);
+    // A sequel from the two-level query already knows its own sequels; one found a level deeper needs asking.
+    if (m.relations) queue(m.relations.edges);
+    else { requests++; queue((await anilist(SEQUELS, { id: m.id }))?.Media?.relations?.edges); }
   }
-  return chain.map(({ relations, ...m }) => m);
+  return chain.map(({ relations, ...m }) => m).sort((a, b) => (a === first ? -1 : b === first ? 1 : yearOf(a) - yearOf(b)));
 }
 
 // TMDB's seasons as ranges of one absolute count: [{ n, count, start, first, year }] (specials left
@@ -343,7 +348,13 @@ export async function buildContext(type, id, tmdb, { details = null } = {}) {
     const first = new Set(keysOf(firstTitles));
     entries.forEach((e, i) => { if (i > 0) e.keys = e.keys.filter((k) => !first.has(k) && !keysOf([name]).includes(k)); });
     const later = new Set(entries.slice(1).flatMap((e) => e.keys));
-    keys = keys.filter((k) => !later.has(k));
+    // An arc's name among TMDB's alternative titles ("Kuroshitsuji: Midori no Majo-hen", "Black Butler: Emerald Witch
+    // Arc") isn't the show's own name, even when AniList's chain doesn't reach that arc: as the show's name its
+    // episode 1 would be the show's very first episode. Unknown, it matches nothing instead.
+    const ownKeys = keysOf([name, original, ...firstTitles]);
+    const arcName = (t) => /(?:-hen\b|\barc\b|\bbook of\b|\bseason\b|\bpart\b|\bstage\b)/i.test(t);
+    const arcKeys = new Set(keysOf(baseTitles.filter((t) => arcName(t) && keysOf([t]).every((k) => !ownKeys.includes(k)))));
+    keys = keys.filter((k) => !later.has(k) && !arcKeys.has(k));
     // Query names: the romanised name first (what anime releases use), then TMDB's.
     const queryTitles = [...new Map((chain[0] ? [chain[0].title?.romaji, chain[0].title?.english, name] : [romaji[0], name, original])
       .filter((t) => t && LATIN.test(t)).map((t) => [showKey(t), t])).values()].slice(0, 3);

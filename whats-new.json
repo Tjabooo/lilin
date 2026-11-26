@@ -1,5 +1,22 @@
 [
 {
+  "id": "2026-11-26-dub-mark",
+  "date": "2026-11-26",
+  "title": "See which anime have an English dub",
+  "items": [
+    {
+      "kind": "new",
+      "title": "A DUB mark on anime with an English dub",
+      "text": "Anime that have English audio on the server now show a small DUB in the corner of their poster. Lilin also checks the files themselves, so a dual-audio season counts even when its file names don't say so. Switch to English from the audio menu in the player."
+    },
+    {
+      "kind": "fix",
+      "title": "Later anime arcs no longer play as episode 1",
+      "text": "Asking for Black Butler episode 1 could start the first episode of a much later arc, because Lilin didn't know about the later arcs. It now follows a show's seasons even when they branch, so each arc lands in its own season."
+    }
+  ]
+},
+{
   "id": "2026-11-25-skip-intro-premiere",
   "date": "2026-11-25",
   "title": "Skip intro on more episodes",

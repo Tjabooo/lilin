@@ -934,6 +934,8 @@ body::after { content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0
 .poster > .new-badge { max-width: calc(100% - 16px); height: 20px; padding: 0 9px 0 7px; display: block; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font: 800 9.5px/20px var(--body); letter-spacing: .08em; text-transform: uppercase; }
 .poster:has(> .instant-mark) > .new-badge { max-width: calc(100% - 46px); }
+.poster > .dub-mark { border-radius: 0; border: 0; right: 8px; bottom: 8px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .3);
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
 
 /* ================= round 2h sweep: every remaining rounded control gets the same cut ================= */
 /* Found by grepping every stylesheet index.html loads for interactive selectors with a radius ≥ 8 px / 50 % / 999 px

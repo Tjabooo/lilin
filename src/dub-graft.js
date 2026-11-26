@@ -23,11 +23,11 @@ const MIN_SCORE = 0.45;       // correlation a match needs to count
 const TMP_TAG = '.lilin-tmp'; // convert.js isTempFile: scans skip it
 
 let stateFile = null;
-let state = { v: 2, grafted: {}, failed: {}, tries: {} };
+let state = { v: 2, grafted: {}, failed: {}, tries: {}, english: {} };
 
 export function init({ dataDir }) {
   stateFile = path.join(dataDir, 'dub-graft.json');
-  try { state = { grafted: {}, failed: {}, tries: {}, ...JSON.parse(fs.readFileSync(stateFile, 'utf8')) }; } catch { /* first run */ }
+  try { state = { grafted: {}, failed: {}, tries: {}, english: {}, ...JSON.parse(fs.readFileSync(stateFile, 'utf8')) }; } catch { /* first run */ }
   // v2 (2026-11-21): fetches queued before then lost their episode list and asked for whole seasons. Start over.
   if (!state.v) { state.tries = {}; state.v = 2; save(); }
 }
@@ -50,6 +50,28 @@ const pairKey = (target, source) => {
   return `${fileKey(target)}|${fileKey(source)}|${size}`;
 };
 export const pairFailed = (target, source) => Boolean(state.failed[pairKey(target, source)]);
+
+// Anime files that turned out to carry an English track, whatever their names say: a dual-audio pack's folder and
+// files often don't ("[sam] Kuroshitsuji [BD 1080p FLAC]" inside "... [Dual-Audio]"). Keyed by path and size, so a
+// replaced file is looked at again. englishOf: true / false, or undefined when not looked at yet.
+const sizeOf = (file) => { try { return fs.statSync(file).size; } catch { return 0; } };
+export function englishOf(file) {
+  const e = state.english[fileKey(file)];
+  return e && e.size === sizeOf(file) ? e.en : undefined;
+}
+export function noteEnglish(file, tracks) {
+  const en = (tracks || []).some((t) => langOf({ tags: { language: t.language, title: t.title } }) === 'en');
+  state.english[fileKey(file)] = { en, size: sizeOf(file) };
+  return en;
+}
+// Forget files that are gone (call with every library path now and then).
+export function pruneEnglish(files) {
+  const keep = new Set(files.map(fileKey));
+  let changed = false;
+  for (const k of Object.keys(state.english)) if (!keep.has(k)) { delete state.english[k]; changed = true; }
+  if (changed) save();
+}
+export const saveEnglish = () => save();
 
 // ---- languages ----
 const ENGLISH = /^(en|eng|english)$/i;

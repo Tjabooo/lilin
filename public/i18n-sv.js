@@ -2786,6 +2786,8 @@ export default {
   "Optional. Tap the left half of a star for a half star.": "Valfritt. Tryck på vänstra halvan av en stjärna för en halv stjärna.",
   // play first: no Library, Play is the only action (Getting it ready, Instant)
   "Plays instantly": "Spelas direkt",
+  "English dub": "Engelskt tal",
+  "Dub": "Dub",
   "Instant": "Direkt",
   "Picture and sound": "Bild och ljud",
   "Copies on this phone": "Kopior på den här telefonen",

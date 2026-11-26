@@ -512,6 +512,13 @@ main {
 .instant-mark.has-words { height: 24px; padding: 0 9px 0 7px; font-size: 12px; color: var(--on-bulb); background: var(--bulb); border-radius: 999px; }
 .instant-mark.has-words svg { width: 12px; height: 12px; }
 @container (max-width: 132px) { .title-card .sub .kind { display: none; } }
+/* bottom right: an anime with an English dub on the server */
+.poster > .dub-mark {
+  position: absolute; right: 7px; bottom: 7px; z-index: 1; height: 18px; padding: 0 7px;
+  display: inline-flex; align-items: center; font: 800 9.5px/1 var(--body); letter-spacing: .08em; text-transform: uppercase;
+  color: #fff; background: rgb(var(--picture-dark) / .72); border: 1px solid rgb(255 255 255 / .28); border-radius: var(--r-xs);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
 /* top right: something new, or SVT Play's own mark */
 .new-badge {
   position: absolute; top: 7px; right: 7px; z-index: 1;
