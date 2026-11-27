@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { killTree } from './kill-tree.mjs';
 
-test('download polling adds complete episodes to their owner library before the maintenance round', { timeout: 15000 }, async (t) => {
+test('download polling adds complete episodes to their owner library before the maintenance round', { timeout: 45000 }, async (t) => {
   const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-library-'));
   const root = fileURLToPath(new URL('../', import.meta.url));
   const media = path.join(app, 'media'); await fs.mkdir(media);

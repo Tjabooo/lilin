@@ -159,6 +159,6 @@ test('profiles API: match on a friend’s profile only', { timeout: 20000 }, asy
   } finally {
     killTree(child);
     await exited;
-    await fsp.rm(app, { recursive: true, force: true });
+    await fsp.rm(app, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }
 });

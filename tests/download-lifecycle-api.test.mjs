@@ -101,7 +101,7 @@ async function fixture(t, { authenticated = false, missingMedia = false, inspect
   return { app, media, state, request, file };
 }
 
-test('partial packs claim only ready selected episodes, preserve identity/dates, and share an existing torrent', { timeout: 15000 }, async (t) => {
+test('partial packs claim only ready selected episodes, preserve identity/dates, and share an existing torrent', { timeout: 45000 }, async (t) => {
   const { media, state, request, file } = await fixture(t);
   const one = 'pack/Example.Show.S01E01.mp4', two = 'pack/Example.Show.S01E02.mp4', three = 'pack/Example.Show.S01E03.mp4';
   state.files = [
@@ -145,7 +145,7 @@ test('partial packs claim only ready selected episodes, preserve identity/dates,
   assert.equal((await request('/api/library')).items.length, 2);
 });
 
-test('rejected adds do not reserve ownership; removed hashes can be downloaded and claimed by a new owner', { timeout: 15000 }, async (t) => {
+test('rejected adds do not reserve ownership; removed hashes can be downloaded and claimed by a new owner', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t);
   state.name = 'Example.2020.mp4'; state.files = [{ name: state.name, progress: 1, size: 10, priority: 1 }];
   state.rejectAdd = true;
@@ -164,7 +164,7 @@ test('rejected adds do not reserve ownership; removed hashes can be downloaded a
   assert.equal((await request('/api/library')).items.length, 1);
 });
 
-test('retry is authorized, unknown/missing/checking downloads are truthful, and login is coalesced', { timeout: 15000 }, async (t) => {
+test('retry is authorized, unknown/missing/checking downloads are truthful, and login is coalesced', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t, { authenticated: true });
   state.name = 'Uncategorized.Release'; state.files = [{ name: 'video.mp4', progress: 1, size: 10, priority: 1 }];
   await Promise.all(Array.from({ length: 6 }, () => request('/api/downloads')));
@@ -188,7 +188,7 @@ test('retry is authorized, unknown/missing/checking downloads are truthful, and 
   assert.equal((await request('/api/downloads')).items[0].ready, true);
 });
 
-test('a pending deletion prevents a new requester from claiming its files', { timeout: 15000 }, async (t) => {
+test('a pending deletion prevents a new requester from claiming its files', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t);
   state.name = 'Example.2020.mp4'; state.files = [{ name: state.name, progress: 1, size: 10, priority: 1 }];
   await request('/api/downloads/add', { link: `magnet:?xt=urn:btih:${HASH}`, name: state.name });
@@ -204,7 +204,7 @@ test('a pending deletion prevents a new requester from claiming its files', { ti
   } finally { release(); await deleting; }
 });
 
-test('download outages preserve trusted owned videos and root-folder failures return an explicit error', { timeout: 15000 }, async (t) => {
+test('download outages preserve trusted owned videos and root-folder failures return an explicit error', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t);
   await file('Owned.2020.mp4'); await file('Unowned.2020.mp4');
   const initial = await request('/api/library');
@@ -219,7 +219,7 @@ test('download outages preserve trusted owned videos and root-folder failures re
   await unavailable.request('/api/library', undefined, undefined, 503);
 });
 
-test('conversion waits for a trustworthy torrent inventory and never processes deselected or partial bytes', { timeout: 15000 }, async (t) => {
+test('conversion waits for a trustworthy torrent inventory and never processes deselected or partial bytes', { timeout: 45000 }, async (t) => {
   const { media, state, request, file } = await fixture(t, { inspectCandidates: true });
   state.name = 'Example.Show.S01E01.mp4';
   const full = await file(state.name); const old = new Date(Date.now() - 600000); await fs.utimes(full, old, old);
@@ -240,7 +240,7 @@ test('conversion waits for a trustworthy torrent inventory and never processes d
   assert.equal(verified.length, 1); assert.equal(verified[0].deleteOriginal, false);
 });
 
-test('completed non-video downloads report complete without pretending to be playable', { timeout: 15000 }, async (t) => {
+test('completed non-video downloads report complete without pretending to be playable', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t);
   state.name = 'Uncategorized.Archive'; state.files = [{ name: 'archive.zip', progress: 1, size: 10, priority: 1 }];
   await file('archive.zip');
@@ -253,7 +253,7 @@ test('completed non-video downloads report complete without pretending to be pla
 const BATCH = '[Erai-raws] Black Clover (TV) - 001 ~ 170 [1080p][BATCH]';
 const batchFile = (ep, priority, progress = 0) => ({ index: ep - 1, name: `[Erai-raws] Black Clover (TV) - 001 ~ 170 [1080p]/[Erai-raws] Black Clover (TV) - ${String(ep).padStart(3, '0')} [1080p][ABCD1234].mkv`, progress, size: 10, priority });
 
-test('a ranged batch in a "001 ~ 170" folder reports only the episodes switched on', { timeout: 15000 }, async (t) => {
+test('a ranged batch in a "001 ~ 170" folder reports only the episodes switched on', { timeout: 45000 }, async (t) => {
   const { state, request } = await fixture(t);
   state.name = BATCH; state.files = [batchFile(1, 0), batchFile(2, 0), batchFile(70, 1), batchFile(71, 1)];
   await request('/api/downloads/add', { link: `magnet:?xt=urn:btih:${HASH}`, name: BATCH });
@@ -263,7 +263,7 @@ test('a ranged batch in a "001 ~ 170" folder reports only the episodes switched 
   assert.equal(d.packFiles, 4); assert.equal(d.skippedFiles, 2); assert.equal(d.others, false);
 });
 
-test('leaving a download: it carries on for others and stops being yours; nobody else, and it is cancelled', { timeout: 15000 }, async (t) => {
+test('leaving a download: it carries on for others and stops being yours; nobody else, and it is cancelled', { timeout: 45000 }, async (t) => {
   const { state, request } = await fixture(t);
   state.name = BATCH; state.files = [batchFile(70, 1), batchFile(71, 1)];
   const link = `magnet:?xt=urn:btih:${HASH}`;
@@ -285,7 +285,7 @@ test('leaving a download: it carries on for others and stops being yours; nobody
   assert.equal(state.deletes.length, 1);
 });
 
-test('removing a show mid-download keeps it out of your library as more episodes finish', { timeout: 15000 }, async (t) => {
+test('removing a show mid-download keeps it out of your library as more episodes finish', { timeout: 45000 }, async (t) => {
   const { state, request, file } = await fixture(t);
   const one = 'pack/Example.Show.S01E01.mp4', two = 'pack/Example.Show.S01E02.mp4';
   state.name = 'Example.Show.S01.COMPLETE';

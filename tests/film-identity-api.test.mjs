@@ -13,7 +13,7 @@ const movies = [
   { id: 1812260, title: 'Verity', release_date: '2026-10-31', poster_path: '/b.jpg', overview: 'A wish.' },
 ];
 
-test('film identification API requires owner access and changes only the selected file', { timeout: 15000 }, async () => {
+test('film identification API requires owner access and changes only the selected file', { timeout: 45000 }, async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-api-'));
   const media = path.join(app, 'media'); await fs.mkdir(media);

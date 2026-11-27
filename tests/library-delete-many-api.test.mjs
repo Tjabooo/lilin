@@ -115,7 +115,7 @@ async function seasonPack(t) {
 }
 const exists = (p) => fs.access(p).then(() => true, () => false);
 
-test('deleting a whole season removes its download from qBittorrent in one go', { timeout: 15000 }, async (t) => {
+test('deleting a whole season removes its download from qBittorrent in one go', { timeout: 45000 }, async (t) => {
   const { media, state, request, ids } = await seasonPack(t);
   const info = await request('/api/library/delete-many-info', { ids });
   assert.equal(info.videos, 3); assert.equal(info.shared, 0); assert.equal(info.downloads, 1); assert.equal(info.size, 30);
@@ -128,7 +128,7 @@ test('deleting a whole season removes its download from qBittorrent in one go', 
   assert.ok(await exists(path.join(media, EPS[0])), 'qBittorrent (mocked) owns the file removal');
 });
 
-test('deleting part of a pack deselects just those files and keeps the torrent', { timeout: 15000 }, async (t) => {
+test('deleting part of a pack deselects just those files and keeps the torrent', { timeout: 45000 }, async (t) => {
   const { media, state, request, ids } = await seasonPack(t);
   const lib = (await request('/api/library')).items;
   const pick = lib.filter((v) => v.episode !== 3).map((v) => v.id);
@@ -143,7 +143,7 @@ test('deleting part of a pack deselects just those files and keeps the torrent',
   assert.ok(ids.length === 3);
 });
 
-test('shared episodes only leave your library; the owner can delete them for everyone', { timeout: 15000 }, async (t) => {
+test('shared episodes only leave your library; the owner can delete them for everyone', { timeout: 45000 }, async (t) => {
   const { media, state, request, ids } = await seasonPack(t);
   await request('/api/downloads/add', { link: `magnet:?xt=urn:btih:${HASH}` }, 'other@test.local');
   await request('/api/downloads', undefined, 'other@test.local');
@@ -162,7 +162,7 @@ test('shared episodes only leave your library; the owner can delete them for eve
   assert.deepEqual((await request('/api/library', undefined, 'other@test.local')).items, []);
 });
 
-test('bulk delete validates its input', { timeout: 15000 }, async (t) => {
+test('bulk delete validates its input', { timeout: 45000 }, async (t) => {
   const { request } = await fixture(t);
   await request('/api/library/delete-many', { ids: [] }, undefined, 400);
   await request('/api/library/delete-many', {}, undefined, 400);

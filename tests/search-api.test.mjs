@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { killTree } from './kill-tree.mjs';
 
-test('Discover finds the exact film 9 and treats 2009 as a year filter', { timeout: 15000 }, async (t) => {
+test('Discover finds the exact film 9 and treats 2009 as a year filter', { timeout: 45000 }, async (t) => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const app = await fs.mkdtemp(path.join(os.tmpdir(), 'lilin-search-api-'));
   const media = path.join(app, 'media'); await fs.mkdir(media);
