@@ -37,7 +37,13 @@ jobs:
           echo /opt/ffmpeg/bin >> "$GITHUB_PATH"
           /opt/ffmpeg/bin/ffmpeg -version | head -1
       - run: npm test
+        if: runner.os != 'Windows'
         timeout-minutes: 10
+      # Windows runners have 4 vCPUs and most API tests spawn their own server: 8 test files
+      # at once starve each other into random timeouts (red on and off 11-24..11-27).
+      - run: node --test --test-concurrency=4 "tests/*.test.mjs"
+        if: runner.os == 'Windows'
+        timeout-minutes: 15
       - name: Setup, start, health check and clean stop
         run: node scripts/ci/smoke.mjs
       - name: Check PowerShell scripts parse
