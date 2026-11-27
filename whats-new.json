@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-27-finished-shows",
+  "date": "2026-11-27",
+  "title": "Finished shows leave Continue watching",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "A finished show stops coming back",
+      "text": "After the last episode, older half-watched episodes kept the show in Continue watching, and marking one watched brought back the episode after it. Now finishing an episode clears the older half-watched ones, and marking an old episode watched never moves you back in the show."
+    }
+  ]
+},
+{
   "id": "2026-11-26-up-next-server",
   "date": "2026-11-26",
   "title": "Up next finds new episodes",

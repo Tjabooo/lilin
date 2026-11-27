@@ -1518,6 +1518,21 @@ function rememberVersions(items) {
   }
   if (versionSiblings.size > 20000) versionSiblings.clear();
 }
+// Finishing an episode leaves the earlier episodes' half-watched resume points behind (a peek at S01E01, the last
+// minutes of S03E01's credits): drop the ones saved before that finish, every version of each, so Continue watching
+// (web and TV) doesn't bring the show back once the last episode is done. Goes by the show's last finished episode.
+function dropStaleEpisodeProgress(userId, titleKey) {
+  const fin = social.lastFinished(userId)[titleKey];
+  if (!fin) return 0;
+  const refs = new Set();
+  for (const ref of social.episodeRefsBefore(userId, titleKey, fin.season, fin.episode)) {
+    refs.add(ref);
+    const key = /^m:(.+)$/.exec(ref)?.[1];
+    for (const other of versionSiblings.get(key) || []) refs.add(`m:${other}`);
+  }
+  return accounts.dropProgressBefore(userId, refs, fin.at);
+}
+
 function saveProgressAllVersions(userId, ref, time, duration) {
   accounts.saveProgress(userId, ref, time, duration);
   const key = /^m:(.+)$/.exec(String(ref || ''))?.[1];
@@ -4665,7 +4680,9 @@ async function handleApi(req, res, url) {
       // Watch time for Wrapped and Popular on Lilin (see social.js), with who was in the same room.
       if (about && typeof about === 'object') {
         const companions = /^[A-Za-z0-9_-]{24}$/.test(String(room || '')) ? watchRooms.companions(room, user.id) : [];
-        social.logWatch(user.id, { ref, about, watched, finished: !onAir && !auto && time == null, companions });
+        const finished = !onAir && !auto && time == null;
+        social.logWatch(user.id, { ref, about, watched, finished, companions });
+        if (finished && about.season != null && /^tv:\d+$/.test(String(about.titleKey || ''))) dropStaleEpisodeProgress(user.id, about.titleKey);
       }
       return sendJson(res, 200, { ok: true });
     }
@@ -4681,6 +4698,7 @@ async function handleApi(req, res, url) {
     // in episode order, a millisecond apart, so the last one counts as the last finished (Up next goes by it)
     const at = Date.now();
     list.map(Number).sort((a, b) => a - b).forEach((e, i) => social.markEpisode(user.id, { key: String(key || ''), season, episode: e, seen: Boolean(seen), title, now: at + i }));
+    if (seen) dropStaleEpisodeProgress(user.id, String(key || ''));
     return sendJson(res, 200, { ok: true, seen: social.finishedEpisodes(user.id), finished: social.lastFinished(user.id) });
   }
   // Remove from Continue watching, everywhere this person signs in. at: only for moving an older hide over.

@@ -35,15 +35,31 @@ export function rate(userId, key, value, title = '') {
 }
 
 // The last episode this person finished of each show: { "tv:1399": { season, episode, at } }. Progress
-// rows are deleted when an episode ends, so this is what "play the next one" goes by.
+// rows are deleted when an episode ends, so this is what "play the next one" goes by. Playing an older
+// episode to the end moves it back (a rewatch), but marking one watched by hand (nothing played that day,
+// e.g. clearing an old card off Continue watching) only ever moves it forward: otherwise ticking off S01E08
+// after the finale brings back S02E01 as Up next, and so on down the show.
 export function lastFinished(userId) {
   if (userId == null) return {};
-  const rows = db().prepare(`SELECT title_key, season, episode, COALESCE(finished_at, last_at) AS at FROM watch_log
+  const rows = db().prepare(`SELECT title_key, season, episode, seconds, COALESCE(finished_at, last_at) AS at FROM watch_log
     WHERE user_id = ? AND finished = 1 AND season IS NOT NULL AND episode IS NOT NULL AND title_key LIKE 'tv:%'
     ORDER BY at`).all(userId);
   const out = {};
-  for (const r of rows) out[r.title_key] = { season: r.season, episode: r.episode, at: r.at };
+  for (const r of rows) {
+    const cur = out[r.title_key];
+    const behind = cur && (r.season < cur.season || (r.season === cur.season && r.episode < cur.episode));
+    if (behind && !(r.seconds > 0)) continue;
+    out[r.title_key] = { season: r.season, episode: r.episode, at: r.at };
+  }
   return out;
+}
+
+// Progress refs of a show's episodes that come before an episode (season, episode), from this person's own
+// watch log (the refs they played). Finishing that episode makes these resume points stale.
+export function episodeRefsBefore(userId, titleKey, season, episode) {
+  if (userId == null || !/^tv:\d+$/.test(String(titleKey || ''))) return [];
+  return db().prepare(`SELECT DISTINCT ref FROM watch_log WHERE user_id = ? AND title_key = ? AND season IS NOT NULL
+    AND episode IS NOT NULL AND (season < ? OR (season = ? AND episode < ?))`).all(userId, titleKey, season, season, episode).map((r) => r.ref);
 }
 
 // Every episode this person has finished, per show: { "tv:1399": ["1:1", "1:2"] }. The show page ticks them off.

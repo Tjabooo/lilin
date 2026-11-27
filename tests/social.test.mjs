@@ -235,6 +235,20 @@ test('Wrapped season: home card from release day to end of January, one push fro
   assert.equal(social.wrappedPushDue([], at('2026-12-10T18:01:00'), '12-01'), null, 'not days late');
 });
 
+test('last finished: a hand mark on an older episode never moves Up next back; playing one through does', () => {
+  const { anna } = setup();
+  const t0 = Date.now();
+  const about = (season, episode) => ({ title: 'Rings', titleKey: 'tv:84773', season, episode });
+  social.logWatch(anna.id, { ref: 'm:tv/r.s01e03.mkv', about: about(1, 3), watched: 20, now: t0 });
+  social.logWatch(anna.id, { ref: 'm:tv/r.s03e08.mkv', about: about(3, 8), watched: 20, finished: true, now: t0 + 1000 });
+  social.logWatch(anna.id, { ref: 'm:tv/r.s01e08.mkv', about: about(1, 8), watched: 0, finished: true, now: t0 + 2000 });
+  social.markEpisode(anna.id, { key: 'tv:84773', season: 2, episode: 1, seen: true, title: 'Rings', now: t0 + 3000 });
+  assert.deepEqual({ ...social.lastFinished(anna.id)['tv:84773'], at: 0 }, { season: 3, episode: 8, at: 0 });
+  assert.deepEqual(social.episodeRefsBefore(anna.id, 'tv:84773', 3, 8).toSorted().filter((r) => r.startsWith('m:')), ['m:tv/r.s01e03.mkv', 'm:tv/r.s01e08.mkv']);
+  social.logWatch(anna.id, { ref: 'm:tv/r.s01e01.mkv', about: about(1, 1), watched: 20, finished: true, now: t0 + 4000 });
+  assert.equal(social.lastFinished(anna.id)['tv:84773'].episode, 1, 'a rewatch played to the end');
+});
+
 test('episodes: marked watched by hand ticks them off without watch time; unmarking clears them', () => {
   const { anna } = setup();
   social.markEpisode(anna.id, { key: 'tv:4586', season: 1, episode: 3, seen: true, title: 'Gilmore Girls' });

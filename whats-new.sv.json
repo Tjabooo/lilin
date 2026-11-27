@@ -1,4 +1,13 @@
 {
+  "2026-11-27-finished-shows": {
+    "title": "Färdiga serier lämnar Fortsätt titta",
+    "items": {
+      "A finished show stops coming back": {
+        "title": "En färdigsedd serie kommer inte tillbaka",
+        "text": "Efter sista avsnittet höll äldre halvsedda avsnitt kvar serien i Fortsätt titta, och när du markerade ett som sett dök avsnittet efter upp i stället. Nu rensas äldre halvsedda avsnitt när du ser klart ett avsnitt, och att markera ett gammalt avsnitt som sett flyttar dig aldrig bakåt i serien."
+      }
+    }
+  },
   "2026-11-26-up-next-server": {
     "title": "Nästa hittar nya avsnitt",
     "items": {

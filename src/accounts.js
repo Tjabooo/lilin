@@ -746,6 +746,13 @@ export function playedWithin(key, ms) {
   if (!key) return false;
   return Boolean(db.prepare('SELECT 1 FROM progress WHERE ref = ? AND updated_at > ? LIMIT 1').get(`m:${key}`, Date.now() - ms));
 }
+// Resume points that went stale: these refs, saved before `before` (ms, server clock). Returns how many went.
+export function dropProgressBefore(userId, refs, before) {
+  const del = db.prepare('DELETE FROM progress WHERE user_id = ? AND ref = ? AND updated_at < ?');
+  let n = 0;
+  for (const ref of refs) n += Number(del.run(userId, String(ref), before).changes || 0);
+  return n;
+}
 export function saveProgress(userId, ref, time, duration) {
   ref = String(ref || '');
   if (!REF.test(ref)) throw httpError(400, 'Unknown video.');
