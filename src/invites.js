@@ -11,7 +11,8 @@
 // When Lilin is Cloudflare's sign-in provider (oidc.js, handlePublic gets `auth`), the invite page
 // also asks for a password, creates the Lilin account and signs the browser in, so the person lands
 // in Lilin without seeing a login page. A "password link" is an invite tied to one existing member's
-// email: the only way to claim an email that's already on the list.
+// email: the only way to claim an email that's already on the list. A "reset link" is a password link
+// for someone who already has a password (they forgot it): it replaces their password once used.
 //
 // With Lilin signing people in, a new person picks a username instead of giving an email: they get an
 // account id (account-ids.js) on the Access list and never type an email at all.
@@ -27,10 +28,11 @@ const CF_TOKEN = process.env.CF_API_TOKEN || '';
 const CF_ACCOUNT = process.env.CF_ACCOUNT_ID || '';
 const CF_LIST = process.env.CF_ACCESS_LIST_ID || '';
 const INVITE_DAYS = Math.max(1, Number(process.env.INVITE_DAYS) || 7);
+const RESET_HOURS = 48; // reset links can take over an existing account, so they live shorter
 const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 
 let file = null;
-let invites = {};        // token -> { id, note, created, expires, usedAt, email, forEmail, by, byName }
+let invites = {};        // token -> { id, note, created, expires, usedAt, email, forEmail, reset, by, byName }
 let record = () => {};   // activity logger, from server.js
 let hasPassword = () => false;   // does this email have a Lilin password? (auth.js, when Lilin signs people in)
 const attempts = [];     // timestamps of invite form posts, for a simple global rate limit
@@ -100,8 +102,9 @@ export function renameIdentity(previous, next) {
 
 // ---------- invites (owner side) ----------
 // A password link is done once its person has a password, however they set it (another link, the
-// password popup, setup.js): it leaves the owner's list and stops working.
-const state = (inv) => (inv.usedAt ? 'used' : inv.forEmail && hasPassword(inv.forEmail) ? 'done'
+// password popup, setup.js): it leaves the owner's list and stops working. A reset link stays open
+// until it's used (its person already has a password).
+const state = (inv) => (inv.usedAt ? 'used' : inv.forEmail && !inv.reset && hasPassword(inv.forEmail) ? 'done'
   : inv.expires < Date.now() ? 'expired' : 'open');
 export function listInvites() {
   return Object.entries(invites)
@@ -112,10 +115,12 @@ export function listInvites() {
 // Members the owner lets invite people may have this many open links at a time.
 export const MEMBER_OPEN_INVITES = 3;
 // `by`: the member who made it ({ id, name }), when it isn't the owner.
-export function createInvite(req, note = '', forEmail = null, by = null) {
+// `reset`: a password link for someone who already has a password (needs `forEmail`).
+export function createInvite(req, note = '', forEmail = null, by = null, { reset = false } = {}) {
   const token = crypto.randomBytes(12).toString('base64url');
-  const inv = { id: crypto.randomBytes(4).toString('hex'), note: String(note).slice(0, 60), created: Date.now(), expires: Date.now() + INVITE_DAYS * 86400000, usedAt: null, email: null, forEmail: forEmail ? String(forEmail).toLowerCase() : null,
-    by: by?.id ?? null, byName: by?.name ?? null };
+  reset = Boolean(reset && forEmail);
+  const inv = { id: crypto.randomBytes(4).toString('hex'), note: String(note).slice(0, 60), created: Date.now(), expires: Date.now() + (reset ? RESET_HOURS * 3600000 : INVITE_DAYS * 86400000), usedAt: null, email: null, forEmail: forEmail ? String(forEmail).toLowerCase() : null,
+    ...(reset ? { reset: true } : {}), by: by?.id ?? null, byName: by?.name ?? null };
   // A new password link replaces any earlier open one for the same person (no stray spare links).
   if (inv.forEmail) for (const [t, i] of Object.entries(invites)) if (i.forEmail === inv.forEmail && state(i) === 'open') delete invites[t];
   invites[token] = inv;
@@ -167,7 +172,8 @@ export async function handlePublic(req, res, url, { auth = null, usernames = nul
   if (!invitesConfigured()) return view('Invites aren’t set up', '<h1>Invites aren’t set up yet</h1><p>The server owner still needs to connect Lilin to Cloudflare.</p>');
 
   const bound = inv.forEmail;
-  const title = bound ? 'Pick your Lilin password' : 'You’re invited to Lilin';
+  const reset = Boolean(bound && inv.reset);
+  const title = reset ? 'Pick a new Lilin password' : bound ? 'Pick your Lilin password' : 'You’re invited to Lilin';
   // Lilin signs people in: new people pick a username; a password link shows whoever it was made for.
   const byName = Boolean(auth && usernames);
   const boundShown = bound && usernames ? usernames.signInName(bound) : bound;
@@ -182,8 +188,8 @@ export async function handlePublic(req, res, url, { auth = null, usernames = nul
       <input id="email" name="email" type="email" required autocomplete="username" autofocus value="${esc(typed)}" placeholder="you@example.com"></div>`);
   const form = (email = '', error = '') => (auth ? `
     <div class="card-brand">${brandMark()}</div>
-    <h1>${bound ? 'Pick a password' : 'You’re invited to Lilin'}</h1>
-    <p>${bound ? (boundIsName ? 'From now on you sign in to Lilin with your username and this password.' : 'From now on you sign in to Lilin with your email and this password.') : 'Your own cinema: films and shows on your phone, your TV, anywhere.'}</p>
+    <h1>${reset ? 'Pick a new password' : bound ? 'Pick a password' : 'You’re invited to Lilin'}</h1>
+    <p>${reset ? 'Your old password stops working, and you’re signed out everywhere else.' : bound ? (boundIsName ? 'From now on you sign in to Lilin with your username and this password.' : 'From now on you sign in to Lilin with your email and this password.') : 'Your own cinema: films and shows on your phone, your TV, anywhere.'}</p>
     <form method="post">${who(email)}
       <div class="field field-password"><label for="password">Choose a password (10+ characters)</label>
       <div class="pw-wrap"><input id="password" name="password" type="password" required minlength="10" autocomplete="new-password" ${bound ? 'autofocus' : ''}></div></div>
@@ -240,7 +246,7 @@ export async function handlePublic(req, res, url, { auth = null, usernames = nul
     inv.usedAt = now;
     inv.email = email;
     save();
-    record(req, bound ? 'signin' : 'joined', bound ? 'Set a Lilin password' : (inv.note || 'with an invite'), { user: email });
+    record(req, bound ? 'signin' : 'joined', reset ? 'Reset their Lilin password' : bound ? 'Set a Lilin password' : (inv.note || 'with an invite'), { user: email });
     const { setCookie } = auth.startSession(req, email);
     // Straight in: Cloudflare sends them to Lilin's sign-in, which sees this session and lets them through.
     res.writeHead(303, { Location: '/', 'Set-Cookie': setCookie, 'Cache-Control': 'no-store' });

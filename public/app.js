@@ -10231,12 +10231,13 @@ function invitePage() {
   invite.mount(box, { kind: 'lilin', title: false });
   return [box];
 }
-// For someone already on the list who has no Lilin password yet (they used Cloudflare's email codes).
-async function makePasswordLink(email, btn) {
+// For someone already on the list who has no Lilin password yet (they used Cloudflare's email codes), or,
+// with `reset`, someone who forgot theirs: the link lets them pick a new one.
+async function makePasswordLink(email, btn, reset = false) {
   btn.disabled = true;
   try {
-    const inv = await api('/api/access/password-link', jsonPost({ email }));
-    await copyWithToast(inv.url, T('Password link copied: send it to them'));
+    const inv = await api('/api/access/password-link', jsonPost({ email, reset }));
+    await copyWithToast(inv.url, reset ? T('Reset link copied: send it to them') : T('Password link copied: send it to them'));
   } catch (err) { toast(err.message); }
   await loadPeople();
   if (settingsOpen()) renderSettings();
@@ -10274,7 +10275,7 @@ function accessName(email, name) {
 }
 
 // House → People, sign-in: what can be done about someone on the access list. A password link for someone who has
-// none yet; Remove access (tap twice) for anyone but an owner.
+// none yet, a reset link for someone who forgot theirs; Remove access (tap twice) for anyone but an owner.
 function accessActions(email, name) {
   const a = state.access || {};
   const key = String(email).toLowerCase();
@@ -10284,6 +10285,8 @@ function accessActions(email, name) {
   const noPassword = a.passwords && !a.passwords.includes(key);
   return [
     noPassword && h('button', { type: 'button', class: 'chip', onclick: (e) => makePasswordLink(email, e.currentTarget) }, T('Password link')),
+    a.passwords && !noPassword && h('button', { type: 'button', class: 'chip', title: T('A one-time link (48 hours) that lets them pick a new password'),
+      onclick: (e) => makePasswordLink(email, e.currentTarget, true) }, T('Reset password')),
     !owner && h('button', { type: 'button', class: 'chip person-remove', onclick: (e) => {
       const b = e.currentTarget;
       if (b.dataset.sure) { accessAction('/api/access/remove', { email }, T('{0} can’t sign in any more', name)); return; }

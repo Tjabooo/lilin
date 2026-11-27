@@ -5376,13 +5376,17 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, inv);
     }
     // A one-time link that lets an existing member (who signed in with Cloudflare's codes) pick a password.
+    // For someone who already has one (forgot it), `reset: true` makes a reset link: it replaces the password.
     if (p === '/api/access/password-link' && req.method === 'POST') {
       if (!oidc.configured) throw new HttpError(400, 'Lilin sign-in for Cloudflare isn’t set up (OIDC_* in .env).');
-      const { email } = await readJson(req);
+      const { email, reset } = await readJson(req);
       const identity = typeof email === 'string' ? email.trim().toLowerCase() : '';
       if (!(await invites.members()).includes(identity)) throw new HttpError(404, 'That person is no longer in the access list.');
-      if (auth.hasPassword(identity)) throw new HttpError(400, 'They already have a password.');
-      const inv = invites.createInvite(req, `Password for ${accounts.displayNameFor(identity) || identity}`, identity);
+      const has = auth.hasPassword(identity);
+      if (has && !reset) throw new HttpError(400, 'They already have a password.');
+      if (!has && reset) throw new HttpError(400, 'They don’t have a password yet: send a password link instead.');
+      const name = accounts.displayNameFor(identity) || identity;
+      const inv = invites.createInvite(req, reset ? `New password for ${name}` : `Password for ${name}`, identity, null, { reset: has });
       activity.record(req, 'invite', inv.note);
       return sendJson(res, 200, inv);
     }
