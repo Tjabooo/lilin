@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { background } from './priority.js';
 import path from 'node:path';
+import { osOf, browserOf } from './device.js';
 import { spawn, execFile } from 'node:child_process';
 
 const UPLOAD_MBPS = Number(process.env.UPLOAD_MBPS) || null;           // the internet connection's upload
@@ -106,10 +107,8 @@ function save() {
 // ---------- streams ----------
 const clean = (ip) => String(ip || '').replace(/^::ffff:/i, '').replace(/%.*$/, '').trim();
 function deviceOf(ua = '') {
-  const os_ = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
-    : /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : null;
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome'
-    : /Safari\//.test(ua) ? 'Safari' : null;
+  const os_ = osOf(ua);
+  const browser = browserOf(ua);
   return [os_, browser].filter(Boolean).join(' · ') || (ua ? ua.split(/[\s/]/)[0].slice(0, 30) : null);
 }
 

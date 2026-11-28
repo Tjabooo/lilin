@@ -4,6 +4,7 @@
 // local address at home, show up as "Home network".
 import fs from 'node:fs';
 import path from 'node:path';
+import { osOf, browserOf } from './device.js';
 
 let ADMINS = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 // Everything from the last year stays readable: the page used to get only the newest 300 entries (two busy days),
@@ -70,10 +71,8 @@ export function replaceAllCi(text, find, replacement) {
 // "iPhone · Safari", "Windows · Firefox", ...
 function deviceOf(req) {
   const ua = String(req.headers['user-agent'] || '');
-  const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
-    : /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Unknown device';
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome'
-    : /Safari\//.test(ua) ? 'Safari' : null;
+  const os = osOf(ua) || 'Unknown device';
+  const browser = browserOf(ua);
   return browser ? `${os} · ${browser}` : os;
 }
 
