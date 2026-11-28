@@ -1,4 +1,13 @@
 {
+  "2026-11-28-double-subs": {
+    "title": "Undertexter visas inte längre dubbelt",
+    "items": {
+      "Each subtitle line shows once": {
+        "title": "Varje undertextrad visas en gång",
+        "text": "Vissa undertextfiler är gjorda för 3D-filmer och har varje rad två gånger, en för varje öga. Vid vanlig uppspelning hamnade båda kopiorna ovanpå varandra (det hände i Guardians of the Galaxy). Nu visas varje rad en gång."
+      }
+    }
+  },
   "2026-11-27-finished-shows": {
     "title": "Färdiga serier lämnar Fortsätt titta",
     "items": {

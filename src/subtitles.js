@@ -499,9 +499,34 @@ export async function readSubtitle(file, lang) {
   // English text that came from OCR gets its names, acronyms and I/l mix-ups fixed (see subfix.js),
   // with a human-made subtitle of the same episode as a guide when one has been fetched.
   const reference = lang === 'en' ? await referenceFor(file, p, text, characters) : null;
+  // 3D subtitles carry every line twice (one per eye, side by side); flat video shows one.
+  text = dropStereoTwins(text);
   // Fansub signs (text in the picture, typeset word by word or letter by letter) → one cue at the top.
   text = tidySigns(text);
   return assBraces(cleanSubtitle(text, { lang, file: p, mtimeMs: st.mtimeMs, variant: proofread, characters, reference }));
+}
+
+// Subtitles made for 3D side-by-side video repeat every cue with the same timing and text, placed once
+// per eye ({\pos(480,1060)} and {\pos(1440,1060)}). Played flat, both copies land on top of each other,
+// so a cue whose timing and text (tags aside) match an earlier cue of the same moment is dropped.
+export function dropStereoTwins(srt) {
+  const blocks = String(srt).split(/\n\s*\n/);
+  const out = [];
+  let timing = null;
+  let seen = new Set();
+  let dropped = 0;
+  for (const block of blocks) {
+    const lines = block.replace(/^\s+/, '').split('\n');
+    const at = lines.findIndex((l) => l.includes('-->'));
+    if (at < 0) { out.push(block); continue; }
+    const t = lines[at].replace(/\s+/g, ' ').trim();
+    if (t !== timing) { timing = t; seen = new Set(); }
+    const text = lines.slice(at + 1).join('\n').replace(/\{\\[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+    if (text && seen.has(text)) { dropped++; continue; }
+    seen.add(text);
+    out.push(block);
+  }
+  return dropped ? out.join('\n\n') : srt;
 }
 
 // Text left in {…} by ASS subtitles that ffmpeg turned into SRT. Fansubs keep optional honorifics

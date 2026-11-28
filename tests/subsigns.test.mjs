@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tidySigns } from '../src/subsigns.js';
-import { srtToVtt } from '../src/subtitles.js';
+import { srtToVtt, dropStereoTwins } from '../src/subtitles.js';
 
 const pad = (s) => String(s).padStart(2, '0');
 const cue = (n, from, to, text) => `${n}\n00:00:${pad(from)},000 --> 00:00:${pad(to)},000\n${text}`;
@@ -47,4 +47,14 @@ test('two cues with the same timing become one cue, first line on top', () => {
   const vtt = srtToVtt([cue(1, 1, 2, 'HOW DO YOU THINK'), cue(2, 1, 2, "THAT'S GONNA WORK?"), cue(3, 3, 4, 'I DON\'T KNOW.')].join('\n\n'));
   assert.match(vtt, /00:00:01\.000 --> 00:00:02\.000\nHOW DO YOU THINK\nTHAT'S GONNA WORK\?\n\n3\n/);
   assert.equal(vtt.split('-->').length - 1, 2);
+});
+
+test('3D subtitles (every cue twice, one per eye) show each line once', () => {
+  const srt = [cue(1, 1, 2, '{\\pos(480,1060)}Peter.'), cue(2, 1, 2, '{\\pos(1440,1060)}Peter.'), cue(3, 3, 4, 'Peter.'), cue(4, 5, 6, 'A'), cue(5, 5, 6, 'B')].join('\n\n');
+  const vtt = srtToVtt(dropStereoTwins(srt));
+  assert.equal(vtt.split('-->').length - 1, 3);
+  assert.match(vtt, /00:00:01\.000 --> 00:00:02\.000\nPeter\.\n\n/);
+  assert.match(vtt, /00:00:05\.000 --> 00:00:06\.000\nA\nB/);
+  const plain = [cue(1, 1, 2, 'Hello.'), cue(2, 3, 4, 'Hello.')].join('\n\n');
+  assert.equal(dropStereoTwins(plain), plain);
 });

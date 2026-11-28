@@ -1,5 +1,17 @@
 [
 {
+  "id": "2026-11-28-double-subs",
+  "date": "2026-11-28",
+  "title": "Subtitles no longer show twice",
+  "items": [
+    {
+      "kind": "fix",
+      "title": "Each subtitle line shows once",
+      "text": "Some subtitle files are made for 3D films and carry every line twice, one for each eye. Played normally, both copies landed on top of each other (it happened in Guardians of the Galaxy). Now each line shows once."
+    }
+  ]
+},
+{
   "id": "2026-11-27-finished-shows",
   "date": "2026-11-27",
   "title": "Finished shows leave Continue watching",
